@@ -6033,7 +6033,10 @@
     "title": "This screen did not load",
     "body": "Something went wrong on our side, not yours. Nothing you entered has been lost. Try again. If it keeps happening, the farm office can send us the code below.",
     "home": "Go to my home screen",
-    "reference": "Reference:"
+    "reference": "Reference:",
+    "connectionTitle": "The connection dropped",
+    "connectionBody": "We did not hear back from the server. What you were saving may or may not have gone through, so check the page before you enter it again.",
+    "checkPage": "Check the page"
   },
   "jobview": {
     "progress": "Job progress",
@@ -6275,5 +6278,17 @@
     "notVerified": "The message has not been verified, the request expired, or this number is already linked. Send it from your own number and try again.",
     "failed": "That could not be saved. Check your number, select at least one option, and confirm that your farm plan includes WhatsApp. Try again shortly.",
     "saved": "Your WhatsApp settings were saved."
+  },
+  "interaction": {
+    "working": "Working on it",
+    "downloadPreparing": "Preparing the file",
+    "downloadFailed": "The file did not download. Check your signal and try again.",
+    "downloadSignedOut": "You were signed out. Sign in again, then download the file.",
+    "downloadNotAllowed": "You do not have access to this file.",
+    "downloadNotFound": "This file is no longer available.",
+    "downloadBusy": "Too many downloads at once. Wait a minute and try again.",
+    "downloadOffline": "You are offline. Downloading a file needs signal.",
+    "actionFailed": "That did not go through. Check your signal and try again.",
+    "actionOffline": "You are offline. This needs signal, so try again when you have it."
   }
 }

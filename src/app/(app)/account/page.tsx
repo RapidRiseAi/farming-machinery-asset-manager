@@ -620,9 +620,9 @@ export default async function AccountPage({
                   />
                   <DialogActions cancelLabel={cancelLabel}>
                     {tabs.length ? (
-                      <button type="submit" name="reset" value="1" className={buttonVariants({ variant: "ghost" })}>
+                      <SubmitButton name="reset" value="1" variant="ghost">
                         {t("account.shortcutsReset", locale)}
-                      </button>
+                      </SubmitButton>
                     ) : null}
                     {saveButton}
                   </DialogActions>

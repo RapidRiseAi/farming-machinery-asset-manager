@@ -7,11 +7,13 @@ import { shortDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { farmBillingGate } from "@/lib/billing/service";
 import { errorMessage } from "@/lib/errors";
-import { Button } from "@/components/ui/button";
 import { Flash } from "@/components/ui/flash";
 import { MachinesIcon } from "@/components/ui/icons";
 import { signOut } from "@/app/(app)/actions";
 import { reopenFarm } from "./actions";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 /**
  * The screen a farm sees once it has lapsed.
@@ -106,22 +108,24 @@ export default async function ClosedPage({
 
         {canReopen && reason !== "suspended" ? (
           <form action={reopenFarm} className="mt-6">
-            <Button type="submit" className="w-full">
+            <SubmitButton className="w-full">
               {t("closed.reopen", locale)}
-            </Button>
+            </SubmitButton>
           </form>
         ) : null}
 
         {/* Their records, on the way out. This is what makes closing the door defensible:
             the product has promised since the downgrade shipped that nothing is deleted,
-            and a promise you cannot act on is not one. A plain link, not a form, the
-            route streams a file and nothing is being changed. */}
-        <a
+            and a promise you cannot act on is not one. A link, not a form, the route
+            streams a file and nothing is being changed; DownloadLink keeps a second
+            tap from starting a second export. */}
+        <DownloadLink
           href="/api/farm/export"
           className="mt-3 flex min-h-12 w-full items-center justify-center rounded-lg border border-sand-300 px-4 text-sm font-medium sm:min-h-11"
+          labels={downloadLabels(locale)}
         >
           {t("closed.download", locale)}
-        </a>
+        </DownloadLink>
 
         <p className="mt-4 text-xs text-sand-700">
           {t("closed.help", locale).replace("{email}", "team@rapidriseai.com")}
@@ -134,9 +138,9 @@ export default async function ClosedPage({
         <p className="text-xs text-sand-600">
           {t("gate.signedInAs", locale).replace("{email}", profile.email ?? "-")}
         </p>
-        <button type="submit" className="mt-1 min-h-12 text-sm font-medium text-brand-ink underline sm:min-h-11">
+        <SubmitButton look="plain" className="mt-1 min-h-12 text-sm font-medium text-brand-ink underline sm:min-h-11">
           {t("gate.signOut", locale)}
-        </button>
+        </SubmitButton>
       </form>
     </main>
   );

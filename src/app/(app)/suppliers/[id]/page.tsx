@@ -26,6 +26,8 @@ import { TextField } from "@/components/ui/field";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { cn } from "@/components/ui/cn";
 import { DownloadIcon } from "@/components/ui/icons";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -186,12 +188,12 @@ export default async function SupplierAccountPage({
         locale={locale}
         actions={
           <>
-            <a href={stmtPdf} className={buttonVariants({ variant: "secondary" })}>
+            <DownloadLink href={stmtPdf} className={buttonVariants({ variant: "secondary" })} labels={downloadLabels(locale)}>
               <DownloadIcon className="text-lg" /> {t("supplierStatement.pdf", locale)}
-            </a>
-            <a href={stmtCsv} className={buttonVariants({ variant: "ghost" })}>
+            </DownloadLink>
+            <DownloadLink href={stmtCsv} className={buttonVariants({ variant: "ghost" })} labels={downloadLabels(locale)}>
               {t("supplierStatement.csv", locale)}
-            </a>
+            </DownloadLink>
           </>
         }
       />
@@ -448,12 +450,12 @@ export default async function SupplierAccountPage({
                   <span className="font-semibold tabular-nums text-sand-900">{rands(remit.totalCents)}</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <a href={remitPdf} className={buttonVariants({ variant: "primary", size: "sm" })}>
+                  <DownloadLink href={remitPdf} className={buttonVariants({ variant: "primary", size: "sm" })} labels={downloadLabels(locale)}>
                     <DownloadIcon className="text-lg" /> {t("supplierStatement.remitPdf", locale)}
-                  </a>
-                  <a href={remitCsv} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                  </DownloadLink>
+                  <DownloadLink href={remitCsv} className={buttonVariants({ variant: "ghost", size: "sm" })} labels={downloadLabels(locale)}>
                     {t("supplierStatement.csv", locale)}
-                  </a>
+                  </DownloadLink>
                 </div>
               </div>
             </>

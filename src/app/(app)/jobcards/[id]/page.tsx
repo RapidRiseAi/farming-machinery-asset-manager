@@ -33,6 +33,8 @@ import { JobCardEditor, type JobDraft } from "../job-card-editor";
 import { LifecycleActions } from "../lifecycle-actions";
 import { ServiceKitForm } from "../service-kit-form";
 import { IntakeAcknowledgement } from "@/components/jobcards/intake-acknowledgement";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 type JobCard = {
   id: string; farm_id: string; machine_id: string; type: string; status: string;
@@ -201,7 +203,7 @@ export default async function JobCardDetail({ params, searchParams }: {
             ) : null}
             {workRequest ? <Link href={`/work/${workRequest.id}`} className={menuItemClass()}>{t("jobview.linkedRequest", locale)}</Link> : null}
             <Link href={`/machines/${jc.machine_id}`} className={menuItemClass()}>{t("jobcards.openMachine", locale)}</Link>
-            <a href={`/jobcards/${id}/pdf`} className={menuItemClass()}>{t("common.print", locale)}</a>
+            <DownloadLink href={`/jobcards/${id}/pdf`} className={menuItemClass()} labels={downloadLabels(locale)}>{t("common.print", locale)}</DownloadLink>
           </ActionMenu>
         }
       />
@@ -343,10 +345,10 @@ export default async function JobCardDetail({ params, searchParams }: {
                     <input type="hidden" name="farm_id" value={jc.farm_id} />
                     <input type="hidden" name="service_plan_line_id" value={line.id} />
                     <input type="hidden" name="on" value={covered.has(line.id) ? "0" : "1"} />
-                    <button type="submit" aria-pressed={covered.has(line.id)} className="focus-ring -mx-2 flex min-h-[48px] w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 text-left text-sm text-sand-900 hover:bg-sand-50 sm:min-h-[44px]">
+                    <SubmitButton look="plain" aria-pressed={covered.has(line.id)} className="focus-ring -mx-2 flex min-h-[48px] w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 text-left text-sm text-sand-900 hover:bg-sand-50 sm:min-h-[44px]">
                       {covered.has(line.id) ? <CheckIcon className="text-lg text-status-ok" /> : <SquareIcon className="text-lg text-sand-400" />}
                       <span>{line.task}</span>
-                    </button>
+                    </SubmitButton>
                   </form>
                 ) : (
                   <p className="flex min-h-[44px] items-center gap-3 text-sm text-sand-900"><CheckIcon className="text-lg text-status-ok" /> {line.task}</p>

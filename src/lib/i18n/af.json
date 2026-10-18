@@ -6033,7 +6033,10 @@
     "title": "Hierdie skerm het nie gelaai nie",
     "body": "Iets het aan ons kant verkeerd geloop, nie aan joune nie. Niks wat jy ingevul het, is verlore nie. Probeer weer. As dit aanhou gebeur, kan die plaaskantoor vir ons die kode hieronder stuur.",
     "home": "Gaan na my tuisskerm",
-    "reference": "Verwysing:"
+    "reference": "Verwysing:",
+    "connectionTitle": "Die verbinding het weggeval",
+    "connectionBody": "Ons het nie van die bediener teruggehoor nie. Wat jy gestoor het, het dalk deurgegaan en dalk nie, so kyk na die bladsy voordat jy dit weer invoer.",
+    "checkPage": "Kyk na die bladsy"
   },
   "jobview": {
     "progress": "Vordering van die werk",
@@ -6275,5 +6278,17 @@
     "notVerified": "Die boodskap is nog nie bevestig nie, die versoek het verval, of die nommer is reeds gekoppel. Stuur dit vanaf jou eie nommer en probeer weer.",
     "failed": "Dit kon nie gestoor word nie. Kontroleer jou nommer, kies minstens een opsie en maak seker jou plaasplan sluit WhatsApp in. Probeer binnekort weer.",
     "saved": "Jou WhatsApp-instellings is gestoor."
+  },
+  "interaction": {
+    "working": "Besig",
+    "downloadPreparing": "Berei die lêer voor",
+    "downloadFailed": "Die lêer het nie afgelaai nie. Kyk na jou sein en probeer weer.",
+    "downloadSignedOut": "Jy is afgemeld. Meld weer aan en laai dan die lêer af.",
+    "downloadNotAllowed": "Jy het nie toegang tot hierdie lêer nie.",
+    "downloadNotFound": "Hierdie lêer is nie meer beskikbaar nie.",
+    "downloadBusy": "Te veel aflaaie gelyk. Wag ’n minuut en probeer weer.",
+    "downloadOffline": "Jy is vanlyn. Om ’n lêer af te laai het sein nodig.",
+    "actionFailed": "Dit het nie deurgegaan nie. Kyk na jou sein en probeer weer.",
+    "actionOffline": "Jy is vanlyn. Dit het sein nodig, probeer weer wanneer jy sein het."
   }
 }

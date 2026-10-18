@@ -228,6 +228,30 @@ export async function requireRole(roles: Role[]): Promise<Profile> {
   return { ...profile, farm_id: farmId, role };
 }
 
+/**
+ * `requireRole` for a route the browser calls with `fetch`: the same checks, answered as
+ * JSON instead of a redirect.
+ *
+ * A redirect inside a route handler is followed by `fetch`, so an expired session landed
+ * on the login PAGE, which answers 200. The caller read that as success: the invoice email
+ * dialog said "Sent to <address>" when nothing had been sent. Here a missing session is
+ * 401 and a role that may not act is 403, both with a code the screen can explain.
+ */
+export async function requireApiRole(
+  roles: Role[],
+): Promise<{ profile: Profile; denied?: undefined } | { profile?: undefined; denied: Response }> {
+  const deny = (status: number, error: string) => ({ denied: Response.json({ error }, { status }) });
+  const { profile, lock } = await loadProfile();
+  if (lock || !profile || !profile.active) return deny(401, "signed-out");
+  if (profile.role === "rr_admin" || profile.role === "workshop") {
+    return roles.includes(profile.role) ? { profile } : deny(403, "forbidden");
+  }
+  const farmId = await currentFarmId(profile);
+  const role = farmId ? await effectiveFarmRole(farmId, profile) : null;
+  if (!role || !roles.includes(role)) return deny(403, "forbidden");
+  return { profile: { ...profile, farm_id: farmId, role } };
+}
+
 // == Multi-site "current farm" (F7) ===========================================
 // One account can now reach MULTIPLE farms (user_farm_memberships, 0340). The app keeps
 // a "current farm" the user is acting in, a cookie choice, validated against the farms

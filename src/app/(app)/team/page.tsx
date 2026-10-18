@@ -29,6 +29,8 @@ import { menuItemClass } from "@/components/ui/menu-item";
 import { ChevronRightIcon, DownloadIcon, KeyIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { roleLabel } from "@/lib/format";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 type TeamUser = {
   id: string;
@@ -349,10 +351,10 @@ export default async function TeamPage({
                             </DialogForm>
                           ) : null}
 
-                          <a href={`/team/export?user=${u.id}`} className={menuItemClass()}>
+                          <DownloadLink href={`/team/export?user=${u.id}`} className={menuItemClass()} labels={downloadLabels(locale)}>
                             <DownloadIcon className="shrink-0 text-base" />
                             {t("privacy.export", locale)}
-                          </a>
+                          </DownloadLink>
 
                           {!isMe && u.isPrimaryMember ? (
                             <ConfirmDialog

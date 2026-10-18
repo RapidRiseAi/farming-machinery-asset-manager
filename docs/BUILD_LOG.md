@@ -5483,3 +5483,59 @@ The founder assigned the test fault at 08:13 SAST. Read-only verification found 
 `fault_assigned` notification created at 06:13:30 UTC and its WhatsApp delivery marked
 sent/read, with no error. Real phone linking, one AI read and one assignment-template
 delivery are now proven; the other pilot acceptance checks remain outstanding.
+
+## 2026-10-18 - A tap does its work once (interaction safety, release 1 of 3)
+
+The founder's ask: no button may run twice because someone tapped again while the system
+felt slow, and every failure must be noticed and explained. Three read-only audits went
+through every button, form, download, server action and API route (findings kept in the
+session scratchpad: 67 screen sites, 70 server side effects, 77 error-handling sites). This
+first release is the screen side; the server and error-handling releases follow.
+
+- **Downloads.** All 28 links to files (CSVs, PDFs, the workbook, packs, exports) were plain
+  links: each tap another download and another server render, and a failure arrived as the
+  file (an expired session saved the login page as `statement.pdf`). `DownloadLink` fetches
+  the file itself, ignores taps while it does (and for a moment after, so the frantic ones
+  do not start a second), checks what came back, and saves it under the server's name. A
+  failure is a sentence in a toast; a server error is reported, a sign-out is not. On an
+  iPhone home-screen app it downloads natively and only holds the repeats. The service
+  worker passes these requests straight through and no longer caches any attachment.
+- **Submit buttons.** 20 raw submit buttons on server-action forms became `SubmitButton`s,
+  including the activation "Pay" button (a second tap queued a second checkout) and the QR
+  sticker's reading and fuel forms. `SubmitButton` gained a `plain` look and passes other
+  attributes through. The rest are reviewed in the guard test with a reason each.
+- **Dialogs and menus.** Close, the backdrop and Escape worked while a form was saving, and
+  closing unmounted the form, so reopening offered a fresh Save: the audit's main route to a
+  second expense or payment. `pending-guard.tsx` makes a dialog, confirm dialog, row menu or
+  `PendingGroup` refuse to close while anything in it saves, and disables its other submit
+  buttons (billing's "Pay now" and "Replace card" can no longer both go). Confirm dialogs
+  and menus close once the action settles. The first version kept "busy" in React state and
+  the browser check caught it closing the dialog 100 ms into the save: re-rendering the
+  container mid-save made the components inside the form read React's default "not pending"
+  status. The lock now lives in refs and the DOM.
+- **Errors.** `ClientErrorReporter` reports every uncaught browser error and unhandled
+  promise (only crashes reached the feed before), filtered and once each. `NoticeHost` shows
+  what a control says (`showNotice`). `ActionButton`/`useSingleFlight` for async taps. The
+  two-step forms no longer stay disabled for good when the network throws. The invoice and
+  statement email routes answer 401 JSON (`requireApiRole`) instead of redirecting, which had
+  shown "Sent to ..." with nothing sent, and return codes, not the provider's words; the
+  screens need the server's `ok`, carry a request id for release 2, and "Send" becomes "Send
+  again" after a send. The error screen says when the connection dropped mid-save, and to
+  check before entering it again.
+
+Checked in a real Chrome by `scripts/spam_check.mjs` against a production build, on a CPU
+slowed 4x: five taps on a download, one request and one file; a failing download explained
+and reported once; a 401 explained and not reported; both kinds of uncaught error reported;
+five taps on a server-action row, one post; a dialog mid-save ignores Escape and Close, sends
+one save and closes when it settles. Also `ui_check` (12 routes, 55 at 360px), the
+click-through, 657 unit tests, guard tests in `src/components/ui/interaction-guards.test.ts`.
+The first-load bundle is unchanged at 103 kB.
+
+Reviewed while here: the 13 WhatsApp commits Codex pushed after B12 sit cleanly on top
+(linear history, nothing of ours overwritten). Their migration redefines five functions;
+each keeps its previous body and adds the WhatsApp check, including the test-account
+fence's `rr_admin_unlocked()`. All 211 migrations and every SQL suite pass, and the live
+site passes the account-safety checks and the click-through. Their per-row
+`whatsapp_scope()` costs about 0.01 to 0.03 ms a row; the larger cost found on the way is
+older: the activity log's own access rules take 3.7 s to count 4,900 rows for an owner
+(for the load test, H4).

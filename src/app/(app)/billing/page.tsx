@@ -94,6 +94,9 @@ import {
   type PlanChangeQuote,
   type QuotaQuote,
 } from "@/lib/billing/service";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
+import { PendingGroup } from "@/components/ui/pending-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -1141,77 +1144,81 @@ export default async function BillingPage({
           </div>
         ) : null}
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          {offer.kind === "offer" ? (
-            card ? (
-              <form action={retryPayment}>
-                <input type="hidden" name="farmId" value={farmId} />
-                <input type="hidden" name="invoiceId" value={offer.invoice.id} />
-                <SubmitButton variant="primary">
-                  {sub && (sub.status === "past_due" || sub.status === "grace" || sub.status === "downgraded")
-                    ? t("billing.tryAgain", locale)
-                    : t("billing.payNow", locale).replace("{amount}", rands(offer.amountCents))}
-                </SubmitButton>
-              </form>
-            ) : (
+        {/* One lock for the row: a charge on the stored card and a card replacement (or
+            removal) must not be sent together. */}
+        <PendingGroup>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            {offer.kind === "offer" ? (
+              card ? (
+                <form action={retryPayment}>
+                  <input type="hidden" name="farmId" value={farmId} />
+                  <input type="hidden" name="invoiceId" value={offer.invoice.id} />
+                  <SubmitButton variant="primary">
+                    {sub && (sub.status === "past_due" || sub.status === "grace" || sub.status === "downgraded")
+                      ? t("billing.tryAgain", locale)
+                      : t("billing.payNow", locale).replace("{amount}", rands(offer.amountCents))}
+                  </SubmitButton>
+                </form>
+              ) : (
+                <form action={startCheckout}>
+                  <input type="hidden" name="farmId" value={farmId} />
+                  <input type="hidden" name="invoiceId" value={offer.invoice.id} />
+                  <SubmitButton variant="primary">
+                    {t("billing.payNow", locale).replace("{amount}", rands(offer.amountCents))}
+                  </SubmitButton>
+                </form>
+              )
+            ) : null}
+
+            {card ? (
+              <>
+                <form action={replacePaymentMethod}>
+                  <input type="hidden" name="farmId" value={farmId} />
+                  <SubmitButton variant="secondary">{t("billing.replaceCard", locale)}</SubmitButton>
+                </form>
+                {/* `removePaymentMethod` was written, guarded and reachable by nothing, so
+                    the only way to take a card off the account was to cancel the whole
+                    subscription. Behind a confirm because removing the last card means the
+                    next renewal has nothing to charge, which the dialog says outright
+                    rather than leaving it to be discovered on the night. */}
+                <ConfirmDialog
+                  action={removePaymentMethod}
+                  triggerVariant="ghost"
+                  triggerLabel={t("billing.removeCard", locale)}
+                  title={t("billing.removeCardTitle", locale)}
+                  intro={t("billing.removeCardIntro", locale)}
+                  facts={[
+                    {
+                      label: t("billing.cardTitle", locale),
+                      value: cardBrandLabel(card.card_brand)
+                        ? `${cardBrandLabel(card.card_brand)} ···· ${card.last4 ?? "····"}`
+                        : `···· ${card.last4 ?? "····"}`,
+                    },
+                  ]}
+                  consequencesTitle={t("billing.cancelWhatHappens", locale)}
+                  consequences={[
+                    t("billing.removeCardEffect1", locale),
+                    t("billing.removeCardEffect2", locale),
+                  ]}
+                  confirmLabel={t("billing.removeCardYes", locale)}
+                  cancelLabel={t("billing.cancelNo", locale)}
+                  closeLabel={t("ui.close", locale)}
+                >
+                  <input type="hidden" name="farmId" value={farmId} />
+                  <input type="hidden" name="payment_method_id" value={card.id} />
+                </ConfirmDialog>
+              </>
+            ) : estimate.kind === "priced" && offer.kind !== "offer" ? (
+              // Only offered when there is genuinely a price to charge against. With the
+              // catalogue empty there is nothing to authorise a card for, and a button
+              // that cannot do anything is its own small dishonesty.
               <form action={startCheckout}>
                 <input type="hidden" name="farmId" value={farmId} />
-                <input type="hidden" name="invoiceId" value={offer.invoice.id} />
-                <SubmitButton variant="primary">
-                  {t("billing.payNow", locale).replace("{amount}", rands(offer.amountCents))}
-                </SubmitButton>
+                <SubmitButton variant="primary">{t("billing.addCard", locale)}</SubmitButton>
               </form>
-            )
-          ) : null}
-
-          {card ? (
-            <>
-              <form action={replacePaymentMethod}>
-                <input type="hidden" name="farmId" value={farmId} />
-                <SubmitButton variant="secondary">{t("billing.replaceCard", locale)}</SubmitButton>
-              </form>
-              {/* `removePaymentMethod` was written, guarded and reachable by nothing, so
-                  the only way to take a card off the account was to cancel the whole
-                  subscription. Behind a confirm because removing the last card means the
-                  next renewal has nothing to charge, which the dialog says outright
-                  rather than leaving it to be discovered on the night. */}
-              <ConfirmDialog
-                action={removePaymentMethod}
-                triggerVariant="ghost"
-                triggerLabel={t("billing.removeCard", locale)}
-                title={t("billing.removeCardTitle", locale)}
-                intro={t("billing.removeCardIntro", locale)}
-                facts={[
-                  {
-                    label: t("billing.cardTitle", locale),
-                    value: cardBrandLabel(card.card_brand)
-                      ? `${cardBrandLabel(card.card_brand)} ···· ${card.last4 ?? "····"}`
-                      : `···· ${card.last4 ?? "····"}`,
-                  },
-                ]}
-                consequencesTitle={t("billing.cancelWhatHappens", locale)}
-                consequences={[
-                  t("billing.removeCardEffect1", locale),
-                  t("billing.removeCardEffect2", locale),
-                ]}
-                confirmLabel={t("billing.removeCardYes", locale)}
-                cancelLabel={t("billing.cancelNo", locale)}
-                closeLabel={t("ui.close", locale)}
-              >
-                <input type="hidden" name="farmId" value={farmId} />
-                <input type="hidden" name="payment_method_id" value={card.id} />
-              </ConfirmDialog>
-            </>
-          ) : estimate.kind === "priced" && offer.kind !== "offer" ? (
-            // Only offered when there is genuinely a price to charge against. With the
-            // catalogue empty there is nothing to authorise a card for, and a button
-            // that cannot do anything is its own small dishonesty.
-            <form action={startCheckout}>
-              <input type="hidden" name="farmId" value={farmId} />
-              <SubmitButton variant="primary">{t("billing.addCard", locale)}</SubmitButton>
-            </form>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        </PendingGroup>
       </Card>
 
       {/* == Bills and receipts =============================================== */}
@@ -1270,20 +1277,22 @@ export default async function BillingPage({
                   {docs.receipt || docs.invoice ? (
                     <div className="flex flex-wrap gap-x-5">
                       {docs.receipt ? (
-                        <a
+                        <DownloadLink
                           href={`/api/billing/invoice/${inv.id}/receipt.pdf`}
                           className="inline-flex min-h-12 items-center text-sm font-medium text-brand-ink underline"
+                          labels={downloadLabels(locale)}
                         >
                           {t("billing.downloadReceiptFull", locale)}
-                        </a>
+                        </DownloadLink>
                       ) : null}
                       {docs.invoice ? (
-                        <a
+                        <DownloadLink
                           href={`/api/billing/invoice/${inv.id}/invoice.pdf`}
                           className="inline-flex min-h-12 items-center text-sm font-medium text-brand-ink underline"
+                          labels={downloadLabels(locale)}
                         >
                           {t("billing.downloadInvoice", locale)}
-                        </a>
+                        </DownloadLink>
                       ) : null}
                     </div>
                   ) : null}
@@ -1341,20 +1350,22 @@ export default async function BillingPage({
                             refuse the same cases; these are only the affordances. */}
                         <div className="flex flex-col gap-1">
                           {docs.receipt ? (
-                            <a
+                            <DownloadLink
                               href={`/api/billing/invoice/${inv.id}/receipt.pdf`}
                               className="text-sm font-medium text-brand-ink underline"
+                              labels={downloadLabels(locale)}
                             >
                               {t("billing.downloadReceipt", locale)}
-                            </a>
+                            </DownloadLink>
                           ) : null}
                           {docs.invoice ? (
-                            <a
+                            <DownloadLink
                               href={`/api/billing/invoice/${inv.id}/invoice.pdf`}
                               className="text-sm font-medium text-brand-ink underline"
+                              labels={downloadLabels(locale)}
                             >
                               {t("billing.downloadInvoice", locale)}
-                            </a>
+                            </DownloadLink>
                           ) : (
                             <span className="text-sm text-sand-500">-</span>
                           )}

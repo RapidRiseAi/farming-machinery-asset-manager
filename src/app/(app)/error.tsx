@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { WarningIcon } from "@/components/ui/icons";
 import { reportClientError } from "@/lib/client-report";
+import { isConnectionFailure } from "@/lib/single-flight";
 import { t, locales, defaultLocale, type Locale } from "@/lib/i18n";
 
 /**
@@ -38,6 +39,15 @@ export default function AppError({
     if ((locales as readonly string[]).includes(lang)) setLocale(lang as Locale);
   }, []);
 
+  // A form whose post never got an answer lands here too (React sends a rejected action
+  // to the nearest boundary). That is not a broken page: the save may or may not have
+  // landed, and the person needs to look before typing it in again. Read after mount, as
+  // the language is, so the first render matches the server's.
+  const [connection, setConnection] = useState(false);
+  useEffect(() => {
+    setConnection(isConnectionFailure(error, navigator.onLine !== false));
+  }, [error]);
+
   useEffect(() => {
     console.error(error);
     // Until now this screen was the end of the road: the farmer saw it and we never did.
@@ -59,15 +69,27 @@ export default function AppError({
             <WarningIcon />
           </span>
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-sand-950">{t("appError.title", locale)}</h1>
-            <p className="mt-1 text-sm text-sand-600">{t("appError.body", locale)}</p>
+            <h1 className="text-lg font-bold text-sand-950">
+              {t(connection ? "appError.connectionTitle" : "appError.title", locale)}
+            </h1>
+            <p className="mt-1 text-sm text-sand-600">
+              {t(connection ? "appError.connectionBody" : "appError.body", locale)}
+            </p>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" variant="primary" onClick={() => reset()}>
-            {t("offline.retry", locale)}
-          </Button>
+          {connection ? (
+            // A fresh load shows whether the save landed; re-rendering the same tree
+            // would not.
+            <Button type="button" variant="primary" onClick={() => window.location.reload()}>
+              {t("appError.checkPage", locale)}
+            </Button>
+          ) : (
+            <Button type="button" variant="primary" onClick={() => reset()}>
+              {t("offline.retry", locale)}
+            </Button>
+          )}
           <Link href="/home" className={buttonVariants({ variant: "secondary" })}>
             {t("appError.home", locale)}
           </Link>

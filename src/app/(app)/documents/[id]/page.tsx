@@ -37,6 +37,8 @@ import {
 } from "../actions";
 import { DeclineQuote } from "@/components/partner/decline-quote";
 import { BillInStages, type QuoteBilling } from "@/components/documents/bill-in-stages";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 /**
  * One quote or invoice, as both sides see it (F14c/F14d).
@@ -510,9 +512,9 @@ export default async function DocumentPage({
       </article>
 
       <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <a href={`/api/documents/${doc.id}/pdf`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+        <DownloadLink href={`/api/documents/${doc.id}/pdf`} className={buttonVariants({ variant: "secondary", size: "sm" })} labels={downloadLabels(locale)}>
           <DownloadIcon /> {t("doc.downloadPdf", locale)}
-        </a>
+        </DownloadLink>
         {doc.work_request_id ? (
           <Link href={`/work/${doc.work_request_id}`} className={buttonVariants({ variant: "ghost", size: "sm" })}>
             {t("doc.viewWorkRequest", locale)}

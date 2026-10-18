@@ -1,10 +1,11 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { useId, type ReactNode } from "react";
+import { useId, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { buttonVariants, type ButtonVariant, type ButtonSize } from "./button";
 import { menuItemClass } from "./menu-item";
 import { Spinner } from "./icons";
+import { useReportPending } from "./pending-guard";
 
 /**
  * The hidden field every SubmitButton posts so it can recognise its own submission.
@@ -34,7 +35,16 @@ export function isOwnSubmission(
   return data.get(fieldName) === fieldValue;
 }
 
-export type SubmitButtonProps = {
+/**
+ * Any other button attribute (`aria-pressed` on a toggle row, `tabIndex`, `title`) passes
+ * through. The ones this component owns are left out, so a caller cannot unlock it.
+ */
+type PassThrough = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "type" | "disabled" | "className" | "children" | "formAction" | "formNoValidate" | "name" | "value" | "aria-busy"
+>;
+
+export type SubmitButtonProps = PassThrough & {
   children: ReactNode;
   /** Optional label shown while the form is submitting. */
   pendingText?: ReactNode;
@@ -65,8 +75,13 @@ export type SubmitButtonProps = {
    * and its own padding, and `cn` does not de-duplicate, so both would land and the
    * row would be centred and doubly padded. Third component to need this, after
    * `DialogForm` and `ConfirmDialog`, which is why the look lives in one function.
+   *
+   * `plain` uses `className` as given and nothing else, for a submit that is styled as
+   * something other than a button: a text link ("Sign out"), a row that toggles, an
+   * overlay control on a photo. They were raw `<button type="submit">`s, so a second tap
+   * posted the form a second time; this gives them the same lock with their own look.
    */
-  look?: "button" | "menuItem";
+  look?: "button" | "menuItem" | "plain";
   tone?: "default" | "danger";
 };
 
@@ -108,6 +123,7 @@ export function SubmitButton({
   value,
   look = "button",
   tone = "default",
+  ...rest
 }: SubmitButtonProps) {
   const uid = useId();
   const status = useFormStatus();
@@ -131,9 +147,13 @@ export function SubmitButton({
     ? status.action === formAction
     : isOwnSubmission(data, fieldName, fieldValue);
   const busy = pending && isMine;
+  // Tells the dialog or menu around this form that a save is out (pending-guard.tsx),
+  // which then locks its close controls and the other submit buttons in it.
+  useReportPending(pending);
 
   return (
     <button
+      {...rest}
       type="submit"
       // Still disabled by the FORM's pending state, not only by its own. A second
       // submission while the first is in flight is a double charge waiting to happen, so
@@ -149,7 +169,9 @@ export function SubmitButton({
       className={
         look === "menuItem"
           ? menuItemClass(tone, className)
-          : buttonVariants({ variant, size, fullWidth, className })
+          : look === "plain"
+            ? className
+            : buttonVariants({ variant, size, fullWidth, className })
       }
     >
       {busy ? <Spinner className="text-[1.1em]" /> : leftIcon}

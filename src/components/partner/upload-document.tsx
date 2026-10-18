@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
 import { supplierFileHash } from "@/lib/supplier-document-upload";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
+import { reportClientError } from "@/lib/client-report";
+import { asError } from "@/lib/single-flight";
+import { ReportPending } from "@/components/ui/pending-guard";
 
 /**
  * "I already made this in my own system" (F14b).
@@ -52,8 +55,13 @@ export function UploadDocument({
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Already uploading: a second submit would upload the same file again.
+    if (busy) return;
     setError(null);
     setBusy(true);
+    // Set once the upload has landed and the page is moving to it: the button stays busy
+    // through that navigation instead of offering the same file again for a second upload.
+    let leaving = false;
     try {
       const form = new FormData(e.currentTarget);
       const file = form.get("file");
@@ -83,17 +91,20 @@ export function UploadDocument({
       }
       try { sessionStorage.removeItem(receiptKey); } catch { /* Optional browser storage. */ }
       pending.current = null;
+      leaving = true;
       router.push(`/documents/${body.id}`);
-    } catch {
+    } catch (failure) {
+      if (navigator.onLine !== false) reportClientError(asError(failure), "documents:upload");
       setError(t("doc.uploadError.failed", locale));
     } finally {
-      setBusy(false);
+      if (!leaving) setBusy(false);
     }
   }
 
   // Work detail supplies its own context-specific dialog; standalone uploads open here.
   const form = (
       <form onSubmit={submit}>
+        <ReportPending pending={busy} />
         <DialogFields>
         {work ? <>
           <input type="hidden" name="farm_id" value={work.farmId} />

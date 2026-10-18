@@ -128,6 +128,19 @@ Order: correctness and security first, then load, then product.
       reports pageable; also fixed the farm data export (10 of 17 tables missing), the
       journal CSV, expenses/orders figures over their newest 200 only. Guard test in
       `src/lib/supabase/read-all.test.ts`. Migrations 20261013090000 to 20261013120000.
+- [x] **Taps, release 1 (screen):** every file link one download per tap with a sentence on
+      failure; every server-action submit locked; dialogs and row menus cannot close mid-save
+      and lock their siblings; every uncaught browser error reported; "Sent" only when sent.
+      2026-10-18: `scripts/spam_check.mjs` (real taps, 4x slow CPU) and guard tests.
+- [ ] **Taps, release 2 (server):** a request id (claim) on every create, send and payment
+      that can be repeated (recurring invoices, payments and refunds, quote to invoice, stage
+      bills, lines, expenses, fuel, QR captures, document and statement email, invites, API
+      tokens, report schedules, checklists, imports); PayFast ITN answers 5xx on our own
+      failures so it retries. From the 2026-10-18 audit.
+- [ ] **Taps, release 3 (errors):** server actions report what they catch and never put a
+      raw database message in the address bar; reads that fail stop pretending to be empty
+      (dashboard, reports, VAT, statements, documents); the remaining API routes answer JSON
+      instead of redirecting (`requireApiRole`); queue a form on a dropped connection.
 - [ ] **Follow-ups from B7:** the farm export is one in-memory JSON response (a very large
       farm could pass a function's response limit: stream it or split it); the accounting
       summary sums journal lines in the page (move it into SQL); five older SQL suites are not

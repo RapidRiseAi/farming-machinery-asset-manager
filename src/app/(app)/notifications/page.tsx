@@ -200,13 +200,13 @@ export default async function NotificationsPage({
                         {href !== "/notifications" ? (
                           <form action={openNotification}>
                             <input type="hidden" name="id" value={n.id} />
-                            <button
-                              type="submit"
+                            <SubmitButton
+                              look="plain"
                               className={cn(row, "focus-ring transition-colors hover:bg-surface-sunken")}
                             >
                               {body}
                               <ChevronRightIcon aria-hidden className="mt-0.5 shrink-0 text-lg text-sand-400" />
-                            </button>
+                            </SubmitButton>
                           </form>
                         ) : (
                           <div className={row}>{body}</div>

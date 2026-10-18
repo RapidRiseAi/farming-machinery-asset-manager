@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { reportClientError } from "@/lib/client-report";
 import { t, type Lang } from "@/lib/i18n";
+import { newRequestId } from "@/lib/request-id";
+import { asError } from "@/lib/single-flight";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { DialogForm, DialogFields, useDialogForm } from "@/components/ui/dialog-form";
 import { SendIcon } from "@/components/ui/icons";
+import { useReportPending } from "@/components/ui/pending-guard";
 
 /**
  * Emailing the statement to the customer, the last step of the monthly-account workflow.
@@ -66,33 +70,56 @@ function SendFields({
   const [message, setMessage] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [detail, setDetail] = useState<string | null>(null);
+  // One send at a time: this emails a customer, and a second tap must not email them twice.
+  const sending = useRef(false);
+  // The same id on a retry lets the server recognise a send that went out although its
+  // answer never arrived; a new one only after a send succeeded.
+  const requestId = useRef(newRequestId());
+  // The dialog around this cannot close while it sends: closing would unmount this state
+  // and the dialog reopened would offer "Send now" again (pending-guard.tsx).
+  useReportPending(state === "sending");
 
   async function send() {
+    if (sending.current) return;
+    sending.current = true;
     setState("sending");
     setDetail(null);
     try {
       const res = await fetch("/api/statements/send", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ party, from, to, email, message: message || null }),
+        body: JSON.stringify({ party, from, to, email, message: message || null, requestId: requestId.current }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string; to?: string };
-      if (res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; to?: string };
+      // Sent only when the server says so: a page that answered 200 instead (a sign-in
+      // redirect) is not a sent statement.
+      if (res.ok && body.ok === true) {
+        requestId.current = newRequestId();
         setState("sent");
         setDetail(body.to ?? email);
       } else {
+        // Known reasons get their own sentence; anything else is the generic one, never
+        // the raw code or a provider's message.
+        if (res.status >= 500) reportClientError(new Error(`statement send ${res.status}: ${body.error ?? "?"}`), "statements:send");
         setState("error");
         setDetail(
           body.error === "email-not-configured"
             ? t("email.notConfigured", locale)
             : body.error === "no-address"
               ? t("email.badAddress", locale)
-              : (body.error ?? t("email.failed", locale)),
+              : body.error === "refused"
+                ? t("errors.emailTestOnly", locale)
+                : body.error === "signed-out" || (res.ok && body.ok !== true)
+                  ? t("errors.session", locale)
+                  : t("email.failed", locale),
         );
       }
-    } catch {
+    } catch (failure) {
+      if (navigator.onLine !== false) reportClientError(asError(failure), "statements:send");
       setState("error");
-      setDetail(t("email.failed", locale));
+      setDetail(navigator.onLine === false ? t("interaction.actionOffline", locale) : t("email.failed", locale));
+    } finally {
+      sending.current = false;
     }
   }
 

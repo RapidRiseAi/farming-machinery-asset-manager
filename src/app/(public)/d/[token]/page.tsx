@@ -18,6 +18,9 @@ import { CheckIcon, DownloadIcon } from "@/components/ui/icons";
 import { acceptFromLink, declineFromLink, notifyPaidFromLink } from "./actions";
 import { buildCheckout } from "@/lib/payments";
 import { publicDocumentUrl, siteUrl } from "@/lib/public-url";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
+import { LeavingForm } from "@/components/ui/leaving-form";
 
 export const dynamic = "force-dynamic";
 
@@ -219,13 +222,16 @@ export default async function PublicDocumentPage({
               customer who is already looking at the bill is the most likely they will
               ever be to pay it, the bank details below are for everyone else. */}
           {checkout ? (
-            <form action={checkout.action} method="post" className="mt-3">
-              {checkout.fields.map(([k, v]) => (
-                <input key={k} type="hidden" name={k} value={v} />
-              ))}
-              <SubmitButton>{t("pubDoc.payNow", locale).replace("{amount}", rands(owed))}</SubmitButton>
+            // Posts to PayFast and leaves: LeavingForm locks it on the first tap, which a
+            // SubmitButton cannot do for a form whose action is a URL.
+            <div className="mt-3">
+              <LeavingForm action={checkout.action} submitLabel={t("pubDoc.payNow", locale).replace("{amount}", rands(owed))}>
+                {checkout.fields.map(([k, v]) => (
+                  <input key={k} type="hidden" name={k} value={v} />
+                ))}
+              </LeavingForm>
               <p className="mt-1.5 text-xs text-sand-500">{t("pubDoc.payNowHint", locale)}</p>
-            </form>
+            </div>
           ) : null}
 
           {brand.bank_name ? (
@@ -327,12 +333,13 @@ export default async function PublicDocumentPage({
         </section>
       ) : null}
 
-      <a
+      <DownloadLink
         href={`/d/${token}/pdf`}
         className="focus-ring flex min-h-12 items-center justify-center gap-2 rounded-lg border border-sand-300 bg-surface px-4 font-medium text-sand-800 hover:bg-sand-50"
+        labels={downloadLabels(locale)}
       >
         <DownloadIcon className="text-lg" /> {t("pubDoc.download", locale)}
-      </a>
+      </DownloadLink>
 
       <footer className="pt-2 text-center text-sm text-sand-500">
         {brand.phone ? <p>{t("pubDoc.questions", locale)} {brand.phone}</p> : null}

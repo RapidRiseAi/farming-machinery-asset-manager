@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
+import { reportClientError } from "@/lib/client-report";
 import { t, type Lang } from "@/lib/i18n";
 import { cleanCode } from "@/lib/mfa";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +11,7 @@ import { Field } from "@/components/ui/field";
 import { Flash } from "@/components/ui/flash";
 import { Input } from "@/components/ui/input";
 import { Photo } from "@/components/ui/photo";
+import { asError } from "@/lib/single-flight";
 
 type Enrolment = { id: string; qr: string; secret: string };
 
@@ -22,46 +24,71 @@ export function SetupForm({ next, locale }: { next: string; locale: Lang }) {
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  // One step at a time. Two quick taps on Start would enrol two factors, the second
+  // clearing the first's QR code mid-scan; two Enters on Confirm would spend one code
+  // twice. Held on success too, while the page leaves.
+  const working = useRef(false);
+
+  const release = () => {
+    working.current = false;
+    setBusy(false);
+  };
 
   async function start() {
+    if (working.current) return;
+    working.current = true;
     setBusy(true);
     setError(undefined);
-    const supabase = createClient();
-    const { data: list } = await supabase.auth.mfa.listFactors();
-    for (const factor of list?.all ?? []) {
-      if (factor.factor_type === "totp" && factor.status === "unverified") {
-        await supabase.auth.mfa.unenroll({ factorId: factor.id });
+    try {
+      const supabase = createClient();
+      const { data: list } = await supabase.auth.mfa.listFactors();
+      for (const factor of list?.all ?? []) {
+        if (factor.factor_type === "totp" && factor.status === "unverified") {
+          await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        }
       }
-    }
-    const { data, error: enrolError } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: `FleetWise ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
-    });
-    setBusy(false);
-    if (enrolError || !data || data.type !== "totp") {
+      const { data, error: enrolError } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: `FleetWise ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
+      });
+      if (enrolError || !data || data.type !== "totp") {
+        if (enrolError) reportClientError(asError(enrolError), "mfa:enrol");
+        setError(t("mfa.startFailed", locale));
+        return;
+      }
+      setEnrolment({ id: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
+    } catch (failure) {
+      reportClientError(asError(failure), "mfa:enrol");
       setError(t("mfa.startFailed", locale));
-      return;
+    } finally {
+      release();
     }
-    setEnrolment({ id: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
   }
 
   async function confirm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrolment) return;
+    if (!enrolment || working.current) return;
     const code = cleanCode(String(new FormData(event.currentTarget).get("code") ?? ""));
     if (!code) {
       setError(t("mfa.notSixDigits", locale));
       return;
     }
+    working.current = true;
     setBusy(true);
     setError(undefined);
-    const { error: verifyError } = await createClient().auth.mfa.challengeAndVerify({ factorId: enrolment.id, code });
-    if (verifyError) {
-      setBusy(false);
-      setError(t("mfa.wrongCode", locale));
-      return;
+    try {
+      const { error: verifyError } = await createClient().auth.mfa.challengeAndVerify({ factorId: enrolment.id, code });
+      if (verifyError) {
+        release();
+        setError(t("mfa.wrongCode", locale));
+        return;
+      }
+      window.location.assign(next);
+    } catch (failure) {
+      reportClientError(asError(failure), "mfa:confirm");
+      release();
+      setError(t("interaction.actionFailed", locale));
     }
-    window.location.assign(next);
   }
 
   if (!enrolment) {

@@ -52,9 +52,9 @@ export function LoginForm({
         {/* Enter in a field submits through the form's FIRST submit button, and "Forgot?"
             below comes before "Sign in" on the page: Enter sent a reset email instead of
             signing in. This invisible button is first, so Enter signs in. */}
-        <button type="submit" tabIndex={-1} aria-hidden="true" className="sr-only" data-default-submit="">
+        <SubmitButton look="plain" tabIndex={-1} aria-hidden="true" className="sr-only" data-default-submit="">
           {t("auth.signIn", locale)}
-        </button>
+        </SubmitButton>
         <Field label={t("auth.email", locale)} htmlFor="signin-email">
           <Input
             id="signin-email"
@@ -83,8 +83,8 @@ export function LoginForm({
           label={t("auth.password", locale)}
           htmlFor="signin-password"
           labelAction={
-            <button
-              type="submit"
+            <SubmitButton
+              look="plain"
               formAction={sendPasswordReset}
               formNoValidate
               // Negative margins around real padding: the tappable box is 46px tall
@@ -93,7 +93,7 @@ export function LoginForm({
               className="focus-ring -mx-2 -my-3 rounded px-2 py-3 text-sm font-medium text-brand-ink underline underline-offset-2"
             >
               {t("auth.forgot", locale)}
-            </button>
+            </SubmitButton>
           }
         >
           <PasswordInput

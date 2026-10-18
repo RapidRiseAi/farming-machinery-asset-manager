@@ -59,6 +59,7 @@ import {
   resolveStartPath,
   standardHomeFor,
 } from "@/lib/preferences";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 /**
  * Two-letter initials from a display name, for the avatar chip. A bracketed part is
@@ -642,10 +643,10 @@ export default async function AppLayout({
         <ThemeToggle label={themeLabel} labels={themeLabels} />
       </div>
       <AssistantSafeSignOutForm action={signOut} locale={locale}>
-        <button type="submit" className={menuItemClass()}>
+        <SubmitButton look="menuItem">
           <SignOutIcon className="text-xl text-sand-500" />
           {signOutLabel}
-        </button>
+        </SubmitButton>
       </AssistantSafeSignOutForm>
     </>
   );
@@ -683,13 +684,13 @@ export default async function AppLayout({
         <ThemeToggle label={themeLabel} labels={themeLabels} />
       </div>
       <AssistantSafeSignOutForm action={signOut} locale={locale}>
-        <button
-          type="submit"
+        <SubmitButton
+          look="plain"
           className="focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-base font-medium text-sand-800 hover:bg-sand-100"
         >
           <SignOutIcon className="text-xl text-sand-500" />
           {signOutLabel}
-        </button>
+        </SubmitButton>
       </AssistantSafeSignOutForm>
     </div>
   );

@@ -22,6 +22,8 @@ import { FleetCompliancePackLink } from "@/components/reports/compliance-packs";
 import { PrintMenuItem } from "@/components/reports/print-menu-item";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { budgetTone, budgetPeriodLabel, budgetCategoryLabel } from "@/lib/budgets";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 /**
  * Reports (FR-11).
@@ -139,9 +141,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     return p.toString();
   };
   const csvLink = (path: string) => (
-    <a href={`${path}?${qs()}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`}>
+    <DownloadLink href={`${path}?${qs()}`} className={`${buttonVariants({ variant: "ghost", size: "sm" })} print:hidden`} labels={downloadLabels(locale)}>
       {t("reports.csv", locale)} ↓
-    </a>
+    </DownloadLink>
   );
 
   // == Filters ==========================================================================
@@ -218,10 +220,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     >
       {/* Single multi-sheet Excel workbook covering every report family (FR-11.4). */}
       {costsVisible ? (
-        <a href={`/reports/workbook.xlsx?${qs()}`} className={menuItemClass()}>
+        <DownloadLink href={`/reports/workbook.xlsx?${qs()}`} className={menuItemClass()} labels={downloadLabels(locale)}>
           <DownloadIcon className="shrink-0 text-base text-sand-500" />
           {t("reports.downloadExcel", locale)}
-        </a>
+        </DownloadLink>
       ) : null}
       {/* GLOBALG.A.P. / SIZA audit pack (FR-13.4), fleet compliance summary PDF. */}
       <FleetCompliancePackLink locale={locale} look="menuItem" />
@@ -480,12 +482,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </CardHeader>
         <p className="text-sm leading-relaxed text-sand-700">{t("reports.sarsBody", locale)}</p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row print:hidden">
-          <a href={`/reports/sars-logbook.csv?${qs({ book: "storage" })}`} className={buttonVariants({ variant: "secondary" })}>
+          <DownloadLink href={`/reports/sars-logbook.csv?${qs({ book: "storage" })}`} className={buttonVariants({ variant: "secondary" })} labels={downloadLabels(locale)}>
             {t("reports.sarsStorage", locale)} ↓
-          </a>
-          <a href={`/reports/sars-logbook.csv?${qs({ book: "usage" })}`} className={buttonVariants({ variant: "secondary" })}>
+          </DownloadLink>
+          <DownloadLink href={`/reports/sars-logbook.csv?${qs({ book: "usage" })}`} className={buttonVariants({ variant: "secondary" })} labels={downloadLabels(locale)}>
             {t("reports.sarsUsage", locale)} ↓
-          </a>
+          </DownloadLink>
         </div>
       </Card>
     </div>

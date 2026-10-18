@@ -1,12 +1,13 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
 import { Overlay } from "./dialog";
 import { Button, buttonVariants, type ButtonVariant, type ButtonSize } from "./button";
 import { SubmitButton } from "./submit-button";
 import { menuItemClass } from "./menu-item";
 import { cn } from "./cn";
 import { WarningIcon } from "./icons";
+import { PendingGuardProvider, usePendingContainer } from "./pending-guard";
 
 export type ConfirmTone = "danger" | "brand";
 
@@ -103,10 +104,19 @@ export function ConfirmDialog({
 
   const locked = !!typeToConfirm && typed.trim() !== typeToConfirm;
 
-  function close() {
+  const dismiss = useCallback(() => {
     setOpen(false);
     setTyped("");
-  }
+  }, []);
+  // Closes once the action has settled, as DialogActions does: an action that redirects to
+  // this same page used to leave the dialog open with Confirm pressable again, and a
+  // second tap ran it again (a second refund, a second QR re-issue). And it cannot be
+  // closed mid-save, which would unmount the form and offer a fresh Confirm on reopening.
+  const { busyRef, rootRef, value: guard } = usePendingContainer(dismiss);
+  const close = useCallback(() => {
+    if (busyRef.current) return;
+    dismiss();
+  }, [busyRef, dismiss]);
 
   return (
     <>
@@ -201,45 +211,50 @@ export function ConfirmDialog({
 
           {footnote ? <div className="mt-3 text-sm text-sand-500">{footnote}</div> : null}
 
-          <form action={action} className="mt-5 flex flex-col gap-2.5">
-            {children}
+          <PendingGuardProvider value={guard}>
+            <div ref={rootRef} className="contents">
+              <form action={action} className="mt-5 flex flex-col gap-2.5">
+                {children}
 
-            {typeToConfirm ? (
-              <div className="mb-1">
-                <label htmlFor={typeId} className="block text-sm font-medium text-sand-800">
-                  {typeToConfirmLabel}
-                </label>
-                <input
-                  id={typeId}
-                  type="text"
-                  value={typed}
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  onChange={(e) => setTyped(e.target.value)}
-                  placeholder={typeToConfirmPlaceholder}
-                  className="mt-1.5 min-h-[48px] w-full rounded-lg border border-sand-300 bg-surface px-3 text-base text-sand-900 placeholder:text-sand-400 focus-ring"
-                />
-              </div>
-            ) : null}
+                {typeToConfirm ? (
+                  <div className="mb-1">
+                    <label htmlFor={typeId} className="block text-sm font-medium text-sand-800">
+                      {typeToConfirmLabel}
+                    </label>
+                    <input
+                      id={typeId}
+                      type="text"
+                      value={typed}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      onChange={(e) => setTyped(e.target.value)}
+                      placeholder={typeToConfirmPlaceholder}
+                      className="mt-1.5 min-h-[48px] w-full rounded-lg border border-sand-300 bg-surface px-3 text-base text-sand-900 placeholder:text-sand-400 focus-ring"
+                    />
+                  </div>
+                ) : null}
 
-            <SubmitButton
-              variant={tone === "danger" ? "danger" : "primary"}
-              size="lg"
-              fullWidth
-              disabled={locked}
-            >
-              {confirmLabel}
-            </SubmitButton>
-            <button
-              type="button"
-              onClick={close}
-              className={buttonVariants({ variant: "ghost", size: "lg", fullWidth: true })}
-            >
-              {cancelLabel}
-            </button>
-            <span className="sr-only">{closeLabel}</span>
-          </form>
+                <SubmitButton
+                  variant={tone === "danger" ? "danger" : "primary"}
+                  size="lg"
+                  fullWidth
+                  disabled={locked}
+                >
+                  {confirmLabel}
+                </SubmitButton>
+                <button
+                  type="button"
+                  onClick={close}
+                  data-pending-lock=""
+                  className={buttonVariants({ variant: "ghost", size: "lg", fullWidth: true })}
+                >
+                  {cancelLabel}
+                </button>
+                <span className="sr-only">{closeLabel}</span>
+              </form>
+            </div>
+          </PendingGuardProvider>
         </div>
       </Overlay>
     </>

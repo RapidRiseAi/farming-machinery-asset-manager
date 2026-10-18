@@ -34,6 +34,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -45,6 +46,7 @@ import { menuItemClass } from "./menu-item";
 import { Disclosure } from "./disclosure";
 import { CloseIcon } from "./icons";
 import { cn } from "./cn";
+import { PendingGuardProvider, usePendingContainer } from "./pending-guard";
 
 /**
  * A form that lives in a dialog instead of on the page.
@@ -161,8 +163,17 @@ export function DialogForm({
   const uid = useId();
   const titleId = `dialog-form-title-${uid}`;
   const descId = `dialog-form-desc-${uid}`;
-  const close = useCallback(() => setOpen(false), []);
+  // Not while its form is saving: closing would unmount the form mid-request, and the
+  // dialog reopened would offer a fresh, unlocked Save (pending-guard.tsx).
+  const { busyRef, rootRef, value: guard } = usePendingContainer();
+  const close = useCallback(() => {
+    if (busyRef.current) return;
+    setOpen(false);
+  }, [busyRef]);
   const openDialog = () => setOpen(true);
+  // Stable, so nothing inside the form re-renders because this dialog did (see the note in
+  // pending-guard.tsx on what a mid-save re-render does to the form's status).
+  const context = useMemo(() => ({ close, titleId }), [close, titleId]);
 
   return (
     <>
@@ -201,40 +212,45 @@ export function DialogForm({
         labelledBy={titleId}
         describedBy={description ? descId : undefined}
       >
-        <DialogFormContext.Provider value={{ close, titleId }}>
-          {/*
-            Sticky rather than fixed: `Overlay`'s panel is the scroll container, so a
-            long form scrolls under a header that keeps saying which form it is. On a
-            phone that matters by field six.
-          */}
-          {/*
-            The title block is as tall as the Close button and centres its content, so
-            a one-line title sits level with Close (it used to ride 12px high against a
-            48px button), while a title with a description still starts at the top.
-            This matches `Modal`'s header in dialog.tsx.
-          */}
-          <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-sand-100 bg-surface px-5 py-3.5">
-            <div className="flex min-h-[48px] min-w-0 flex-col justify-center sm:min-h-[40px]">
-              <h2 id={titleId} className="text-base font-semibold text-sand-900">
-                {title}
-              </h2>
-              {description ? (
-                <p id={descId} className="mt-0.5 text-sm text-sand-600">
-                  {description}
-                </p>
-              ) : null}
+        <PendingGuardProvider value={guard}>
+          <DialogFormContext.Provider value={context}>
+            <div ref={rootRef} className="contents">
+              {/*
+                Sticky rather than fixed: `Overlay`'s panel is the scroll container, so a
+                long form scrolls under a header that keeps saying which form it is. On a
+                phone that matters by field six.
+              */}
+              {/*
+                The title block is as tall as the Close button and centres its content, so
+                a one-line title sits level with Close (it used to ride 12px high against a
+                48px button), while a title with a description still starts at the top.
+                This matches `Modal`'s header in dialog.tsx.
+              */}
+              <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-sand-100 bg-surface px-5 py-3.5">
+                <div className="flex min-h-[48px] min-w-0 flex-col justify-center sm:min-h-[40px]">
+                  <h2 id={titleId} className="text-base font-semibold text-sand-900">
+                    {title}
+                  </h2>
+                  {description ? (
+                    <p id={descId} className="mt-0.5 text-sm text-sand-600">
+                      {description}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={close}
+                  data-pending-lock=""
+                  className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-xl text-sand-500 hover:bg-sand-100 disabled:opacity-50 sm:min-h-[40px]"
+                >
+                  <CloseIcon />
+                  <span className="text-sm font-medium">{closeLabel}</span>
+                </button>
+              </div>
+              <div className="px-5 py-4">{children}</div>
             </div>
-            <button
-              type="button"
-              onClick={close}
-              className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-xl text-sand-500 hover:bg-sand-100 sm:min-h-[40px]"
-            >
-              <CloseIcon />
-              <span className="text-sm font-medium">{closeLabel}</span>
-            </button>
-          </div>
-          <div className="px-5 py-4">{children}</div>
-        </DialogFormContext.Provider>
+          </DialogFormContext.Provider>
+        </PendingGuardProvider>
       </Overlay>
     </>
   );

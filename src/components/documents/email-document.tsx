@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { reportClientError } from "@/lib/client-report";
 import { t, type Lang } from "@/lib/i18n";
+import { newRequestId } from "@/lib/request-id";
+import { asError } from "@/lib/single-flight";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
@@ -51,33 +54,49 @@ export function EmailDocument({
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [detail, setDetail] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  // One send at a time; this emails the customer. The id stays the same across retries
+  // of one send, so the server can recognise a send whose answer never arrived.
+  const sending = useRef(false);
+  const requestId = useRef(newRequestId());
 
   async function send() {
+    if (sending.current) return;
+    sending.current = true;
     setState("sending");
     setDetail(null);
     try {
       const res = await fetch(`/api/documents/${documentId}/send`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to, cc: cc || null, message: message || null }),
+        body: JSON.stringify({ to, cc: cc || null, message: message || null, requestId: requestId.current }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string; to?: string };
-      if (res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; to?: string };
+      // Sent only when the server says so: a sign-in page answering 200 is not a send.
+      if (res.ok && body.ok === true) {
+        requestId.current = newRequestId();
         setState("sent");
         setDetail(body.to ?? to);
       } else {
+        if (res.status >= 500) reportClientError(new Error(`document send ${res.status}: ${body.error ?? "?"}`), "documents:send");
         setState("error");
         setDetail(
           body.error === "email-not-configured"
             ? t("email.notConfigured", locale)
-            : body.error === "no-address"
+            : body.error === "no-address" || body.error === "bad-cc"
               ? t("email.badAddress", locale)
-              : (body.error ?? t("email.failed", locale)),
+              : body.error === "refused"
+                ? t("errors.emailTestOnly", locale)
+                : body.error === "signed-out" || (res.ok && body.ok !== true)
+                  ? t("errors.session", locale)
+                  : t("email.failed", locale),
         );
       }
-    } catch {
+    } catch (failure) {
+      if (navigator.onLine !== false) reportClientError(asError(failure), "documents:send");
       setState("error");
-      setDetail(t("email.failed", locale));
+      setDetail(navigator.onLine === false ? t("interaction.actionOffline", locale) : t("email.failed", locale));
+    } finally {
+      sending.current = false;
     }
   }
 
@@ -129,11 +148,19 @@ export function EmailDocument({
           </Field>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" onClick={send} disabled={state === "sending" || !to}>
-              {state === "sending" ? t("email.sending", locale) : t("email.sendNow", locale)}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              {t("common.cancel", locale)}
+            {/* After a send, the button that sent it goes: a tap on it was a second email
+                to the customer. Sending again is a deliberate step, "Send again". */}
+            {state === "sent" ? (
+              <Button type="button" variant="secondary" onClick={() => setState("idle")}>
+                {t("email.sendAgain", locale)}
+              </Button>
+            ) : (
+              <Button type="button" onClick={send} loading={state === "sending"} disabled={!to}>
+                {state === "sending" ? t("email.sending", locale) : t("email.sendNow", locale)}
+              </Button>
+            )}
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={state === "sending"}>
+              {state === "sent" ? t("ui.close", locale) : t("common.cancel", locale)}
             </Button>
           </div>
 

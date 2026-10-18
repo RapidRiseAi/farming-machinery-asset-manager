@@ -1,6 +1,8 @@
 import { t, type Lang } from "@/lib/i18n";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 /**
  * The three per-vehicle document packs (FR-13.4), as one card on machine detail.
@@ -60,9 +62,9 @@ export function DocumentPacks({
               <p className="text-sm font-medium text-sand-900">{p.label}</p>
               <p className="text-xs leading-snug text-sand-500">{p.hint}</p>
             </div>
-            <a href={p.href} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <DownloadLink href={p.href} className={buttonVariants({ variant: "secondary", size: "sm" })} labels={downloadLabels(locale)}>
               {t("machine.packDownload", locale)}
-            </a>
+            </DownloadLink>
           </li>
         ))}
       </ul>

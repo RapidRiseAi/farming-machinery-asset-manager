@@ -16,7 +16,7 @@ import { workKindLabel, workPriorityLabel, workPriorityTone } from "@/lib/work";
 import { acceptQuote, approveInvoice, openInboxAlert, markAllInboxRead } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Flash } from "@/components/ui/flash";
 import { AllClear } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -24,6 +24,7 @@ import { WorkStatus } from "@/components/ui/status";
 import {
   InboxIcon, WorkIcon, BellIcon, PhoneIcon, ChatIcon, MailIcon, ChevronRightIcon, MachinesIcon, CheckIcon,
 } from "@/components/ui/icons";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 type WorkRequest = {
   id: string; machine_id: string; workshop_id: string | null; kind: string; status: string;
@@ -407,10 +408,9 @@ export default async function InboxPage({
             <span className="flex flex-wrap items-center justify-end gap-x-3">
               {unreadCount > 0 ? (
                 <form action={markAllInboxRead}>
-                  <Button type="submit" variant="ghost" size="sm">
-                    <CheckIcon />
+                  <SubmitButton variant="ghost" size="sm" leftIcon={<CheckIcon />}>
                     {t("notifications.markAllRead", locale)}
-                  </Button>
+                  </SubmitButton>
                 </form>
               ) : null}
               <Link href="/notifications" className="focus-ring inline-flex min-h-[48px] items-center gap-0.5 rounded-md text-sm font-medium text-brand-ink sm:min-h-0">
@@ -434,8 +434,8 @@ export default async function InboxPage({
                 <li key={n.id}>
                   <form action={openInboxAlert}>
                     <input type="hidden" name="id" value={n.id} />
-                    <button
-                      type="submit"
+                    <SubmitButton
+                      look="plain"
                       className="focus-ring -mx-2 flex min-h-[48px] w-[calc(100%+1rem)] items-center gap-2 rounded-lg px-2 py-2.5 text-left hover:bg-sand-50"
                     >
                       <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-hidden />
@@ -446,7 +446,7 @@ export default async function InboxPage({
                         <span className="block text-xs text-sand-500">{relativeDate(n.created_at, locale)}</span>
                       </span>
                       <ChevronRightIcon className="shrink-0 text-base text-sand-400" />
-                    </button>
+                    </SubmitButton>
                   </form>
                 </li>
               );

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { t, type Lang } from "@/lib/i18n";
 import { canQueueOffline, fieldsFromForm, isOnline, queueMutation } from "@/lib/offline/capture";
 import type { MutationScope, MutationType } from "@/lib/offline/types";
 import { CheckIcon } from "@/components/ui/icons";
+import { reportClientError } from "@/lib/client-report";
+import { asError } from "@/lib/single-flight";
 
 /**
  * Wraps a server-action form so that, when offline, the submit is intercepted and queued
@@ -40,16 +42,28 @@ export function OfflineForm({
 }) {
   const [queued, setQueued] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  // The offline path never reaches React's form status, so the SubmitButton does not lock
+  // here: two quick taps queued two captures with different ids, and both applied on sync.
+  const queueing = useRef(false);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     // Online (or no IndexedDB) → let the server action submit normally.
     if (isOnline() || !canQueueOffline()) return;
     e.preventDefault();
+    if (queueing.current) return;
+    queueing.current = true;
     const form = e.currentTarget;
     const fields = fieldsFromForm(form);
     setSaveError(false);
-    try { await queueMutation({ type, scope, fields }); }
-    catch { setSaveError(true); return; }
+    try {
+      await queueMutation({ type, scope, fields });
+    } catch (failure) {
+      reportClientError(asError(failure), `offline:queue:${type}`);
+      setSaveError(true);
+      return;
+    } finally {
+      queueing.current = false;
+    }
     form.reset();
     setQueued(true);
     onQueued?.();

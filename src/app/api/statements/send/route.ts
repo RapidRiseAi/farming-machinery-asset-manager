@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireRole, currentWorkshop } from "@/lib/auth";
+import { requireApiRole, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadStatement, buildStatementPdf, statementFilename } from "@/lib/pdf/statement";
@@ -28,7 +28,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const profile = await requireRole(["workshop"]);
+  const { profile, denied } = await requireApiRole(["workshop"]);
+  if (denied) return denied;
   const { workshop } = await currentWorkshop(profile);
   if (!workshop) return NextResponse.json({ error: "no-workshop" }, { status: 403 });
 
@@ -87,6 +88,11 @@ export async function POST(request: Request) {
     sent_by: profile.id,
   });
 
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+  if (!result.ok) {
+    // A refusal (an address a test workshop may not email) is the request's fault; any
+    // other failure is ours. Codes only, the provider's words stay in document_emails.
+    const refused = "refused" in result && result.refused;
+    return NextResponse.json({ error: refused ? "refused" : "send-failed" }, { status: refused ? 400 : 502 });
+  }
   return NextResponse.json({ ok: true, to });
 }

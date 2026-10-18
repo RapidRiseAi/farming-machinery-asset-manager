@@ -20,6 +20,7 @@ import { MachinesIcon, CheckIcon, WarningIcon } from "@/components/ui/icons";
 import { QrChooser, type QrTask } from "./qr-chooser";
 import { submitReading, submitFuel } from "./actions";
 import { freshSent, sentHref } from "./remembered-name";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 // Public branded gate; vehicle content requires current farm membership. Always dynamic.
 export const dynamic = "force-dynamic";
@@ -392,9 +393,9 @@ export default async function PublicMachinePage({
                   readOnly
                 />
               </Field>
-              <button type="submit" className={SUBMIT_CLASS}>
+              <SubmitButton size="lg" fullWidth>
                 {t("qr.logReading", locale)}
-              </button>
+              </SubmitButton>
             </form>
           ) : null,
           fuel: fuelAllowed ? (
@@ -446,9 +447,9 @@ export default async function PublicMachinePage({
                   readOnly
                 />
               </Field>
-              <button type="submit" className={SUBMIT_CLASS}>
+              <SubmitButton size="lg" fullWidth>
                 {t("qr.logFuelBtn", locale)}
-              </button>
+              </SubmitButton>
             </form>
           ) : null,
         }}

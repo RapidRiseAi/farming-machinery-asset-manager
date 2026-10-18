@@ -23,6 +23,8 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Disclosure } from "@/components/ui/disclosure";
 import { PeriodChips } from "@/components/books/period-chips";
 import { DownloadIcon } from "@/components/ui/icons";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -210,24 +212,27 @@ export default async function AccountingPage({
         <CardHeader><CardTitle>{t("accounting.downloadTitle", locale)}</CardTitle></CardHeader>
         <p className="text-sm text-sand-600">{t("accounting.layoutBody", locale)}</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <a
+          <DownloadLink
             href={`/api/accounting/journal.csv?${q}&layout=dc`}
             className={buttonVariants({ variant: "primary", size: "sm" })}
+            labels={downloadLabels(locale)}
           >
             <DownloadIcon /> {t("accounting.downloadDc", locale)}
-          </a>
-          <a
+          </DownloadLink>
+          <DownloadLink
             href={`/api/accounting/journal.csv?${q}&layout=signed`}
             className={buttonVariants({ variant: "secondary", size: "sm" })}
+            labels={downloadLabels(locale)}
           >
             <DownloadIcon /> {t("accounting.downloadSigned", locale)}
-          </a>
-          <a
+          </DownloadLink>
+          <DownloadLink
             href={`/api/accounting/chart.csv?scope=${scope}`}
             className={buttonVariants({ variant: "secondary", size: "sm" })}
+            labels={downloadLabels(locale)}
           >
             <DownloadIcon /> {t("accounting.downloadChart", locale)}
-          </a>
+          </DownloadLink>
         </div>
       </Card>
 

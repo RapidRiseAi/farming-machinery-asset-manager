@@ -2,6 +2,8 @@ import { t, type Lang } from "@/lib/i18n";
 import { buttonVariants } from "@/components/ui/button";
 import { menuItemClass } from "@/components/ui/menu-item";
 import { DownloadIcon } from "@/components/ui/icons";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 /**
  * The fleet GLOBALG.A.P. / SIZA pack link (FR-13.4).
@@ -26,18 +28,19 @@ export function FleetCompliancePackLink({
 }) {
   if (look === "menuItem") {
     return (
-      <a href="/api/packs/fleet-compliance" className={menuItemClass()}>
+      <DownloadLink href="/api/packs/fleet-compliance" className={menuItemClass()} labels={downloadLabels(locale)}>
         <DownloadIcon className="shrink-0 text-base text-sand-500" />
         {t("reports.auditPack", locale)}
-      </a>
+      </DownloadLink>
     );
   }
   return (
-    <a
+    <DownloadLink
       href="/api/packs/fleet-compliance"
       className={buttonVariants({ variant: "secondary", size: "sm" })}
+      labels={downloadLabels(locale)}
     >
       {t("reports.auditPack", locale)} ↓
-    </a>
+    </DownloadLink>
   );
 }

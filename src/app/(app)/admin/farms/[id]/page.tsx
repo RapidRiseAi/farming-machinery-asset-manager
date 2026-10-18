@@ -22,7 +22,6 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { PlusIcon } from "@/components/ui/icons";
@@ -289,7 +288,7 @@ export default async function FarmDetailPage({
                       <input type="hidden" name="id" value={u.id} />
                       <input type="hidden" name="active" value={u.active ? "false" : "true"} />
                       <input type="hidden" name="back" value={`/admin/farms/${farm.id}`} />
-                      <Button type="submit" variant="ghost" size="sm">{u.active ? "Deactivate" : "Activate"}</Button>
+                      <SubmitButton variant="ghost" size="sm">{u.active ? "Deactivate" : "Activate"}</SubmitButton>
                     </form>
                   </Td>
                 </Tr>

@@ -4,6 +4,7 @@ import { useCallback, useId, useState, type ReactNode } from "react";
 import { Overlay } from "./dialog";
 import { Button } from "./button";
 import { CloseIcon, MoreIcon } from "./icons";
+import { PendingGuardProvider, usePendingContainer } from "./pending-guard";
 
 /**
  * The actions for one row, behind one button.
@@ -75,7 +76,15 @@ export function ActionMenu({
   const [open, setOpen] = useState(false);
   const uid = useId();
   const titleId = `action-menu-title-${uid}`;
-  const close = useCallback(() => setOpen(false), []);
+  // Each row is its own form, so without this one row's save left the others pressable,
+  // and closing the menu mid-save unmounted the form. Rows now lock each other while one
+  // is out, the menu stays open until it settles, then closes on the page it changed.
+  const dismiss = useCallback(() => setOpen(false), []);
+  const { busyRef, rootRef, value: guard } = usePendingContainer(dismiss);
+  const close = useCallback(() => {
+    if (busyRef.current) return;
+    dismiss();
+  }, [busyRef, dismiss]);
 
   return (
     <>
@@ -104,27 +113,32 @@ export function ActionMenu({
       )}
 
       <Overlay open={open} onClose={close} align="responsive" labelledBy={titleId}>
-        <div className="flex items-center justify-between gap-3 border-b border-sand-100 px-5 py-3.5">
-          <h2 id={titleId} className="min-w-0 truncate text-base font-semibold text-sand-900">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-xl text-sand-500 hover:bg-sand-100 sm:min-h-[40px]"
-          >
-            <CloseIcon />
-            <span className="text-sm font-medium">{closeLabel}</span>
-          </button>
-        </div>
-        {/*
-          `[&>*]:w-full` so a caller can drop a Link, a SubmitButton or a DialogForm
-          trigger in and get one column of equal-width rows without each call site
-          repeating the layout. Server Components render the rows; this only stacks them.
-        */}
-        <div className="flex flex-col gap-1.5 px-4 py-3 [&>*]:w-full [&>form]:contents">
-          {children}
-        </div>
+        <PendingGuardProvider value={guard}>
+          <div ref={rootRef} className="contents">
+            <div className="flex items-center justify-between gap-3 border-b border-sand-100 px-5 py-3.5">
+              <h2 id={titleId} className="min-w-0 truncate text-base font-semibold text-sand-900">
+                {title}
+              </h2>
+              <button
+                type="button"
+                onClick={close}
+                data-pending-lock=""
+                className="focus-ring -mr-1 inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-xl text-sand-500 hover:bg-sand-100 disabled:opacity-50 sm:min-h-[40px]"
+              >
+                <CloseIcon />
+                <span className="text-sm font-medium">{closeLabel}</span>
+              </button>
+            </div>
+            {/*
+              `[&>*]:w-full` so a caller can drop a Link, a SubmitButton or a DialogForm
+              trigger in and get one column of equal-width rows without each call site
+              repeating the layout. Server Components render the rows; this only stacks them.
+            */}
+            <div className="flex flex-col gap-1.5 px-4 py-3 [&>*]:w-full [&>form]:contents">
+              {children}
+            </div>
+          </div>
+        </PendingGuardProvider>
       </Overlay>
     </>
   );

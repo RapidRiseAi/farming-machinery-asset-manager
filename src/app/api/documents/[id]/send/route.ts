@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { requireApiRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadDocument } from "@/lib/document-load";
@@ -37,7 +37,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const profile = await requireRole(["workshop", "owner", "manager"]);
+  const { profile, denied } = await requireApiRole(["workshop", "owner", "manager"]);
+  if (denied) return denied;
   const { id } = await params;
 
   const supabase = await createClient();
@@ -110,7 +111,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!result.ok) {
     // A refusal is the request's fault (an address a test workshop may not email), not ours.
     const status = "refused" in result && result.refused ? 400 : 502;
-    return NextResponse.json({ error: result.error, label: documentLabel(doc.kind) }, { status });
+    // A code, never the provider's own words: the screen says what it means in the
+    // person's language, and the detail is in document_emails.error above.
+    return NextResponse.json({ error: status === 400 ? "refused" : "send-failed", label: documentLabel(doc.kind) }, { status });
   }
   return NextResponse.json({ ok: true, to });
 }

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PublicShell } from "@/components/public-shell";
 import { signOut } from "@/app/(app)/actions";
 import { VerifyForm } from "./verify-form";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +38,9 @@ export default async function MfaVerifyPage({ searchParams }: { searchParams: Pr
         <VerifyForm next={next} locale={locale} />
       </div>
       <form action={signOut} className="mt-4 text-center">
-        <button type="submit" className="focus-ring inline-flex min-h-[48px] items-center rounded px-3 text-sm text-sand-600 underline">
+        <SubmitButton look="plain" className="focus-ring inline-flex min-h-[48px] items-center rounded px-3 text-sm text-sand-600 underline">
           {t("mfa.otherAccount", locale)}
-        </button>
+        </SubmitButton>
       </form>
     </PublicShell>
   );

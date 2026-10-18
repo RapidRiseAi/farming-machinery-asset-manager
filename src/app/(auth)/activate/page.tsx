@@ -9,12 +9,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { farmBillingGate } from "@/lib/billing/service";
 import { STALE_PENDING_MINUTES } from "@/lib/billing/worker";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { signOut } from "@/app/(app)/actions";
 import { Flash } from "@/components/ui/flash";
 import { errorMessage } from "@/lib/errors";
 import { MachinesIcon } from "@/components/ui/icons";
 import { beginCheckoutAction } from "./actions";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 /**
  * The screen a farm sees between signing up and paying.
@@ -189,14 +190,14 @@ export default async function ActivatePage({
         ) : (
           <>
             <form action={beginCheckoutAction} className="mt-6">
-              <Button type="submit" className="w-full">
+              <SubmitButton className="w-full">
                 {invoice
                   ? t("activate.payAmount", locale).replace(
                       "{amount}",
                       rands(invoice.total_incl_cents),
                     )
                   : t("activate.pay", locale)}
-              </Button>
+              </SubmitButton>
             </form>
 
             <p className="mt-4 text-xs text-sand-700">{t("activate.note", locale)}</p>
@@ -212,9 +213,9 @@ export default async function ActivatePage({
         <p className="text-xs text-sand-600">
           {t("gate.signedInAs", locale).replace("{email}", profile.email ?? "-")}
         </p>
-        <button type="submit" className="mt-1 min-h-12 text-sm font-medium text-brand-ink underline sm:min-h-11">
+        <SubmitButton look="plain" className="mt-1 min-h-12 text-sm font-medium text-brand-ink underline sm:min-h-11">
           {t("gate.signOut", locale)}
-        </button>
+        </SubmitButton>
       </form>
     </main>
   );

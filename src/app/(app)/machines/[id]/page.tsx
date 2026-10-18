@@ -92,6 +92,8 @@ import {
   WORK_KINDS, WORK_PRIORITIES, workKindLabel, workPriorityLabel,
   workStatusLabel, workStatusTone,
 } from "@/lib/work";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 type Machine = {
   id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null;
@@ -870,9 +872,9 @@ export default async function MachineDetailPage({
               <Link href={`/machines/${machine.id}/qr`} className={menuItemClass()}>
                 {t("machine.qrSticker", locale)}
               </Link>
-              <a href={`/machines/${machine.id}/file.pdf`} className={menuItemClass()}>
+              <DownloadLink href={`/machines/${machine.id}/file.pdf`} className={menuItemClass()} labels={downloadLabels(locale)}>
                 {t("machine.machineFile", locale)}
-              </a>
+              </DownloadLink>
             </ActionMenu>
           </div>
         </div>

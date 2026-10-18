@@ -21,6 +21,8 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Disclosure } from "@/components/ui/disclosure";
 import { PeriodChips } from "@/components/books/period-chips";
 import { DownloadIcon } from "@/components/ui/icons";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -229,12 +231,12 @@ export default async function VatPage({
             ) : null}
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <a href={`/api/vat/csv?${q}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              <DownloadLink href={`/api/vat/csv?${q}`} className={buttonVariants({ variant: "secondary", size: "sm" })} labels={downloadLabels(locale)}>
                 <DownloadIcon /> {t("vat.downloadCsv", locale)}
-              </a>
-              <a href={`/api/vat/pdf?${q}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              </DownloadLink>
+              <DownloadLink href={`/api/vat/pdf?${q}`} className={buttonVariants({ variant: "secondary", size: "sm" })} labels={downloadLabels(locale)}>
                 <DownloadIcon /> {t("vat.downloadPdf", locale)}
-              </a>
+              </DownloadLink>
             </div>
           </Card>
 

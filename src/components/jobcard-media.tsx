@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { t, type Lang } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
 import { parseRandsToCents } from "@/lib/money";
+import { ReportPending } from "@/components/ui/pending-guard";
 
 /**
  * Uploader for job-card quote / invoice / photo attachments. Recording an invoice with
@@ -60,6 +61,8 @@ export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds =
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Already uploading: a second submit would upload the same file again.
+    if (busy) return;
     const formEl = e.currentTarget;
     const fd = new FormData(formEl);
     fd.set("job_card_id", jobCardId);
@@ -115,6 +118,7 @@ export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds =
 
   return (
     <form onSubmit={onSubmit} onChange={() => setSaved(false)} className="flex flex-col gap-2">
+      <ReportPending pending={busy} />
       {kind === "invoice" ? <p className="text-sm text-sand-600">{t("jobcards.supplierInvoiceHelp", locale)}</p> : null}
       {hasPendingCapture ? <p role="status" className="text-sm text-sand-600">{t("jobcards.mediaRetryHint", locale)}</p> : null}
       <div className="flex flex-wrap gap-1">

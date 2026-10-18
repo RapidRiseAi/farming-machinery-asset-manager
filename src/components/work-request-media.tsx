@@ -6,6 +6,7 @@ import { useDialogForm } from "@/components/ui/dialog-form";
 import { useRouter } from "next/navigation";
 import { t, type Lang } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
+import { ReportPending } from "@/components/ui/pending-guard";
 
 /**
  * Uploader for work-request quote / invoice / proof attachments. Recording an invoice
@@ -26,6 +27,8 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Already uploading: a second submit would upload the same file again.
+    if (busy) return;
     const formEl = e.currentTarget;
     const fd = new FormData(formEl);
     fd.set("work_request_id", workRequestId);
@@ -59,6 +62,7 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
+      <ReportPending pending={busy} />
       <div className="flex flex-wrap gap-1">
         {allowedKinds.map((k) => (
           <button

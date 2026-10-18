@@ -9,7 +9,7 @@
  *   - Other same-origin GETs (JSON/images): stale-while-revalidate.
  *   - Never touches POST or /api/*, mutations flow through the IndexedDB sync queue.
  */
-const VERSION = "fleetwise-v5-warm-once";
+const VERSION = "fleetwise-v6-downloads";
 const SHELL_CACHE = VERSION + "-shell";
 const DATA_CACHE = VERSION + "-data";
 const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
@@ -164,7 +164,10 @@ async function networkFirstNav(request, url) {
      * under /dashboard and serve it offline forever, which looks exactly like "the app
      * logged me out and now it won't let me back in".
      */
-    if (res && res.ok && !res.redirected) cache.put(request, res.clone());
+    //
+    // Nor a file. Every file route answers with an attachment, and a downloaded statement
+    // kept here would be handed back offline as if it were current (2026-10-18).
+    if (res && res.ok && !res.redirected && !isAttachment(res)) cache.put(request, res.clone());
     return res;
   } catch (err) {
     // Exact URL first, then the same path without its query, a filtered list offline is
@@ -225,6 +228,9 @@ self.addEventListener("fetch", (event) => {
   // to the router. When one fails offline, the router falls back to a full page load, which
   // the navigation handler below does answer from the cache.
   if (request.headers.get("rsc") === "1" || url.searchParams.has("_rsc")) return;
+  // A file the app is downloading (DownloadLink sets this header). Always from the server:
+  // the stale-first rule below would otherwise hand back an old copy of the same report.
+  if (request.headers.get("x-fw-download") === "1") return;
 
   if (url.pathname.startsWith("/_next/static/") || url.pathname === "/icon.svg") {
     event.respondWith(cacheFirst(request, SHELL_CACHE));
@@ -236,6 +242,10 @@ self.addEventListener("fetch", (event) => {
   }
   event.respondWith(staleWhileRevalidate(request, DATA_CACHE));
 });
+
+function isAttachment(res) {
+  return /^s*attachment/i.test(res.headers.get("content-disposition") || "");
+}
 
 // QR permissions, driver locations and integration credentials must be checked online.
 function requiresLiveAccess(path) {

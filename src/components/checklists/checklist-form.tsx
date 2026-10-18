@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Photo } from "@/components/ui/photo";
 import { useRouter } from "next/navigation";
 import { t, type Locale, type Lang } from "@/lib/i18n";
@@ -8,6 +8,8 @@ import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { ratingMax, isChecklistValueEmpty, type ChecklistFieldType } from "@/lib/checklists";
 import { CloseIcon, PlusIcon, ChevronUpIcon, CheckIcon } from "@/components/ui/icons";
 import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
+import { reportClientError } from "@/lib/client-report";
+import { asError } from "@/lib/single-flight";
 import {
   createChecklistInstance,
   type ChecklistInstanceInput,
@@ -90,7 +92,21 @@ export function ChecklistForm({
     return v != null && v.trim() !== "" ? v.trim() : null;
   }
 
+  // One save at a time, offline queue included: that path never shows a busy button, and
+  // two quick taps queued the inspection twice (two sets of defect faults on sync).
+  const saving = useRef(false);
+
   async function save(status: "draft" | "completed") {
+    if (saving.current) return;
+    saving.current = true;
+    try {
+      await saveOnce(status);
+    } finally {
+      saving.current = false;
+    }
+  }
+
+  async function saveOnce(status: "draft" | "completed") {
     setError(null);
     if (!template) {
       setError(t("checklists.pickTemplate", locale));
@@ -162,7 +178,8 @@ export function ChecklistForm({
             ),
           },
         });
-      } catch {
+      } catch (failure) {
+        reportClientError(asError(failure), "checklists:queue");
         setError(t("offline.storageFailed", locale));
         return;
       }
@@ -179,7 +196,8 @@ export function ChecklistForm({
         return;
       }
       router.refresh();
-    } catch {
+    } catch (failure) {
+      if (navigator.onLine !== false) reportClientError(asError(failure), "checklists:save");
       setError(t("checklists.saveFailed", locale));
       setSubmitting(false);
     }

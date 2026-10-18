@@ -4,6 +4,9 @@ import { ServiceWorkerRegister } from "@/components/offline/service-worker-regis
 import { BOOT_GUARD } from "@/components/ui/boot-guard";
 import { BootReady } from "@/components/ui/boot-ready";
 import { RouteProgress } from "@/components/ui/route-progress";
+import { NoticeHost } from "@/components/ui/notice-host";
+import { ClientErrorReporter } from "@/components/ui/client-error-reporter";
+import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { TEXT_SIZE_BOOTSTRAP } from "@/components/preferences/text-size";
 
@@ -83,6 +86,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {children}
         <ServiceWorkerRegister />
         <BootReady />
+        {/* What a failed download or button says (showNotice), on every screen, and a
+            report of every uncaught browser error, not only the ones that crash a page. */}
+        <NoticeHost closeLabel={t("ui.dismiss", locale)} />
+        <ClientErrorReporter />
       </body>
     </html>
   );

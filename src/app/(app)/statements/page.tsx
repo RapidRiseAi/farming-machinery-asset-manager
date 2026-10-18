@@ -20,6 +20,8 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DownloadIcon } from "@/components/ui/icons";
 import { StatementPicker } from "./picker";
 import { SendStatement } from "@/components/statements/send-statement";
+import { DownloadLink } from "@/components/ui/download-link";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -162,12 +164,12 @@ export default async function StatementsPage({
         locale={locale}
         actions={selected ? (
           <div className="flex flex-wrap gap-2">
-            <a href={pdfHref} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <DownloadLink href={pdfHref} className={buttonVariants({ variant: "secondary", size: "sm" })} labels={downloadLabels(locale)}>
               <DownloadIcon className="text-lg" /> {t("statement.pdf", locale)}
-            </a>
-            <a href={csvHref} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            </DownloadLink>
+            <DownloadLink href={csvHref} className={buttonVariants({ variant: "ghost", size: "sm" })} labels={downloadLabels(locale)}>
               {t("statement.csv", locale)}
-            </a>
+            </DownloadLink>
             {/* The last step of the monthly-account workflow. Without it a customer who
                 pays off a statement could be emailed six invoices and no statement. */}
             <SendStatement

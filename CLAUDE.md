@@ -38,6 +38,12 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
   (`is_rr_admin()`, `accessible_farm_ids()`, `has_farm_access(farm_id)`) drive every policy.
   Workshop staff reach farms via `workshop_links` (status=active). RR admin = cross-tenant (logged).
 - **Money** stored as **integer cents, ex-VAT**; `vat_rate` captured. No floats near money.
+- **A tap does its work once.** Server-action forms submit through `SubmitButton` (never a raw
+  `<button type="submit">`); links to files are `DownloadLink`; async `onClick` work is
+  `ActionButton`/`useSingleFlight`; a form that `fetch`es reports its busy state
+  (`ReportPending`). Dialogs and menus lock while anything in them saves
+  (`pending-guard.tsx`: refs and the DOM, never React state, see its note).
+  `interaction-guards.test.ts` fails on a new raw submit or plain file link.
 - **History is structural:** soft delete (`deleted_at`/`deleted_by`), append-only `audit_log` (trigger),
   job cards lock after approval (trigger blocks edits; history via audit diffs).
 - **Public QR flow has ZERO anon DB access.** QR encodes an unguessable per-machine `public_token`;
