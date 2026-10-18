@@ -1,17 +1,23 @@
 # Fleetwise WhatsApp integration
 
-Status: production phone linking verified, 17 October 2026.
-Runtime code `bbce802` is deployed at `https://app.fleet-wise.co.za`; the production
-flag is `WHATSAPP_ENABLED=1` (deployment `dpl_BU1KrymEYgWFra6jzyAKtniprCEf`).
+Status: production phone linking, a real AI reply and a fault-assignment alert verified, 18 October 2026.
+Runtime code `acfc707` is deployed at `https://app.fleet-wise.co.za`; the production
+flag is `WHATSAPP_ENABLED=1` (deployment `dpl_2Rg3chNd2sbTnxVzQkdfura2ucgv`).
 The founder completed real WhatsApp linking at 21:26 SAST, confirmed by the app and
 the persisted active link. Notifications and assistant consent are both enabled.
 Two real assistant replies were sent and read on October 17, proving outbound text
 delivery. Their answer to "Which machines need attention on my farm?" was incorrect:
 the local reader treated "on my farm" as a machine qualifier. The October 18 routing
 fix recognises generic farm qualifiers and sends attention questions to the existing
-farm-reading AI with faults, workshop jobs and service records prefetched. AI answer
-quality after that fix, outbound template delivery and the remaining pilot acceptance
-checks below still require live verification. The original disabled-release evidence remains below.
+farm-reading AI with faults, workshop jobs and service records prefetched. At 08:10 SAST
+on October 18 the founder repeated the question and received named machines with service,
+repair and fault reasons. The inbox records sent/read with no error. The AI ledger records
+a successful `openai/gpt-4.1-mini` answer after the primary `openai/gpt-5.4-mini` attempt
+failed with `gateway_auth`; primary-model availability remains unresolved. At 08:13 SAST
+the founder assigned a test fault to the linked owner. Its `fault_assigned` notification
+was queued and the WhatsApp delivery reached sent/read with no error. The remaining
+pilot acceptance checks below, including job assignment and other-user cases, are still pending.
+The original disabled-release evidence remains below.
 
 The access failure was resolved by assigning the Fleetwise system user to the separate
 Fleetwise **messaging account**, with its management access. Assignment to the phone's

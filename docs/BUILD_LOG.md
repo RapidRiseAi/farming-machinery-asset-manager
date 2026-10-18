@@ -5469,3 +5469,17 @@ database or credential changes. Local fallback remains a fleet overview when AI 
 Validation: all 638 tests, typecheck and lint pass. Regression cases cover the exact pilot
 phrase, English/Afrikaans variants, topic selection, fallback and an unknown named machine.
 Live answer quality and assignment-template delivery still need the pilot's next test.
+
+Production `acfc707` is Ready on the canonical app domain in deployment
+`dpl_2Rg3chNd2sbTnxVzQkdfura2ucgv`; CI runs `39102711621` and `39102711766` passed.
+At 08:10 SAST the founder repeated the question and received a relevant list of named
+machines and their issues. The inbox confirms sent/read without error. The scoped AI
+ledger confirms a successful `openai/gpt-4.1-mini` answer after the configured primary
+`openai/gpt-5.4-mini` failed with `gateway_auth`. This proves a real AI reply through
+WhatsApp, with fallback-model use still a configuration limitation. The founder was
+asked to assign a test fault to the connected owner for the next template-delivery test.
+
+The founder assigned the test fault at 08:13 SAST. Read-only verification found the
+`fault_assigned` notification created at 06:13:30 UTC and its WhatsApp delivery marked
+sent/read, with no error. Real phone linking, one AI read and one assignment-template
+delivery are now proven; the other pilot acceptance checks remain outstanding.
