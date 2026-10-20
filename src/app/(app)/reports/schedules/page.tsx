@@ -28,6 +28,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ChevronRightIcon, PlusIcon } from "@/components/ui/icons";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createReportSchedule } from "./actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,7 @@ export default async function ReportSchedulesPage({
       size="lg"
     >
       <form action={createReportSchedule} className="flex flex-col gap-3">
+        <RequestIdInput action="report-schedules:create" />
         <TextField
           label={t("reportSchedules.name", locale)}
           hint={t("reportSchedules.nameHint", locale)}

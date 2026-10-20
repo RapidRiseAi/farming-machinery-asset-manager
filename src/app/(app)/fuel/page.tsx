@@ -33,6 +33,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { FuelIcon, PlusIcon } from "@/components/ui/icons";
 import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
 import { meterReading, num, shortDate, todayLocal } from "@/lib/format";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export const dynamic = "force-dynamic";
 
@@ -268,6 +269,7 @@ export default async function FuelPage({
             closeLabel={closeLabel}
           >
             <form action={addFuelIssue}>
+              <RequestIdInput action="fuel:draw" />
               <DialogFields>
                 <FuelDrawMachineFields
                   machines={drawMachines}
@@ -331,6 +333,7 @@ export default async function FuelPage({
             closeLabel={closeLabel}
           >
             <form action={addFuelDelivery}>
+              <RequestIdInput action="fuel:delivery" />
               <DialogFields>
                 {tankField("d_tank", defaultTankId)}
                 <Field label={t("fuel.litres", locale)} htmlFor="d_litres" required>

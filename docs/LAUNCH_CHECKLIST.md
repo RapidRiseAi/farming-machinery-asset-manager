@@ -132,11 +132,18 @@ Order: correctness and security first, then load, then product.
       failure; every server-action submit locked; dialogs and row menus cannot close mid-save
       and lock their siblings; every uncaught browser error reported; "Sent" only when sent.
       2026-10-18: `scripts/spam_check.mjs` (real taps, 4x slow CPU) and guard tests.
-- [ ] **Taps, release 2 (server):** a request id (claim) on every create, send and payment
-      that can be repeated (recurring invoices, payments and refunds, quote to invoice, stage
-      bills, lines, expenses, fuel, QR captures, document and statement email, invites, API
-      tokens, report schedules, checklists, imports); PayFast ITN answers 5xx on our own
-      failures so it retries. From the 2026-10-18 audit.
+- [x] **Taps, release 2 (server):** a request id (claim) on every create, send and payment
+      that can be repeated; PayFast ITN answers 503 on our own failures so it retries.
+      2026-10-20: `request_claims` + `runOnce` on 26 actions (recurring invoices and lines,
+      payments, refunds, quote to invoice (also refuses a second conversion), stage bills,
+      lines, notes, documents, expenses, recurring expenses, fuel, stock, orders, machines,
+      imports, invites, report schedules, readings, contractor links), the two email routes
+      (and Resend's idempotency key), checklists, API tokens, QR captures (`p_client`);
+      emailed-link accept/decline/paid guarded. Proven by `spam_check.mjs` check 6.
+- [ ] **Taps, release 2 follow-ups (medium):** work-request media capture id; assistant turn,
+      transcribe and voice-session ids (AI spend on a retry); activation "Pay" resuming an
+      attempt already in flight; contractor vehicle sync claim; service template unique per
+      machine; `FOR UPDATE SKIP LOCKED` in the recurring invoice generator loop.
 - [ ] **Taps, release 3 (errors):** server actions report what they catch and never put a
       raw database message in the address bar; reads that fail stop pretending to be empty
       (dashboard, reports, VAT, statements, documents); the remaining API routes answer JSON

@@ -8,6 +8,7 @@ import { parseRandsToCents } from "@/lib/money";
 import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import { uploadReceipt } from "@/lib/receipt-media";
+import { runOnce } from "@/lib/request-claim";
 
 /**
  * What the partner bought (G6).
@@ -86,65 +87,72 @@ function money(fd: FormData): { amount_cents: number; vat_cents: number; vat_rat
 }
 
 export async function createExpense(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const { workshop } = await currentWorkshop(profile);
-  if (!workshop) redirect("/contractor?error=no-workshop");
-  await requireWorkshopEntitlement("financials", "/expenses");
+  return runOnce(
+    formData,
+    "expenses:create",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const { workshop } = await currentWorkshop(profile);
+      if (!workshop) redirect("/contractor?error=no-workshop");
+      await requireWorkshopEntitlement("financials", "/expenses");
 
-  const m = money(formData);
-  if (!m) redirect("/expenses?error=need-amount");
+      const m = money(formData);
+      if (!m) redirect("/expenses?error=need-amount");
 
-  const supabase = await createClient();
-  const supplier = await resolveSupplier(supabase, formData);
-  if (!supplier) redirect("/expenses?error=need-supplier");
+      const supabase = await createClient();
+      const supplier = await resolveSupplier(supabase, formData);
+      if (!supplier) redirect("/expenses?error=need-supplier");
 
-  const { data: created, error } = await supabase
-    .from("partner_expenses")
-    .insert({
-      workshop_id: workshop.id,
-      // Both are written even when one was derived from the other: the id is what the
-      // payables ageing groups by, and the name is what every screen and PDF prints. The
-      // 0481 trigger fills the id in for typed text when a record of that name exists.
-      supplier_name: supplier.supplier_name,
-      supplier_id: supplier.supplier_id,
-      supplier_vat_number: s(formData, "supplier_vat_number"),
-      reference: s(formData, "reference"),
-      category: category(formData),
-      description: s(formData, "description"),
-      expense_date: s(formData, "expense_date") ?? todayLocal(),
-      paid_on: s(formData, "paid_on"),
-      amount_cents: m.amount_cents,
-      vat_cents: m.vat_cents,
-      vat_rate_bps: m.vat_rate_bps,
-      // Unticked means "I cannot claim this back", entertainment, a passenger car,
-      // club fees (VAT Act s17(2)).
-      vat_claimable: formData.get("vat_claimable") != null,
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
+      const { data: created, error } = await supabase
+        .from("partner_expenses")
+        .insert({
+          workshop_id: workshop.id,
+          // Both are written even when one was derived from the other: the id is what the
+          // payables ageing groups by, and the name is what every screen and PDF prints. The
+          // 0481 trigger fills the id in for typed text when a record of that name exists.
+          supplier_name: supplier.supplier_name,
+          supplier_id: supplier.supplier_id,
+          supplier_vat_number: s(formData, "supplier_vat_number"),
+          reference: s(formData, "reference"),
+          category: category(formData),
+          description: s(formData, "description"),
+          expense_date: s(formData, "expense_date") ?? todayLocal(),
+          paid_on: s(formData, "paid_on"),
+          amount_cents: m.amount_cents,
+          vat_cents: m.vat_cents,
+          vat_rate_bps: m.vat_rate_bps,
+          // Unticked means "I cannot claim this back", entertainment, a passenger car,
+          // club fees (VAT Act s17(2)).
+          vat_claimable: formData.get("vat_claimable") != null,
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
 
-  if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
 
-  // A receipt at capture time is optional. If one was chosen and the upload fails, the
-  // EXPENSE still stands, losing a captured supplier invoice because a photo did not
-  // stick would be the worse outcome, and the row will simply show as unsupported until
-  // someone attaches it.
-  const file = formData.get("receipt");
-  if (file instanceof File && file.size > 0 && created) {
-    const up = await uploadReceipt(supabase, file, workshop.id, (created as { id: string }).id);
-    if ("path" in up) {
-      await supabase.from("partner_expenses").update({ receipt_path: up.path }).eq("id", (created as { id: string }).id);
-    } else {
+      // A receipt at capture time is optional. If one was chosen and the upload fails, the
+      // EXPENSE still stands, losing a captured supplier invoice because a photo did not
+      // stick would be the worse outcome, and the row will simply show as unsupported until
+      // someone attaches it.
+      const file = formData.get("receipt");
+      if (file instanceof File && file.size > 0 && created) {
+        const up = await uploadReceipt(supabase, file, workshop.id, (created as { id: string }).id);
+        if ("path" in up) {
+          await supabase.from("partner_expenses").update({ receipt_path: up.path }).eq("id", (created as { id: string }).id);
+        } else {
+          revalidatePath("/expenses");
+          revalidatePath("/vat");
+          redirect(`/expenses?saved=1&error=receipt-${up.error}`);
+        }
+      }
+
       revalidatePath("/expenses");
       revalidatePath("/vat");
-      redirect(`/expenses?saved=1&error=receipt-${up.error}`);
-    }
-  }
-
-  revalidatePath("/expenses");
-  revalidatePath("/vat");
-  redirect("/expenses?saved=1");
+      return "/expenses?saved=1";
+    },
+    { whileRunning: "/expenses?error=still-saving" },
+  );
 }
 
 /**

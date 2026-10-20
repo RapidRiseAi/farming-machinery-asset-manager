@@ -29,6 +29,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Fact, FactList } from "@/components/ui/facts";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { dateTime, roleLabel } from "@/lib/format";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 type Farm = {
   id: string;
@@ -242,6 +243,7 @@ export default async function FarmDetailPage({
               closeLabel="Close"
             >
               <form action={inviteUser}>
+                <RequestIdInput action="team:invite" />
                 <input type="hidden" name="farm_id" value={farm.id} />
                 <input type="hidden" name="back" value={`/admin/farms/${farm.id}`} />
                 <DialogFields>

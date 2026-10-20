@@ -43,6 +43,12 @@ export type SendEmailInput = {
   html: string;
   text: string;
   attachments?: EmailAttachment[];
+  /**
+   * The same key on a repeat means the same email: Resend sends it once for 24 hours. A
+   * screen's request id, so a send whose answer was lost, retried, does not reach the
+   * customer twice even if our own record of the first send did not survive.
+   */
+  idempotencyKey?: string | null;
 };
 
 export type SendEmailResult =
@@ -186,7 +192,11 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+        ...(input.idempotencyKey ? { "idempotency-key": input.idempotencyKey } : {}),
+      },
       body: JSON.stringify(body),
       // A send that hangs must not hang the request that asked for it.
       signal: AbortSignal.timeout(20_000),

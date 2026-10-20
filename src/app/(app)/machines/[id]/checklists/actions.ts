@@ -8,6 +8,11 @@ import { withTab } from "@/components/ui/tabs-url";
 import type { Role } from "@/lib/auth";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { uploadChecklistPhotoDataUrl } from "@/lib/checklist-media";
+import { claimRequest } from "@/lib/request-claim";
+import { readRequestId } from "@/lib/request-id";
+import { captureError } from "@/lib/observability";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Profile } from "@/lib/auth";
 
 // Who may FILL a checklist (pre-use inspection, service sign-off, condition report):
 // the broad operational crew, including operators and linked workshops. Designing
@@ -32,6 +37,8 @@ export type ChecklistInstanceInput = {
   meter_reading: number | null;
   notes: string | null;
   values: ChecklistValueInput[];
+  /** The screen's request id: a retry whose answer was lost is not saved twice. */
+  request_id?: string | null;
 };
 
 /**
@@ -45,11 +52,31 @@ export async function createChecklistInstance(
   input: ChecklistInstanceInput,
 ): Promise<{ error?: string } | void> {
   const profile = await requireRole(FILL_CREW);
+  const supabase = await createClient();
+  // One inspection per request (request_claims): a save whose answer was lost, tried again,
+  // used to create a second inspection and raise every failed answer's fault twice.
+  const claim = await claimRequest(supabase, readRequestId(input.request_id), "checklists:create");
+  if (claim.state === "done") redirect(claim.outcome || `/machines/${input.machine_id}`);
+  if (claim.state === "running") return { error: "still-saving" };
+
+  const saved = await saveChecklist(input, profile, supabase);
+  if ("error" in saved) {
+    await claim.release();
+    return { error: saved.error };
+  }
+  await claim.finish(saved.target);
+  revalidatePath(`/machines/${input.machine_id}`);
+  redirect(saved.target);
+}
+
+async function saveChecklist(
+  input: ChecklistInstanceInput,
+  profile: Profile,
+  supabase: SupabaseClient,
+): Promise<{ error: string } | { target: string }> {
   const machineId = input.machine_id;
   if (!machineId) return { error: "Missing machine." };
   const status = input.status === "draft" ? "draft" : "completed";
-
-  const supabase = await createClient();
 
   // Resolve the machine's farm (RLS scopes this to farms the user can reach).
   const { data: m } = await supabase
@@ -103,7 +130,13 @@ export async function createChecklistInstance(
   }
   if (rows.length > 0) {
     const { error: valErr } = await supabase.from("checklist_instance_values").insert(rows);
-    if (valErr) return { error: valErr.message };
+    if (valErr) {
+      // Not saved means not saved: take the empty inspection away again, so the retry
+      // does not leave one behind beside the real one.
+      captureError(valErr, { where: "checklists:create:values" });
+      await supabase.from("checklist_instances").update({ deleted_at: new Date().toISOString(), deleted_by: profile.id }).eq("id", instanceId);
+      return { error: valErr.message };
+    }
   }
 
   // A failed answer becomes a fault, once (20260920110000). Before this, a driver could
@@ -116,11 +149,13 @@ export async function createChecklistInstance(
   // again. The defect evaluation is re-runnable, so the honest handling is to keep the
   // record and leave the flag unset.
   if (status === "completed") {
-    await supabase.rpc("record_checklist_defects", { p_instance: instanceId });
+    const { error: defectsError } = await supabase.rpc("record_checklist_defects", { p_instance: instanceId });
+    // Kept, not shown (see above), but no longer silent: a failed answer that raised no
+    // fault is exactly what someone needs to hear about.
+    if (defectsError) captureError(defectsError, { where: "checklists:create:defects", extra: { instanceId } });
   }
 
-  revalidatePath(`/machines/${machineId}`);
-  redirect(`/machines/${machineId}/checklists/${instanceId}`);
+  return { target: `/machines/${machineId}/checklists/${instanceId}` };
 }
 
 /** Soft-delete a filled checklist and its values (form action from the saved view). */

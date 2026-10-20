@@ -7,6 +7,7 @@ import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
+import { runOnce } from "@/lib/request-claim";
 import {
   parseQty,
   isPurchaseOrderStatus,
@@ -88,38 +89,45 @@ function unitPrice(fd: FormData, rateBps: number): number {
 // == The order itself =========================================================
 
 export async function createOrder(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const { workshop } = await currentWorkshop(profile);
-  if (!workshop) redirect("/contractor?error=no-workshop");
-  await requireWorkshopEntitlement("financials", "/orders");
+  return runOnce(
+    formData,
+    "orders:create",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const { workshop } = await currentWorkshop(profile);
+      if (!workshop) redirect("/contractor?error=no-workshop");
+      await requireWorkshopEntitlement("financials", "/orders");
 
-  const supplier = s(formData, "supplier_name");
-  if (!supplier) redirect(`${HOME}?error=po-needSupplier`);
+      const supplier = s(formData, "supplier_name");
+      if (!supplier) redirect(`${HOME}?error=po-needSupplier`);
 
-  const rate = percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500;
+      const rate = percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500;
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("purchase_orders")
-    .insert({
-      workshop_id: workshop.id,
-      supplier_name: supplier,
-      reference: s(formData, "reference"),
-      order_date: s(formData, "order_date") ?? todayLocal(),
-      expected_date: s(formData, "expected_date"),
-      notes: s(formData, "notes"),
-      vat_rate_bps: rate,
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
+      const supabase = await createClient();
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .insert({
+          workshop_id: workshop.id,
+          supplier_name: supplier,
+          reference: s(formData, "reference"),
+          order_date: s(formData, "order_date") ?? todayLocal(),
+          expected_date: s(formData, "expected_date"),
+          notes: s(formData, "notes"),
+          vat_rate_bps: rate,
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
 
-  if (error || !data) redirect(`${HOME}?error=${failCode(error)}`);
+      if (error || !data) redirect(`${HOME}?error=${failCode(error)}`);
 
-  refresh();
-  // Straight to the order, because an order with no lines on it is not yet an order -
-  // the next thing to do is say what is being bought.
-  redirect(orderPath((data as { id: string }).id, "?created=1"));
+      refresh();
+      // Straight to the order, because an order with no lines on it is not yet an order -
+      // the next thing to do is say what is being bought.
+      return orderPath((data as { id: string }).id, "?created=1");
+    },
+    { whileRunning: `${HOME}?error=still-saving` },
+  );
 }
 
 export async function updateOrder(formData: FormData) {
@@ -216,45 +224,52 @@ export async function deleteOrder(formData: FormData) {
 // == What is being bought =====================================================
 
 export async function addLine(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const { workshop } = await currentWorkshop(profile);
-  if (!workshop) redirect("/contractor?error=no-workshop");
-  await requireWorkshopEntitlement("financials", "/orders");
+  return runOnce(
+    formData,
+    "orders:add-line",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const { workshop } = await currentWorkshop(profile);
+      if (!workshop) redirect("/contractor?error=no-workshop");
+      await requireWorkshopEntitlement("financials", "/orders");
 
-  const id = String(formData.get("order_id") ?? "");
-  const description = s(formData, "description");
-  const quantity = parseQty(String(formData.get("qty_ordered") ?? ""));
-  if (!id) redirect(`${HOME}?error=po-notFound`);
-  if (!description) redirect(orderPath(id, "?error=po-needDescription"));
-  if (quantity == null || quantity <= 0) redirect(orderPath(id, "?error=po-needQty"));
+      const id = String(formData.get("order_id") ?? "");
+      const description = s(formData, "description");
+      const quantity = parseQty(String(formData.get("qty_ordered") ?? ""));
+      if (!id) redirect(`${HOME}?error=po-notFound`);
+      if (!description) redirect(orderPath(id, "?error=po-needDescription"));
+      if (quantity == null || quantity <= 0) redirect(orderPath(id, "?error=po-needQty"));
 
-  const supabase = await createClient();
-  const rate = await orderRate(supabase, id);
-  if (rate == null) redirect(`${HOME}?error=po-notFound`);
+      const supabase = await createClient();
+      const rate = await orderRate(supabase, id);
+      if (rate == null) redirect(`${HOME}?error=po-notFound`);
 
-  // Appended, not inserted: the order should read in the sequence it was written.
-  const { data: last } = await supabase
-    .from("purchase_order_lines")
-    .select("sort_order")
-    .eq("purchase_order_id", id)
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+      // Appended, not inserted: the order should read in the sequence it was written.
+      const { data: last } = await supabase
+        .from("purchase_order_lines")
+        .select("sort_order")
+        .eq("purchase_order_id", id)
+        .is("deleted_at", null)
+        .order("sort_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-  const { error } = await supabase.from("purchase_order_lines").insert({
-    workshop_id: workshop.id,
-    purchase_order_id: id,
-    sort_order: ((last as { sort_order: number } | null)?.sort_order ?? 0) + 1,
-    description,
-    part_no: s(formData, "part_no"),
-    qty_ordered: quantity,
-    unit_price_cents: unitPrice(formData, rate),
-  });
+      const { error } = await supabase.from("purchase_order_lines").insert({
+        workshop_id: workshop.id,
+        purchase_order_id: id,
+        sort_order: ((last as { sort_order: number } | null)?.sort_order ?? 0) + 1,
+        description,
+        part_no: s(formData, "part_no"),
+        qty_ordered: quantity,
+        unit_price_cents: unitPrice(formData, rate),
+      });
 
-  if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
-  refresh(id);
-  redirect(orderPath(id, "?added=1"));
+      if (error) redirect(orderPath(id, `?error=${failCode(error)}`));
+      refresh(id);
+      return orderPath(id, "?added=1");
+    },
+    { whileRunning: orderPath(String(formData.get("order_id") ?? ""), "?error=still-saving") },
+  );
 }
 
 /**

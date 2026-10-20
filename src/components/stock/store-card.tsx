@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
 import { TrashIcon } from "@/components/ui/icons";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 import {
   receiveDelivery,
   recordMovement,
@@ -76,6 +77,7 @@ export function StoreCard({
               closeLabel={closeLabel}
             >
               <form action={receiveDelivery} className="flex flex-col gap-3">
+                <RequestIdInput action="stock:delivery" />
                 <ul className="flex flex-col divide-y divide-sand-100">
                   {rows.map((r) => (
                     <li key={r.id} className="py-3 first:pt-0">
@@ -179,6 +181,7 @@ export function StoreCard({
                         size="md"
                       >
                         <form action={recordMovement}>
+                          <RequestIdInput action="stock:movement" />
                           <input type="hidden" name="stock_item_id" value={r.id} />
                           <input type="hidden" name="kind" value="issue" />
                           <DialogFields>
@@ -220,6 +223,7 @@ export function StoreCard({
                         size="md"
                       >
                         <form action={recordMovement}>
+                          <RequestIdInput action="stock:movement" />
                           <input type="hidden" name="stock_item_id" value={r.id} />
                           <input type="hidden" name="kind" value="receipt" />
                           <DialogFields>

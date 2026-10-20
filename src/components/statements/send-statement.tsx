@@ -109,7 +109,9 @@ function SendFields({
               ? t("email.badAddress", locale)
               : body.error === "refused"
                 ? t("errors.emailTestOnly", locale)
-                : body.error === "signed-out" || (res.ok && body.ok !== true)
+                : body.error === "still-sending"
+                  ? t("email.stillSending", locale)
+                  : body.error === "signed-out" || (res.ok && body.ok !== true)
                   ? t("errors.session", locale)
                   : t("email.failed", locale),
         );

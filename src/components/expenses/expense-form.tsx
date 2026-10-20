@@ -13,6 +13,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { DialogForm, DialogFields, DialogSection, DialogActions } from "@/components/ui/dialog-form";
 import { PlusIcon } from "@/components/ui/icons";
 import { createExpense } from "@/app/(app)/expenses/actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 /**
  * Capturing a supplier invoice, in the order the paper is read, in a dialog.
@@ -95,6 +96,7 @@ function ExpenseFields({
 
   return (
     <form action={createExpense}>
+      <RequestIdInput action="expenses:create" />
       <DialogFields>
         {suppliers.length > 0 ? (
           <SelectField

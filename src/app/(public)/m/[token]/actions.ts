@@ -7,6 +7,7 @@ import { FUEL_ACTIVITIES } from "@/lib/fuel";
 import { parseRandsToCents } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import { rememberName, sentHref } from "./remembered-name";
+import { readRequestId, REQUEST_FIELD } from "@/lib/request-id";
 
 type QrCaptureError =
   | "invalid_reading"
@@ -42,11 +43,15 @@ function qrHref(token: string, key: "error", value: string): string {
 async function runCapture(
   rpc: "record_public_qr_reading" | "record_public_qr_fuel",
   args: Record<string, unknown>,
+  formData: FormData,
 ): Promise<QrCaptureError | null> {
   try {
     if (!await memberQr(String(args.p_token ?? ""))) return "not_found";
     const svc = await createClient();
-    const { data, error } = await svc.rpc("record_member_qr", {p_token:args.p_token,p_kind:rpc==="record_public_qr_reading"?"reading":"fuel",p_fields:args});
+    // The form's request id (RequestIdInput) as the capture's client id: a retry after a
+    // lost answer is recognised by record_member_qr and not recorded a second time.
+    const client = readRequestId(formData.get(REQUEST_FIELD));
+    const { data, error } = await svc.rpc("record_member_qr", {p_token:args.p_token,p_kind:rpc==="record_public_qr_reading"?"reading":"fuel",p_fields:args,p_client:client});
     if (error) {
       // Keep database details in server logs; the public page receives no raw SQL text.
       console.error("[public-qr] capture RPC failed", { rpc, code: error.code });
@@ -92,7 +97,7 @@ export async function submitReading(formData: FormData) {
     p_token: token,
     p_reading: reading,
     p_reporter: reporter,
-  });
+  }, formData);
   if (failure) redirect(qrHref(token, "error", failure));
 
   // Only after the capture succeeded: a failed one should not change what the phone
@@ -136,7 +141,7 @@ export async function submitFuel(formData: FormData) {
     p_driver: driver,
     p_activity: activity,
     p_cost_incl_cents: inclCents,
-  });
+  }, formData);
   if (failure) redirect(qrHref(token, "error", failure));
 
   await rememberName(driver);

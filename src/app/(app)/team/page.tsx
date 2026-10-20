@@ -31,6 +31,7 @@ import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-
 import { roleLabel } from "@/lib/format";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 type TeamUser = {
   id: string;
@@ -195,6 +196,7 @@ export default async function TeamPage({
       closeLabel={closeLabel}
     >
       <form action={inviteUser}>
+        <RequestIdInput action="team:invite" />
         <input type="hidden" name="back" value="/team" />
         <DialogFields>
           <Field label={t("team.name", locale)} htmlFor="inv-name" required>

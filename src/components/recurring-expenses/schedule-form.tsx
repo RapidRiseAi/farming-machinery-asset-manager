@@ -13,6 +13,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { DialogForm, DialogFields, DialogSection, DialogActions } from "@/components/ui/dialog-form";
 import { PlusIcon } from "@/components/ui/icons";
 import { createExpenseSchedule } from "@/app/(app)/recurring-expenses/actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 /**
  * Setting up a standing cost (rent, insurance, a debit order), in a dialog.
@@ -62,6 +63,7 @@ function ScheduleFields({ locale, vatRegistered }: { locale: Lang; vatRegistered
 
   return (
     <form action={createExpenseSchedule}>
+      <RequestIdInput action="recurring-expenses:create" />
       <DialogFields>
         <TextField name="name" label={t("recexp.name", locale)} hint={t("recexp.nameHint", locale)} required />
         <TextField

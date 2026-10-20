@@ -6,6 +6,7 @@ import { SelectField, TextField, TextareaField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { PlusIcon } from "@/components/ui/icons";
 import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export type Recipient = { id: string; name: string };
 
@@ -60,6 +61,7 @@ export function NewDocumentForm({
         size="md"
       >
         <form action={action}>
+          <RequestIdInput action="documents:create" />
           <DialogFields columns={1}>
             <SelectField name="kind" label={t("doc.newKind", locale)} defaultValue="quote">
               <option value="quote">{t("doc.kindQuote", locale)}</option>

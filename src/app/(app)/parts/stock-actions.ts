@@ -8,6 +8,7 @@ import { parseRandsToCents } from "@/lib/money";
 import { MOVE_KINDS, type MoveKind } from "@/lib/stock";
 import { clampLookahead } from "@/lib/reorder";
 import { todayLocal } from "@/lib/format";
+import { runOnce } from "@/lib/request-claim";
 
 /** Log the raw database message for us, and send the person a translated slug. */
 function failed(where: string, message: string): never {
@@ -99,48 +100,55 @@ export async function updateStockItem(formData: FormData) {
  * readable one way only.
  */
 export async function recordMovement(formData: FormData) {
-  const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
+  return runOnce(
+    formData,
+    "stock:movement",
+    async () => {
+      const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
 
-  const itemId = String(formData.get("stock_item_id") ?? "");
-  const rawKind = String(formData.get("kind") ?? "");
-  const kind: MoveKind = (MOVE_KINDS as readonly string[]).includes(rawKind) ? (rawKind as MoveKind) : "receipt";
-  const qty = num(formData, "qty");
+      const itemId = String(formData.get("stock_item_id") ?? "");
+      const rawKind = String(formData.get("kind") ?? "");
+      const kind: MoveKind = (MOVE_KINDS as readonly string[]).includes(rawKind) ? (rawKind as MoveKind) : "receipt";
+      const qty = num(formData, "qty");
 
-  if (!itemId) redirect("/parts?error=not-found");
-  if (qty == null || qty <= 0) redirect("/parts?error=stock-need-qty");
+      if (!itemId) redirect("/parts?error=not-found");
+      if (qty == null || qty <= 0) redirect("/parts?error=stock-need-qty");
 
-  const machineId = s(formData, "machine_id");
-  const supabase = await createClient();
+      const machineId = s(formData, "machine_id");
+      const supabase = await createClient();
 
-  const { data: item } = await supabase
-    .from("stock_items")
-    .select("id")
-    .eq("id", itemId)
-    .eq("farm_id", farmId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (!item) redirect("/parts?error=not-found");
+      const { data: item } = await supabase
+        .from("stock_items")
+        .select("id")
+        .eq("id", itemId)
+        .eq("farm_id", farmId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (!item) redirect("/parts?error=not-found");
 
-  const { error } = await supabase.from("stock_movements").insert({
-    farm_id: farmId,
-    stock_item_id: itemId,
-    kind,
-    qty,
-    unit_cost_cents: parseRandsToCents(String(formData.get("unit_cost") ?? "")),
-    // Only an issue or a return is about a machine. Carrying a machine on a receipt would
-    // read as "this arrived for the tractor", which is a different claim than it looks.
-    machine_id: kind === "issue" || kind === "return" ? machineId : null,
-    job_card_id: kind === "issue" ? s(formData, "job_card_id") : null,
-    // Today in SAST, not the server's UTC date: a delivery booked at 01:00 is today's.
-    occurred_on: s(formData, "occurred_on") ?? todayLocal(),
-    note: s(formData, "note"),
-    by_user: profile.id,
-  });
+      const { error } = await supabase.from("stock_movements").insert({
+        farm_id: farmId,
+        stock_item_id: itemId,
+        kind,
+        qty,
+        unit_cost_cents: parseRandsToCents(String(formData.get("unit_cost") ?? "")),
+        // Only an issue or a return is about a machine. Carrying a machine on a receipt would
+        // read as "this arrived for the tractor", which is a different claim than it looks.
+        machine_id: kind === "issue" || kind === "return" ? machineId : null,
+        job_card_id: kind === "issue" ? s(formData, "job_card_id") : null,
+        // Today in SAST, not the server's UTC date: a delivery booked at 01:00 is today's.
+        occurred_on: s(formData, "occurred_on") ?? todayLocal(),
+        note: s(formData, "note"),
+        by_user: profile.id,
+      });
 
-  if (error) failed("recordMovement", error.message);
-  revalidatePath("/parts");
-  revalidatePath("/machines");
-  redirect("/parts?saved=1#store");
+      if (error) failed("recordMovement", error.message);
+      revalidatePath("/parts");
+      revalidatePath("/machines");
+      return "/parts?saved=1#store";
+    },
+    { whileRunning: "/parts?error=still-saving#store" },
+  );
 }
 
 /**
@@ -154,48 +162,55 @@ export async function recordMovement(formData: FormData) {
  * and the receipts go in as one insert, so the 0450 rollup sees all of them or none.
  */
 export async function receiveDelivery(formData: FormData) {
-  const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
+  return runOnce(
+    formData,
+    "stock:delivery",
+    async () => {
+      const { profile, farmId } = await requireFarmPermission("manage_stock", "/parts?error=Not+allowed");
 
-  const ids = [...new Set(formData.getAll("stock_item_id").map(String).filter(Boolean))];
-  const lines: { id: string; qty: number; unitCost: number | null }[] = [];
-  for (const id of ids) {
-    if (String(formData.get(`qty__${id}`) ?? "").trim() === "") continue;
-    const qty = num(formData, `qty__${id}`);
-    if (qty == null || qty <= 0) redirect("/parts?error=stock-need-qty");
-    lines.push({ id, qty, unitCost: parseRandsToCents(String(formData.get(`unit_cost__${id}`) ?? "")) });
-  }
-  if (lines.length === 0) redirect("/parts?error=stock-need-qty");
+      const ids = [...new Set(formData.getAll("stock_item_id").map(String).filter(Boolean))];
+      const lines: { id: string; qty: number; unitCost: number | null }[] = [];
+      for (const id of ids) {
+        if (String(formData.get(`qty__${id}`) ?? "").trim() === "") continue;
+        const qty = num(formData, `qty__${id}`);
+        if (qty == null || qty <= 0) redirect("/parts?error=stock-need-qty");
+        lines.push({ id, qty, unitCost: parseRandsToCents(String(formData.get(`unit_cost__${id}`) ?? "")) });
+      }
+      if (lines.length === 0) redirect("/parts?error=stock-need-qty");
 
-  const supabase = await createClient();
-  const { data: items } = await supabase
-    .from("stock_items")
-    .select("id")
-    .in("id", lines.map((l) => l.id))
-    .eq("farm_id", farmId)
-    .is("deleted_at", null);
-  const known = new Set(((items ?? []) as { id: string }[]).map((i) => i.id));
-  if (lines.some((l) => !known.has(l.id))) redirect("/parts?error=not-found");
+      const supabase = await createClient();
+      const { data: items } = await supabase
+        .from("stock_items")
+        .select("id")
+        .in("id", lines.map((l) => l.id))
+        .eq("farm_id", farmId)
+        .is("deleted_at", null);
+      const known = new Set(((items ?? []) as { id: string }[]).map((i) => i.id));
+      if (lines.some((l) => !known.has(l.id))) redirect("/parts?error=not-found");
 
-  const occurredOn = s(formData, "occurred_on") ?? todayLocal();
-  const note = s(formData, "note");
-  const { error } = await supabase.from("stock_movements").insert(
-    lines.map((l) => ({
-      farm_id: farmId,
-      stock_item_id: l.id,
-      kind: "receipt" satisfies MoveKind,
-      qty: l.qty,
-      unit_cost_cents: l.unitCost,
-      machine_id: null,
-      job_card_id: null,
-      occurred_on: occurredOn,
-      note,
-      by_user: profile.id,
-    })),
+      const occurredOn = s(formData, "occurred_on") ?? todayLocal();
+      const note = s(formData, "note");
+      const { error } = await supabase.from("stock_movements").insert(
+        lines.map((l) => ({
+          farm_id: farmId,
+          stock_item_id: l.id,
+          kind: "receipt" satisfies MoveKind,
+          qty: l.qty,
+          unit_cost_cents: l.unitCost,
+          machine_id: null,
+          job_card_id: null,
+          occurred_on: occurredOn,
+          note,
+          by_user: profile.id,
+        })),
+      );
+
+      if (error) failed("receiveDelivery", error.message);
+      revalidatePath("/parts");
+      return "/parts?saved=1#store";
+    },
+    { whileRunning: "/parts?error=still-saving#store" },
   );
-
-  if (error) failed("receiveDelivery", error.message);
-  revalidatePath("/parts");
-  redirect("/parts?saved=1#store");
 }
 
 /**

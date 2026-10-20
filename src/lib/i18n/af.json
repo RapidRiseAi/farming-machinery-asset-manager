@@ -1280,7 +1280,9 @@
       "scopes": "Kies ten minste een toestemming.",
       "expiry": "Kies 'n toekomstige vervaldatum of los dit leeg.",
       "create_failed": "Die bewys kon nie geskep word nie. Probeer weer.",
-      "revoke_failed": "Die bewys kon nie herroep word nie. Probeer weer."
+      "revoke_failed": "Die bewys kon nie herroep word nie. Probeer weer.",
+      "still_creating": "Jou vorige versoek skep nog ’n sleutel. Kyk oor ’n oomblik na die lys voordat jy weer probeer.",
+      "replay_revoked": "Die sleutel van jou vorige poging het nooit hierdie skerm bereik nie, so ons het dit herroep om dit veilig te hou. Skep die sleutel weer."
     },
     "revoked": "API-bewys herroep. Dit kan nie meer gebruik word nie.",
     "createTitle": "Skep 'n bewys",
@@ -3648,7 +3650,8 @@
     "failed": "Dit het nie gestuur nie. Probeer netnou weer.",
     "notConfigured": "E-pos is nog nie vir hierdie stelsel aangeskakel nie. Laai die PDF af en stuur dit self solank.",
     "badAddress": "Dit lyk nie soos 'n e-posadres nie.",
-    "history": "Alles wat ons gestuur het ({n})"
+    "history": "Alles wat ons gestuur het ({n})",
+    "stillSending": "Daardie e-pos word nog gestuur. Kyk oor ’n oomblik na die geskiedenis voordat jy dit weer stuur."
   },
   "statement": {
     "title": "State",
@@ -3742,7 +3745,8 @@
     "extraDue": "Ekstra bedrag verskuldig",
     "payNow": "Betaal {amount} nou",
     "payNowHint": "Kaart of kitsEFT, deur PayFast. Jy kom hierheen terug wanneer jy klaar is.",
-    "paidFlash": "Dankie. Ons het jou betaling. Dit kan ’n minuut neem om hieronder te wys."
+    "paidFlash": "Dankie. Ons het jou betaling. Dit kan ’n minuut neem om hieronder te wys.",
+    "tryAgain": "Ons kon dit nie nou doen nie. Probeer asseblief oor ’n oomblik weer."
   },
   "revise": {
     "title": "Verander hierdie dokument",
@@ -5257,7 +5261,10 @@
     "inviteFailed": "Ons kon hulle nie nooi nie. Probeer asseblief weer.",
     "mfaOffFailed": "Kon nie tweestap-aanmelding afskakel nie. Meld weer aan met jou kode en probeer dan weer.",
     "mfaRequired": "Tweestap-aanmelding bly aan vir Rapid Rise-personeelrekeninge.",
-    "emailTestOnly": "Dit is 'n toetsplaas of toetsrekening, dus kan dit net e-pos na toetsadresse stuur."
+    "emailTestOnly": "Dit is 'n toetsplaas of toetsrekening, dus kan dit net e-pos na toetsadresse stuur.",
+    "stillSaving": "Jou vorige verandering word nog gestoor. Kyk oor ’n oomblik na die bladsy voordat jy weer probeer.",
+    "recurringLineFailed": "Die skedule is gestoor, maar sy eerste reël nie. Voeg die reël hier by.",
+    "documentLinesFailed": "Die dokument is gestoor, maar sy reëls is nie oorgedra nie. Voeg hulle hier by voordat jy dit stuur."
   },
   "billing": {
     "title": "Rekening",

@@ -8,6 +8,7 @@ import { parseRandsToCents } from "@/lib/money";
 import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import { CADENCES, type Cadence } from "@/lib/recurring-expenses";
+import { runOnce } from "@/lib/request-claim";
 
 /**
  * Standing costs (G19).
@@ -64,53 +65,60 @@ function money(fd: FormData): { amount_cents: number; vat_cents: number; vat_rat
 }
 
 export async function createExpenseSchedule(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const { workshop } = await currentWorkshop(profile);
-  if (!workshop) redirect("/contractor?error=no-workshop");
-  await requireWorkshopEntitlement("financials", "/recurring-expenses");
+  return runOnce(
+    formData,
+    "recurring-expenses:create",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const { workshop } = await currentWorkshop(profile);
+      if (!workshop) redirect("/contractor?error=no-workshop");
+      await requireWorkshopEntitlement("financials", "/recurring-expenses");
 
-  const name = s(formData, "name");
-  if (!name) redirect("/recurring-expenses?error=need-name");
-  // Free text, and it stays free text: making a partner file a supplier record before
-  // they can record that the rent goes off every month is a filing step in front of the
-  // one thing this feature exists to stop them forgetting.
-  const supplier = s(formData, "supplier_name");
-  if (!supplier) redirect("/recurring-expenses?error=need-supplier");
+      const name = s(formData, "name");
+      if (!name) redirect("/recurring-expenses?error=need-name");
+      // Free text, and it stays free text: making a partner file a supplier record before
+      // they can record that the rent goes off every month is a filing step in front of the
+      // one thing this feature exists to stop them forgetting.
+      const supplier = s(formData, "supplier_name");
+      if (!supplier) redirect("/recurring-expenses?error=need-supplier");
 
-  const m = money(formData);
-  if (!m) redirect("/recurring-expenses?error=need-amount");
+      const m = money(formData);
+      if (!m) redirect("/recurring-expenses?error=need-amount");
 
-  const supabase = await createClient();
-  const { data: created, error } = await supabase
-    .from("recurring_expenses")
-    .insert({
-      workshop_id: workshop.id,
-      name,
-      supplier_name: supplier,
-      supplier_vat_number: s(formData, "supplier_vat_number"),
-      reference: s(formData, "reference"),
-      description: s(formData, "description"),
-      category: category(formData),
-      amount_cents: m.amount_cents,
-      vat_cents: m.vat_cents,
-      vat_rate_bps: m.vat_rate_bps,
-      // Unticked means "I cannot claim this back", entertainment, a passenger car,
-      // club fees (VAT Act s17(2)). On a standing charge this is set once and then
-      // applies every month, which is exactly why it is worth asking about here.
-      vat_claimable: formData.get("vat_claimable") != null,
-      cadence: cadence(formData),
-      next_due_date: s(formData, "next_due_date") ?? today(),
-      ends_on: s(formData, "ends_on"),
-      auto_paid: formData.get("auto_paid") != null,
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
+      const supabase = await createClient();
+      const { data: created, error } = await supabase
+        .from("recurring_expenses")
+        .insert({
+          workshop_id: workshop.id,
+          name,
+          supplier_name: supplier,
+          supplier_vat_number: s(formData, "supplier_vat_number"),
+          reference: s(formData, "reference"),
+          description: s(formData, "description"),
+          category: category(formData),
+          amount_cents: m.amount_cents,
+          vat_cents: m.vat_cents,
+          vat_rate_bps: m.vat_rate_bps,
+          // Unticked means "I cannot claim this back", entertainment, a passenger car,
+          // club fees (VAT Act s17(2)). On a standing charge this is set once and then
+          // applies every month, which is exactly why it is worth asking about here.
+          vat_claimable: formData.get("vat_claimable") != null,
+          cadence: cadence(formData),
+          next_due_date: s(formData, "next_due_date") ?? today(),
+          ends_on: s(formData, "ends_on"),
+          auto_paid: formData.get("auto_paid") != null,
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
 
-  if (error) redirect(`/recurring-expenses?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/recurring-expenses?error=${encodeURIComponent(error.message)}`);
 
-  revalidatePath("/recurring-expenses");
-  redirect(`/recurring-expenses/${(created as { id: string }).id}?saved=1`);
+      revalidatePath("/recurring-expenses");
+      return `/recurring-expenses/${(created as { id: string }).id}?saved=1`;
+    },
+    { whileRunning: "/recurring-expenses?error=still-saving" },
+  );
 }
 
 export async function updateExpenseSchedule(formData: FormData) {

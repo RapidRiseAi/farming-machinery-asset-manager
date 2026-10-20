@@ -38,6 +38,13 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  "20261018100000":
+    "select exists(select 1 from information_schema.columns where table_schema='public'" +
+    " and table_name='partner_documents' and column_name='payment_claimed_at')",
+  "20261018090000":
+    "select to_regclass('public.request_claims') is not null" +
+    " and to_regprocedure('public.claim_request(uuid,text)') is not null" +
+    " and to_regprocedure('public.release_request(uuid)') is not null",
   "20261015175415":
     "select to_regclass('public.whatsapp_links') is not null" +
     " and to_regprocedure('public.whatsapp_assistant_role(uuid)') is not null" +

@@ -8,6 +8,7 @@ import { currentFarmId, effectiveFarmRole, requireProfile, requireRole } from "@
 import { recordMeterReading } from "@/lib/domain/fleet-commands";
 import { todayLocal } from "@/lib/format";
 import { DASH_COOKIE, DASH_SECTIONS, serializeDashPrefs, type DashPrefs } from "@/lib/dashboard-prefs";
+import { runOnce } from "@/lib/request-claim";
 
 /** Who may write a reading down. Same list as the machine page's `addReading`. */
 const READERS = ["rr_admin", "owner", "manager", "mechanic", "operator"];
@@ -76,19 +77,26 @@ function codeOf(error: unknown): string {
  * and wrong here, so this one returns to the dashboard.
  */
 export async function recordDashboardReading(formData: FormData) {
-  const profile = await requireProfile();
-  const machineId = String(formData.get("machine_id") ?? "");
-  const raw = String(formData.get("reading") ?? "").trim();
-  const date = String(formData.get("reading_date") ?? "").trim() || todayLocal();
-  const supabase = await createClient();
-  try {
-    await recordOne(supabase, profile, machineId, raw, date);
-  } catch (error) {
-    redirect(`/dashboard?error=${encodeURIComponent(codeOf(error))}`);
-  }
-  revalidatePath("/dashboard");
-  revalidatePath(`/machines/${machineId}`);
-  redirect("/dashboard?saved=reading");
+  return runOnce(
+    formData,
+    "readings:dashboard",
+    async () => {
+      const profile = await requireProfile();
+      const machineId = String(formData.get("machine_id") ?? "");
+      const raw = String(formData.get("reading") ?? "").trim();
+      const date = String(formData.get("reading_date") ?? "").trim() || todayLocal();
+      const supabase = await createClient();
+      try {
+        await recordOne(supabase, profile, machineId, raw, date);
+      } catch (error) {
+        redirect(`/dashboard?error=${encodeURIComponent(codeOf(error))}`);
+      }
+      revalidatePath("/dashboard");
+      revalidatePath(`/machines/${machineId}`);
+      return "/dashboard?saved=reading";
+    },
+    { whileRunning: "/dashboard?error=still-saving" },
+  );
 }
 
 /**
@@ -99,28 +107,35 @@ export async function recordDashboardReading(formData: FormData) {
  * after typing six numbers and getting the seventh wrong.
  */
 export async function recordDashboardReadings(formData: FormData) {
-  const profile = await requireProfile();
-  const date = todayLocal();
-  const supabase = await createClient();
-  const entries: [string, string][] = [];
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith("reading:")) continue;
-    const raw = String(value).trim();
-    if (raw !== "") entries.push([key.slice("reading:".length), raw]);
-  }
-  if (entries.length === 0) redirect("/dashboard?error=enter-a-valid-reading");
-  let saved = 0;
-  for (const [machineId, raw] of entries) {
-    try {
-      await recordOne(supabase, profile, machineId, raw, date);
-      saved += 1;
-    } catch (error) {
-      if (saved > 0) revalidatePath("/dashboard");
-      redirect(`/dashboard?error=${encodeURIComponent(codeOf(error))}`);
-    }
-  }
-  revalidatePath("/dashboard");
-  redirect("/dashboard?saved=readings");
+  return runOnce(
+    formData,
+    "readings:dashboard-batch",
+    async () => {
+      const profile = await requireProfile();
+      const date = todayLocal();
+      const supabase = await createClient();
+      const entries: [string, string][] = [];
+      for (const [key, value] of formData.entries()) {
+        if (!key.startsWith("reading:")) continue;
+        const raw = String(value).trim();
+        if (raw !== "") entries.push([key.slice("reading:".length), raw]);
+      }
+      if (entries.length === 0) redirect("/dashboard?error=enter-a-valid-reading");
+      let saved = 0;
+      for (const [machineId, raw] of entries) {
+        try {
+          await recordOne(supabase, profile, machineId, raw, date);
+          saved += 1;
+        } catch (error) {
+          if (saved > 0) revalidatePath("/dashboard");
+          redirect(`/dashboard?error=${encodeURIComponent(codeOf(error))}`);
+        }
+      }
+      revalidatePath("/dashboard");
+      return "/dashboard?saved=readings";
+    },
+    { whileRunning: "/dashboard?error=still-saving" },
+  );
 }
 
 /**

@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { rands } from "@/lib/money";
 import { correctionsFor, type DocKind, type DocStatus } from "@/lib/partner-docs";
 import { voidDocument, createCreditNote, createDebitNote, writeOffDocument } from "@/app/(app)/documents/actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export type CorrectionDoc = {
   id: string;
@@ -115,6 +116,7 @@ export function CorrectionPanel({
               of it, because a refund on an invoice the customer has already PAID has to be
               its own event, you cannot correct that away, and 0417 refuses to. */}
           <form action={createCreditNote} className="flex flex-col gap-3 border-t border-sand-100 pt-3">
+            <RequestIdInput action="documents:create-note" />
             <input type="hidden" name="document_id" value={doc.id} />
             <p className="text-sm font-medium text-sand-900">{t("correct.overcharged", locale)}</p>
             <p className="-mt-2 text-sm text-sand-600">{t("correct.overchargedHint", locale)}</p>
@@ -128,6 +130,7 @@ export function CorrectionPanel({
               the invoice was too LOW. Without it, a part left off an invoice could only
               become a second invoice, which reads as an unrelated charge on a statement. */}
           <form action={createDebitNote} className="flex flex-col gap-3 border-t border-sand-100 pt-3">
+            <RequestIdInput action="documents:create-note" />
             <input type="hidden" name="document_id" value={doc.id} />
             <p className="text-sm font-medium text-sand-900">{t("correct.undercharged", locale)}</p>
             <p className="-mt-2 text-sm text-sand-600">{t("correct.underchargedHint", locale)}</p>

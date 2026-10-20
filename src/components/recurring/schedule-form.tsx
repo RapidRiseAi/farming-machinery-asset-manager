@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
 import { PlusIcon } from "@/components/ui/icons";
 import { createSchedule } from "@/app/(app)/recurring/actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 type Party = { key: string; label: string; farm_id: string | null; client_id: string | null };
 
@@ -64,6 +65,7 @@ export function ScheduleForm({
       closeLabel={t("ui.close", locale)}
     >
       <form action={createSchedule}>
+        <RequestIdInput action="recurring:create" />
         <input type="hidden" name="recipient_kind" value={kind} />
         {kind === "farm" ? <input type="hidden" name="farm_id" value={chosen?.farm_id ?? ""} /> : null}
         {kind === "client" ? <input type="hidden" name="partner_client_id" value={chosen?.client_id ?? ""} /> : null}

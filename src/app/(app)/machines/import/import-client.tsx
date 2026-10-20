@@ -13,6 +13,7 @@ import {
   guessMapping, applyMapping, readHeaders, parseCsv, countDataRows, type ParseResult,
 } from "./csv";
 import { importMachines } from "../actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export function ImportClient({ locale }: { locale: Lang }) {
   const [raw, setRaw] = useState("");
@@ -241,6 +242,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
 
       {result && !result.headerError ? (
         <form action={importMachines} className="flex flex-col gap-2">
+          <RequestIdInput action="machines:import" />
           <input type="hidden" name="csv" value={canonical} />
           {tooMany ? (
             <p className="text-sm text-status-overdue">

@@ -5539,3 +5539,46 @@ site passes the account-safety checks and the click-through. Their per-row
 `whatsapp_scope()` costs about 0.01 to 0.03 ms a row; the larger cost found on the way is
 older: the activity log's own access rules take 3.7 s to count 4,900 rows for an owner
 (for the load test, H4).
+
+## 2026-10-20 - One request, one effect (interaction safety, release 2 of 3)
+
+Release 1 stopped repeated taps on the screen; a request can still arrive twice. The
+realistic case on farm signal: a save reaches the server, its answer is lost, the person sees
+"the connection dropped", reloads and enters it again. The server audit listed what that did:
+a second recurring schedule billing the customer twice every month, a payment or refund
+recorded twice, a second invoice (and number) from one quote, the same invoice or statement
+emailed twice, a fuel draw booked twice, two live API tokens with one never seen.
+
+- **`request_claims`** (20261018090000) with `claim_request`/`finish_request`/
+  `release_request`: a request id is claimed once per person and action; a replay of a
+  finished claim gets the first attempt's outcome, one that arrives while the first is
+  running is told so, a failed attempt releases its claim, a claim older than any function
+  may run is taken over. Suite `request_claims.sql`, mutation-tested.
+- **`runOnce`** wraps 26 server actions: `work` returns where to send the person, and a
+  replay goes there instead of doing it again. Fails open (no id, or the claim errors):
+  never a reason to refuse a save.
+- **`RequestIdInput`** chooses the id as the form submits, remembered per tab against a
+  fingerprint of the fields. A retry of the same entry after a reload carries the same id;
+  a save that completed forgets it, so a deliberate identical entry is new.
+- Email: both send routes claim the request (a replay returns the first answer) and pass
+  Resend an idempotency key of the request id plus what is sent, so an identical retry never
+  reaches the customer twice and an edited one still goes. QR captures pass the id as
+  `record_member_qr`'s existing `p_client`. Checklists claim it from the client (and remove
+  a half-saved inspection); API tokens revoke the unseen token of a replayed request and ask
+  for a new one.
+- Status guards: converting a quote opens the existing full conversion instead of raising a
+  second invoice; the emailed link's accept and decline update only a quote still "sent" and
+  notify only when they changed it; "I have paid" tells the partner once per ten minutes
+  (`payment_claimed_at`, 20261018100000). Line copies that were unchecked (conversion, stage
+  bills, notes, the recurring schedule's first line) now say so on the document.
+- **PayFast ITN** answers 503 when OUR database or PayFast's confirmation fails, so PayFast
+  retries instead of leaving a paid invoice unpaid with nobody told; forged or mismatched
+  notifications still answer 200; database messages are no longer echoed.
+- Pages that printed unknown error codes raw (expenses, the document page) go through
+  `errorMessage`; "still saving" has its sentence.
+
+`scripts/spam_check.mjs` check 6 proves it on a production build: a fuel delivery whose
+answer is killed after it reached the server shows the connection-dropped screen; the same
+entry sent again after a reload lands on "Saved." and the database holds one row. A guard
+test fails when a `runOnce` action has no form sending its id. 659 unit tests, all SQL
+suites, the click-through. Medium follow-ups are listed in the launch checklist.

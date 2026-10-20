@@ -8,13 +8,14 @@
  *      reported to /api/observability, no file;
  *   3. an error thrown in a timer and a promise nobody caught: both reported;
  *   4. five quick taps on a server-action row (opening a notification): one post;
- *   5. a dialog mid-save ignores Escape and Close, sends one save, and closes when done.
+ *   5. a dialog mid-save ignores Escape and Close, sends one save, and closes when done;
+ *   6. a save whose answer is lost, sent again after a reload, is saved once.
  *
  *   node scripts/spam_check.mjs --base=http://localhost:3111
  *
  * Signs in as the click-through owner (CLICKTHROUGH_PASSWORD from .env.local) and writes
- * nothing except marking one of that test farm's notifications read and saving one of its
- * preferences unchanged. Run it against a
+ * nothing except marking one of that test farm's notifications read, saving one of its
+ * preferences unchanged, and one marked fuel delivery it removes again. Run it against a
  * production build (pnpm build && pnpm start -p 3111). Prints counts only, never a secret.
  */
 import { spawn } from "node:child_process";
@@ -110,7 +111,8 @@ listeners.push((msg) => {
   if (msg.method === "Fetch.requestPaused" && msg.sessionId === sessionId) {
     const answer = intercept?.(msg.params);
     const go = () => S("Fetch.continueRequest", { requestId: msg.params.requestId }).catch(() => {});
-    if (answer?.holdMs) setTimeout(go, answer.holdMs);
+    if (answer?.fail) S("Fetch.failRequest", { requestId: msg.params.requestId, errorReason: answer.fail }).catch(() => {});
+    else if (answer?.holdMs) setTimeout(go, answer.holdMs);
     else if (answer) S("Fetch.fulfillRequest", { requestId: msg.params.requestId, ...answer }).catch(() => {});
     else go();
   }
@@ -272,6 +274,71 @@ if (!triggers) {
     check(posts === 1, "one save however the dialog is poked mid-save", `${posts} sent`);
     const closed = await evaluate(`!document.querySelector('[role="dialog"]')`);
     check(closed === true, "the dialog closes once the save has settled");
+  }
+}
+
+// 6. A save whose answer is lost, sent again after a reload, is saved once (request_claims).
+// Logs one fuel delivery on the click-through farm, marked by its invoice number, lets the
+// request reach the server and kills the answer, reloads, sends the same entry again, and
+// counts the rows. Removes the delivery afterwards when the farm allows it.
+{
+  const marker = `SPAMCHECK-${Date.now()}`;
+  const openDelivery = async () => {
+    await open("/fuel");
+    const count = (await evaluate(`document.querySelectorAll('main button[aria-haspopup="dialog"], header button[aria-haspopup="dialog"]').length`)) ?? 0;
+    for (let i = 0; i < Math.min(count, 8); i += 1) {
+      const box = await evaluate(`(() => { const b = document.querySelectorAll('main button[aria-haspopup="dialog"], header button[aria-haspopup="dialog"]')[${i}]; b.scrollIntoView({ block: "center" }); const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+      await tap(box);
+      await sleep(1200);
+      if (await evaluate(`!!document.querySelector('[role="dialog"] input[name="invoice_no"]')`)) return true;
+      await S("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await sleep(400);
+    }
+    return false;
+  };
+  const fill = () => evaluate(`(() => { const d = document.querySelector('[role="dialog"]'); d.querySelector('input[name="litres"]').value = "12.5"; d.querySelector('input[name="invoice_no"]').value = ${JSON.stringify(marker)}; return true; })()`);
+  const rows = async () => {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/fuel_deliveries?invoice_no=eq.${marker}&select=id`, {
+      headers: { apikey: ANON, authorization: `Bearer ${session.access_token}` },
+    });
+    return r.ok ? (await r.json()).map((row) => row.id) : null;
+  };
+  if (!(await openDelivery())) {
+    console.log("SKIP  no fuel delivery dialog on this farm");
+  } else {
+    await fill();
+    await S("Fetch.enable", { patterns: [{ urlPattern: "*/fuel*", requestStage: "Response" }] });
+    intercept = (params) => (params.request.method === "POST" ? { fail: "ConnectionReset" } : null);
+    await tap(await target('[role="dialog"] form button[type="submit"]:last-of-type'));
+    await sleep(5000);
+    intercept = null;
+    await S("Fetch.disable");
+    const told = (await evaluate(`document.querySelector('[data-error-boundary]')?.textContent ?? ""`)) ?? "";
+    check(/connection dropped/i.test(told), "a lost answer says the connection dropped", told.slice(0, 60) || "no error screen");
+    check(((await rows()) ?? []).length === 1, "the first attempt reached the server");
+    // The person reloads and sends the same entry again.
+    let retryPosts = 0;
+    if (await openDelivery()) {
+      await fill();
+      const before = requests.length;
+      await tap(await target('[role="dialog"] form button[type="submit"]:last-of-type'));
+      await sleep(6000);
+      retryPosts = requests.slice(before).filter((r) => r.method === "POST" && r.action).length;
+    }
+    check(retryPosts === 1, "the retry was sent", `${retryPosts} post(s)`);
+    const saved = (await rows()) ?? [];
+    check(saved.length === 1, "the retry after a reload is not saved a second time", `${saved.length} row(s)`);
+    // The success flash clears ?saved= from the address bar once shown, so read the flash.
+    const landed = (await evaluate(`[...document.querySelectorAll('main [role="status"]')].map((n) => n.textContent).join(" | ")`)) ?? "";
+    check(/saved/i.test(landed), "the retry lands where the first save would have (Saved)", landed.slice(0, 60) || "no message");
+    for (const id of saved) {
+      await fetch(`${SUPABASE_URL}/rest/v1/fuel_deliveries?id=eq.${id}`, {
+        method: "DELETE",
+        headers: { apikey: ANON, authorization: `Bearer ${session.access_token}` },
+      }).catch(() => {});
+    }
+    const left = (await rows()) ?? [];
+    console.log(left.length ? `NOTE  ${left.length} test delivery left on the click-through farm (${marker})` : "NOTE  test delivery removed");
   }
 }
 

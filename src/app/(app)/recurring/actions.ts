@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { captureError } from "@/lib/observability";
 import { requireRole, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
 import { CADENCES, type Cadence } from "@/lib/recurring";
+import { runOnce } from "@/lib/request-claim";
 
 /**
  * Standing invoices (G8).
@@ -66,94 +68,115 @@ async function resolveRecipient(
 }
 
 export async function createSchedule(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const gate = await checkWorkshopEntitlement("build_documents", profile);
-  if (!gate.allowed) redirect("/recurring?error=upgrade");
+  return runOnce(
+    formData,
+    "recurring:create",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const gate = await checkWorkshopEntitlement("build_documents", profile);
+      if (!gate.allowed) redirect("/recurring?error=upgrade");
 
-  const { workshop } = await currentWorkshop(profile);
-  if (!workshop) redirect("/contractor?error=no-workshop");
+      const { workshop } = await currentWorkshop(profile);
+      if (!workshop) redirect("/contractor?error=no-workshop");
 
-  const supabase = await createClient();
-  const recipient = await resolveRecipient(supabase, workshop.id, formData);
-  if (!recipient) redirect("/recurring?error=missing-recipient");
+      const supabase = await createClient();
+      const recipient = await resolveRecipient(supabase, workshop.id, formData);
+      if (!recipient) redirect("/recurring?error=missing-recipient");
 
-  const name = s(formData, "name");
-  if (!name) redirect("/recurring?error=need-name");
+      const name = s(formData, "name");
+      if (!name) redirect("/recurring?error=need-name");
 
-  const rateBps = percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500;
-  const { data: created, error } = await supabase
-    .from("recurring_invoices")
-    .insert({
-      workshop_id: workshop.id,
-      ...recipient,
-      name,
-      subject: s(formData, "subject"),
-      notes: s(formData, "notes"),
-      cadence: cadence(formData),
-      next_issue_date: s(formData, "next_issue_date") ?? new Date().toISOString().slice(0, 10),
-      ends_on: s(formData, "ends_on"),
-      vat_rate_bps: rateBps,
-      auto_send: formData.get("auto_send") != null,
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
+      const rateBps = percentToBps(String(formData.get("vat_percent") ?? "15")) ?? 1500;
+      const { data: created, error } = await supabase
+        .from("recurring_invoices")
+        .insert({
+          workshop_id: workshop.id,
+          ...recipient,
+          name,
+          subject: s(formData, "subject"),
+          notes: s(formData, "notes"),
+          cadence: cadence(formData),
+          next_issue_date: s(formData, "next_issue_date") ?? new Date().toISOString().slice(0, 10),
+          ends_on: s(formData, "ends_on"),
+          vat_rate_bps: rateBps,
+          auto_send: formData.get("auto_send") != null,
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
 
-  if (error) redirect(`/recurring?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/recurring?error=${encodeURIComponent(error.message)}`);
 
-  // The first line comes off the same form, because a schedule with no lines raises
-  // nothing and a partner who has to add one on a second screen may not.
-  const description = s(formData, "description");
-  const priceCents = parseRandsToCents(String(formData.get("unit_price") ?? ""));
-  if (description && priceCents != null && priceCents > 0) {
-    const inclusive = formData.get("incl_vat") != null;
-    await supabase.from("recurring_invoice_lines").insert({
-      recurring_id: (created as { id: string }).id,
-      workshop_id: workshop.id,
-      sort_order: 0,
-      kind: "other",
-      description,
-      qty: Number(formData.get("qty") ?? 1) || 1,
-      unit_price_cents: inclusive ? exVatCents(priceCents, rateBps) : priceCents,
-    });
-  }
+      // The first line comes off the same form, because a schedule with no lines raises
+      // nothing and a partner who has to add one on a second screen may not.
+      const description = s(formData, "description");
+      const priceCents = parseRandsToCents(String(formData.get("unit_price") ?? ""));
+      if (description && priceCents != null && priceCents > 0) {
+        const inclusive = formData.get("incl_vat") != null;
+        const { error: lineError } = await supabase.from("recurring_invoice_lines").insert({
+          recurring_id: (created as { id: string }).id,
+          workshop_id: workshop.id,
+          sort_order: 0,
+          kind: "other",
+          description,
+          qty: Number(formData.get("qty") ?? 1) || 1,
+          unit_price_cents: inclusive ? exVatCents(priceCents, rateBps) : priceCents,
+        });
+        // A schedule with no lines raises nothing, silently. Say so on its page, where the
+        // line can be added, and tell us.
+        if (lineError) {
+          captureError(lineError, { where: "recurring:create:first-line" });
+          revalidatePath("/recurring");
+          return `/recurring/${(created as { id: string }).id}?error=line-failed`;
+        }
+      }
 
-  revalidatePath("/recurring");
-  redirect(`/recurring/${(created as { id: string }).id}?saved=1`);
+      revalidatePath("/recurring");
+      return `/recurring/${(created as { id: string }).id}?saved=1`;
+    },
+    { whileRunning: "/recurring?error=still-saving" },
+  );
 }
 
 export async function addScheduleLine(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const { workshop } = await currentWorkshop(profile);
-  if (!workshop) redirect("/contractor?error=no-workshop");
+  return runOnce(
+    formData,
+    "recurring:add-line",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const { workshop } = await currentWorkshop(profile);
+      if (!workshop) redirect("/contractor?error=no-workshop");
 
-  const id = String(formData.get("schedule_id") ?? "");
-  const description = s(formData, "description");
-  const priceCents = parseRandsToCents(String(formData.get("unit_price") ?? ""));
-  if (!description || priceCents == null) redirect(`/recurring/${id}?error=need-line`);
+      const id = String(formData.get("schedule_id") ?? "");
+      const description = s(formData, "description");
+      const priceCents = parseRandsToCents(String(formData.get("unit_price") ?? ""));
+      if (!description || priceCents == null) redirect(`/recurring/${id}?error=need-line`);
 
-  const supabase = await createClient();
-  const { data: sched } = await supabase
-    .from("recurring_invoices")
-    .select("vat_rate_bps")
-    .eq("id", id)
-    .maybeSingle();
-  const rateBps = (sched as { vat_rate_bps?: number } | null)?.vat_rate_bps ?? 1500;
-  const inclusive = formData.get("incl_vat") != null;
+      const supabase = await createClient();
+      const { data: sched } = await supabase
+        .from("recurring_invoices")
+        .select("vat_rate_bps")
+        .eq("id", id)
+        .maybeSingle();
+      const rateBps = (sched as { vat_rate_bps?: number } | null)?.vat_rate_bps ?? 1500;
+      const inclusive = formData.get("incl_vat") != null;
 
-  const { error } = await supabase.from("recurring_invoice_lines").insert({
-    recurring_id: id,
-    workshop_id: workshop.id,
-    sort_order: Number(formData.get("sort_order") ?? 0) || 0,
-    kind: "other",
-    description,
-    qty: Number(formData.get("qty") ?? 1) || 1,
-    unit_price_cents: inclusive ? exVatCents(priceCents, rateBps) : priceCents,
-  });
-  if (error) redirect(`/recurring/${id}?error=${encodeURIComponent(error.message)}`);
+      const { error } = await supabase.from("recurring_invoice_lines").insert({
+        recurring_id: id,
+        workshop_id: workshop.id,
+        sort_order: Number(formData.get("sort_order") ?? 0) || 0,
+        kind: "other",
+        description,
+        qty: Number(formData.get("qty") ?? 1) || 1,
+        unit_price_cents: inclusive ? exVatCents(priceCents, rateBps) : priceCents,
+      });
+      if (error) redirect(`/recurring/${id}?error=${encodeURIComponent(error.message)}`);
 
-  revalidatePath(`/recurring/${id}`);
-  redirect(`/recurring/${id}?added=1`);
+      revalidatePath(`/recurring/${id}`);
+      return `/recurring/${id}?added=1`;
+    },
+    { whileRunning: `/recurring/${String(formData.get("schedule_id") ?? "")}?error=still-saving` },
+  );
 }
 
 export async function removeScheduleLine(formData: FormData) {

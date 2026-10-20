@@ -10,6 +10,7 @@ import { CloseIcon, PlusIcon, ChevronUpIcon, CheckIcon } from "@/components/ui/i
 import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
 import { reportClientError } from "@/lib/client-report";
 import { asError } from "@/lib/single-flight";
+import { newRequestId } from "@/lib/request-id";
 import {
   createChecklistInstance,
   type ChecklistInstanceInput,
@@ -95,6 +96,9 @@ export function ChecklistForm({
   // One save at a time, offline queue included: that path never shows a busy button, and
   // two quick taps queued the inspection twice (two sets of defect faults on sync).
   const saving = useRef(false);
+  // Kept across failed attempts so a retry is recognised on the server; the page moves to
+  // the saved inspection on success, so there is never a second save under one id.
+  const requestId = useRef(newRequestId());
 
   async function save(status: "draft" | "completed") {
     if (saving.current) return;
@@ -141,6 +145,7 @@ export function ChecklistForm({
       meter_reading: meterReading.trim() !== "" && Number.isFinite(Number(meterReading)) ? Number(meterReading) : null,
       notes: overallNotes.trim() || null,
       values,
+      request_id: requestId.current,
     };
 
     // == No signal: keep the inspection ====================================
@@ -191,7 +196,7 @@ export function ChecklistForm({
     try {
       const res = await createChecklistInstance(payload);
       if (res?.error) {
-        setError(res.error);
+        setError(res.error === "still-saving" ? t("errors.stillSaving", locale) : res.error);
         setSubmitting(false);
         return;
       }

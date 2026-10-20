@@ -48,6 +48,11 @@ const FALLBACK = "errors.generic";
 const CODE_KEYS: Record<string, string> = {
   "driving-invalid": "driving.error",
 
+  // A repeat of a request whose first attempt is still running (runOnce, request_claims).
+  "still-saving": "errors.stillSaving",
+  "line-failed": "errors.recurringLineFailed",
+  "lines-failed": "errors.documentLinesFailed",
+
   "work-transition": "errors.workTransition",
   "work-changed": "errors.workChanged",
   "work-use-document": "errors.workUseDocument",

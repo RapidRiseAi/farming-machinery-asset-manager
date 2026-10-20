@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { captureError } from "@/lib/observability";
 import { requireRole, requireProfile, requireFarmRole, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
@@ -10,6 +11,7 @@ import { percentToBps } from "@/lib/format";
 import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { defaultDueDate, type DocKind, type DocLineKind } from "@/lib/partner-docs";
 import { safePath } from "@/lib/safe-path";
+import { runOnce } from "@/lib/request-claim";
 
 /**
  * Quotes and invoices (F14b/F14c).
@@ -205,66 +207,73 @@ function billToFields(formData: FormData) {
 }
 
 export async function createDocument(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const gate = await checkWorkshopEntitlement("build_documents", profile);
-  if (!gate.allowed) redirect("/documents?error=upgrade");
+  return runOnce(
+    formData,
+    "documents:create",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const gate = await checkWorkshopEntitlement("build_documents", profile);
+      if (!gate.allowed) redirect("/documents?error=upgrade");
 
-  const kind: DocKind = String(formData.get("kind") ?? "quote") === "invoice" ? "invoice" : "quote";
-  const { workshop } = await currentWorkshop(profile);
-  const branding = brandingFrom(workshop);
-  const supabase = await createClient();
+      const kind: DocKind = String(formData.get("kind") ?? "quote") === "invoice" ? "invoice" : "quote";
+      const { workshop } = await currentWorkshop(profile);
+      const branding = brandingFrom(workshop);
+      const supabase = await createClient();
 
-  const recipient = await resolveRecipient(supabase, profile.workshop_id!, formData);
-  if (!recipient) redirect("/documents?error=missing-recipient");
-  const requestId = recipient.farm_id ? s(formData, "work_request_id") : null;
-  const machineId = recipient.farm_id ? s(formData, "machine_id") : null;
-  if (requestId) {
-    const { data: request } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
-      .eq("id", requestId).is("deleted_at", null).maybeSingle();
-    if (!request || request.farm_id !== recipient.farm_id || request.workshop_id !== profile.workshop_id
-      || request.machine_id !== machineId) redirect("/documents?error=forbidden");
-    if (request.status === "closed") redirect(`/work/${requestId}?error=locked`);
-  }
+      const recipient = await resolveRecipient(supabase, profile.workshop_id!, formData);
+      if (!recipient) redirect("/documents?error=missing-recipient");
+      const requestId = recipient.farm_id ? s(formData, "work_request_id") : null;
+      const machineId = recipient.farm_id ? s(formData, "machine_id") : null;
+      if (requestId) {
+        const { data: request } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
+          .eq("id", requestId).is("deleted_at", null).maybeSingle();
+        if (!request || request.farm_id !== recipient.farm_id || request.workshop_id !== profile.workshop_id
+          || request.machine_id !== machineId) redirect("/documents?error=forbidden");
+        if (request.status === "closed") redirect(`/work/${requestId}?error=locked`);
+      }
 
-  const bill = billToFields(formData);
-  // A one-time customer has nothing to seed from, so the name has to be typed.
-  if (!recipient.farm_id && !recipient.partner_client_id && !bill.bill_to_name) {
-    redirect("/documents?error=missing-name");
-  }
+      const bill = billToFields(formData);
+      // A one-time customer has nothing to seed from, so the name has to be typed.
+      if (!recipient.farm_id && !recipient.partner_client_id && !bill.bill_to_name) {
+        redirect("/documents?error=missing-name");
+      }
 
-  const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
-    p_workshop: profile.workshop_id,
-    p_kind: kind,
-  });
-  if (numErr) redirect(`/documents?error=${encodeURIComponent(numErr.message)}`);
+      const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
+        p_workshop: profile.workshop_id,
+        p_kind: kind,
+      });
+      if (numErr) redirect(`/documents?error=${encodeURIComponent(numErr.message)}`);
 
-  const termsDays = await termsDaysFor(supabase, profile.workshop_id, kind, recipient, branding);
+      const termsDays = await termsDaysFor(supabase, profile.workshop_id, kind, recipient, branding);
 
-  const { data, error } = await supabase
-    .from("partner_documents")
-    .insert({
-      ...recipient,
-      ...bill,
-      workshop_id: profile.workshop_id,
-      machine_id: machineId,
-      work_request_id: requestId,
-      kind,
-      status: "draft",
-      source: "built",
-      number: String(numData),
-      subject: s(formData, "subject"),
-      issue_date: new Date().toISOString().slice(0, 10),
-      due_date: defaultDueDate(kind, new Date(), termsDays, termsDays),
-      vat_rate_bps: branding.defaultVatRateBps,
-      terms: branding.terms,
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
+      const { data, error } = await supabase
+        .from("partner_documents")
+        .insert({
+          ...recipient,
+          ...bill,
+          workshop_id: profile.workshop_id,
+          machine_id: machineId,
+          work_request_id: requestId,
+          kind,
+          status: "draft",
+          source: "built",
+          number: String(numData),
+          subject: s(formData, "subject"),
+          issue_date: new Date().toISOString().slice(0, 10),
+          due_date: defaultDueDate(kind, new Date(), termsDays, termsDays),
+          vat_rate_bps: branding.defaultVatRateBps,
+          terms: branding.terms,
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
 
-  if (error) redirect(`/documents?error=${encodeURIComponent(error.message)}`);
-  revalidatePath("/documents");
-  redirect(`/documents/${(data as { id: string }).id}`);
+      if (error) redirect(`/documents?error=${encodeURIComponent(error.message)}`);
+      revalidatePath("/documents");
+      return `/documents/${(data as { id: string }).id}`;
+    },
+    { whileRunning: "/documents?error=still-saving" },
+  );
 }
 
 // == Lines ====================================================================
@@ -276,45 +285,52 @@ export async function createDocument(formData: FormData) {
  * 0381 triggers; nothing here types a total.
  */
 export async function addDocumentLine(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const gate = await checkWorkshopEntitlement("build_documents", profile);
-  if (!gate.allowed) redirect("/documents?error=upgrade");
+  return runOnce(
+    formData,
+    "documents:add-line",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const gate = await checkWorkshopEntitlement("build_documents", profile);
+      if (!gate.allowed) redirect("/documents?error=upgrade");
 
-  const id = String(formData.get("document_id") ?? "");
-  const supabase = await createClient();
-  const doc = await loadDoc(supabase, id);
-  if (!doc) redirect("/documents?error=not-found");
-  if (doc.status !== "draft") redirect(`/documents/${id}?error=locked`);
+      const id = String(formData.get("document_id") ?? "");
+      const supabase = await createClient();
+      const doc = await loadDoc(supabase, id);
+      if (!doc) redirect("/documents?error=not-found");
+      if (doc.status !== "draft") redirect(`/documents/${id}?error=locked`);
 
-  const kindRaw = String(formData.get("kind") ?? "part");
-  const kind: DocLineKind = kindRaw === "labour" || kindRaw === "other" ? kindRaw : "part";
-  const description = String(formData.get("description") ?? "").trim();
-  if (!description) redirect(`/documents/${id}?error=need-description`);
+      const kindRaw = String(formData.get("kind") ?? "part");
+      const kind: DocLineKind = kindRaw === "labour" || kindRaw === "other" ? kindRaw : "part";
+      const description = String(formData.get("description") ?? "").trim();
+      if (!description) redirect(`/documents/${id}?error=need-description`);
 
-  const qty = Number.parseFloat(String(formData.get("qty") ?? "1"));
-  const priceCents = parseRandsToCents(String(formData.get("unit_price") ?? ""));
-  const inclVat = formData.get("incl_vat") != null;
+      const qty = Number.parseFloat(String(formData.get("qty") ?? "1"));
+      const priceCents = parseRandsToCents(String(formData.get("unit_price") ?? ""));
+      const inclVat = formData.get("incl_vat") != null;
 
-  const { count } = await supabase
-    .from("partner_document_lines")
-    .select("id", { count: "exact", head: true })
-    .eq("document_id", id)
-    .is("deleted_at", null);
+      const { count } = await supabase
+        .from("partner_document_lines")
+        .select("id", { count: "exact", head: true })
+        .eq("document_id", id)
+        .is("deleted_at", null);
 
-  const { error } = await supabase.from("partner_document_lines").insert({
-    farm_id: doc.farm_id,
-    document_id: id,
-    sort_order: count ?? 0,
-    kind,
-    part_no: s(formData, "part_no"),
-    description,
-    qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
-    unit_price_cents: priceCents == null ? 0 : inclVat ? exVatCents(priceCents, doc.vat_rate_bps) : priceCents,
-  });
+      const { error } = await supabase.from("partner_document_lines").insert({
+        farm_id: doc.farm_id,
+        document_id: id,
+        sort_order: count ?? 0,
+        kind,
+        part_no: s(formData, "part_no"),
+        description,
+        qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+        unit_price_cents: priceCents == null ? 0 : inclVat ? exVatCents(priceCents, doc.vat_rate_bps) : priceCents,
+      });
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
-  revalidatePath(`/documents/${id}`);
-  redirect(`/documents/${id}?added=1`);
+      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      revalidatePath(`/documents/${id}`);
+      return `/documents/${id}?added=1`;
+    },
+    { whileRunning: `/documents/${String(formData.get("document_id") ?? "")}?error=still-saving` },
+  );
 }
 
 export async function removeDocumentLine(formData: FormData) {
@@ -409,88 +425,115 @@ export async function sendDocument(formData: FormData) {
  * was, the pair is the record of what was agreed versus what was billed.
  */
 export async function convertQuoteToInvoice(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const gate = await checkWorkshopEntitlement("build_documents", profile);
-  if (!gate.allowed) redirect("/documents?error=upgrade");
+  return runOnce(
+    formData,
+    "documents:convert",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const gate = await checkWorkshopEntitlement("build_documents", profile);
+      if (!gate.allowed) redirect("/documents?error=upgrade");
 
-  const id = String(formData.get("document_id") ?? "");
-  const supabase = await createClient();
-  const doc = await loadDoc(supabase, id);
-  if (!doc || doc.kind !== "quote") redirect("/documents?error=not-found");
+      const id = String(formData.get("document_id") ?? "");
+      const supabase = await createClient();
+      const doc = await loadDoc(supabase, id);
+      if (!doc || doc.kind !== "quote") redirect("/documents?error=not-found");
 
-  const { workshop } = await currentWorkshop(profile);
-  const branding = brandingFrom(workshop);
+      // Converted already (the button stays on the quote, and another tab may have done it):
+      // open that invoice instead of raising a second one with a number of its own.
+      const { data: converted } = await supabase
+        .from("partner_documents")
+        .select("id")
+        .eq("quote_id", id)
+        .eq("kind", "invoice")
+        .is("billing_stage", null)
+        .is("deleted_at", null)
+        .neq("status", "void")
+        .limit(1)
+        .maybeSingle();
+      if (converted) redirect(`/documents/${(converted as { id: string }).id}?converted=1`);
 
-  const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
-    p_workshop: doc.workshop_id,
-    p_kind: "invoice",
-  });
-  if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
+      const { workshop } = await currentWorkshop(profile);
+      const branding = brandingFrom(workshop);
 
-  const { data: full } = await supabase
-    .from("partner_documents")
-    .select("subject, notes, terms, discount_cents, vat_rate_bps")
-    .eq("id", id)
-    .maybeSingle();
-  const src = (full ?? {}) as { subject?: string | null; notes?: string | null; terms?: string | null; discount_cents?: number; vat_rate_bps?: number };
+      const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
+        p_workshop: doc.workshop_id,
+        p_kind: "invoice",
+      });
+      if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
 
-  // The recipient must come across too. This previously copied `farm_id` alone, so
-  // converting a quote raised for a CLIENT produced an invoice with neither farm nor
-  // client, permitted by the 0410 constraint (that is the one-time-customer case), so it
-  // failed silently. The document still printed, because bill_to_* is snapshotted, but it
-  // never reached that client's statement, ageing, debtors or credit limit.
-  const termsDays = await termsDaysFor(
-    supabase,
-    doc.workshop_id,
-    "invoice",
-    { farm_id: doc.farm_id, partner_client_id: doc.partner_client_id },
-    branding,
+      const { data: full } = await supabase
+        .from("partner_documents")
+        .select("subject, notes, terms, discount_cents, vat_rate_bps")
+        .eq("id", id)
+        .maybeSingle();
+      const src = (full ?? {}) as { subject?: string | null; notes?: string | null; terms?: string | null; discount_cents?: number; vat_rate_bps?: number };
+
+      // The recipient must come across too. This previously copied `farm_id` alone, so
+      // converting a quote raised for a CLIENT produced an invoice with neither farm nor
+      // client, permitted by the 0410 constraint (that is the one-time-customer case), so it
+      // failed silently. The document still printed, because bill_to_* is snapshotted, but it
+      // never reached that client's statement, ageing, debtors or credit limit.
+      const termsDays = await termsDaysFor(
+        supabase,
+        doc.workshop_id,
+        "invoice",
+        { farm_id: doc.farm_id, partner_client_id: doc.partner_client_id },
+        branding,
+      );
+
+      const { data: created, error } = await supabase
+        .from("partner_documents")
+        .insert({
+          farm_id: doc.farm_id,
+          partner_client_id: doc.partner_client_id,
+          workshop_id: doc.workshop_id,
+          machine_id: doc.machine_id,
+          work_request_id: doc.work_request_id,
+          quote_id: doc.id,
+          kind: "invoice",
+          status: "draft",
+          source: "built",
+          number: String(numData),
+          subject: src.subject ?? null,
+          notes: src.notes ?? null,
+          terms: src.terms ?? branding.terms,
+          discount_cents: src.discount_cents ?? 0,
+          vat_rate_bps: src.vat_rate_bps ?? branding.defaultVatRateBps,
+          issue_date: new Date().toISOString().slice(0, 10),
+          due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, termsDays),
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
+
+      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      const invoiceId = (created as { id: string }).id;
+
+      const { data: lines } = await supabase
+        .from("partner_document_lines")
+        .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
+        .eq("document_id", id)
+        .is("deleted_at", null)
+        .order("sort_order");
+
+      const rows = (lines ?? []) as Record<string, unknown>[];
+      if (rows.length) {
+        const { error: linesError } = await supabase
+          .from("partner_document_lines")
+          .insert(rows.map((l) => ({ ...l, farm_id: doc.farm_id, document_id: invoiceId })));
+        // The invoice exists without its lines: say so on it rather than reporting success.
+        if (linesError) {
+          captureError(linesError, { where: "documents:convert:lines" });
+          revalidatePath("/documents");
+          redirect(`/documents/${invoiceId}?error=lines-failed`);
+        }
+      }
+
+      revalidatePath("/documents");
+      return `/documents/${invoiceId}?converted=1`;
+    },
+    { whileRunning: `/documents/${String(formData.get("document_id") ?? "")}?error=still-saving` },
   );
-
-  const { data: created, error } = await supabase
-    .from("partner_documents")
-    .insert({
-      farm_id: doc.farm_id,
-      partner_client_id: doc.partner_client_id,
-      workshop_id: doc.workshop_id,
-      machine_id: doc.machine_id,
-      work_request_id: doc.work_request_id,
-      quote_id: doc.id,
-      kind: "invoice",
-      status: "draft",
-      source: "built",
-      number: String(numData),
-      subject: src.subject ?? null,
-      notes: src.notes ?? null,
-      terms: src.terms ?? branding.terms,
-      discount_cents: src.discount_cents ?? 0,
-      vat_rate_bps: src.vat_rate_bps ?? branding.defaultVatRateBps,
-      issue_date: new Date().toISOString().slice(0, 10),
-      due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, termsDays),
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
-
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
-  const invoiceId = (created as { id: string }).id;
-
-  const { data: lines } = await supabase
-    .from("partner_document_lines")
-    .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
-    .eq("document_id", id)
-    .is("deleted_at", null)
-    .order("sort_order");
-
-  const rows = (lines ?? []) as Record<string, unknown>[];
-  if (rows.length) {
-    await supabase
-      .from("partner_document_lines")
-      .insert(rows.map((l) => ({ ...l, farm_id: doc.farm_id, document_id: invoiceId })));
-  }
-
-  revalidatePath("/documents");
-  redirect(`/documents/${invoiceId}?converted=1`);
 }
 
 /**
@@ -508,95 +551,108 @@ export async function convertQuoteToInvoice(formData: FormData) {
  * count a draft as billed for that reason.
  */
 export async function billQuoteStage(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const gate = await checkWorkshopEntitlement("build_documents", profile);
-  if (!gate.allowed) redirect("/documents?error=upgrade");
+  return runOnce(
+    formData,
+    "documents:bill-stage",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const gate = await checkWorkshopEntitlement("build_documents", profile);
+      if (!gate.allowed) redirect("/documents?error=upgrade");
 
-  const quoteId = String(formData.get("document_id") ?? "");
-  const supabase = await createClient();
-  const quote = await loadDoc(supabase, quoteId);
-  if (!quote || quote.kind !== "quote") redirect("/documents?error=not-found");
+      const quoteId = String(formData.get("document_id") ?? "");
+      const supabase = await createClient();
+      const quote = await loadDoc(supabase, quoteId);
+      if (!quote || quote.kind !== "quote") redirect("/documents?error=not-found");
 
-  const stageRaw = String(formData.get("billing_stage") ?? "progress");
-  const stage: "deposit" | "progress" | "final" =
-    stageRaw === "deposit" || stageRaw === "final" ? stageRaw : "progress";
+      const stageRaw = String(formData.get("billing_stage") ?? "progress");
+      const stage: "deposit" | "progress" | "final" =
+        stageRaw === "deposit" || stageRaw === "final" ? stageRaw : "progress";
 
-  // Either a percentage of the quote or a typed amount. Percent is what a partner
-  // actually says out loud ("fifty percent up front"), so it is offered first, but the
-  // amount is what gets stored, because a percentage of a quote that is later revised
-  // would silently restate an invoice that has already gone out.
-  const rateBps = quote.vat_rate_bps ?? 1500;
-  const percent = Number.parseFloat(String(formData.get("percent") ?? ""));
-  const typedIncl = parseRandsToCents(String(formData.get("amount") ?? ""));
+      // Either a percentage of the quote or a typed amount. Percent is what a partner
+      // actually says out loud ("fifty percent up front"), so it is offered first, but the
+      // amount is what gets stored, because a percentage of a quote that is later revised
+      // would silently restate an invoice that has already gone out.
+      const rateBps = quote.vat_rate_bps ?? 1500;
+      const percent = Number.parseFloat(String(formData.get("percent") ?? ""));
+      const typedIncl = parseRandsToCents(String(formData.get("amount") ?? ""));
 
-  let inclCents: number | null = null;
-  if (typedIncl != null && typedIncl > 0) inclCents = typedIncl;
-  else if (Number.isFinite(percent) && percent > 0) {
-    inclCents = Math.round((quote.total_cents * percent) / 100);
-  }
-  if (inclCents == null || inclCents <= 0) redirect(`/documents/${quoteId}?error=need-amount`);
+      let inclCents: number | null = null;
+      if (typedIncl != null && typedIncl > 0) inclCents = typedIncl;
+      else if (Number.isFinite(percent) && percent > 0) {
+        inclCents = Math.round((quote.total_cents * percent) / 100);
+      }
+      if (inclCents == null || inclCents <= 0) redirect(`/documents/${quoteId}?error=need-amount`);
 
-  const { workshop } = await currentWorkshop(profile);
-  const branding = brandingFrom(workshop);
+      const { workshop } = await currentWorkshop(profile);
+      const branding = brandingFrom(workshop);
 
-  const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
-    p_workshop: quote.workshop_id,
-    p_kind: "invoice",
-  });
-  if (numErr) redirect(`/documents/${quoteId}?error=${encodeURIComponent(numErr.message)}`);
+      const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
+        p_workshop: quote.workshop_id,
+        p_kind: "invoice",
+      });
+      if (numErr) redirect(`/documents/${quoteId}?error=${encodeURIComponent(numErr.message)}`);
 
-  const label = s(formData, "stage_label");
-  const stageTermsDays = await termsDaysFor(
-    supabase,
-    quote.workshop_id,
-    "invoice",
-    { farm_id: quote.farm_id, partner_client_id: quote.partner_client_id },
-    branding,
+      const label = s(formData, "stage_label");
+      const stageTermsDays = await termsDaysFor(
+        supabase,
+        quote.workshop_id,
+        "invoice",
+        { farm_id: quote.farm_id, partner_client_id: quote.partner_client_id },
+        branding,
+      );
+      const { data: created, error } = await supabase
+        .from("partner_documents")
+        .insert({
+          farm_id: quote.farm_id,
+          partner_client_id: quote.partner_client_id,
+          workshop_id: quote.workshop_id,
+          machine_id: quote.machine_id,
+          work_request_id: quote.work_request_id,
+          quote_id: quote.id,
+          kind: "invoice",
+          status: "draft",
+          source: "built",
+          billing_stage: stage,
+          stage_label: label,
+          number: String(numData),
+          subject: quote.subject,
+          terms: branding.terms,
+          vat_rate_bps: rateBps,
+          issue_date: new Date().toISOString().slice(0, 10),
+          due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, stageTermsDays),
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
+      if (error) redirect(`/documents/${quoteId}?error=${encodeURIComponent(error.message)}`);
+
+      const invoiceId = (created as { id: string }).id;
+
+      // One line, describing the stage. The amount was chosen VAT-inclusive (it is the number
+      // the customer was promised), and lines are stored ex-VAT like everywhere else.
+      const { error: lineError } = await supabase.from("partner_document_lines").insert({
+        farm_id: quote.farm_id,
+        document_id: invoiceId,
+        sort_order: 0,
+        kind: "other",
+        description: label || quote.subject || String(numData),
+        qty: 1,
+        unit_price_cents: exVatCents(inclCents, rateBps),
+        discount_cents: 0,
+      });
+      // A stage invoice without its line bills nothing: say so on it, not "staged".
+      if (lineError) {
+        captureError(lineError, { where: "documents:stage:line" });
+        revalidatePath("/documents");
+        redirect(`/documents/${invoiceId}?error=lines-failed`);
+      }
+
+      revalidatePath(`/documents/${quoteId}`);
+      revalidatePath("/documents");
+      return `/documents/${invoiceId}?staged=1`;
+    },
+    { whileRunning: `/documents/${String(formData.get("document_id") ?? "")}?error=still-saving` },
   );
-  const { data: created, error } = await supabase
-    .from("partner_documents")
-    .insert({
-      farm_id: quote.farm_id,
-      partner_client_id: quote.partner_client_id,
-      workshop_id: quote.workshop_id,
-      machine_id: quote.machine_id,
-      work_request_id: quote.work_request_id,
-      quote_id: quote.id,
-      kind: "invoice",
-      status: "draft",
-      source: "built",
-      billing_stage: stage,
-      stage_label: label,
-      number: String(numData),
-      subject: quote.subject,
-      terms: branding.terms,
-      vat_rate_bps: rateBps,
-      issue_date: new Date().toISOString().slice(0, 10),
-      due_date: defaultDueDate("invoice", new Date(), branding.quoteValidityDays, stageTermsDays),
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
-  if (error) redirect(`/documents/${quoteId}?error=${encodeURIComponent(error.message)}`);
-
-  const invoiceId = (created as { id: string }).id;
-
-  // One line, describing the stage. The amount was chosen VAT-inclusive (it is the number
-  // the customer was promised), and lines are stored ex-VAT like everywhere else.
-  await supabase.from("partner_document_lines").insert({
-    farm_id: quote.farm_id,
-    document_id: invoiceId,
-    sort_order: 0,
-    kind: "other",
-    description: label || quote.subject || String(numData),
-    qty: 1,
-    unit_price_cents: exVatCents(inclCents, rateBps),
-    discount_cents: 0,
-  });
-
-  revalidatePath(`/documents/${quoteId}`);
-  revalidatePath("/documents");
-  redirect(`/documents/${invoiceId}?staged=1`);
 }
 
 // == The farmer's side ========================================================
@@ -658,36 +714,43 @@ export async function declineDocument(formData: FormData) {
  * fact rather than an edited balance.
  */
 export async function recordPayment(formData: FormData) {
-  const profile = await requireRole(BOTH_SIDES);
-  const id = String(formData.get("document_id") ?? "");
-  const supabase = await createClient();
-  const doc = await loadDoc(supabase, id);
-  if (!doc || doc.kind !== "invoice") redirect("/documents?error=not-found");
+  return runOnce(
+    formData,
+    "documents:record-payment",
+    async () => {
+      const profile = await requireRole(BOTH_SIDES);
+      const id = String(formData.get("document_id") ?? "");
+      const supabase = await createClient();
+      const doc = await loadDoc(supabase, id);
+      if (!doc || doc.kind !== "invoice") redirect("/documents?error=not-found");
 
-  // Recording payments is part of the managed product, but only for the PARTNER. A
-  // farmer telling their supplier "I have paid this" is never gated.
-  if (profile.role === "workshop") {
-    const gate = await checkWorkshopEntitlement("record_payments", profile);
-    if (!gate.allowed) redirect(`/documents/${id}?error=upgrade`);
-  }
+      // Recording payments is part of the managed product, but only for the PARTNER. A
+      // farmer telling their supplier "I have paid this" is never gated.
+      if (profile.role === "workshop") {
+        const gate = await checkWorkshopEntitlement("record_payments", profile);
+        if (!gate.allowed) redirect(`/documents/${id}?error=upgrade`);
+      }
 
-  const amount = parseRandsToCents(String(formData.get("amount") ?? ""));
-  if (amount == null || amount <= 0) redirect(`/documents/${id}?error=need-amount`);
+      const amount = parseRandsToCents(String(formData.get("amount") ?? ""));
+      if (amount == null || amount <= 0) redirect(`/documents/${id}?error=need-amount`);
 
-  const { error } = await supabase.from("partner_payments").insert({
-    farm_id: doc.farm_id,
-    document_id: id,
-    amount_cents: amount,
-    paid_on: s(formData, "paid_on") ?? new Date().toISOString().slice(0, 10),
-    method: s(formData, "method"),
-    reference: s(formData, "reference"),
-    note: s(formData, "note"),
-    recorded_by: profile.id,
-  });
+      const { error } = await supabase.from("partner_payments").insert({
+        farm_id: doc.farm_id,
+        document_id: id,
+        amount_cents: amount,
+        paid_on: s(formData, "paid_on") ?? new Date().toISOString().slice(0, 10),
+        method: s(formData, "method"),
+        reference: s(formData, "reference"),
+        note: s(formData, "note"),
+        recorded_by: profile.id,
+      });
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
-  revalidatePath(`/documents/${id}`);
-  redirect(`/documents/${id}?paid=1`);
+      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      revalidatePath(`/documents/${id}`);
+      return `/documents/${id}?paid=1`;
+    },
+    { whileRunning: `/documents/${String(formData.get("document_id") ?? "")}?error=still-saving` },
+  );
 }
 
 export async function removePayment(formData: FormData) {
@@ -791,79 +854,91 @@ export async function createDebitNote(formData: FormData) {
 }
 
 async function createNote(formData: FormData, noteKind: "credit_note" | "debit_note") {
-  const profile = await requireRole(["workshop"]);
-  const gate = await checkWorkshopEntitlement("build_documents", profile);
-  if (!gate.allowed) redirect("/documents?error=upgrade");
+  return runOnce(
+    formData,
+    "documents:create-note",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const gate = await checkWorkshopEntitlement("build_documents", profile);
+      if (!gate.allowed) redirect("/documents?error=upgrade");
 
-  const id = String(formData.get("document_id") ?? "");
-  const supabase = await createClient();
-  const invoice = await loadDoc(supabase, id);
-  if (!invoice || invoice.kind !== "invoice") redirect("/documents?error=not-found");
-  if (invoice.status === "draft") redirect(`/documents/${id}?error=not-issued`);
+      const id = String(formData.get("document_id") ?? "");
+      const supabase = await createClient();
+      const invoice = await loadDoc(supabase, id);
+      if (!invoice || invoice.kind !== "invoice") redirect("/documents?error=not-found");
+      if (invoice.status === "draft") redirect(`/documents/${id}?error=not-issued`);
 
-  const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
-    p_workshop: profile.workshop_id,
-    p_kind: noteKind,
-  });
-  if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
+      const { data: numData, error: numErr } = await supabase.rpc("next_document_number", {
+        p_workshop: profile.workshop_id,
+        p_kind: noteKind,
+      });
+      if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
 
-  const { data: full } = await supabase
-    .from("partner_documents")
-    .select(
-      "farm_id, partner_client_id, machine_id, terms, vat_rate_bps, subject, " +
-      "bill_to_name, bill_to_contact, bill_to_email, bill_to_phone, bill_to_address, " +
-      "bill_to_vat_number, bill_to_reg_number, bill_to_reference",
-    )
-    .eq("id", id)
-    .single();
-  const src = (full ?? {}) as unknown as Record<string, unknown>;
+      const { data: full } = await supabase
+        .from("partner_documents")
+        .select(
+          "farm_id, partner_client_id, machine_id, terms, vat_rate_bps, subject, " +
+          "bill_to_name, bill_to_contact, bill_to_email, bill_to_phone, bill_to_address, " +
+          "bill_to_vat_number, bill_to_reg_number, bill_to_reference",
+        )
+        .eq("id", id)
+        .single();
+      const src = (full ?? {}) as unknown as Record<string, unknown>;
 
-  const { data: created, error } = await supabase
-    .from("partner_documents")
-    .insert({
-      ...src,
-      workshop_id: profile.workshop_id,
-      corrects_document_id: id,
-      kind: noteKind,
-      status: "draft",
-      source: "built",
-      number: String(numData),
-      subject: String(formData.get("reason") ?? "").trim() || `Correction to ${invoice.number}`,
-      issue_date: new Date().toISOString().slice(0, 10),
-      due_date: null,
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
+      const { data: created, error } = await supabase
+        .from("partner_documents")
+        .insert({
+          ...src,
+          workshop_id: profile.workshop_id,
+          corrects_document_id: id,
+          kind: noteKind,
+          status: "draft",
+          source: "built",
+          number: String(numData),
+          subject: String(formData.get("reason") ?? "").trim() || `Correction to ${invoice.number}`,
+          issue_date: new Date().toISOString().slice(0, 10),
+          due_date: null,
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
-  const newId = (created as { id: string }).id;
+      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      const newId = (created as { id: string }).id;
 
-  // A CREDIT note copies the invoice's lines in, because crediting the whole thing is the
-  // common case and trimming what was actually right is quicker than retyping what was
-  // wrong. A DEBIT note starts empty, it is the bit that was LEFT OFF, so there is
-  // nothing on the invoice to copy.
-  if (noteKind === "debit_note") {
-    revalidatePath("/documents");
-    redirect(`/documents/${newId}?credit=1`);
-  }
+      // A CREDIT note copies the invoice's lines in, because crediting the whole thing is the
+      // common case and trimming what was actually right is quicker than retyping what was
+      // wrong. A DEBIT note starts empty, it is the bit that was LEFT OFF, so there is
+      // nothing on the invoice to copy.
+      if (noteKind === "debit_note") {
+        revalidatePath("/documents");
+        redirect(`/documents/${newId}?credit=1`);
+      }
 
-  const { data: lines } = await supabase
-    .from("partner_document_lines")
-    .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
-    .eq("document_id", id)
-    .is("deleted_at", null)
-    .order("sort_order");
+      const { data: lines } = await supabase
+        .from("partner_document_lines")
+        .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
+        .eq("document_id", id)
+        .is("deleted_at", null)
+        .order("sort_order");
 
-  const rows = (lines ?? []) as Record<string, unknown>[];
-  if (rows.length > 0) {
-    await supabase.from("partner_document_lines").insert(
-      rows.map((l) => ({ ...l, document_id: newId, farm_id: src.farm_id })),
-    );
-  }
+      const rows = (lines ?? []) as Record<string, unknown>[];
+      if (rows.length > 0) {
+        const { error: linesError } = await supabase.from("partner_document_lines").insert(
+          rows.map((l) => ({ ...l, document_id: newId, farm_id: src.farm_id })),
+        );
+        if (linesError) {
+          captureError(linesError, { where: `documents:${noteKind}:lines` });
+          revalidatePath("/documents");
+          redirect(`/documents/${newId}?error=lines-failed`);
+        }
+      }
 
-  revalidatePath("/documents");
-  redirect(`/documents/${newId}?credit=1`);
+      revalidatePath("/documents");
+      return `/documents/${newId}?credit=1`;
+    },
+    { whileRunning: `/documents/${String(formData.get("document_id") ?? "")}?error=still-saving` },
+  );
 }
 
 /** Delete a draft outright, nothing was ever sent, so there is no record to preserve. */
@@ -984,37 +1059,44 @@ export async function reviseDocument(formData: FormData) {
  * flag agreeing.
  */
 export async function recordRefund(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  const id = String(formData.get("document_id") ?? "");
-  const supabase = await createClient();
-  const doc = await loadDoc(supabase, id);
-  if (!doc || doc.kind !== "invoice") redirect("/documents?error=not-found");
+  return runOnce(
+    formData,
+    "documents:record-refund",
+    async () => {
+      const profile = await requireRole(["workshop"]);
+      const id = String(formData.get("document_id") ?? "");
+      const supabase = await createClient();
+      const doc = await loadDoc(supabase, id);
+      if (!doc || doc.kind !== "invoice") redirect("/documents?error=not-found");
 
-  const gate = await checkWorkshopEntitlement("record_payments", profile);
-  if (!gate.allowed) redirect(`/documents/${id}?error=upgrade`);
+      const gate = await checkWorkshopEntitlement("record_payments", profile);
+      if (!gate.allowed) redirect(`/documents/${id}?error=upgrade`);
 
-  const amount = parseRandsToCents(String(formData.get("amount") ?? ""));
-  if (amount == null || amount <= 0) redirect(`/documents/${id}?error=need-amount`);
-  // The rollup (0423) refuses this too, this is only so the partner reads a sentence
-  // rather than a Postgres exception.
-  if (amount > (doc.amount_paid_cents ?? 0)) redirect(`/documents/${id}?error=refund-too-big`);
+      const amount = parseRandsToCents(String(formData.get("amount") ?? ""));
+      if (amount == null || amount <= 0) redirect(`/documents/${id}?error=need-amount`);
+      // The rollup (0423) refuses this too, this is only so the partner reads a sentence
+      // rather than a Postgres exception.
+      if (amount > (doc.amount_paid_cents ?? 0)) redirect(`/documents/${id}?error=refund-too-big`);
 
-  const { error } = await supabase.from("partner_payments").insert({
-    farm_id: doc.farm_id,
-    document_id: id,
-    // Negative: the balance climbs back, which is what actually happened.
-    amount_cents: -amount,
-    is_refund: true,
-    paid_on: s(formData, "paid_on") ?? new Date().toISOString().slice(0, 10),
-    method: s(formData, "method"),
-    reference: s(formData, "reference"),
-    note: s(formData, "note"),
-    recorded_by: profile.id,
-  });
+      const { error } = await supabase.from("partner_payments").insert({
+        farm_id: doc.farm_id,
+        document_id: id,
+        // Negative: the balance climbs back, which is what actually happened.
+        amount_cents: -amount,
+        is_refund: true,
+        paid_on: s(formData, "paid_on") ?? new Date().toISOString().slice(0, 10),
+        method: s(formData, "method"),
+        reference: s(formData, "reference"),
+        note: s(formData, "note"),
+        recorded_by: profile.id,
+      });
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
-  revalidatePath(`/documents/${id}`);
-  redirect(`/documents/${id}?refunded=1`);
+      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      revalidatePath(`/documents/${id}`);
+      return `/documents/${id}?refunded=1`;
+    },
+    { whileRunning: `/documents/${String(formData.get("document_id") ?? "")}?error=still-saving` },
+  );
 }
 
 /**

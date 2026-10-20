@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiRole, currentWorkshop } from "@/lib/auth";
+import { claimRequest, emailKey } from "@/lib/request-claim";
+import { readRequestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadStatement, buildStatementPdf, statementFilename } from "@/lib/pdf/statement";
@@ -55,6 +57,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "no-address" }, { status: 400 });
   }
 
+  // One send per request: a retry whose first answer was lost gets that answer back
+  // instead of a second statement in the customer's inbox (request_claims).
+  const requestId = readRequestId((body as { requestId?: unknown }).requestId);
+  const claim = await claimRequest(supabase, requestId, "statements:send");
+  if (claim.state === "done") {
+    return new Response(claim.outcome, { headers: { "content-type": "application/json" } });
+  }
+  if (claim.state === "running") return NextResponse.json({ error: "still-sending" }, { status: 409 });
+
   const bytes = await buildStatementPdf(data);
   const subject = statementSubject(data);
 
@@ -68,6 +79,7 @@ export async function POST(request: Request) {
         html: statementEmailHtml(data, body.message?.trim() || null),
         text: statementEmailText(data, body.message?.trim() || null),
         attachments: [{ filename: statementFilename(data.party, party.to), content: bytes }],
+        idempotencyKey: emailKey(requestId, [party.farmId, party.clientId, party.from, party.to, to, body.message]),
       })
     : ({ ok: false, error: "email-not-configured", provider: "none" } as const);
 
@@ -91,8 +103,11 @@ export async function POST(request: Request) {
   if (!result.ok) {
     // A refusal (an address a test workshop may not email) is the request's fault; any
     // other failure is ours. Codes only, the provider's words stay in document_emails.
+    await claim.release();
     const refused = "refused" in result && result.refused;
     return NextResponse.json({ error: refused ? "refused" : "send-failed" }, { status: refused ? 400 : 502 });
   }
-  return NextResponse.json({ ok: true, to });
+  const answer = { ok: true, to };
+  await claim.finish(JSON.stringify(answer));
+  return NextResponse.json(answer);
 }

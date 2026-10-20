@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { billQuoteStage } from "@/app/(app)/documents/actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export type QuoteBilling = {
   quoted_cents: number;
@@ -93,6 +94,7 @@ export function BillInStages({
       ) : null}
 
       <form action={billQuoteStage} className="mt-4 flex flex-col gap-3">
+        <RequestIdInput action="documents:bill-stage" />
         <input type="hidden" name="document_id" value={documentId} />
 
         <div className="flex flex-wrap gap-2">

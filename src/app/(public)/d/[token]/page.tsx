@@ -142,6 +142,7 @@ export default async function PublicDocumentPage({
       <Flash tone="success" message={sp.paid ? t("pubDoc.paidFlash", locale) : undefined} clearParams={false} />
       <Flash tone="warning" message={sp.error === "closed" ? t("pubDoc.closedFlash", locale) : undefined} clearParams={false} />
       <Flash tone="warning" message={sp.error === "name" ? t("pubDoc.nameFlash", locale) : undefined} clearParams={false} />
+      <Flash tone="error" message={sp.error === "try-again" ? t("pubDoc.tryAgain", locale) : undefined} clearParams={false} />
 
       <Flash
         tone="warning"

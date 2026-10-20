@@ -33,6 +33,7 @@ import { Fact, FactList } from "@/components/ui/facts";
 import { Stepper } from "@/components/ui/stepper";
 import { PhoneIcon, ChatIcon, MailIcon, JobCardsIcon } from "@/components/ui/icons";
 import { WorkStatus } from "@/components/ui/status";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 import {
   updateWorkRequestStatus, addWorkRequestNote, setWorkRequestQuote,
   setWorkRequestInvoice, convertToJobCard, assignWorkRequestProvider,
@@ -188,6 +189,7 @@ export default async function WorkRequestDetailPage({
   const moneyActions: ((look: Look) => ReactNode)[] = [
     ...(canCreateDocument ? [(look: Look) => (
       <form key="create" action={createDocument}>
+        <RequestIdInput action="documents:create" />
         <input type="hidden" name="farm_id" value={wr.farm_id} />
         <input type="hidden" name="machine_id" value={wr.machine_id} />
         <input type="hidden" name="work_request_id" value={wr.id} />

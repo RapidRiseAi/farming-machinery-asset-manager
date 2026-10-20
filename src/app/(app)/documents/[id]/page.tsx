@@ -39,6 +39,8 @@ import { DeclineQuote } from "@/components/partner/decline-quote";
 import { BillInStages, type QuoteBilling } from "@/components/documents/bill-in-stages";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { RequestIdInput } from "@/components/ui/request-id-input";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * One quote or invoice, as both sides see it (F14c/F14d).
@@ -89,7 +91,8 @@ const DOC_ERRORS: Record<string, string> = {
 
 function docError(code: string | undefined, locale: Lang): string | undefined {
   if (!code) return undefined;
-  return DOC_ERRORS[code] ? t(DOC_ERRORS[code], locale) : code;
+  // Anything else through the shared table, never the raw code on screen.
+  return DOC_ERRORS[code] ? t(DOC_ERRORS[code], locale) : errorMessage(code, locale);
 }
 
 export default async function DocumentPage({
@@ -533,6 +536,7 @@ export default async function DocumentPage({
           <Card>
             <CardHeader><CardTitle>{t("doc.addLine", locale)}</CardTitle></CardHeader>
             <form action={addDocumentLine} className="flex flex-col gap-3">
+              <RequestIdInput action="documents:add-line" />
               <input type="hidden" name="document_id" value={doc.id} />
               <TextField name="description" label={t("doc.lineDescription", locale)} required />
               <div className="grid gap-3 sm:grid-cols-3">
@@ -640,6 +644,7 @@ export default async function DocumentPage({
         <div className="flex flex-wrap items-center gap-2">
           {doc.kind === "quote" && doc.status === "accepted" && canBuild ? (
             <form action={convertQuoteToInvoice}>
+              <RequestIdInput action="documents:convert" />
               <input type="hidden" name="document_id" value={doc.id} />
               <SubmitButton>{t("doc.convertToInvoice", locale)}</SubmitButton>
             </form>
@@ -823,6 +828,7 @@ export default async function DocumentPage({
                 size="md"
               >
                 <form action={recordPayment}>
+                  <RequestIdInput action="documents:record-payment" />
                   <input type="hidden" name="document_id" value={doc.id} />
                   <DialogFields>
                     <TextField
@@ -874,6 +880,7 @@ export default async function DocumentPage({
                 cancelLabel={t("common.cancel", locale)}
                 closeLabel={t("ui.close", locale)}
               >
+                <RequestIdInput action="documents:record-refund" />
                 <input type="hidden" name="document_id" value={doc.id} />
                 <Field label={t("doc.refundAmount", locale)} htmlFor="refund_amount">
                   <Input

@@ -30,6 +30,7 @@ import {
   type PartnerAccess,
 } from "@/components/partners/access-card";
 import { readPartnerLink } from "@/lib/partner-link";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 import {
   createPartner,
   updatePartner,
@@ -588,6 +589,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                             {/* Two different actions behind one row: a connected partner gets
                                 a login link, an unconnected one gets an invitation. */}
                             <form action={p.workshop_id ? sendLoginUrl : inviteContractor}>
+                              <RequestIdInput action={p.workshop_id ? "partners:login-url" : "partners:invite"} />
                               <input type="hidden" name="id" value={p.id} />
                               <DialogFields columns={1}>
                                 <Field label={t("partners.inviteEmail", locale)} htmlFor={`iv_${p.id}`}>

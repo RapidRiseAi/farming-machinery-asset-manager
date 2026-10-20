@@ -12,6 +12,9 @@ import {
 import { planAllows } from "@/lib/entitlements";
 import { mintApiToken } from "@/lib/api-tokens";
 import { createClient } from "@/lib/supabase/server";
+import { claimRequest } from "@/lib/request-claim";
+import { readRequestId, REQUEST_FIELD } from "@/lib/request-id";
+import { captureError } from "@/lib/observability";
 
 const HERE = "/settings/api";
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -19,7 +22,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 export type CreateApiTokenState = {
   token: string | null;
   prefix: string | null;
-  error: "name" | "scopes" | "expiry" | "create_failed" | null;
+  error: "name" | "scopes" | "expiry" | "create_failed" | "still_creating" | "replay_revoked" | null;
 };
 
 const EMPTY_API_TOKEN_STATE: CreateApiTokenState = {
@@ -59,19 +62,47 @@ export async function createApiToken(
   formData: FormData,
 ): Promise<CreateApiTokenState> {
   const { profile, farmId, supabase } = await gate();
+  // One token per request (request_claims). A repeat of a request that already minted one
+  // means its answer, and so its secret, never reached the screen: a live credential
+  // nobody has seen. That token is revoked and the person is asked to create a new one.
+  const claim = await claimRequest(supabase, readRequestId(formData.get(REQUEST_FIELD)), "api-tokens:create");
+  if (claim.state === "running") return { ...EMPTY_API_TOKEN_STATE, error: "still_creating" };
+  if (claim.state === "done") {
+    if (UUID_PATTERN.test(claim.outcome)) {
+      const { error: revokeError } = await supabase
+        .from("api_tokens")
+        .update({ revoked_at: new Date().toISOString(), revoked_by: profile.id })
+        .eq("id", claim.outcome)
+        .eq("farm_id", farmId)
+        .is("revoked_at", null);
+      if (revokeError) captureError(revokeError, { where: "api-tokens:revoke-unseen" });
+    }
+    revalidatePath(HERE);
+    return { ...EMPTY_API_TOKEN_STATE, error: "replay_revoked" };
+  }
+
   const name = String(formData.get("name") ?? "").trim();
-  if (name.length < 3 || name.length > 80) return { ...EMPTY_API_TOKEN_STATE, error: "name" };
+  if (name.length < 3 || name.length > 80) {
+    await claim.release();
+    return { ...EMPTY_API_TOKEN_STATE, error: "name" };
+  }
 
   const scopes = [
     ...(formData.get("scope_read") === "on" ? ["read"] : []),
     ...(formData.get("scope_write_readings") === "on" ? ["write:readings"] : []),
   ];
-  if (scopes.length === 0) return { ...EMPTY_API_TOKEN_STATE, error: "scopes" };
+  if (scopes.length === 0) {
+    await claim.release();
+    return { ...EMPTY_API_TOKEN_STATE, error: "scopes" };
+  }
   const expiresAt = expiry(formData.get("expires_on"));
-  if (expiresAt === "invalid") return { ...EMPTY_API_TOKEN_STATE, error: "expiry" };
+  if (expiresAt === "invalid") {
+    await claim.release();
+    return { ...EMPTY_API_TOKEN_STATE, error: "expiry" };
+  }
 
   const minted = mintApiToken();
-  const { error } = await supabase.from("api_tokens").insert({
+  const { data: created, error } = await supabase.from("api_tokens").insert({
     farm_id: farmId,
     name,
     token_hash: minted.tokenHash,
@@ -79,12 +110,15 @@ export async function createApiToken(
     scopes,
     created_by: profile.id,
     expires_at: expiresAt,
-  });
-  if (error) {
-    console.error("[api-tokens] token creation failed", { code: error.code, farmId });
+  }).select("id").single();
+  if (error || !created) {
+    await claim.release();
+    captureError(error ?? new Error("no token row"), { where: "api-tokens:create", extra: { code: error?.code ?? null } });
     return { ...EMPTY_API_TOKEN_STATE, error: "create_failed" };
   }
 
+  // The token's id, never its secret: a replay revokes this token (above).
+  await claim.finish((created as { id: string }).id);
   revalidatePath(HERE);
   return { token: minted.token, prefix: minted.prefix, error: null };
 }

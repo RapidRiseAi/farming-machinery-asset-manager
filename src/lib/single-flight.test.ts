@@ -93,3 +93,16 @@ test("a dropped connection is told apart from a refusal", async () => {
   // The browser saying it is offline settles it whatever the message.
   assert.equal(isConnectionFailure(new Error("anything"), false), true);
 });
+
+test("a form's fingerprint names what it sends, not the order or the request id", async () => {
+  const { formFingerprint, REQUEST_FIELD, readRequestId, newRequestId } = await import("./request-id");
+  const a = formFingerprint([["amount", "500"], ["doc", "x"], [REQUEST_FIELD, "1"]]);
+  const b = formFingerprint([["doc", "x"], ["amount", "500"], [REQUEST_FIELD, "2"]]);
+  assert.equal(a, b);
+  assert.notEqual(a, formFingerprint([["amount", "501"], ["doc", "x"]]));
+  const id = newRequestId();
+  assert.equal(readRequestId(id), id);
+  assert.equal(readRequestId(id.toUpperCase()), id);
+  assert.equal(readRequestId("not-a-uuid"), null);
+  assert.equal(readRequestId(null), null);
+});

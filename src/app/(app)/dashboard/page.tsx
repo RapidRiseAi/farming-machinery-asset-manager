@@ -38,6 +38,7 @@ import { SpendTrend } from "./charts";
 import { dismissSetupCard, recordDashboardReading, recordDashboardReadings, saveDashboardPrefs } from "./actions";
 import { warrantyStatus, dateExpiryStatus, licenceTypeLabel } from "@/lib/compliance";
 import { ExpiryStatus, FineStatus, UrgencyStatus, ServiceStatus, MachineStatus } from "@/components/ui/status";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 type Machine = {
   id: string;
@@ -515,6 +516,7 @@ export default async function DashboardPage({
           size="md"
         >
           <form action={recordDashboardReading}>
+            <RequestIdInput action="readings:dashboard" />
             <DialogFields columns={1}>
               <Field label={t("dashboard.readingMachine", locale)} htmlFor="dash-reading-machine" required>
                 <Select id="dash-reading-machine" name="machine_id" defaultValue={readingMachine?.id} required>
@@ -836,6 +838,7 @@ export default async function DashboardPage({
                   closeLabel={t("ui.close", locale)}
                 >
                   <form action={recordDashboardReadings}>
+                    <RequestIdInput action="readings:dashboard-batch" />
                     <DialogFields columns={2}>
                       {stale.slice(0, STALE_FORM_MAX).map((m) => (
                         <Field key={m.id} label={m.name} htmlFor={`dash-stale-${m.id}`} hint={lastReadingText(m)}>

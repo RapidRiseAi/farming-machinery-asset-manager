@@ -11,6 +11,7 @@ import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 import {
   createApiToken,
   type CreateApiTokenState,
@@ -62,6 +63,7 @@ export function ApiTokenCreateForm({ locale, minExpiry }: { locale: Lang; minExp
 
   return (
     <form action={action}>
+      <RequestIdInput action="api-tokens:create" />
       <Flash tone="error" message={error} className="mb-3" clearParams={false} />
       <DialogFields columns={1}>
         <TextField

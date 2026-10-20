@@ -21,6 +21,7 @@ import { QrChooser, type QrTask } from "./qr-chooser";
 import { submitReading, submitFuel } from "./actions";
 import { freshSent, sentHref } from "./remembered-name";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 // Public branded gate; vehicle content requires current farm membership. Always dynamic.
 export const dynamic = "force-dynamic";
@@ -367,6 +368,7 @@ export default async function PublicMachinePage({
           ),
           reading: metered ? (
             <form action={submitReading} className="flex flex-col gap-4">
+              <RequestIdInput action="qr:reading" />
               <input type="hidden" name="token" value={token} />
               {/* Every field has a real label that stays put, there was not one
                   `<label>` on this page, and a placeholder disappears the moment you
@@ -400,6 +402,7 @@ export default async function PublicMachinePage({
           ) : null,
           fuel: fuelAllowed ? (
             <form action={submitFuel} className="flex flex-col gap-4">
+              <RequestIdInput action="qr:fuel" />
               <input type="hidden" name="token" value={token} />
               <Field label={t("qr.fuelLitresLabel", locale)} htmlFor="qr-litres" required>
                 <Input

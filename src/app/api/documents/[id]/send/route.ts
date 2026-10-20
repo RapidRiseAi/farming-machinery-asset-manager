@@ -9,6 +9,8 @@ import { documentEmailHtml, documentEmailText, documentSubject } from "@/lib/ema
 import { balanceDueCents } from "@/lib/partner-docs";
 import { publicDocumentUrl } from "@/lib/public-url";
 import { sameOrigin } from "@/lib/security/same-origin";
+import { claimRequest, emailKey } from "@/lib/request-claim";
+import { readRequestId } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "not-issued" }, { status: 400 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { to?: string; cc?: string; message?: string };
+  const body = (await request.json().catch(() => ({}))) as { to?: string; cc?: string; message?: string; requestId?: string };
   const to = (body.to || doc.bill_to_email || "").trim();
   if (!to || !BARE_ADDRESS.test(to)) {
     return NextResponse.json({ error: "no-address" }, { status: 400 });
@@ -60,6 +62,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (cc && !BARE_ADDRESS.test(cc)) {
     return NextResponse.json({ error: "bad-cc" }, { status: 400 });
   }
+
+  // One send per request: a retry whose first answer was lost gets that answer back
+  // instead of a second email to the customer (request_claims).
+  const requestId = readRequestId(body.requestId);
+  const claim = await claimRequest(supabase, requestId, `documents:send:${id}`);
+  if (claim.state === "done") {
+    return new Response(claim.outcome, { headers: { "content-type": "application/json" } });
+  }
+  if (claim.state === "running") return NextResponse.json({ error: "still-sending" }, { status: 409 });
 
   const { bytes, brand } = await buildDocumentPdf(loaded);
   const publicUrl = publicDocumentUrl(doc.public_token);
@@ -90,6 +101,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         html: documentEmailHtml(emailInput),
         text: documentEmailText(emailInput),
         attachments: [{ filename: documentFilename(doc), content: bytes }],
+        idempotencyKey: emailKey(requestId, [id, to, cc, subject, emailInput.message]),
       })
     : ({ ok: false, error: "email-not-configured", provider: "none" } as const);
 
@@ -113,7 +125,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const status = "refused" in result && result.refused ? 400 : 502;
     // A code, never the provider's own words: the screen says what it means in the
     // person's language, and the detail is in document_emails.error above.
+    await claim.release();
     return NextResponse.json({ error: status === 400 ? "refused" : "send-failed", label: documentLabel(doc.kind) }, { status });
   }
-  return NextResponse.json({ ok: true, to });
+  const answer = { ok: true, to };
+  await claim.finish(JSON.stringify(answer));
+  return NextResponse.json(answer);
 }

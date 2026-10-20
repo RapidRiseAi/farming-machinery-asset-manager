@@ -38,6 +38,7 @@ import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-
 import { OfflineForm } from "@/components/offline/offline-form";
 import { MachinesIcon, PlusIcon } from "@/components/ui/icons";
 import { addReading } from "./[id]/reading-actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 type MachineRow = {
   id: string;
@@ -454,6 +455,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
         size="md"
       >
         <OfflineForm action={addReading} type="log_reading" scope="app" locale={locale}>
+          <RequestIdInput action="readings:add" />
           <input type="hidden" name="machine_id" value={m.id} />
           <input type="hidden" name="farm_id" value={m.farm_id} />
           {/* Back to this list, not off to the machine's page. */}

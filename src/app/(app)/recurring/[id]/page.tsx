@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { backHref } from "@/components/ui/back-href";
 import { TrashIcon } from "@/components/ui/icons";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 import {
   updateSchedule, addScheduleLine, removeScheduleLine,
   toggleSchedule, runScheduleNow, deleteSchedule,
@@ -138,6 +139,7 @@ export default async function SchedulePage({
         </dl>
 
         <form action={addScheduleLine} className="flex flex-col gap-3 border-t border-sand-100 pt-3">
+          <RequestIdInput action="recurring:add-line" />
           <input type="hidden" name="schedule_id" value={schedule.id} />
           <input type="hidden" name="sort_order" value={lines.length} />
           <div className="grid gap-3 sm:grid-cols-3">

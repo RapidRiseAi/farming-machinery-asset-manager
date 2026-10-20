@@ -15,6 +15,7 @@ import {
 import { safePath } from "@/lib/safe-path";
 import { sendInviteEmail } from "@/lib/email/invite";
 import { APP_NAME } from "@/lib/env";
+import { runOnce } from "@/lib/request-claim";
 
 const FARM_ROLES = ["manager", "mechanic", "operator"];
 const ALL_ROLES = ["owner", "manager", "mechanic", "operator", "workshop", "rr_admin"];
@@ -55,66 +56,73 @@ function alreadyRegistered(error: { code?: string; message?: string }): boolean 
  * owner is told it did not go, and the sign-in page can always send a link.
  */
 export async function inviteUser(formData: FormData) {
-  const { profile: inviter, farmId } = await requireTeamManager();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const name = String(formData.get("name") ?? "").trim();
-  const role = String(formData.get("role") ?? "operator");
-  const language = String(formData.get("language") ?? "en") === "af" ? "af" : "en";
-  // `back` comes from a form field, never redirect to it unvalidated.
-  const back = safePath(String(formData.get("back") ?? ""), "/team");
+  return runOnce(
+    formData,
+    "team:invite",
+    async () => {
+      const { profile: inviter, farmId } = await requireTeamManager();
+      const email = String(formData.get("email") ?? "").trim().toLowerCase();
+      const name = String(formData.get("name") ?? "").trim();
+      const role = String(formData.get("role") ?? "operator");
+      const language = String(formData.get("language") ?? "en") === "af" ? "af" : "en";
+      // `back` comes from a form field, never redirect to it unvalidated.
+      const back = safePath(String(formData.get("back") ?? ""), "/team");
 
-  if (!FARM_ROLES.includes(role)) redirect(`${back}?error=You+can+invite+manager/mechanic/operator+only`);
-  if (!ALL_ROLES.includes(role) || !email || !name) redirect(`${back}?error=Email,+name+and+role+required`);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) redirect(`${back}?error=need-email`);
+      if (!FARM_ROLES.includes(role)) redirect(`${back}?error=You+can+invite+manager/mechanic/operator+only`);
+      if (!ALL_ROLES.includes(role) || !email || !name) redirect(`${back}?error=Email,+name+and+role+required`);
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) redirect(`${back}?error=need-email`);
 
-  const svc = createServiceClient();
-  const decide = async (): Promise<InviteDecision> => {
-    const { data, error } = await svc.rpc("team_invite_existing", {
-      p_farm: farmId,
-      p_actor: inviter.id,
-      p_email: email,
-      p_role: role,
-      p_name: name,
-      p_language: language,
-    });
-    if (error) {
-      // The test-account fence (20261014120000) refuses with 42501 as well: that address
-      // cannot join this team, which is not the inviter lacking permission.
-      const fence = /never mix|cannot join a (real|test) (farm|workshop)/i.test(error.message ?? "");
-      redirect(`${back}?error=${fence ? "invite-refused" : error.code === "42501" ? "forbidden" : "invite-failed"}`);
-    }
-    return data as InviteDecision;
-  };
+      const svc = createServiceClient();
+      const decide = async (): Promise<InviteDecision> => {
+        const { data, error } = await svc.rpc("team_invite_existing", {
+          p_farm: farmId,
+          p_actor: inviter.id,
+          p_email: email,
+          p_role: role,
+          p_name: name,
+          p_language: language,
+        });
+        if (error) {
+          // The test-account fence (20261014120000) refuses with 42501 as well: that address
+          // cannot join this team, which is not the inviter lacking permission.
+          const fence = /never mix|cannot join a (real|test) (farm|workshop)/i.test(error.message ?? "");
+          redirect(`${back}?error=${fence ? "invite-refused" : error.code === "42501" ? "forbidden" : "invite-failed"}`);
+        }
+        return data as InviteDecision;
+      };
 
-  let decision = await decide();
-  if (decision.outcome === "none") {
-    const { error } = await svc.auth.admin.createUser({ email, email_confirm: true, user_metadata: { name } });
-    // A second invite for the same address can make the login between the two calls.
-    // Asking again finds it either way.
-    if (error && !alreadyRegistered(error)) {
-      redirect(`${back}?error=${error.code === "email_address_invalid" ? "need-email" : "invite-failed"}`);
-    }
-    decision = await decide();
-  }
+      let decision = await decide();
+      if (decision.outcome === "none") {
+        const { error } = await svc.auth.admin.createUser({ email, email_confirm: true, user_metadata: { name } });
+        // A second invite for the same address can make the login between the two calls.
+        // Asking again finds it either way.
+        if (error && !alreadyRegistered(error)) {
+          redirect(`${back}?error=${error.code === "email_address_invalid" ? "need-email" : "invite-failed"}`);
+        }
+        decision = await decide();
+      }
 
-  if (decision.outcome === "refused") redirect(`${back}?error=invite-refused`);
-  if (decision.outcome === "switched_off") redirect(`${back}?error=invite-switched-off`);
-  if (decision.outcome === "none") redirect(`${back}?error=invite-failed`);
+      if (decision.outcome === "refused") redirect(`${back}?error=invite-refused`);
+      if (decision.outcome === "switched_off") redirect(`${back}?error=invite-switched-off`);
+      if (decision.outcome === "none") redirect(`${back}?error=invite-failed`);
 
-  const { data: farm } = await svc.from("farms").select("name").eq("id", farmId).maybeSingle();
-  const sent = await sendInviteEmail(svc, {
-    email,
-    name: decision.name ?? name,
-    farmId,
-    farmName: (farm as { name?: string } | null)?.name ?? APP_NAME,
-    inviterName: inviter.name,
-    // Their own language when they already have a profile; the form's for a new person.
-    locale: decision.language === "af" ? "af" : "en",
-  });
-  if (!sent.ok) console.error(`[team] invite email not sent: ${sent.reason}${sent.detail ? ` (${sent.detail})` : ""}`);
+      const { data: farm } = await svc.from("farms").select("name").eq("id", farmId).maybeSingle();
+      const sent = await sendInviteEmail(svc, {
+        email,
+        name: decision.name ?? name,
+        farmId,
+        farmName: (farm as { name?: string } | null)?.name ?? APP_NAME,
+        inviterName: inviter.name,
+        // Their own language when they already have a profile; the form's for a new person.
+        locale: decision.language === "af" ? "af" : "en",
+      });
+      if (!sent.ok) console.error(`[team] invite email not sent: ${sent.reason}${sent.detail ? ` (${sent.detail})` : ""}`);
 
-  revalidatePath(back);
-  redirect(`${back}?invited=${!sent.ok ? "noemail" : decision.outcome === "already" ? "again" : "1"}`);
+      revalidatePath(back);
+      return `${back}?invited=${!sent.ok ? "noemail" : decision.outcome === "already" ? "again" : "1"}`;
+    },
+    { whileRunning: `${safePath(String(formData.get("back") ?? ""), "/team")}?error=still-saving` },
+  );
 }
 
 /**

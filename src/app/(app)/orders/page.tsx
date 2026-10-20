@@ -152,7 +152,7 @@ export default async function OrdersPage({
       description={t("po.newHint", locale)}
       closeLabel={t("ui.close", locale)}
     >
-      <OrderForm locale={locale} action={createOrder} submitLabel={t("po.newSubmit", locale)} />
+      <OrderForm locale={locale} action={createOrder} requestAction="orders:create" submitLabel={t("po.newSubmit", locale)} />
     </DialogForm>
   );
 

@@ -18,6 +18,7 @@ import {
   type PurchaseOrderLine,
 } from "@/lib/purchase-orders";
 import { addLine, saveLine, removeLine } from "@/app/(app)/orders/actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 /**
  * What is being bought, and what of it has turned up.
@@ -182,6 +183,7 @@ export function LineEditor({
 
       {editable ? (
         <form action={addLine} className="mt-4 flex flex-col gap-3 border-t border-sand-200 pt-4">
+          <RequestIdInput action="orders:add-line" />
           <input type="hidden" name="order_id" value={order.id} />
           <p className="text-sm font-semibold text-sand-800">{t("po.addLineTitle", locale)}</p>
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { payfastConfig, verifyItn } from "@/lib/payments/payfast";
 import { activeProvider } from "@/lib/payments";
+import { captureError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,12 @@ export const dynamic = "force-dynamic";
  *   only thing a non-200 would achieve is the same forged payload arriving fifty more
  *   times.
  *
+ *   EXCEPT our own failures (2026-10-18). When OUR database cannot be read or written, or
+ *   PayFast's own confirmation cannot be reached, the notification is not finished with:
+ *   the customer has paid and the invoice would stay unpaid with nobody told. Those answer
+ *   503 so PayFast tries again, are reported, and never echo a database message. The
+ *   unique (provider, provider_ref) index keeps every retry harmless.
+ *
  *   The service role, not a session. There is no user here; the customer paying may not
  *   even have an account. RLS therefore cannot be the guard, so the guard is the
  *   verification above plus the unique index on (provider, provider_ref) from 0435, which
@@ -41,28 +48,37 @@ export async function POST(request: Request) {
   // What we believe is owed on the document this notification names. Looked up here so
   // the amount check compares against OUR record, never against the callback's own claim.
   const expected = async (documentId: string): Promise<number | null> => {
-    const { data } = await svc
+    const { data, error: readError } = await svc
       .from("partner_documents")
       .select("total_cents, amount_paid_cents, kind, status")
       .eq("id", documentId)
       .is("deleted_at", null)
       .maybeSingle();
+    if (readError) throw new OurFailure("read-document", readError);
     const d = data as { total_cents: number; amount_paid_cents: number; kind: string; status: string } | null;
     if (!d || d.kind !== "invoice") return null;
     return Math.max(0, d.total_cents - (d.amount_paid_cents ?? 0));
   };
 
-  const result = await verifyItn(cfg, body, expected);
+  let result: Awaited<ReturnType<typeof verifyItn>>;
+  try {
+    result = await verifyItn(cfg, body, expected);
+  } catch (error) {
+    return retryLater(error);
+  }
   if (!result.ok) {
+    // PayFast's confirmation could not be reached: not a rejection, ask for the retry.
+    if (result.reason === "not-confirmed-no-response") return retryLater(new Error(result.reason));
     console.warn("[payfast] rejected notification:", result.reason);
     return NextResponse.json({ ok: false, reason: result.reason }, { status: 200 });
   }
 
-  const { data: docData } = await svc
+  const { data: docData, error: docError } = await svc
     .from("partner_documents")
     .select("id, farm_id, number")
     .eq("id", result.paymentId)
     .maybeSingle();
+  if (docError) return retryLater(new OurFailure("read-document", docError));
   const doc = docData as { id: string; farm_id: string | null; number: string } | null;
   if (!doc) return NextResponse.json({ ok: false, reason: "no-document" }, { status: 200 });
 
@@ -79,11 +95,25 @@ export async function POST(request: Request) {
 
   if (error) {
     // A duplicate is the expected case, not a failure: PayFast retries, and the unique
-    // index is what makes that harmless. Anything else is worth seeing in the logs.
-    const duplicate = error.code === "23505";
-    if (!duplicate) console.error("[payfast] could not record payment:", error.message);
-    return NextResponse.json({ ok: duplicate, reason: duplicate ? "already-recorded" : error.message }, { status: 200 });
+    // index is what makes that harmless. Anything else is ours, and the payment is not
+    // recorded yet: ask for the retry.
+    if (error.code === "23505") return NextResponse.json({ ok: true, reason: "already-recorded" }, { status: 200 });
+    return retryLater(new OurFailure("record-payment", error));
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });
+}
+
+/** A failure on our side, carrying the step and the database's code (not its words). */
+class OurFailure extends Error {
+  constructor(step: string, cause: { code?: string; message?: string }) {
+    super(`payfast notify: ${step} failed (${cause.code ?? "no code"})`);
+    this.name = "OurFailure";
+  }
+}
+
+/** Reported, and 503 so PayFast sends the notification again. */
+function retryLater(error: unknown): Response {
+  captureError(error, { where: "payments:payfast-notify" });
+  return NextResponse.json({ ok: false, reason: "retry" }, { status: 503 });
 }

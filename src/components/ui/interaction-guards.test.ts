@@ -135,6 +135,32 @@ test("every submit button locks its form, or is reviewed as harmless", () => {
   assert.deepEqual(problems, [], problems.join("\n"));
 });
 
+/** Every source file, server actions included. */
+function allSources(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return allSources(path);
+    return /\.(ts|tsx)$/.test(entry.name) && !/\.test\./.test(entry.name) ? [path] : [];
+  });
+}
+
+test("every action that runs once has a form that sends its request id", () => {
+  const claimed = new Set<string>();
+  const sent = new Set<string>();
+  for (const file of allSources(SRC)) {
+    const text = readFileSync(file, "utf8");
+    for (const m of text.matchAll(/runOnce\(\s*formData,\s*"([^"]+)"/g)) claimed.add(m[1]);
+    for (const m of text.matchAll(/<RequestIdInput action=\{?([^}/]+?)\}? \/>/g)) {
+      for (const name of m[1].matchAll(/"([^"]+)"/g)) sent.add(name[1]);
+    }
+    // A shared form that takes the name as a prop (OrderForm requestAction="orders:create").
+    for (const m of text.matchAll(/requestAction="([^"]+)"/g)) sent.add(m[1]);
+  }
+  assert.ok(claimed.size >= 20, `expected the runOnce actions to be found, found ${claimed.size}`);
+  const unsent = [...claimed].filter((name) => !sent.has(name));
+  assert.deepEqual(unsent, [], `runOnce actions with no form sending a RequestIdInput (the guard never engages):\n${unsent.join("\n")}`);
+});
+
 test("the service worker lets DownloadLink's requests through to the server", () => {
   const worker = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8");
   assert.ok(

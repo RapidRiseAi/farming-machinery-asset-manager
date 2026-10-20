@@ -4,6 +4,7 @@ import { TextField, TextareaField } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DialogActions, DialogSection } from "@/components/ui/dialog-form";
 import type { PurchaseOrder } from "@/lib/purchase-orders";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 /**
  * The order's own details, who it is with, our reference for it, and when they said it
@@ -25,11 +26,14 @@ import type { PurchaseOrder } from "@/lib/purchase-orders";
 export function OrderForm({
   locale,
   action,
+  requestAction,
   order,
   submitLabel,
 }: {
   locale: Lang;
   action: (formData: FormData) => void | Promise<void>;
+  /** For a create: the action name its request id is claimed under (runOnce). */
+  requestAction?: string;
   order?: PurchaseOrder;
   submitLabel: string;
 }) {
@@ -39,6 +43,7 @@ export function OrderForm({
 
   return (
     <form action={action} className="flex flex-col gap-3">
+      {requestAction ? <RequestIdInput action={requestAction} /> : null}
       {order ? <input type="hidden" name="order_id" value={order.id} /> : null}
 
       <div className="grid gap-3 sm:grid-cols-2">

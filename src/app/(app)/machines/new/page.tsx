@@ -11,6 +11,7 @@ import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { createMachine } from "../actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 /** Sorted distinct non-empty values, for the form's datalist suggestions. */
 function distinct(values: (string | null)[]): string[] {
@@ -63,6 +64,7 @@ export default async function NewMachinePage({
       ) : null}
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">
+          <RequestIdInput action="machines:create" />
           {/* The photo leads, because the first-run hint says so ("Take a photo, give it
               the name everyone actually calls it") and because that is how a driver
               recognises the machine on the list. */}

@@ -1280,7 +1280,9 @@
       "scopes": "Choose at least one permission.",
       "expiry": "Choose a future expiry date or leave it blank.",
       "create_failed": "The credential could not be created. Try again.",
-      "revoke_failed": "The credential could not be revoked. Try again."
+      "revoke_failed": "The credential could not be revoked. Try again.",
+      "still_creating": "Your last request is still creating a token. Check the list in a moment before you try again.",
+      "replay_revoked": "The token from your last attempt never reached this screen, so we revoked it to keep it safe. Create the token again."
     },
     "revoked": "API credential revoked. It can no longer be used.",
     "createTitle": "Create a credential",
@@ -3648,7 +3650,8 @@
     "failed": "That did not send. Try again in a moment.",
     "notConfigured": "Email is not switched on for this system yet. Download the PDF and send it yourself for now.",
     "badAddress": "That does not look like an email address.",
-    "history": "Everything we have sent ({n})"
+    "history": "Everything we have sent ({n})",
+    "stillSending": "That email is still being sent. Check the history in a moment before you send it again."
   },
   "statement": {
     "title": "Statements",
@@ -3742,7 +3745,8 @@
     "extraDue": "Extra amount due",
     "payNow": "Pay {amount} now",
     "payNowHint": "Card or instant EFT, through PayFast. You will come back here when you are done.",
-    "paidFlash": "Thank you. We have your payment. It may take a minute to show below."
+    "paidFlash": "Thank you. We have your payment. It may take a minute to show below.",
+    "tryAgain": "We could not do that just now. Please try again in a moment."
   },
   "revise": {
     "title": "Change this document",
@@ -5257,7 +5261,10 @@
     "inviteFailed": "We could not invite them. Please try again.",
     "mfaOffFailed": "Could not turn off two-step sign-in. Sign in again with your code, then try once more.",
     "mfaRequired": "Two-step sign-in stays on for Rapid Rise staff accounts.",
-    "emailTestOnly": "This is a test farm or test account, so it can only send email to test addresses."
+    "emailTestOnly": "This is a test farm or test account, so it can only send email to test addresses.",
+    "stillSaving": "Your last change is still being saved. Check the page in a moment before you try again.",
+    "recurringLineFailed": "The schedule is saved, but its first line was not. Add the line here.",
+    "documentLinesFailed": "The document was saved, but its lines were not copied. Add them here before you send it."
   },
   "billing": {
     "title": "Billing",

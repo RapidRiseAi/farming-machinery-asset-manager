@@ -14,6 +14,7 @@ import { planAllows } from "@/lib/entitlements";
 import { deliverReportRun, type ClaimedRun } from "@/lib/scheduled-reports";
 import { isReportFormat, isReportKey } from "@/lib/report-export";
 import { CADENCES, type Cadence } from "@/lib/recurring";
+import { runOnce } from "@/lib/request-claim";
 
 /**
  * Emailed reports (FR-11.5), the write side.
@@ -68,53 +69,60 @@ async function gate() {
 }
 
 export async function createReportSchedule(formData: FormData) {
-  const { profile, farmId, supabase } = await gate();
+  return runOnce(
+    formData,
+    "report-schedules:create",
+    async () => {
+      const { profile, farmId, supabase } = await gate();
 
-  const name = s(formData, "name");
-  if (!name) redirect(`${HERE}?error=need-name`);
+      const name = s(formData, "name");
+      if (!name) redirect(`${HERE}?error=need-name`);
 
-  const key = String(formData.get("report_key") ?? "all");
-  const fmt = String(formData.get("output_format") ?? "xlsx");
+      const key = String(formData.get("report_key") ?? "all");
+      const fmt = String(formData.get("output_format") ?? "xlsx");
 
-  const { data, error } = await supabase
-    .from("report_schedules")
-    .insert({
-      farm_id: farmId,
-      name,
-      report_key: isReportKey(key) ? key : "all",
-      output_format: isReportFormat(fmt) ? fmt : "xlsx",
-      cadence: cadence(formData),
-      // Today by default: the first report then goes out on tonight's run (covering the
-      // period that has just closed) instead of a month of silence while somebody wonders
-      // whether they set it up correctly.
-      next_run_date: isoDate(s(formData, "next_run_date")) ?? new Date().toISOString().slice(0, 10),
-      ends_on: isoDate(s(formData, "ends_on")),
-      include_inactive: formData.get("include_inactive") === "on",
-      site: s(formData, "site"),
-      lang: String(formData.get("lang") ?? "") === "af" ? "af" : "en",
-      created_by: profile.id,
-    })
-    .select("id")
-    .single();
+      const { data, error } = await supabase
+        .from("report_schedules")
+        .insert({
+          farm_id: farmId,
+          name,
+          report_key: isReportKey(key) ? key : "all",
+          output_format: isReportFormat(fmt) ? fmt : "xlsx",
+          cadence: cadence(formData),
+          // Today by default: the first report then goes out on tonight's run (covering the
+          // period that has just closed) instead of a month of silence while somebody wonders
+          // whether they set it up correctly.
+          next_run_date: isoDate(s(formData, "next_run_date")) ?? new Date().toISOString().slice(0, 10),
+          ends_on: isoDate(s(formData, "ends_on")),
+          include_inactive: formData.get("include_inactive") === "on",
+          site: s(formData, "site"),
+          lang: String(formData.get("lang") ?? "") === "af" ? "af" : "en",
+          created_by: profile.id,
+        })
+        .select("id")
+        .single();
 
-  if (error) redirect(`${HERE}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`${HERE}?error=${encodeURIComponent(error.message)}`);
 
-  // A schedule with nobody on it never sends (0506: no recipients = no period claimed),
-  // so whoever set it up is added straight away and can be removed like anyone else.
-  const { error: recipientError } = await supabase.from("report_schedule_recipients").insert({
-    schedule_id: (data as { id: string }).id,
-    farm_id: farmId,
-    user_id: profile.id,
-  });
+      // A schedule with nobody on it never sends (0506: no recipients = no period claimed),
+      // so whoever set it up is added straight away and can be removed like anyone else.
+      const { error: recipientError } = await supabase.from("report_schedule_recipients").insert({
+        schedule_id: (data as { id: string }).id,
+        farm_id: farmId,
+        user_id: profile.id,
+      });
 
-  if (recipientError) {
-    const id = (data as { id: string }).id;
-    revalidateSchedule(id);
-    redirect(`${detailPath(id)}?error=${encodeURIComponent(recipientError.message)}`);
-  }
+      if (recipientError) {
+        const id = (data as { id: string }).id;
+        revalidateSchedule(id);
+        redirect(`${detailPath(id)}?error=${encodeURIComponent(recipientError.message)}`);
+      }
 
-  revalidatePath(HERE);
-  redirect(`${HERE}?created=1#s-${(data as { id: string }).id}`);
+      revalidatePath(HERE);
+      return `${HERE}?created=1#s-${(data as { id: string }).id}`;
+    },
+    { whileRunning: `${HERE}?error=still-saving` },
+  );
 }
 
 export async function updateReportSchedule(formData: FormData) {

@@ -94,6 +94,7 @@ import {
 } from "@/lib/work";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 type Machine = {
   id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null;
@@ -921,6 +922,7 @@ export default async function MachineDetailPage({
                   <MeterGraph readings={readings} unit={machine.meter_type} title={t("machine.meterHistory", locale)} locale={locale} />
                   {canAddReading ? (
                     <OfflineForm action={addReading} type="log_reading" scope="app" locale={locale} className="mt-3 flex flex-wrap items-end gap-2">
+                      <RequestIdInput action="readings:add" />
                       <input type="hidden" name="machine_id" value={machine.id} />
                       <input type="hidden" name="farm_id" value={machine.farm_id} />
                       <Field
@@ -1118,6 +1120,7 @@ export default async function MachineDetailPage({
                           inside this dialog. The form always names a machine, which is how
                           the replay finds the farm; the farm-level draw on /fuel stays online. */}
                       <OfflineForm action={addFuelIssue} type="log_fuel" scope="app" locale={locale}>
+                        <RequestIdInput action="fuel:draw" />
                         <input type="hidden" name="machine_id" value={machine.id} />
                         <input type="hidden" name="redirect_to" value={`/machines/${machine.id}`} />
                         <DialogFields>

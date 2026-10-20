@@ -25,6 +25,7 @@ import { ExpenseForm } from "@/components/expenses/expense-form";
 import { ReceiptUpload } from "@/components/expenses/receipt-upload";
 import { signedReceiptUrls, claimNeedsProof } from "@/lib/receipt-media";
 import { markExpensePaid, deleteExpense, removeReceipt } from "./actions";
+import { errorMessage } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -200,13 +201,13 @@ export default async function ExpensesPage({
 
       {/* Receipt failures get sentences. A raw "receipt-too_big" on screen is the same
           defect as the CSV import's "name_required, Preview", and it is not the user's
-          job to know our error codes. Other codes on this page still pass through. */}
+          job to know our error codes. Other codes go through the shared table. */}
       <Flash
         tone="error"
         message={
           sp.error && sp.error.startsWith("receipt-")
             ? t(`expenses.receiptErr.${sp.error.slice("receipt-".length)}`, locale)
-            : sp.error
+            : errorMessage(sp.error, locale)
         }
       />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
