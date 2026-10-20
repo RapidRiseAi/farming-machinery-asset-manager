@@ -9,6 +9,7 @@ import { recordMeterReading } from "@/lib/domain/fleet-commands";
 import { todayLocal } from "@/lib/format";
 import { DASH_COOKIE, DASH_SECTIONS, serializeDashPrefs, type DashPrefs } from "@/lib/dashboard-prefs";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 /** Who may write a reading down. Same list as the machine page's `addReading`. */
 const READERS = ["rr_admin", "owner", "manager", "mechanic", "operator"];
@@ -151,7 +152,7 @@ export async function dismissSetupCard() {
     p_farm: farmId,
     p_settings: { setup_card_dismissed_at: new Date().toISOString() },
   });
-  if (error) redirect(`/dashboard?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/dashboard?error=${errorCode(error, "app/dashboard/actions:dismissSetupCard")}`);
   revalidatePath("/dashboard");
   redirect("/dashboard");
 }

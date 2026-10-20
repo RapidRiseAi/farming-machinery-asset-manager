@@ -4,6 +4,7 @@
 
 import { dequeue, enqueue, listMutations, pendingCount } from "./queue";
 import type { QueuedMutation } from "./types";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 let flushing = false;
 let armed = false;
@@ -58,7 +59,7 @@ export async function flush(): Promise<{ applied: number; remaining: number }> {
     for (const m of items) {
       let res: Response;
       try {
-        res = await fetch("/api/sync", { method: "POST", body: buildFormData(m) });
+        res = await fetchWithTimeout("/api/sync", { method: "POST", body: buildFormData(m) });
       } catch {
         break; // network dropped mid-flush
       }

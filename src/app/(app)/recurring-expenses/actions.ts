@@ -9,6 +9,7 @@ import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import { CADENCES, type Cadence } from "@/lib/recurring-expenses";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Standing costs (G19).
@@ -112,7 +113,7 @@ export async function createExpenseSchedule(formData: FormData) {
         .select("id")
         .single();
 
-      if (error) redirect(`/recurring-expenses?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/recurring-expenses?error=${errorCode(error, "app/recurring-expenses/actions:createExpenseSchedule")}`);
 
       revalidatePath("/recurring-expenses");
       return `/recurring-expenses/${(created as { id: string }).id}?saved=1`;
@@ -154,7 +155,7 @@ export async function updateExpenseSchedule(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(`/recurring-expenses/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/recurring-expenses/${id}?error=${errorCode(error, "app/recurring-expenses/actions:updateExpenseSchedule")}`);
   revalidatePath(`/recurring-expenses/${id}`);
   redirect(`/recurring-expenses/${id}?saved=1`);
 }
@@ -176,7 +177,7 @@ export async function toggleExpenseSchedule(formData: FormData) {
     .from("recurring_expenses")
     .update({ active, updated_at: new Date().toISOString() })
     .eq("id", id);
-  if (error) redirect(`/recurring-expenses/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/recurring-expenses/${id}?error=${errorCode(error, "app/recurring-expenses/actions:toggleExpenseSchedule")}`);
   revalidatePath("/recurring-expenses");
   redirect(`/recurring-expenses/${id}?saved=1`);
 }
@@ -196,7 +197,7 @@ export async function runExpenseScheduleNow(formData: FormData) {
   const id = String(formData.get("schedule_id") ?? "");
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("run_recurring_expense", { p_id: id });
-  if (error) redirect(`/recurring-expenses/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/recurring-expenses/${id}?error=${errorCode(error, "app/recurring-expenses/actions:runExpenseScheduleNow")}`);
 
   revalidatePath("/recurring-expenses");
   revalidatePath("/expenses");
@@ -216,10 +217,12 @@ export async function deleteExpenseSchedule(formData: FormData) {
   await requireWorkshopEntitlement("financials", "/recurring-expenses");
   const id = String(formData.get("schedule_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  // Checked: "deleted" over a schedule still live kept capturing an expense every period.
+  const { error } = await supabase
     .from("recurring_expenses")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id, active: false })
     .eq("id", id);
+  if (error) redirect(`/recurring-expenses/${id}?error=${errorCode(error, "recurring-expenses:delete")}`);
   revalidatePath("/recurring-expenses");
   redirect("/recurring-expenses?deleted=1");
 }

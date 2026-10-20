@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Onboarding step 3 ("put a QR sticker on each machine") used to share step 1's
@@ -26,7 +27,7 @@ export async function acknowledgeQrLabels(formData: FormData) {
     p_farm: profile.farm_id,
     p_settings: { qr_labels_printed_at: undo ? null : new Date().toISOString() },
   });
-  if (error) redirect(`/onboarding?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/onboarding?error=${errorCode(error, "app/onboarding/actions:acknowledgeQrLabels")}`);
 
   revalidatePath("/onboarding");
   redirect(undo ? "/onboarding" : "/onboarding?saved=qr_labels");

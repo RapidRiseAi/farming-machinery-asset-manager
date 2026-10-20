@@ -56,7 +56,11 @@ export async function claimRequest(
 /**
  * A server action that must run once per request: `work` does it and returns where to
  * send the person; anything it throws (its own error redirects included) releases the
- * claim so the retry runs. A replay of a finished request goes where the first went; one
+ * claim so the retry runs.
+ *
+ * So once the effect has landed, `work` must RETURN, even a destination that carries a
+ * warning ("saved, but the receipt did not stick", "the lines did not copy"). A redirect
+ * there would release the claim, and the retry would create the record a second time. A replay of a finished request goes where the first went; one
  * that arrives while the first is still running goes to `whileRunning`.
  *
  *   export async function recordPayment(formData: FormData) {

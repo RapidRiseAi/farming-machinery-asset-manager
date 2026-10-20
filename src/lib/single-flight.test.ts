@@ -106,3 +106,22 @@ test("a form's fingerprint names what it sends, not the order or the request id"
   assert.equal(readRequestId("not-a-uuid"), null);
   assert.equal(readRequestId(null), null);
 });
+
+test("a request that takes too long gives up, and a caller's own cancel still works", async () => {
+  const { fetchWithTimeout } = await import("./fetch-timeout");
+  const original = globalThis.fetch;
+  // A fetch that never answers unless it is aborted.
+  globalThis.fetch = ((_input: unknown, init?: RequestInit) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason ?? new Error("aborted")));
+    })) as typeof fetch;
+  try {
+    await assert.rejects(fetchWithTimeout("/slow", { timeoutMs: 20 }), (e: Error) => e.name === "TimeoutError");
+    const mine = new AbortController();
+    const pending = fetchWithTimeout("/slow", { timeoutMs: 5_000, signal: mine.signal });
+    mine.abort(new Error("cancelled by the screen"));
+    await assert.rejects(pending, /cancelled by the screen/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

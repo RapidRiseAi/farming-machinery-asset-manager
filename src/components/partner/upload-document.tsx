@@ -13,6 +13,7 @@ import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-
 import { reportClientError } from "@/lib/client-report";
 import { asError } from "@/lib/single-flight";
 import { ReportPending } from "@/components/ui/pending-guard";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 /**
  * "I already made this in my own system" (F14b).
@@ -77,7 +78,7 @@ export function UploadDocument({
       } catch { /* Upload remains usable when browser storage is unavailable. */ }
       pending.current = { signature, capture };
       form.set("capture_id", capture);
-      const res = await fetch("/api/documents/upload", { method: "POST", body: form });
+      const res = await fetchWithTimeout("/api/documents/upload", { method: "POST", body: form });
       const body = (await res.json()) as { ok?: boolean; id?: string; error?: string };
       if (!res.ok || !body.ok) {
         const uploadMessages: Record<string, string> = {

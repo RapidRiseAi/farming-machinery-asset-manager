@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { isPlan } from "@/lib/entitlements";
+import { errorCode } from "@/lib/action-errors";
 
 export async function createFarm(formData: FormData) {
   await requireRole(["rr_admin"]);
@@ -18,7 +19,7 @@ export async function createFarm(formData: FormData) {
   const supabase = await createClient();
   // RLS: farms_ins allows this only for rr_admin (with_check is_rr_admin()).
   const { error } = await supabase.from("farms").insert({ name, plan, status: "trial" });
-  if (error) redirect(`/admin/farms?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/admin/farms?error=${errorCode(error, "app/admin/farms/actions:createFarm")}`);
 
   revalidatePath("/admin/farms");
   redirect("/admin/farms?created=1");

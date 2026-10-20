@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DialogForm, DialogFields, useDialogForm } from "@/components/ui/dialog-form";
 import { SendIcon } from "@/components/ui/icons";
 import { useReportPending } from "@/components/ui/pending-guard";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 /**
  * Emailing the statement to the customer, the last step of the monthly-account workflow.
@@ -85,7 +86,7 @@ function SendFields({
     setState("sending");
     setDetail(null);
     try {
-      const res = await fetch("/api/statements/send", {
+      const res = await fetchWithTimeout("/api/statements/send", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ party, from, to, email, message: message || null, requestId: requestId.current }),

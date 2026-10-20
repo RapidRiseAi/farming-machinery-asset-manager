@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { isWorkshopPlan } from "@/lib/contractor-plan";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Setting a partner's product (F14e). RR admin only, both here and in the database: the
@@ -22,7 +23,7 @@ export async function setPartnerPlan(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.from("workshops").update({ plan }).eq("id", id);
-  if (error) redirect(`/admin/partners?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/admin/partners?error=${errorCode(error, "app/admin/partners/actions:setPartnerPlan")}`);
 
   revalidatePath("/admin/partners");
   redirect("/admin/partners?saved=1");

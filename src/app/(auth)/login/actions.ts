@@ -8,6 +8,7 @@ import { syncLocaleOnSignIn } from "@/lib/locale-sync";
 import { siteUrl } from "@/lib/env";
 import { safePath } from "@/lib/safe-path";
 import { readAssurance } from "@/lib/mfa";
+import { errorCode } from "@/lib/action-errors";
 
 export async function signInWithPassword(formData: FormData) {
   const next=safePath(String(formData.get("next")??""),"/home");
@@ -59,7 +60,7 @@ export async function sendPasswordReset(formData: FormData) {
   // A rate limit is worth saying out loud; anything else is reported as sent, because the
   // alternative tells a stranger which addresses have accounts.
   if (error && /rate|too many/i.test(error.message)) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`);
+    redirect(`/login?error=${errorCode(error, "auth/login/actions:sendPasswordReset")}`);
   }
   redirect("/login?reset=1");
 }
@@ -77,6 +78,6 @@ export async function signInWithMagicLink(formData: FormData) {
     email,
     options: { emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safePath(String(formData.get("next") ?? ""), "/home"))}` },
   });
-  if (error) redirect(`/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
+  if (error) redirect(`/login?error=${errorCode(error, "auth/login/actions:signInWithMagicLink")}&next=${encodeURIComponent(next)}`);
   redirect(`/login?sent=1&next=${encodeURIComponent(next)}`);
 }

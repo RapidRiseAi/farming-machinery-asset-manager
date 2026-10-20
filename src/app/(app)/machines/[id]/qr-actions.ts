@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Re-issue (rotate) a machine's public QR token (FR-9.4).
@@ -29,7 +30,7 @@ export async function reissueQr(formData: FormData) {
     .from("machines")
     .update({ public_token: crypto.randomUUID() })
     .eq("id", machineId);
-  if (error) redirect(`/machines/${machineId}/qr?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/machines/${machineId}/qr?error=${errorCode(error, "app/machines/[id]/qr-actions:reissueQr")}`);
 
   // Refresh the QR sheet (new code) and the machine detail (any cached token).
   revalidatePath(`/machines/${machineId}/qr`);

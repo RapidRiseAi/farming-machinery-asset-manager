@@ -11,6 +11,16 @@ import { whatsappEnabled } from "./config";
 import { sendWhatsApp } from "./client";
 import { replyWindowOpen } from "./protocol";
 import { clarificationAnswer, confirmationAction, renderWhatsAppResponse } from "./conversation";
+import { captureError } from "@/lib/observability";
+
+/**
+ * Report a failure by a fixed code and the error's type only, never its message: this
+ * module's rule is no bodies, tokens or phone numbers in any log, and a provider error's
+ * message can carry them. Enough for someone to know the channel is failing.
+ */
+function reportFailure(where: string, error: unknown) {
+  captureError(new Error(`${where} failed (${error instanceof Error ? error.name : typeof error})`), { where });
+}
 
 type Inbox = { id: string; link_id: string; message_text: string; message_at: string; reply: string | null };
 
@@ -111,7 +121,8 @@ export async function processWhatsAppInbox(limit = 1) {
         .eq("id", item.id).eq("lease_id", lease).eq("state", "sending");
       if (sent.error) throw new Error("whatsapp_delivery_unknown");
       processed++;
-    } catch {
+    } catch (error) {
+      reportFailure("whatsapp:inbox", error);
       // Never blindly retry an ambiguous POST; Meta may already have accepted it.
       await db.from("whatsapp_inbox").update({ state: "failed", error_code: "processing_or_delivery_failed" })
         .eq("id", item.id).eq("lease_id", lease);
@@ -169,7 +180,8 @@ export async function deliverWhatsAppNotifications() {
         .eq("notification_id", row.notification_id).eq("state", "sending");
       if (saved.error) throw new Error("whatsapp_delivery_unknown");
       sent++;
-    } catch {
+    } catch (error) {
+      reportFailure("whatsapp:notification", error);
       await db.from("whatsapp_notification_delivery").update({ state: "failed", error_code: "delivery_failed_or_unknown" })
         .eq("notification_id", row.notification_id).eq("state", "sending");
     }

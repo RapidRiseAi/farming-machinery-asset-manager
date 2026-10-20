@@ -4,6 +4,7 @@ import { validWorkerAuthorization } from "@/lib/whatsapp/protocol";
 import { createServiceClient } from "@/lib/supabase/service";
 import { whatsappEnabled } from "@/lib/whatsapp/config";
 import { checkWhatsAppConfiguration } from "@/lib/whatsapp/diagnostics";
+import { captureError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,10 @@ export async function GET(request: Request) {
     }
     const [inbox, notifications] = await Promise.all([processWhatsAppInbox(1), deliverWhatsAppNotifications()]);
     return NextResponse.json({ inbox, notifications });
-  } catch {
+  } catch (error) {
+    // Fixed code and type only (the WhatsApp modules log no message text): the run failed
+    // every minute with the cause lost.
+    captureError(new Error(`whatsapp worker failed (${error instanceof Error ? error.name : typeof error})`), { where: "cron:whatsapp" });
     return NextResponse.json({ error: "whatsapp_worker_failed" }, { status: 503 });
   }
 }

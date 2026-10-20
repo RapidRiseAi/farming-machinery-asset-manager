@@ -9,6 +9,7 @@ import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
 import { CADENCES, type Cadence } from "@/lib/recurring";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Standing invoices (G8).
@@ -105,7 +106,7 @@ export async function createSchedule(formData: FormData) {
         .select("id")
         .single();
 
-      if (error) redirect(`/recurring?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/recurring?error=${errorCode(error, "app/recurring/actions:createSchedule")}`);
 
       // The first line comes off the same form, because a schedule with no lines raises
       // nothing and a partner who has to add one on a second screen may not.
@@ -170,7 +171,7 @@ export async function addScheduleLine(formData: FormData) {
         qty: Number(formData.get("qty") ?? 1) || 1,
         unit_price_cents: inclusive ? exVatCents(priceCents, rateBps) : priceCents,
       });
-      if (error) redirect(`/recurring/${id}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/recurring/${id}?error=${errorCode(error, "app/recurring/actions:addScheduleLine")}`);
 
       revalidatePath(`/recurring/${id}`);
       return `/recurring/${id}?added=1`;
@@ -184,10 +185,12 @@ export async function removeScheduleLine(formData: FormData) {
   const id = String(formData.get("schedule_id") ?? "");
   const lineId = String(formData.get("line_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  // Checked: "saved" over a write that did not happen left a schedule running (or not).
+  const { error } = await supabase
     .from("recurring_invoice_lines")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", lineId);
+  if (error) redirect(`/recurring/${id}?error=${errorCode(error, "recurring:remove-line")}`);
   revalidatePath(`/recurring/${id}`);
   redirect(`/recurring/${id}?saved=1`);
 }
@@ -198,10 +201,12 @@ export async function toggleSchedule(formData: FormData) {
   const id = String(formData.get("schedule_id") ?? "");
   const active = String(formData.get("active") ?? "") === "1";
   const supabase = await createClient();
-  await supabase
+  // Checked: "saved" over a write that did not happen left a schedule running (or not).
+  const { error } = await supabase
     .from("recurring_invoices")
     .update({ active, updated_at: new Date().toISOString() })
     .eq("id", id);
+  if (error) redirect(`/recurring/${id}?error=${errorCode(error, "recurring:toggle")}`);
   revalidatePath("/recurring");
   redirect(`/recurring/${id}?saved=1`);
 }
@@ -223,7 +228,7 @@ export async function updateSchedule(formData: FormData) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) redirect(`/recurring/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/recurring/${id}?error=${errorCode(error, "app/recurring/actions:updateSchedule")}`);
   revalidatePath(`/recurring/${id}`);
   redirect(`/recurring/${id}?saved=1`);
 }
@@ -241,7 +246,7 @@ export async function runScheduleNow(formData: FormData) {
   const id = String(formData.get("schedule_id") ?? "");
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("run_recurring_invoice", { p_id: id });
-  if (error) redirect(`/recurring/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/recurring/${id}?error=${errorCode(error, "app/recurring/actions:runScheduleNow")}`);
 
   revalidatePath("/recurring");
   revalidatePath("/documents");
@@ -252,10 +257,12 @@ export async function deleteSchedule(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const id = String(formData.get("schedule_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  // Checked: "saved" over a write that did not happen left a schedule running (or not).
+  const { error } = await supabase
     .from("recurring_invoices")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id, active: false })
     .eq("id", id);
+  if (error) redirect(`/recurring/${id}?error=${errorCode(error, "recurring:delete")}`);
   revalidatePath("/recurring");
   redirect("/recurring?deleted=1");
 }

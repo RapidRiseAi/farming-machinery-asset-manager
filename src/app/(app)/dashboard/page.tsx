@@ -39,6 +39,7 @@ import { dismissSetupCard, recordDashboardReading, recordDashboardReadings, save
 import { warrantyStatus, dateExpiryStatus, licenceTypeLabel } from "@/lib/compliance";
 import { ExpiryStatus, FineStatus, UrgencyStatus, ServiceStatus, MachineStatus } from "@/components/ui/status";
 import { RequestIdInput } from "@/components/ui/request-id-input";
+import { mustAll } from "@/lib/supabase/must";
 
 type Machine = {
   id: string;
@@ -133,8 +134,11 @@ export default async function DashboardPage({
     // settings, for the stale-reading window and the set-up card.
     farmId
       ? supabase.from("farms").select("name, settings").eq("id", farmId).maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
   ]);
+  // Every read or none: one failed read showed an owner "0 overdue, 0 open faults", the most
+  // reassuring board there is, and false. The error screen is honest and is reported.
+  mustAll([machinesRes, splRes, faultsRes, jcRes, openJcRes, fuelMonthRes, fuelFlagRes, licenceRes, farmRes], "dashboard");
 
   const farmRow = farmRes.data as { name: string; settings: Record<string, unknown> | null } | null;
   // Only a one-farm account is told its farm's name here. With more than one, the phone

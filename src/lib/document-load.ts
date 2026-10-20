@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PdfContext, PdfDocRow, PdfLine } from "@/lib/pdf/partner-document";
+import { must, mustAll } from "@/lib/supabase/must";
 
 /**
  * Everything a document needs to render, fetched once.
@@ -53,12 +54,13 @@ export async function loadDocument(
   by: { id: string } | { token: string },
 ): Promise<LoadedDocument | null> {
   const query = supabase.from("partner_documents").select(DOC_COLUMNS).is("deleted_at", null);
-  const { data } = await ("id" in by ? query.eq("id", by.id) : query.eq("public_token", by.token)).maybeSingle();
+  // A failed read is not "no such document": a customer with a good link was sent to "not
+  // found", and an invoice could be built and emailed without its lines.
+  const data = must(await ("id" in by ? query.eq("id", by.id) : query.eq("public_token", by.token)).maybeSingle(), "document:load");
   const doc = data as LoadedDocument["doc"] | null;
   if (!doc) return null;
 
-  const [{ data: lineData }, { data: shopData }, { data: machineData }, { data: correctsData }] =
-    await Promise.all([
+  const results = await Promise.all([
       supabase
         .from("partner_document_lines")
         .select("description, part_no, qty, unit_price_cents, line_total_cents")
@@ -68,15 +70,17 @@ export async function loadDocument(
       supabase.from("workshops").select("*").eq("id", doc.workshop_id).maybeSingle(),
       doc.machine_id
         ? supabase.from("machines").select("name, reg_no").eq("id", doc.machine_id).maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
       doc.corrects_document_id
         ? supabase
             .from("partner_documents")
             .select("number, issue_date")
             .eq("id", doc.corrects_document_id)
             .maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
     ]);
+  mustAll(results, "document:load-parts");
+  const [{ data: lineData }, { data: shopData }, { data: machineData }, { data: correctsData }] = results;
 
   return {
     doc,

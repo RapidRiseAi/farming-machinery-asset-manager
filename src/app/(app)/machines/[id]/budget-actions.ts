@@ -8,6 +8,7 @@ import { withTab } from "@/components/ui/tabs-url";
 import { parseRandsToCents } from "@/lib/money";
 import { COST_TYPES } from "@/lib/cost";
 import { BUDGET_PERIODS, computePeriodBounds, type BudgetPeriodType } from "@/lib/budgets";
+import { errorCode } from "@/lib/action-errors";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -51,7 +52,7 @@ export async function addBudget(formData: FormData) {
     amount_cents: amount,
     note: strOrNull(formData, "note"),
   });
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "costs"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/budget-actions:addBudget")}`, "costs"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=budget`, "costs"));
 }
@@ -79,7 +80,7 @@ export async function updateBudget(formData: FormData) {
       note: strOrNull(formData, "note"),
     })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "costs"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/budget-actions:updateBudget")}`, "costs"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=budget`, "costs"));
 }
@@ -95,7 +96,7 @@ export async function deleteBudget(formData: FormData) {
     .from("budgets")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "costs"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/budget-actions:deleteBudget")}`, "costs"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=budget`, "costs"));
 }

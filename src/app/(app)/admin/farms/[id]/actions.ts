@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole, SUPPORT_FARM_COOKIE } from "@/lib/auth";
 import { isPlan, isBillingPeriod } from "@/lib/entitlements";
 import { getBillingAdapter } from "@/lib/billing";
+import { errorCode } from "@/lib/action-errors";
 
 const STATUSES = ["trial", "active", "suspended", "cancelled"];
 
@@ -28,7 +29,7 @@ export async function updateFarm(formData: FormData) {
     .from("farms")
     .update({ plan, billing_period: billingPeriod, status })
     .eq("id", id);
-  if (error) redirect(`/admin/farms/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/admin/farms/${id}?error=${errorCode(error, "app/admin/farms/[id]/actions:updateFarm")}`);
 
   // Payment seam (deferred): reconcile the subscription with the billing provider. The
   // no-op adapter returns { deferred: true } and moves no money, this is the exact
@@ -74,7 +75,7 @@ export async function impersonateFarm(formData: FormData) {
   if (!farm) redirect("/admin/farms?error=Farm+not+found");
 
   const { error } = await supabase.rpc("log_admin_farm_access", { p_farm: id, p_action: "impersonate" });
-  if (error) redirect(`/admin/farms/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/admin/farms/${id}?error=${errorCode(error, "app/admin/farms/[id]/actions:impersonateFarm")}`);
 
   (await cookies()).set(SUPPORT_FARM_COOKIE, id, {
     httpOnly: true,

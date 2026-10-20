@@ -12,6 +12,7 @@ import { t } from "@/lib/i18n";
 import type { Lang, Locale } from "@/lib/i18n";
 import { shortDate } from "@/lib/format";
 import { drainInBatches } from "@/lib/drain";
+import { captureError } from "@/lib/observability";
 
 /**
  * Scheduled & emailed reports, the worker (FR-11.5, migration 0506).
@@ -316,6 +317,9 @@ export async function deliverReportRun(
       }];
     }
   } catch (err) {
+    // Recorded on the run AND reported: a report that cannot be built is one an accountant
+    // is waiting for.
+    captureError(err, { where: "scheduled-reports:build" });
     const message = err instanceof Error ? err.message : "build-failed";
     return finish({ status: "failed", sent: 0, failed: run.recipients.length, error: `build: ${message}` });
   }

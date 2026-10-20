@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { withTab } from "@/components/ui/tabs-url";
 import { LICENCE_TYPES } from "@/lib/compliance";
+import { errorCode } from "@/lib/action-errors";
 
 function strOrNull(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -39,7 +40,7 @@ export async function addLicence(formData: FormData) {
     reminder_lead_days: intOr(formData, "reminder_lead_days", 30),
     notes: strOrNull(formData, "notes"),
   });
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "papers"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/licence-actions:addLicence")}`, "papers"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=licence`, "papers"));
 }
@@ -66,7 +67,7 @@ export async function updateLicence(formData: FormData) {
       last_notified_at: null,
     })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "papers"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/licence-actions:updateLicence")}`, "papers"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=licence`, "papers"));
 }
@@ -82,7 +83,7 @@ export async function deleteLicence(formData: FormData) {
     .from("licences")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "papers"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/licence-actions:deleteLicence")}`, "papers"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=licence`, "papers"));
 }

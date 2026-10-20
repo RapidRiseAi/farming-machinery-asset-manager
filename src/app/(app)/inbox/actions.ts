@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole, requireFarmRole } from "@/lib/auth";
 import { workTransitions } from "@/lib/work-lifecycle";
+import { errorCode } from "@/lib/action-errors";
 
 // The activity inbox is the owner/manager cockpit, only they act on quotes/invoices.
 const OWNERS = ["owner", "manager"] as const;
@@ -26,13 +27,13 @@ async function advance(id: string, to: "accepted" | "closed", noteKey: string) {
   if (to === "accepted") {
     const { data: quotes, error } = await supabase.from("partner_documents").select("id")
       .eq("work_request_id", id).eq("kind", "quote").eq("status", "sent").is("deleted_at", null).limit(1);
-    if (error) redirect(`/inbox?error=${encodeURIComponent(error.message)}`);
+    if (error) redirect(`/inbox?error=${errorCode(error, "app/inbox/actions:advance")}`);
     if (quotes?.[0]) redirect(`/documents/${quotes[0].id}`);
   }
   const { error } = await supabase.rpc("update_work_request", {
     p_request: id, p_status: to, p_note: noteKey,
   });
-  if (error) redirect(`/inbox?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/inbox?error=${errorCode(error, "app/inbox/actions:advance")}`);
   revalidatePath("/inbox");
   revalidatePath(`/work/${id}`);
   revalidatePath("/work");

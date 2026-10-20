@@ -9,6 +9,8 @@ import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import { uploadReceipt } from "@/lib/receipt-media";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 /**
  * What the partner bought (G6).
@@ -129,7 +131,7 @@ export async function createExpense(formData: FormData) {
         .select("id")
         .single();
 
-      if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/expenses?error=${errorCode(error, "app/expenses/actions:createExpense")}`);
 
       // A receipt at capture time is optional. If one was chosen and the upload fails, the
       // EXPENSE still stands, losing a captured supplier invoice because a photo did not
@@ -139,11 +141,17 @@ export async function createExpense(formData: FormData) {
       if (file instanceof File && file.size > 0 && created) {
         const up = await uploadReceipt(supabase, file, workshop.id, (created as { id: string }).id);
         if ("path" in up) {
-          await supabase.from("partner_expenses").update({ receipt_path: up.path }).eq("id", (created as { id: string }).id);
+          const { error: linkError } = await supabase.from("partner_expenses").update({ receipt_path: up.path }).eq("id", (created as { id: string }).id);
+          // The photo is stored but not linked: the expense stands, say the receipt did not stick.
+          if (linkError) {
+            captureError(linkError, { where: "expenses:create:receipt-link" });
+            revalidatePath("/expenses");
+            return "/expenses?saved=1&error=receipt-failed";
+          }
         } else {
           revalidatePath("/expenses");
           revalidatePath("/vat");
-          redirect(`/expenses?saved=1&error=receipt-${up.error}`);
+          return `/expenses?saved=1&error=receipt-${up.error}`;
         }
       }
 
@@ -186,7 +194,7 @@ export async function attachReceipt(formData: FormData) {
     .update({ receipt_path: result.path, updated_at: new Date().toISOString() })
     .eq("id", id);
 
-  if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/expenses?error=${errorCode(error, "app/expenses/actions:attachReceipt")}`);
   revalidatePath("/expenses");
   revalidatePath("/vat");
   redirect("/expenses?attached=1");
@@ -254,7 +262,7 @@ export async function updateExpense(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/expenses?error=${errorCode(error, "app/expenses/actions:updateExpense")}`);
   revalidatePath("/expenses");
   revalidatePath("/vat");
   redirect("/expenses?saved=1");
@@ -270,10 +278,11 @@ export async function markExpensePaid(formData: FormData) {
   await requireWorkshopEntitlement("financials", "/expenses");
   const id = String(formData.get("expense_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("partner_expenses")
     .update({ paid_on: s(formData, "paid_on") ?? todayLocal(), updated_at: new Date().toISOString() })
     .eq("id", id);
+  if (error) redirect(`/expenses?error=${errorCode(error, "expenses:mark-paid")}`);
   revalidatePath("/expenses");
   redirect("/expenses?saved=1");
 }
@@ -288,10 +297,13 @@ export async function deleteExpense(formData: FormData) {
   await requireWorkshopEntitlement("financials", "/expenses");
   const id = String(formData.get("expense_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  // Checked: a delete changes the VAT return, and "deleted" over a row still there is a
+  // return filed with an expense the partner believes is gone.
+  const { error } = await supabase
     .from("partner_expenses")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
+  if (error) redirect(`/expenses?error=${errorCode(error, "expenses:delete")}`);
   revalidatePath("/expenses");
   revalidatePath("/vat");
   redirect("/expenses?deleted=1");

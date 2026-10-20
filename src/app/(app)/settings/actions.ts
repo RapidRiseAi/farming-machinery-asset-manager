@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { formOwnsBilling, mergeSettings } from "@/lib/settings";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Save the farm's settings.
@@ -56,11 +57,11 @@ export async function updateSettings(formData: FormData) {
         p_email: String(formData.get("billing_email") ?? ""),
       })
     ).error;
-    if (billingError) redirect(`/settings?error=${encodeURIComponent(billingError.message)}`);
+    if (billingError) redirect(`/settings?error=${errorCode(billingError, "app/settings/actions:updateSettings")}`);
   }
 
   const { error } = await supabase.rpc("update_farm_settings", { p_farm: profile.farm_id, p_settings: settings });
-  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?error=${errorCode(error, "app/settings/actions:updateSettings")}`);
   revalidatePath("/settings");
   redirect("/settings?saved=1");
 }

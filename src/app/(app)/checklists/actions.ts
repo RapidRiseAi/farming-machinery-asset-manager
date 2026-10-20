@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { t } from "@/lib/i18n";
+import { errorCode } from "@/lib/action-errors";
 
 // Who may build/maintain checklist templates: farm crew for their own farm's templates,
 // RR admin for the GLOBAL library. Operators/workshop are read-only here (they fill
@@ -169,7 +170,7 @@ export async function deleteChecklistTemplate(formData: FormData) {
   const now = new Date().toISOString();
   await supabase.from("checklist_template_fields").update({ deleted_at: now, deleted_by: profile.id }).eq("template_id", id).is("deleted_at", null);
   const { error } = await supabase.from("checklist_templates").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
-  if (error) redirect(`/checklists?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/checklists?error=${errorCode(error, "app/checklists/actions:deleteChecklistTemplate")}`);
   revalidatePath("/checklists");
   redirect("/checklists?saved=1");
 }
@@ -202,7 +203,7 @@ export async function duplicateChecklistTemplate(formData: FormData) {
     .insert({ farm_id: farmId, name: t("checklists.copyName", profile.lang).replace("{name}", source!.name), description: source!.description, machine_type: source!.machine_type, created_by: profile.id })
     .select("id")
     .single();
-  if (insErr || !created) redirect(`/checklists?error=${encodeURIComponent(insErr?.message ?? "copy failed")}`);
+  if (insErr || !created) redirect(`/checklists?error=${errorCode(insErr, "app/checklists/actions:duplicateChecklistTemplate", "copy failed")}`);
 
   const fields = (source!.checklist_template_fields ?? [])
     .filter((f) => isChecklistFieldType(f.field_type))

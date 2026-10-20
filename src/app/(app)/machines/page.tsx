@@ -39,6 +39,7 @@ import { OfflineForm } from "@/components/offline/offline-form";
 import { MachinesIcon, PlusIcon } from "@/components/ui/icons";
 import { addReading } from "./[id]/reading-actions";
 import { RequestIdInput } from "@/components/ui/request-id-input";
+import { mustAll } from "@/lib/supabase/must";
 
 type MachineRow = {
   id: string;
@@ -145,15 +146,18 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     const q = supabase.from("service_plan_lines").select("machine_id, status").is("deleted_at", null);
     return farmId ? q.eq("farm_id", farmId) : q;
   };
-  const [{ data }, { data: dimData }, { data: splData }, costResult, farmResult] = await Promise.all([
+  const results = await Promise.all([
     query,
     dimQuery,
     readAll(planQ),
-    costsVisible ? readAll<CostRow>(costQ, { key: "machine_id" }) : Promise.resolve({ data: [] as CostRow[] }),
+    costsVisible ? readAll<CostRow>(costQ, { key: "machine_id" }) : Promise.resolve({ data: [] as CostRow[], error: null }),
     farmId
       ? supabase.from("farms").select("settings").eq("id", farmId).maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
   ]);
+  // A failed read showed a farm with a fleet "add your first machine". Fail honestly instead.
+  mustAll(results, "machines:list");
+  const [{ data }, { data: dimData }, { data: splData }, costResult, farmResult] = results;
   const fetched = (data as MachineRow[] | null) ?? [];
 
   const allRows = (dimData as { id: string; cost_centre: string | null; department: string | null; status: string }[] | null) ?? [];

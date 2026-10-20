@@ -144,10 +144,24 @@ Order: correctness and security first, then load, then product.
       transcribe and voice-session ids (AI spend on a retry); activation "Pay" resuming an
       attempt already in flight; contractor vehicle sync claim; service template unique per
       machine; `FOR UPDATE SKIP LOCKED` in the recurring invoice generator loop.
-- [ ] **Taps, release 3 (errors):** server actions report what they catch and never put a
-      raw database message in the address bar; reads that fail stop pretending to be empty
-      (dashboard, reports, VAT, statements, documents); the remaining API routes answer JSON
-      instead of redirecting (`requireApiRole`); queue a form on a dropped connection.
+- [x] **Taps, release 3 (errors):** server actions report what they catch and never put a
+      raw database message in the address bar; reads that fail stop pretending to be empty.
+      2026-10-20: `errorCode` on 109 redirects (refusals keep their words, our failures are
+      reported and said as "try again"); `must`/`mustAll` on the report data (CSV, workbook,
+      scheduled emails), VAT, statements, supplier statements, documents, dashboard, machines,
+      driver home, billing and the plan lookups; money writes checked (banking undo, expense
+      paid/delete/receipt, PO receive, recurring toggles, saving a card restores the old
+      default, receipt and failure-notice releases, erasure's auth scrub, sign-up terms,
+      contractor connect); client fetches time out; error screens for the public and sign-in
+      areas, "Try again" refetches. Swept as eight personas: no page fails for any role.
+- [ ] **Errors follow-ups:** about 200 lesser page reads still drop `error`; contractor
+      vehicle sync writes unchecked; checklist template duplicate; push toggle out of step
+      after a failed subscribe; speech-token logs no Azure status; a form that fails on a
+      dropped connection could queue offline (needs the online path's request id in the
+      offline envelope); DialogActions closes on an error redirect (the message is on the
+      page behind it). **Founder:** set `OPS_ALERT_EMAIL` and a `SENTRY_DSN` in Vercel;
+      read from the account on 2026-10-20, neither is set, so every report reaches only
+      Vercel's log stream.
 - [ ] **Follow-ups from B7:** the farm export is one in-memory JSON response (a very large
       farm could pass a function's response limit: stream it or split it); the accounting
       summary sums journal lines in the page (move it into SQL); five older SQL suites are not

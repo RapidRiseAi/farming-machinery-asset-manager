@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n";
 import { Flash } from "@/components/ui/flash";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { BankImportClient } from "@/components/banking/import-client";
+import { errorMessage } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export default async function BankImportPage({
 
       <Flash
         tone="error"
-        message={sp.error ? (known.has(sp.error) ? t(`bank.err.${sp.error}`, locale) : sp.error) : undefined}
+        message={sp.error ? (known.has(sp.error) ? t(`bank.err.${sp.error}`, locale) : errorMessage(sp.error, locale)) : undefined}
       />
 
       <BankImportClient locale={locale} />

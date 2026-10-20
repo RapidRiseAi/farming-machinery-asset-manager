@@ -15,6 +15,7 @@ import { deliverReportRun, type ClaimedRun } from "@/lib/scheduled-reports";
 import { isReportFormat, isReportKey } from "@/lib/report-export";
 import { CADENCES, type Cadence } from "@/lib/recurring";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Emailed reports (FR-11.5), the write side.
@@ -102,7 +103,7 @@ export async function createReportSchedule(formData: FormData) {
         .select("id")
         .single();
 
-      if (error) redirect(`${HERE}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`${HERE}?error=${errorCode(error, "app/reports/schedules/actions:createReportSchedule")}`);
 
       // A schedule with nobody on it never sends (0506: no recipients = no period claimed),
       // so whoever set it up is added straight away and can be removed like anyone else.
@@ -115,7 +116,8 @@ export async function createReportSchedule(formData: FormData) {
       if (recipientError) {
         const id = (data as { id: string }).id;
         revalidateSchedule(id);
-        redirect(`${detailPath(id)}?error=${encodeURIComponent(recipientError.message)}`);
+        // The schedule exists: return its page with the error (runOnce records it).
+        return `${detailPath(id)}?error=${errorCode(recipientError, "app/reports/schedules/actions:createReportSchedule")}`;
       }
 
       revalidatePath(HERE);
@@ -153,7 +155,7 @@ export async function updateReportSchedule(formData: FormData) {
     .eq("id", id)
     .eq("farm_id", farmId);
 
-  if (error) redirect(`${detailPath(id)}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${detailPath(id)}?error=${errorCode(error, "app/reports/schedules/actions:updateReportSchedule")}`);
   revalidateSchedule(id);
   redirect(`${detailPath(id)}?saved=1`);
 }
@@ -171,7 +173,7 @@ export async function toggleReportSchedule(formData: FormData) {
     .eq("id", id)
     .eq("farm_id", farmId);
 
-  if (error) redirect(`${detailPath(id)}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${detailPath(id)}?error=${errorCode(error, "app/reports/schedules/actions:toggleReportSchedule")}`);
   revalidateSchedule(id);
   redirect(`${detailPath(id)}?${active ? "resumed" : "paused"}=1`);
 }
@@ -187,7 +189,7 @@ export async function deleteReportSchedule(formData: FormData) {
     .eq("id", id)
     .eq("farm_id", farmId);
 
-  if (error) redirect(`${detailPath(id)}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${detailPath(id)}?error=${errorCode(error, "app/reports/schedules/actions:deleteReportSchedule")}`);
   revalidatePath(HERE);
   redirect(`${HERE}?deleted=1`);
 }
@@ -213,7 +215,7 @@ export async function addReportRecipient(formData: FormData) {
   if (!row.user_id && !row.email) redirect(`${detailPath(id)}?error=need-recipient`);
 
   const { error } = await supabase.from("report_schedule_recipients").insert(row);
-  if (error) redirect(`${detailPath(id)}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${detailPath(id)}?error=${errorCode(error, "app/reports/schedules/actions:addReportRecipient")}`);
 
   revalidateSchedule(id);
   redirect(`${detailPath(id)}?added=1`);
@@ -232,7 +234,7 @@ export async function removeReportRecipient(formData: FormData) {
     .eq("schedule_id", id)
     .eq("farm_id", farmId);
 
-  if (error) redirect(`${detailPath(id)}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${detailPath(id)}?error=${errorCode(error, "app/reports/schedules/actions:removeReportRecipient")}`);
   revalidateSchedule(id);
   redirect(`${detailPath(id)}?removed=1`);
 }
@@ -263,11 +265,11 @@ export async function sendReportScheduleNow(formData: FormData) {
     .eq("farm_id", farmId)
     .is("deleted_at", null)
     .maybeSingle();
-  if (lookupError) redirect(`${detailPath(id)}?error=${encodeURIComponent(lookupError.message)}`);
+  if (lookupError) redirect(`${detailPath(id)}?error=${errorCode(lookupError, "app/reports/schedules/actions:sendReportScheduleNow")}`);
   if (!schedule) redirect(`${HERE}?error=schedule-not-found`);
 
   const { data, error } = await supabase.rpc("run_report_schedule", { p_id: id });
-  if (error) redirect(`${detailPath(id)}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${detailPath(id)}?error=${errorCode(error, "app/reports/schedules/actions:sendReportScheduleNow")}`);
 
   const runs = (data ?? []) as ClaimedRun[];
   if (runs.length === 0) {

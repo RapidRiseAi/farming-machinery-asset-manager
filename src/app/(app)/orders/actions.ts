@@ -8,6 +8,8 @@ import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { percentToBps, todayLocal } from "@/lib/format";
 import { splitInclusive, EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/expenses";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 import {
   parseQty,
   isPurchaseOrderStatus,
@@ -37,7 +39,8 @@ import {
  * printed on screen in English.
  */
 function failCode(error: { message: string } | null | undefined): string {
-  if (error) console.error("[orders]", error.message);
+  // Reported, not only logged: nobody reads a console line from a server action.
+  if (error) captureError(error, { where: "orders" });
   return "po-failed";
 }
 const HOME = "/orders";
@@ -349,19 +352,26 @@ export async function receiveAll(formData: FormData) {
   if (!id) redirect(`${HOME}?error=po-notFound`);
 
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error: readError } = await supabase
     .from("purchase_order_lines")
     .select("id, qty_ordered")
     .eq("purchase_order_id", id)
     .is("deleted_at", null);
+  if (readError) redirect(orderPath(id, `?error=${errorCode(readError, "orders:receive-all:read")}`));
 
+  // Each line checked: a partial write used to show as "everything received". Setting a
+  // line to what was ordered is idempotent, so the person can simply press it again.
   const lines = (data ?? []) as { id: string; qty_ordered: number }[];
   const now = new Date().toISOString();
   for (const line of lines) {
-    await supabase
+    const { error } = await supabase
       .from("purchase_order_lines")
       .update({ qty_received: line.qty_ordered, updated_at: now })
       .eq("id", line.id);
+    if (error) {
+      refresh(id);
+      redirect(orderPath(id, `?error=${errorCode(error, "orders:receive-all:line")}`));
+    }
   }
 
   refresh(id);

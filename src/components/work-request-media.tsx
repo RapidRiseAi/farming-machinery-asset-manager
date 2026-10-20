@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { t, type Lang } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
 import { ReportPending } from "@/components/ui/pending-guard";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 /**
  * Uploader for work-request quote / invoice / proof attachments. Recording an invoice
@@ -36,7 +37,7 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch("/api/work/media", { method: "POST", body: fd });
+      const res = await fetchWithTimeout("/api/work/media", { method: "POST", body: fd });
       const result = await res.json();
       if (!res.ok) {
         if (result.stored) {

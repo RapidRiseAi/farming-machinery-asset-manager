@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseRandsToCents } from "@/lib/money";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireRole } from "@/lib/auth";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * A partner's own client book, and the road from it to a real FleetWise farm (F15).
@@ -95,7 +96,7 @@ export async function createClientRecord(formData: FormData) {
     .select("id")
     .single();
 
-  if (error) redirect(`/contractor/clients?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/contractor/clients?error=${errorCode(error, "app/contractor/clients/actions:createClientRecord")}`);
   revalidatePath("/contractor/clients");
   // Land on the new record WITH the confirmation, so the save is not silent.
   redirect(`/contractor/clients/${(data as { id: string }).id}?saved=1`);
@@ -127,7 +128,7 @@ export async function updateClientRecord(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(`/contractor/clients/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/contractor/clients/${id}?error=${errorCode(error, "app/contractor/clients/actions:updateClientRecord")}`);
   revalidatePath(`/contractor/clients/${id}`);
   redirect(`/contractor/clients/${id}?saved=1`);
 }
@@ -166,7 +167,7 @@ export async function addClientVehicle(formData: FormData) {
     notes: s(formData, "notes"),
   });
 
-  if (error) redirect(`/contractor/clients/${clientId}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/contractor/clients/${clientId}?error=${errorCode(error, "app/contractor/clients/actions:addClientVehicle")}`);
   revalidatePath(`/contractor/clients/${clientId}`);
   redirect(`/contractor/clients/${clientId}?added=1`);
 }

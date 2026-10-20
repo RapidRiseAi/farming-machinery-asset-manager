@@ -12,6 +12,7 @@ import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
 import { BILLING_RPC } from "@/lib/billing/service";
+import { captureError } from "@/lib/observability";
 
 /**
  * Telling the farm what happened to their money.
@@ -421,10 +422,16 @@ export async function sendDueReceipts(
     } catch (err) {
       // Hand the claim back so tonight's pass tries again, and record why.
       const reason = err instanceof Error ? err.message : "send failed";
-      await supabase.rpc(BILLING_RPC.releaseReceipt, {
+      const { error: releaseError } = await supabase.rpc(BILLING_RPC.releaseReceipt, {
         p_invoice: row.invoice_id,
         p_error: reason,
       });
+      // A claim that could not be handed back stays held, and tonight's pass skips it: the
+      // receipt would never go. Reported, and in the run's reasons.
+      if (releaseError) {
+        captureError(releaseError, { where: "billing:receipt:release" });
+        out.reasons.push(`${row.invoice_ref}: claim not released (${releaseError.code ?? "error"})`);
+      }
       out.failed += 1;
       out.reasons.push(`${row.invoice_ref}: ${reason}`);
     }
@@ -501,7 +508,12 @@ export async function sendDueFailureNotices(
       // error meant the farmer was NEVER told their payment failed and lost their plan
       // 31 days later without warning, while the cost of retrying a dead address is a
       // line in a log. Never being told is worse than being told twice.
-      await supabase.rpc(BILLING_RPC.releaseFailureNotice, { p_attempt: row.attempt_id });
+      const { error: releaseError } = await supabase.rpc(BILLING_RPC.releaseFailureNotice, { p_attempt: row.attempt_id });
+      // Held for good otherwise: the farmer would never be told. Reported.
+      if (releaseError) {
+        captureError(releaseError, { where: "billing:failure-notice:release" });
+        out.reasons.push(`claim not released (${releaseError.code ?? "error"})`);
+      }
       out.failed += 1;
       out.reasons.push(reason);
     }

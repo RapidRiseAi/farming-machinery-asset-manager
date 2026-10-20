@@ -13,6 +13,7 @@ import { readRequestId } from "@/lib/request-id";
 import { captureError } from "@/lib/observability";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/auth";
+import { errorCode } from "@/lib/action-errors";
 
 // Who may FILL a checklist (pre-use inspection, service sign-off, condition report):
 // the broad operational crew, including operators and linked workshops. Designing
@@ -168,7 +169,7 @@ export async function deleteChecklistInstance(formData: FormData) {
   const now = new Date().toISOString();
   await supabase.from("checklist_instance_values").update({ deleted_at: now, deleted_by: profile.id }).eq("instance_id", id).is("deleted_at", null);
   const { error } = await supabase.from("checklist_instances").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "history"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/checklists/actions:deleteChecklistInstance")}`, "history"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=checklist`, "history"));
 }

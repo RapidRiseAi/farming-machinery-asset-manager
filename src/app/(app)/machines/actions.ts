@@ -16,6 +16,7 @@ import { todayLocal } from "@/lib/format";
 import { readTab, withTab } from "@/components/ui/tabs-url";
 import { validateCsv, MAX_IMPORT_ROWS } from "./import/csv";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 function str(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -260,7 +261,7 @@ export async function updateMachine(formData: FormData) {
   const tab = readTab(String(formData.get("return_tab") ?? ""), ["overview", "servicing", "costs", "history", "papers"]);
   const landing = (query: string) => (tab ? withTab(`/machines/${id}?${query}`, tab) : `/machines/${id}?${query}`);
 
-  if (error) redirect(landing(`error=${encodeURIComponent(error.message)}`));
+  if (error) redirect(landing(`error=${errorCode(error, "app/machines/actions:updateMachine")}`));
 
   revalidatePath(`/machines/${id}`);
   redirect(landing("saved=1"));
@@ -282,7 +283,7 @@ export async function returnMachineToService(formData: FormData) {
     .eq("id", id)
     .eq("farm_id", farmId)
     .eq("status", "out_of_service");
-  if (error) redirect(`/machines/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/machines/${id}?error=${errorCode(error, "app/machines/actions:returnMachineToService")}`);
   revalidatePath(`/machines/${id}`);
   redirect(`/machines/${id}?saved=1`);
 }
@@ -404,7 +405,7 @@ export async function importMachines(formData: FormData) {
         }))
       );
 
-      if (error) redirect(`/machines/import?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/machines/import?error=${errorCode(error, "app/machines/actions:importMachines")}`);
 
       revalidatePath("/machines");
       return `/machines?imported=${valid.length}`;

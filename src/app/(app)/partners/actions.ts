@@ -10,6 +10,8 @@ import { farmPermissionState } from "@/lib/permissions";
 import { setPartnerLink, clearPartnerLink } from "@/lib/partner-link";
 import { partnerMatchKey } from "@/lib/partner-match";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 async function requireDirectoryManager() {
   const profile = await requireProfile();
@@ -76,7 +78,7 @@ export async function createPartner(formData: FormData) {
     ...f,
     created_by: profile.id,
   });
-  if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:createPartner")}`);
   revalidatePath("/partners");
   redirect("/partners?added=1");
 }
@@ -93,7 +95,7 @@ export async function updatePartner(formData: FormData) {
   let query = supabase.from("partners").update(f).eq("id", id);
   query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
   const { data, error } = await query.select("id").maybeSingle();
-  if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:updatePartner")}`);
   if (!data) redirect("/partners?error=Partner+not+found");
   revalidatePath("/partners");
   redirect("/partners?saved=1");
@@ -110,7 +112,7 @@ export async function deletePartner(formData: FormData) {
     .eq("id", id);
   query = isAdmin ? query.is("farm_id", null) : query.eq("farm_id", farmId);
   const { data, error } = await query.select("id").maybeSingle();
-  if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:deletePartner")}`);
   if (!data) redirect("/partners?error=Partner+not+found");
   revalidatePath("/partners");
   redirect("/partners?removed=1");
@@ -159,7 +161,7 @@ export async function adoptSuggested(formData: FormData) {
     notes: src.notes,
     created_by: profile.id,
   });
-  if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:adoptSuggested")}`);
   revalidatePath("/partners");
   redirect("/partners?added=1");
 }
@@ -258,7 +260,7 @@ export async function inviteContractor(formData: FormData) {
           })
           .select("id")
           .single();
-        if (wErr || !ws) redirect(`/partners?error=${encodeURIComponent(wErr?.message ?? "Could not create workshop")}`);
+        if (wErr || !ws) redirect(`/partners?error=${errorCode(wErr, "app/partners/actions:inviteContractor", "Could not create workshop")}`);
         workshopId = ws.id;
       }
 
@@ -273,7 +275,8 @@ export async function inviteContractor(formData: FormData) {
         const { error: lErr } = await svc
           .from("workshop_links")
           .insert({ workshop_id: workshopId, farm_id: farmId, status: "active" });
-        if (lErr) redirect(`/partners?error=${encodeURIComponent(lErr.message)}`);
+        // The workshop exists from here on: return (runOnce records it), never redirect.
+        if (lErr) return `/partners?error=${errorCode(lErr, "app/partners/actions:inviteContractor")}`;
       } else if (existingLink.status !== "active") {
         await svc.from("workshop_links").update({ status: "active" }).eq("id", existingLink.id);
       }
@@ -291,7 +294,7 @@ export async function inviteContractor(formData: FormData) {
       if (uid) {
         const { data: prof } = await svc.from("users").select("id").eq("id", uid).maybeSingle();
         if (!prof) {
-          await svc.from("users").insert({
+          const { error: profileError } = await svc.from("users").insert({
             id: uid,
             workshop_id: workshopId,
             role: "workshop",
@@ -299,16 +302,25 @@ export async function inviteContractor(formData: FormData) {
             email,
             active: true,
           });
+          // Without a profile the login link opens an account that is bounced straight back
+          // to /login: the connection stands, but say the login could not be made.
+          if (profileError) {
+            captureError(profileError, { where: "partners:invite:profile" });
+            revalidatePath("/partners");
+            return "/partners?linkerror=1";
+          }
         }
       }
 
       // 4) Stamp the partner with its workshop and hand back the login URL.
-      await svc.from("partners").update({ workshop_id: workshopId }).eq("id", partnerId);
+      const { error: stampError } = await svc.from("partners").update({ workshop_id: workshopId }).eq("id", partnerId);
+      // Unstamped, the next "Connect" would make a second workshop for the same contractor.
+      if (stampError) captureError(stampError, { where: "partners:invite:stamp" });
 
       revalidatePath("/partners");
       // The connection stands either way; `linkerror` says only that no login link could be
       // made, and the page says so in the farmer's language rather than in Auth's.
-      if (linkErr || !url) redirect("/partners?linkerror=1");
+      if (linkErr || !url) return "/partners?linkerror=1";
       // The login URL is a bearer credential, it never travels in a query string.
       await setPartnerLink({ pid: partnerId, url });
       return "/partners?connected=1";
@@ -403,7 +415,7 @@ export async function approveLinkRequest(formData: FormData) {
     .eq("workshop_id", workshopId)
     .eq("farm_id", farmId)
     .eq("status", "pending");
-  if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:approveLinkRequest")}`);
 
   /*
    * Bind the partner's own client record so their notes and notebook vehicles follow the
@@ -484,7 +496,7 @@ export async function setPartnerAccess(formData: FormData) {
     .eq("farm_id", farmId)
     .eq("status", "active");
 
-  if (error) redirect(`/partners?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:setPartnerAccess")}`);
   revalidatePath("/partners");
   // `saved=access`: `access` alone is not a result word the Flash clears.
   redirect("/partners?saved=access");

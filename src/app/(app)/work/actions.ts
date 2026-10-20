@@ -8,6 +8,7 @@ import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { isWorkKind, isWorkStatus, isWorkPriority } from "@/lib/work";
 import { canConvertWorkRequest, canRecordWorkAmount, workTransitions } from "@/lib/work-lifecycle";
 import { JOB_TYPES } from "@/lib/job-options";
+import { errorCode } from "@/lib/action-errors";
 
 const INITIATORS: Role[] = ["owner", "manager"];
 const CREW: Role[] = [...INITIATORS, "mechanic", "workshop"];
@@ -74,7 +75,7 @@ export async function createWorkRequest(formData: FormData) {
     created_from_fault_id: s(formData, "fault_id"),
     vat_rate_bps: settings?.vat_rate_bps ?? 1500, created_by: profile.id,
   } });
-  if (error || typeof data !== "string") redirect(`/machines/${machineId}?error=${encodeURIComponent(error?.message ?? "save-failed")}`);
+  if (error || typeof data !== "string") redirect(`/machines/${machineId}?error=${errorCode(error, "app/work/actions:createWorkRequest", "save-failed")}`);
   refreshRequest(data);
   revalidatePath(`/machines/${machineId}`);
   if (s(formData, "fault_id")) revalidatePath("/faults");
@@ -91,7 +92,7 @@ export async function assignWorkRequestProvider(formData: FormData) {
   if (!link) redirect(`/work/${id}?error=forbidden`);
   const { data, error } = await supabase.from("work_requests").update({ workshop_id: workshopId })
     .eq("id", id).eq("status", "requested").is("workshop_id", null).select("id").maybeSingle();
-  if (error || !data) redirect(`/work/${id}?error=${encodeURIComponent(error?.message ?? "work-changed")}`);
+  if (error || !data) redirect(`/work/${id}?error=${errorCode(error, "app/work/actions:assignWorkRequestProvider", "work-changed")}`);
   refreshRequest(id);
   redirect(`/work/${id}?saved=1`);
 }
@@ -106,13 +107,13 @@ export async function updateWorkRequestStatus(formData: FormData) {
   if (status === "accepted") {
     const { data: quotes, error } = await supabase.from("partner_documents").select("id")
       .eq("work_request_id", id).eq("kind", "quote").eq("status", "sent").is("deleted_at", null).limit(1);
-    if (error) redirect(`/work/${id}?error=${encodeURIComponent(error.message)}`);
+    if (error) redirect(`/work/${id}?error=${errorCode(error, "app/work/actions:updateWorkRequestStatus")}`);
     if (quotes?.[0]) redirect(`/documents/${quotes[0].id}`);
   }
   const { error } = await supabase.rpc("update_work_request", {
     p_request: id, p_status: status, p_note: s(formData, "note"),
   });
-  if (error) redirect(`/work/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/work/${id}?error=${errorCode(error, "app/work/actions:updateWorkRequestStatus")}`);
   refreshRequest(id, row.job_card_id);
   redirect(`/work/${id}?saved=1`);
 }
@@ -127,7 +128,7 @@ export async function addWorkRequestNote(formData: FormData) {
     farm_id: row.farm_id, work_request_id: id, from_status: row.status,
     to_status: row.status, note, by_user: profile.id,
   });
-  if (error) redirect(`/work/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/work/${id}?error=${errorCode(error, "app/work/actions:addWorkRequestNote")}`);
   refreshRequest(id);
   redirect(`/work/${id}?saved=note`);
 }
@@ -139,7 +140,7 @@ async function recordAmount(formData: FormData, kind: "quote" | "invoice") {
   // A document is the accounting source when present; don't book the same amount twice.
   const { data: documents, error: documentError } = await supabase.from("partner_documents")
     .select("id").eq("work_request_id", id).eq("kind", kind).neq("status", "void").is("deleted_at", null).limit(1);
-  if (documentError) redirect(`/work/${id}?error=${encodeURIComponent(documentError.message)}`);
+  if (documentError) redirect(`/work/${id}?error=${errorCode(documentError, "app/work/actions:recordAmount")}`);
   if (documents?.length) redirect(`/work/${id}?error=work-use-document`);
   const cents = parseRandsToCents(s(formData, "amount") ?? "");
   if (cents == null || cents < 0 || (kind === "quote" && cents === 0)) redirect(`/work/${id}?error=need-amount`);
@@ -148,7 +149,7 @@ async function recordAmount(formData: FormData, kind: "quote" | "invoice") {
     p_request: id, [kind === "quote" ? "p_quote_cents" : "p_invoice_cents"]: amount,
     p_note: s(formData, "note"),
   });
-  if (error) redirect(`/work/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/work/${id}?error=${errorCode(error, "app/work/actions:recordAmount")}`);
   refreshRequest(id, row.job_card_id);
   redirect(`/work/${id}?saved=${kind}`);
 }
@@ -162,7 +163,7 @@ export async function convertToJobCard(formData: FormData) {
   if (row.job_card_id) redirect(`/jobcards/${row.job_card_id}`);
   if (!canConvertWorkRequest(row.status, role, !!row.workshop_id)) redirect(`/work/${id}?error=work-transition`);
   const { data: jobId, error } = await supabase.rpc("convert_work_request_to_job_card", { p_request: id });
-  if (error || typeof jobId !== "string") redirect(`/work/${id}?error=${encodeURIComponent(error?.message ?? "failed")}`);
+  if (error || typeof jobId !== "string") redirect(`/work/${id}?error=${errorCode(error, "app/work/actions:convertToJobCard", "failed")}`);
   refreshRequest(id, jobId);
   revalidatePath("/jobcards");
   redirect(`/jobcards/${jobId}`);

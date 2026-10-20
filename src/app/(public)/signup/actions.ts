@@ -171,10 +171,13 @@ export async function signUp(formData: FormData): Promise<void> {
   // What they agreed to, and when. Written after the farm exists because the user row is
   // created by `billing_create_pending_signup`, and deliberately NOT backfilled onto
   // anybody else: recording a consent nobody gave is worse than recording none.
-  await svc
+  const { error: termsError } = await svc
     .from("users")
     .update({ terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION })
     .eq("id", userId);
+  // The farm exists and sign-up carries on, but a farm with no record of the terms it
+  // accepted is something we must hear about and repair.
+  if (termsError) captureError(termsError, { where: "signup:terms-record", extra: { userId } });
 
   // Prove the address works. The auth user is already confirmed, it has to be, or they
   // could not sign in and pay in the next two lines, so this is OUR check, it gates

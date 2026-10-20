@@ -5,6 +5,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { rapidRiseLockPath, rapidRiseVerdict, readAssurance } from "@/lib/mfa";
 import { safePath } from "@/lib/safe-path";
+import { must } from "@/lib/supabase/must";
 import {
   type Plan,
   type Feature,
@@ -436,7 +437,9 @@ export type EntitlementCheck = {
 /** Read a farm's plan (defaults to the entry plan if somehow unset/unreadable). */
 export async function getFarmPlan(farmId: string): Promise<Plan> {
   const supabase = await createClient();
-  const { data } = await supabase.from("farms").select("plan").eq("id", farmId).maybeSingle();
+  // A failed read throws (must): falling back to the cheapest plan showed a paying farm
+  // upgrade prompts and refused its downloads with "Upgrade required".
+  const data = must(await supabase.from("farms").select("plan").eq("id", farmId).maybeSingle(), "auth:farm-plan");
   const p = (data as { plan: string } | null)?.plan;
   return p && isPlan(p) ? p : "essential";
 }
@@ -504,11 +507,10 @@ export async function workshopPlan(
   const p = profile ?? (await requireProfile());
   if (p.role !== "workshop" || !p.workshop_id) return { profile: p, plan: null };
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("workshops")
-    .select("plan")
-    .eq("id", p.workshop_id)
-    .maybeSingle();
+  const data = must(
+    await supabase.from("workshops").select("plan").eq("id", p.workshop_id).maybeSingle(),
+    "auth:workshop-plan",
+  );
   const plan = (data as { plan: string } | null)?.plan;
   return { profile: p, plan: plan && isWorkshopPlan(plan) ? plan : "portal" };
 }
@@ -525,11 +527,10 @@ export async function currentWorkshop(
   const p = profile ?? (await requireProfile());
   if (p.role !== "workshop" || !p.workshop_id) return { profile: p, workshop: null, plan: null };
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("workshops")
-    .select(`${BRANDING_COLUMNS}, kind, area, plan`)
-    .eq("id", p.workshop_id)
-    .maybeSingle();
+  const data = must(
+    await supabase.from("workshops").select(`${BRANDING_COLUMNS}, kind, area, plan`).eq("id", p.workshop_id).maybeSingle(),
+    "auth:current-workshop",
+  );
   const row = data as (WorkshopBrandingRow & { plan?: string }) | null;
   const plan = row?.plan;
   return { profile: p, workshop: row, plan: plan && isWorkshopPlan(plan) ? plan : "portal" };

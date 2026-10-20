@@ -11,6 +11,7 @@ import {
   type StatementRow, type Ageing,
 } from "@/lib/statement";
 import type { Lang } from "@/lib/i18n";
+import { mustAll } from "@/lib/supabase/must";
 
 /**
  * A statement of account as a PDF, on the partner's letterhead.
@@ -60,7 +61,7 @@ export async function loadStatement(
     from: string; to: string; lang?: Lang;
   },
 ): Promise<StatementData> {
-  const [{ data: stmt }, { data: aged }, { data: who }] = await Promise.all([
+  const results = await Promise.all([
     readPartnerStatement(supabase, {
       p_workshop: args.workshopId, p_farm: args.farmId, p_client: args.clientId,
       p_from: args.from, p_to: args.to,
@@ -76,6 +77,10 @@ export async function loadStatement(
           .select("name, trading_name, address, vat_number, email")
           .eq("id", args.clientId!).maybeSingle(),
   ]);
+  // Every read or none: a failed read used to email the customer an empty statement with a
+  // balance of R0.00, and download the same.
+  mustAll(results, "statements:load");
+  const [{ data: stmt }, { data: aged }, { data: who }] = results;
 
   const p = (who ?? {}) as Record<string, string | null>;
   return {

@@ -31,6 +31,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
+import { captureError } from "@/lib/observability";
 
 import type {
   ChargeRequest,
@@ -652,13 +653,26 @@ export async function storeAuthorization(
   }
 
   // Only one card per farm may be the default, and it is a partial unique index, so the
-  // incumbent stands down before the newcomer claims it.
-  await supabase
+  // incumbent stands down before the newcomer claims it. Which card stood down is kept: if
+  // the newcomer then fails to save, the incumbent is put back, or the farm would be left
+  // with no default card and the next renewal with nothing to charge.
+  const { data: demoted, error: demoteError } = await supabase
     .from("billing_payment_methods")
     .update({ is_default: false, updated_at: nowIso })
     .eq("farm_id", farmId)
     .eq("is_default", true)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .select("id");
+  if (demoteError) return { paymentMethodId: null, reason: redactMessage(demoteError.message) };
+  const restoreIncumbent = async () => {
+    const ids = ((demoted ?? []) as { id: string }[]).map((row) => row.id);
+    if (!ids.length) return;
+    const { error } = await supabase
+      .from("billing_payment_methods")
+      .update({ is_default: true, updated_at: nowIso })
+      .in("id", ids);
+    if (error) captureError(error, { where: "billing:save-card:restore-default" });
+  };
 
   let id = existingId;
   if (existingId) {
@@ -666,23 +680,32 @@ export async function storeAuthorization(
       .from("billing_payment_methods")
       .update(payload)
       .eq("id", existingId);
-    if (error) return { paymentMethodId: null, reason: redactMessage(error.message) };
+    if (error) {
+      await restoreIncumbent();
+      return { paymentMethodId: null, reason: redactMessage(error.message) };
+    }
   } else {
     const { data, error } = await supabase
       .from("billing_payment_methods")
       .insert(payload)
       .select("id")
       .maybeSingle();
-    if (error) return { paymentMethodId: null, reason: redactMessage(error.message) };
+    if (error) {
+      await restoreIncumbent();
+      return { paymentMethodId: null, reason: redactMessage(error.message) };
+    }
     id = (data as { id: string } | null)?.id ?? null;
   }
 
   if (id && opts.subscriptionId) {
-    await supabase
+    const { error } = await supabase
       .from("billing_subscriptions")
       .update({ default_payment_method_id: id, updated_at: nowIso })
       .eq("id", opts.subscriptionId)
       .eq("farm_id", farmId);
+    // The card is saved; only the subscription's pointer to it did not move. Reported, as a
+    // renewal would otherwise charge the card this replaced.
+    if (error) captureError(error, { where: "billing:save-card:subscription-default" });
   }
   return { paymentMethodId: id };
 }

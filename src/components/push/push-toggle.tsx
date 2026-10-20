@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 /** VAPID public key → bytes for PushManager.subscribe(applicationServerKey). */
 function urlBase64ToBytes(base64String: string): Uint8Array<ArrayBuffer> {
@@ -90,7 +91,7 @@ export function PushToggle({
         applicationServerKey: urlBase64ToBytes(vapidKey as string),
       });
       const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
-      const res = await fetch("/api/push/subscribe", {
+      const res = await fetchWithTimeout("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, ua: navigator.userAgent }),
@@ -110,7 +111,7 @@ export function PushToggle({
       const reg = await navigator.serviceWorker.getRegistration();
       const sub = await reg?.pushManager.getSubscription();
       if (sub) {
-        await fetch("/api/push/unsubscribe", {
+        await fetchWithTimeout("/api/push/unsubscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: sub.endpoint }),

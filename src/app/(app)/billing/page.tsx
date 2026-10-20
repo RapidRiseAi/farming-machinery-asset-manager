@@ -97,6 +97,7 @@ import {
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { PendingGroup } from "@/components/ui/pending-guard";
+import { mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -199,17 +200,7 @@ export default async function BillingPage({
   }
 
   const supabase = await createClient();
-  const [
-    { data: farmData },
-    { data: settingsData },
-    { data: subData },
-    { data: priceData },
-    { data: machineData },
-    { data: invoiceData },
-    { data: paymentData },
-    { data: attemptData },
-    { data: methodData },
-  ] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("farms").select(FARM_BILLING_COLUMNS).eq("id", farmId).maybeSingle(),
     // The primary key is a uuid; the one-row invariant lives on `singleton`, so this is
     // the only correct way to address the row.
@@ -245,6 +236,20 @@ export default async function BillingPage({
     // NEVER `*`, and never a filter on `deleted_at`, see the credential note above.
     supabase.from("billing_payment_methods").select(PAYMENT_METHOD_COLUMNS).eq("farm_id", farmId),
   ]);
+  // Every read or none: with a failed read the "payment settling" state vanished and Pay
+  // was offered while a payment was in flight; the subscribe offer showed to a subscriber.
+  mustAll(results, "billing:page");
+  const [
+    { data: farmData },
+    { data: settingsData },
+    { data: subData },
+    { data: priceData },
+    { data: machineData },
+    { data: invoiceData },
+    { data: paymentData },
+    { data: attemptData },
+    { data: methodData },
+  ] = results;
 
   const farm = (farmData as FarmBillingRow | null) ?? null;
   const settings = (settingsData as BillingSettingsRow | null) ?? null;

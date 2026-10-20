@@ -16,6 +16,8 @@ import { safePath } from "@/lib/safe-path";
 import { sendInviteEmail } from "@/lib/email/invite";
 import { APP_NAME } from "@/lib/env";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 const FARM_ROLES = ["manager", "mechanic", "operator"];
 const ALL_ROLES = ["owner", "manager", "mechanic", "operator", "workshop", "rr_admin"];
@@ -154,19 +156,24 @@ export async function erasePerson(formData: FormData) {
   if (!subject) redirect(`${back}?error=${encodeURIComponent("This account belongs to another primary farm.")}`);
 
   const { error } = await supabase.rpc("erase_personal_data", { p_user: id, p_reason: reason });
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${back}?error=${errorCode(error, "app/team/actions:erasePerson")}`);
 
   // Belt-and-braces: remove the residual email in auth.users and ban re-login. Soft-fails
   // where Auth admin is unavailable, the DB anonymisation + deactivation already stands.
+  // updateUserById answers { error } rather than throwing, so the old try/catch never saw
+  // a failure: the email scrub and the login ban could quietly not happen. Still soft (the
+  // anonymisation and deactivation stand), but reported now, as an erasure request is a
+  // legal duty and somebody must finish it.
   try {
     const svc = createServiceClient();
-    await svc.auth.admin.updateUserById(id, {
+    const { error: authError } = await svc.auth.admin.updateUserById(id, {
       email: `erased+${id}@fleetwise.invalid`,
       user_metadata: { name: "[erased]" },
       ban_duration: "876000h",
     });
-  } catch {
-    // ignore, the person's app access is already revoked
+    if (authError) captureError(authError, { where: "team:erase:auth-scrub", extra: { userId: id } });
+  } catch (authFailure) {
+    captureError(authFailure, { where: "team:erase:auth-scrub", extra: { userId: id } });
   }
 
   revalidatePath(back);
@@ -191,7 +198,7 @@ export async function setUserActive(formData: FormData) {
     .eq("farm_id", farmId)
     .select("id")
     .maybeSingle();
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${back}?error=${errorCode(error, "app/team/actions:setUserActive")}`);
   if (!data) redirect(`${back}?error=${encodeURIComponent("This account belongs to another primary farm.")}`);
   revalidatePath(back);
   // Say which way it went: "Saved" after turning somebody's login off says nothing.

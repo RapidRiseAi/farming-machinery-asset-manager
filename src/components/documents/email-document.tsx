@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { relativeDate } from "@/lib/format";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 export type EmailAttempt = {
   id: string;
@@ -65,7 +66,7 @@ export function EmailDocument({
     setState("sending");
     setDetail(null);
     try {
-      const res = await fetch(`/api/documents/${documentId}/send`, {
+      const res = await fetchWithTimeout(`/api/documents/${documentId}/send`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ to, cc: cc || null, message: message || null, requestId: requestId.current }),

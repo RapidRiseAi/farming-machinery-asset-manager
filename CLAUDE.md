@@ -44,6 +44,13 @@ Supabase auth shim, applies every migration in order, then runs the RLS isolatio
   (`ReportPending`). Dialogs and menus lock while anything in them saves
   (`pending-guard.tsx`: refs and the DOM, never React state, see its note).
   `interaction-guards.test.ts` fails on a new raw submit or plain file link.
+- **A repeatable create, send or payment runs once per request.** Wrap the action in
+  `runOnce` and put `<RequestIdInput action="same-name" />` in its form (the guard test
+  pairs them). Once the record exists, `work` RETURNS its destination, even a warning one;
+  a redirect there releases the claim and a retry creates the record again.
+- **A failure is reported and never looks like success.** `?error=${errorCode(error, where)}`,
+  never `error.message`; a read whose failure would show as "nothing" goes through
+  `must`/`mustAll`; a write before a success message is checked.
 - **History is structural:** soft delete (`deleted_at`/`deleted_by`), append-only `audit_log` (trigger),
   job cards lock after approval (trigger blocks edits; history via audit diffs).
 - **Public QR flow has ZERO anon DB access.** QR encodes an unguessable per-machine `public_token`;

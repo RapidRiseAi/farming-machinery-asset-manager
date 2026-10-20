@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { withTab } from "@/components/ui/tabs-url";
+import { errorCode } from "@/lib/action-errors";
 
 function numOrNull(fd: FormData, k: string): number | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -71,7 +72,7 @@ export async function addServiceLine(formData: FormData) {
     ...due,
     status: "ok",
   });
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/service-actions:addServiceLine")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=service`, "servicing"));
 }
@@ -94,7 +95,7 @@ export async function updateServiceLine(formData: FormData) {
     .from("service_plan_lines")
     .update({ task, interval_hours, interval_months, last_done_reading, last_done_date, ...due })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/service-actions:updateServiceLine")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=service`, "servicing"));
 }
@@ -109,7 +110,7 @@ export async function deleteServiceLine(formData: FormData) {
     .from("service_plan_lines")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/service-actions:deleteServiceLine")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=service`, "servicing"));
 }
@@ -156,7 +157,7 @@ export async function applyTemplate(formData: FormData) {
   });
 
   const { error } = await supabase.from("service_plan_lines").insert(rows);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/service-actions:applyTemplate")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=template`, "servicing"));
 }

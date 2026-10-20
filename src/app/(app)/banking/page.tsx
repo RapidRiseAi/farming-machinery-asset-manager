@@ -18,6 +18,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Disclosure } from "@/components/ui/disclosure";
 import { AllClear, GetStarted } from "@/components/ui/empty-state";
 import { BankLineRow, type BankLineView, type SuggestionView } from "@/components/banking/line-row";
+import { errorMessage } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -206,7 +207,7 @@ export default async function BankingPage({
 
       <Flash
         tone="error"
-        message={sp.error ? (knownErrors.has(sp.error) ? t(`bank.err.${sp.error}`, locale) : sp.error) : undefined}
+        message={sp.error ? (knownErrors.has(sp.error) ? t(`bank.err.${sp.error}`, locale) : errorMessage(sp.error, locale)) : undefined}
       />
       <Flash
         tone="success"

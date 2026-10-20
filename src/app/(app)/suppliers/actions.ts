@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { isDuplicateName } from "@/lib/suppliers";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * The supplier book (G18).
@@ -119,7 +120,7 @@ export async function setSupplierActive(formData: FormData) {
     .update({ active, updated_at: new Date().toISOString() })
     .eq("id", id);
 
-  if (error) redirect(`/suppliers?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/suppliers?error=${errorCode(error, "app/suppliers/actions:setSupplierActive")}`);
   revalidatePath("/suppliers");
   revalidatePath("/expenses");
   redirect("/suppliers?saved=1");
@@ -146,7 +147,7 @@ export async function deleteSupplier(formData: FormData) {
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
 
-  if (error) redirect(`/suppliers?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/suppliers?error=${errorCode(error, "app/suppliers/actions:deleteSupplier")}`);
   revalidatePath("/suppliers");
   revalidatePath("/expenses");
   redirect("/suppliers?deleted=1");

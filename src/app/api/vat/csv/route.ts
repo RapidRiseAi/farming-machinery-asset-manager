@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
 import { toCsv, csvResponse, centsToR } from "@/app/(app)/reports/data";
 import { EMPTY_VAT_RETURN, type VatReturn } from "@/lib/expenses";
+import { mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
-  const [{ data: vatData }, { data: docs }, { data: exps }] = await Promise.all([
+  const results = await Promise.all([
     supabase.rpc("partner_vat_return", { p_workshop: workshop.id, p_from: from, p_to: to }),
     // Every row of the period: the export is what the accountant files from.
     readAll(() => supabase
@@ -48,6 +49,10 @@ export async function GET(request: Request) {
       .is("deleted_at", null)
       .order("expense_date")),
   ]);
+  // Every read or none: this is what the accountant files from, and a failed read used to
+  // become a return of R0 downloaded with a 200.
+  mustAll(results, "vat:csv");
+  const [{ data: vatData }, { data: docs }, { data: exps }] = results;
 
   const v = (((vatData ?? []) as VatReturn[])[0] ?? EMPTY_VAT_RETURN);
   const rows: (string | number)[][] = [

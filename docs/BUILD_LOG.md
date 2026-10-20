@@ -5582,3 +5582,48 @@ answer is killed after it reached the server shows the connection-dropped screen
 entry sent again after a reload lands on "Saved." and the database holds one row. A guard
 test fails when a `runOnce` action has no form sending its id. 659 unit tests, all SQL
 suites, the click-through. Medium follow-ups are listed in the launch checklist.
+
+## 2026-10-20 - Failures are reported and stop looking like success (interaction safety, release 3 of 3)
+
+The error audit's headline: handled failures reached nobody, and many looked like success.
+69 of 70 server-action files never reported what they caught; 105 redirects put the
+database's own words in the address bar; about 230 reads dropped their error, so a failed
+read rendered as "no machines", "R0 VAT", "0 overdue"; about 90 writes were ignored and
+followed by a success message.
+
+- **`errorCode`** (lib/action-errors) replaces `encodeURIComponent(error.message)` on 109
+  redirects. Our SQL's own refusals (P0001, 22023, unique and check violations) and Auth or
+  Storage 4xx refusals keep their words for `errorMessage()`, as before; anything else is
+  reported with where it happened and said as "That did not go through"; row-level
+  security refusals say "not allowed". Pages that printed unknown codes raw (expenses,
+  banking, the document page) go through `errorMessage`.
+- **`must`/`mustAll`** (lib/supabase/must): a failed read throws, so a page shows the
+  error screen and a download fails with a sentence instead of a file of zeros. On the
+  report data (every CSV, the workbook, the monthly emails, whose build failures are now
+  reported too), VAT, statements, supplier statements and remittances, documents (an
+  invoice could be emailed without its lines), the dashboard, the machines list, the driver
+  home, billing (Pay was offered with a payment in flight) and the plan lookups (a paying
+  farm was shown upgrade prompts). Swept as eight personas against a production build: no
+  page fails for any role, and no read was quietly failing for one.
+- **Writes checked** where money or a record is at stake: banking undo, expense mark-paid,
+  delete and receipt link, PO receive-all, recurring schedule pause/delete and line removal,
+  recurring expense delete, the nightly AI exchange rate and prices (billing would run on
+  stale ones while the cron said ok), receipt and payment-failure notice claim releases,
+  erasure's Auth scrub, the sign-up terms record, contractor connection. Saving a card puts
+  the previous default back if the new card fails (test `store-authorization.test.ts`),
+  instead of leaving a farm with no card for its next renewal.
+- **Release 2 correction found here:** inside `runOnce`, a redirect after the record
+  exists released the claim, so a retry could create it again (an expense whose receipt
+  failed, an invoice whose lines failed, a debit note, a report schedule, a contractor
+  link). Those return now, and `runOnce` says why.
+- Client fetches time out (`fetchWithTimeout`, two minutes) instead of spinning for good;
+  the public and sign-in areas have error screens in the person's language (they fell back
+  to an English "the app did not start"); "Try again" refetches the page first. The
+  assistant's catch-alls and Codex's WhatsApp worker and cron report their failures (the
+  WhatsApp ones by fixed code only, keeping that module's no-message-text rule).
+  `pnpm test:voice` runs again (it lacked the server-only shim).
+
+Monitoring, read from the Vercel account on 2026-10-20: `SENTRY_DSN`, `OPS_ALERT_EMAIL` and
+`AI_ALERT_EMAIL` are not set in production, so every report above reaches only Vercel's
+log stream. Setting `OPS_ALERT_EMAIL` and a Sentry DSN is on the founder's checklist.
+668 unit tests, the click-through and all spam checks on a production build.

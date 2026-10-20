@@ -12,6 +12,7 @@ import {
   type SupplierStatementRow, type SupplierAgeing, type RemittanceRow,
 } from "@/lib/supplier-statement";
 import type { Lang } from "@/lib/i18n";
+import { mustAll } from "@/lib/supabase/must";
 
 /**
  * A supplier statement and a remittance advice as PDFs, on the partner's own letterhead
@@ -89,7 +90,7 @@ export async function loadSupplierStatement(
     from: string; to: string; lang?: Lang;
   },
 ): Promise<SupplierStatementData | null> {
-  const [{ data: stmt }, { data: aged }, { data: who }] = await Promise.all([
+  const results = await Promise.all([
     readSupplierStatement(supabase, {
       p_workshop: args.workshopId, p_supplier: args.supplierId,
       p_from: args.from, p_to: args.to,
@@ -100,6 +101,8 @@ export async function loadSupplierStatement(
     supabase.from("suppliers").select(PARTY_COLUMNS)
       .eq("id", args.supplierId).is("deleted_at", null).maybeSingle(),
   ]);
+  mustAll(results, "supplier-statement:load");
+  const [{ data: stmt }, { data: aged }, { data: who }] = results;
 
   if (!who) return null;
 
@@ -119,13 +122,15 @@ export async function loadSupplierRemittance(
   supabase: SupabaseClient,
   args: { workshop: unknown; workshopId: string; supplierId: string; paidOn: string; lang?: Lang },
 ): Promise<SupplierRemittanceData | null> {
-  const [{ data: rows }, { data: who }] = await Promise.all([
+  const results = await Promise.all([
     supabase.rpc("supplier_remittance", {
       p_workshop: args.workshopId, p_supplier: args.supplierId, p_paid_on: args.paidOn,
     }),
     supabase.from("suppliers").select(PARTY_COLUMNS)
       .eq("id", args.supplierId).is("deleted_at", null).maybeSingle(),
   ]);
+  mustAll(results, "supplier-remittance:load");
+  const [{ data: rows }, { data: who }] = results;
 
   if (!who) return null;
 

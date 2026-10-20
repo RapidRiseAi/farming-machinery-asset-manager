@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseStatement, MAX_STATEMENT_ROWS } from "@/lib/banking";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Bank statement import and reconciliation (G15).
@@ -75,7 +76,7 @@ export async function importBankStatement(formData: FormData) {
     .select("id")
     .single();
 
-  if (batchError || !batch) redirect(`/banking/import?error=${encodeURIComponent(batchError?.message ?? "failed")}`);
+  if (batchError || !batch) redirect(`/banking/import?error=${errorCode(batchError, "app/banking/actions:importBankStatement", "failed")}`);
 
   const rows = parsed.rows
     .filter((r) => r.row)
@@ -103,7 +104,7 @@ export async function importBankStatement(formData: FormData) {
         ignoreDuplicates: true,
       })
       .select("id");
-    if (error) redirect(`/banking/import?error=${encodeURIComponent(error.message)}`);
+    if (error) redirect(`/banking/import?error=${errorCode(error, "app/banking/actions:importBankStatement")}`);
     added += (data ?? []).length;
   }
 
@@ -188,7 +189,7 @@ export async function confirmMatch(formData: FormData) {
     });
     if (error) {
       if (isDuplicate(error.code)) redirect("/banking?already=1");
-      redirect(`/banking?error=${encodeURIComponent(error.message)}`);
+      redirect(`/banking?error=${errorCode(error, "app/banking/actions:confirmMatch")}`);
     }
   } else if (kind === "expense") {
     if (l.amount_cents >= 0) redirect("/banking?error=wrong_direction");
@@ -204,7 +205,7 @@ export async function confirmMatch(formData: FormData) {
       .select("id");
     if (error) {
       if (isDuplicate(error.code)) redirect("/banking?already=1");
-      redirect(`/banking?error=${encodeURIComponent(error.message)}`);
+      redirect(`/banking?error=${errorCode(error, "app/banking/actions:confirmMatch")}`);
     }
     if ((data ?? []).length === 0) redirect("/banking?already=1");
   } else {
@@ -237,26 +238,31 @@ export async function undoMatch(formData: FormData) {
   if (!lineId) redirect("/banking?error=not_found");
 
   const supabase = await createClient();
-  const { data: line } = await supabase
+  const { data: line, error: lineError } = await supabase
     .from("bank_lines")
     .select("id, matched_payment_id, matched_expense_id")
     .eq("id", lineId)
     .is("deleted_at", null)
     .maybeSingle();
+  if (lineError) redirect(`/banking?error=${errorCode(lineError, "banking:undo:read")}`);
   if (!line) redirect("/banking?error=not_found");
   const l = line as { id: string; matched_payment_id: string | null; matched_expense_id: string | null };
 
+  // Each undo is checked: "undone" over a payment still recorded, or a bill still marked
+  // paid, leaves the books wrong while the screen says they are right.
   if (l.matched_payment_id) {
-    await supabase
+    const { error } = await supabase
       .from("partner_payments")
       .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
       .eq("id", l.matched_payment_id);
+    if (error) redirect(`/banking?error=${errorCode(error, "banking:undo:payment")}`);
   }
   if (l.matched_expense_id) {
-    await supabase
+    const { error } = await supabase
       .from("partner_expenses")
       .update({ paid_on: null, bank_line_id: null, updated_at: new Date().toISOString() })
       .eq("id", l.matched_expense_id);
+    if (error) redirect(`/banking?error=${errorCode(error, "banking:undo:expense")}`);
   }
 
   revalidatePath("/banking");

@@ -7,6 +7,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
 import { parseRandsToCents } from "@/lib/money";
 import { ReportPending } from "@/components/ui/pending-guard";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 /**
  * Uploader for job-card quote / invoice / photo attachments. Recording an invoice with
@@ -93,7 +94,7 @@ export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds =
       setHasPendingCapture(true);
       const captureId = receipt.capture;
       fd.set("capture_id", captureId);
-      const res = await fetch("/api/jobcards/media", { method: "POST", body: fd });
+      const res = await fetchWithTimeout("/api/jobcards/media", { method: "POST", body: fd });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setErr(errorMessage(body.error ?? "save-failed", locale) ?? t("jobcards.mediaError", locale));

@@ -48,6 +48,8 @@ const FALLBACK = "errors.generic";
 const CODE_KEYS: Record<string, string> = {
   "driving-invalid": "driving.error",
 
+  // A failure that was ours (errorCode in lib/action-errors): reported, and said plainly.
+  "try-again": "interaction.actionFailed",
   // A repeat of a request whose first attempt is still running (runOnce, request_claims).
   "still-saving": "errors.stillSaving",
   "line-failed": "errors.recurringLineFailed",

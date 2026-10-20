@@ -5,6 +5,7 @@ import { rands } from "@/lib/money";
 import { brandingFrom } from "@/lib/branding";
 import { brandingLogoBytes } from "@/lib/partner-media";
 import { EMPTY_VAT_RETURN, type VatReturn } from "@/lib/expenses";
+import { must } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +32,10 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
-  const { data } = await supabase.rpc("partner_vat_return", {
+  // A failed read is a failed download, never a VAT return of R0 with a 200.
+  const data = must(await supabase.rpc("partner_vat_return", {
     p_workshop: workshop.id, p_from: from, p_to: to,
-  });
+  }), "vat:pdf");
   const v = (((data ?? []) as VatReturn[])[0] ?? EMPTY_VAT_RETURN);
 
   const brand = brandingFrom(workshop);

@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth";
 import { withTab } from "@/components/ui/tabs-url";
 import type { Role } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
+import { errorCode } from "@/lib/action-errors";
 
 // Owner/manager/mechanic maintain a machine's service kit (the parts BOM). Operators
 // and external workshops are read-only here.
@@ -39,7 +40,7 @@ export async function createServiceKit(formData: FormData) {
     notes: s(formData, "notes"),
     created_by: profile.id,
   });
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/kit-actions:createServiceKit")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
@@ -54,7 +55,7 @@ export async function deleteServiceKit(formData: FormData) {
   // Soft-delete the kit and its items together (items cascade on hard delete only).
   await supabase.from("service_kit_items").update({ deleted_at: now, deleted_by: profile.id }).eq("service_kit_id", id).is("deleted_at", null);
   const { error } = await supabase.from("service_kits").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/kit-actions:deleteServiceKit")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
@@ -99,7 +100,7 @@ export async function addKitItem(formData: FormData) {
     qty: num(formData, "qty") ?? 1,
     unit_cost_cents: unitCents,
   });
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/kit-actions:addKitItem")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
@@ -119,7 +120,7 @@ export async function updateKitItem(formData: FormData) {
       unit_cost_cents: parseRandsToCents(String(formData.get("unit_cost") ?? "")),
     })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/kit-actions:updateKitItem")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }
@@ -134,7 +135,7 @@ export async function deleteKitItem(formData: FormData) {
     .from("service_kit_items")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(withTab(`/machines/${machineId}?error=${encodeURIComponent(error.message)}`, "servicing"));
+  if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/kit-actions:deleteKitItem")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=kit`, "servicing"));
 }

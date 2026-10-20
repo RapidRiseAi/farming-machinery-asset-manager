@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { MACHINE_TYPES } from "@/lib/machine-options";
+import { errorCode } from "@/lib/action-errors";
 
 type TemplateLine = { task: string; interval_hours: number | null; interval_months: number | null };
 
@@ -39,7 +40,7 @@ export async function createTemplate(formData: FormData) {
   const supabase = await createClient();
   // farm_id null = global library template; st_ins policy allows rr_admin.
   const { error } = await supabase.from("service_templates").insert({ farm_id: null, machine_type, name, lines });
-  if (error) redirect(`/admin/templates?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/admin/templates?error=${errorCode(error, "app/admin/templates/actions:createTemplate")}`);
   revalidatePath("/admin/templates");
   redirect("/admin/templates?saved=1");
 }
@@ -55,7 +56,7 @@ export async function updateTemplate(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.from("service_templates").update({ name, machine_type, lines }).eq("id", id);
-  if (error) redirect(`/admin/templates?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/admin/templates?error=${errorCode(error, "app/admin/templates/actions:updateTemplate")}`);
   revalidatePath("/admin/templates");
   redirect("/admin/templates?saved=1");
 }
@@ -68,7 +69,7 @@ export async function deleteTemplate(formData: FormData) {
     .from("service_templates")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
-  if (error) redirect(`/admin/templates?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/admin/templates?error=${errorCode(error, "app/admin/templates/actions:deleteTemplate")}`);
   revalidatePath("/admin/templates");
   redirect("/admin/templates?saved=1");
 }

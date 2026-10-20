@@ -12,6 +12,7 @@ import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { defaultDueDate, type DocKind, type DocLineKind } from "@/lib/partner-docs";
 import { safePath } from "@/lib/safe-path";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Quotes and invoices (F14b/F14c).
@@ -242,7 +243,7 @@ export async function createDocument(formData: FormData) {
         p_workshop: profile.workshop_id,
         p_kind: kind,
       });
-      if (numErr) redirect(`/documents?error=${encodeURIComponent(numErr.message)}`);
+      if (numErr) redirect(`/documents?error=${errorCode(numErr, "app/documents/actions:createDocument")}`);
 
       const termsDays = await termsDaysFor(supabase, profile.workshop_id, kind, recipient, branding);
 
@@ -268,7 +269,7 @@ export async function createDocument(formData: FormData) {
         .select("id")
         .single();
 
-      if (error) redirect(`/documents?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/documents?error=${errorCode(error, "app/documents/actions:createDocument")}`);
       revalidatePath("/documents");
       return `/documents/${(data as { id: string }).id}`;
     },
@@ -325,7 +326,7 @@ export async function addDocumentLine(formData: FormData) {
         unit_price_cents: priceCents == null ? 0 : inclVat ? exVatCents(priceCents, doc.vat_rate_bps) : priceCents,
       });
 
-      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:addDocumentLine")}`);
       revalidatePath(`/documents/${id}`);
       return `/documents/${id}?added=1`;
     },
@@ -375,7 +376,7 @@ export async function updateDocument(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:updateDocument")}`);
   revalidatePath(`/documents/${id}`);
   redirect(`/documents/${id}?saved=1`);
 }
@@ -411,7 +412,7 @@ export async function sendDocument(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:sendDocument")}`);
   revalidatePath(`/documents/${id}`);
   revalidatePath("/documents");
   if (doc.work_request_id) revalidatePath(`/work/${doc.work_request_id}`);
@@ -459,7 +460,7 @@ export async function convertQuoteToInvoice(formData: FormData) {
         p_workshop: doc.workshop_id,
         p_kind: "invoice",
       });
-      if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
+      if (numErr) redirect(`/documents/${id}?error=${errorCode(numErr, "app/documents/actions:convertQuoteToInvoice")}`);
 
       const { data: full } = await supabase
         .from("partner_documents")
@@ -506,7 +507,7 @@ export async function convertQuoteToInvoice(formData: FormData) {
         .select("id")
         .single();
 
-      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:convertQuoteToInvoice")}`);
       const invoiceId = (created as { id: string }).id;
 
       const { data: lines } = await supabase
@@ -525,7 +526,7 @@ export async function convertQuoteToInvoice(formData: FormData) {
         if (linesError) {
           captureError(linesError, { where: "documents:convert:lines" });
           revalidatePath("/documents");
-          redirect(`/documents/${invoiceId}?error=lines-failed`);
+          return `/documents/${invoiceId}?error=lines-failed`;
         }
       }
 
@@ -590,7 +591,7 @@ export async function billQuoteStage(formData: FormData) {
         p_workshop: quote.workshop_id,
         p_kind: "invoice",
       });
-      if (numErr) redirect(`/documents/${quoteId}?error=${encodeURIComponent(numErr.message)}`);
+      if (numErr) redirect(`/documents/${quoteId}?error=${errorCode(numErr, "app/documents/actions:billQuoteStage")}`);
 
       const label = s(formData, "stage_label");
       const stageTermsDays = await termsDaysFor(
@@ -624,7 +625,7 @@ export async function billQuoteStage(formData: FormData) {
         })
         .select("id")
         .single();
-      if (error) redirect(`/documents/${quoteId}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/documents/${quoteId}?error=${errorCode(error, "app/documents/actions:billQuoteStage")}`);
 
       const invoiceId = (created as { id: string }).id;
 
@@ -644,7 +645,7 @@ export async function billQuoteStage(formData: FormData) {
       if (lineError) {
         captureError(lineError, { where: "documents:stage:line" });
         revalidatePath("/documents");
-        redirect(`/documents/${invoiceId}?error=lines-failed`);
+        return `/documents/${invoiceId}?error=lines-failed`;
       }
 
       revalidatePath(`/documents/${quoteId}`);
@@ -671,7 +672,7 @@ export async function acceptDocument(formData: FormData) {
     .from("partner_documents")
     .update({ status: "accepted", accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("id", id).eq("status", "sent").select("id").maybeSingle();
-  if (error || !updated) redirect(`/documents/${id}?error=${encodeURIComponent(error?.message ?? "work-changed")}`);
+  if (error || !updated) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:acceptDocument", "work-changed")}`);
   revalidatePath("/documents");
   revalidatePath(`/documents/${id}`);
   if (doc.work_request_id) revalidatePath(`/work/${doc.work_request_id}`);
@@ -698,7 +699,7 @@ export async function declineDocument(formData: FormData) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id).eq("status", "sent").select("id").maybeSingle();
-  if (error || !updated) redirect(`/documents/${id}?error=${encodeURIComponent(error?.message ?? "work-changed")}`);
+  if (error || !updated) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:declineDocument", "work-changed")}`);
   revalidatePath("/documents");
   revalidatePath(`/documents/${id}`);
   if (doc.work_request_id) revalidatePath(`/work/${doc.work_request_id}`);
@@ -745,7 +746,7 @@ export async function recordPayment(formData: FormData) {
         recorded_by: profile.id,
       });
 
-      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:recordPayment")}`);
       revalidatePath(`/documents/${id}`);
       return `/documents/${id}?paid=1`;
     },
@@ -815,7 +816,7 @@ export async function voidDocument(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:voidDocument")}`);
   revalidatePath("/documents");
   revalidatePath(`/documents/${id}`);
   redirect(`/documents/${id}?voided=1`);
@@ -872,7 +873,7 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
         p_workshop: profile.workshop_id,
         p_kind: noteKind,
       });
-      if (numErr) redirect(`/documents/${id}?error=${encodeURIComponent(numErr.message)}`);
+      if (numErr) redirect(`/documents/${id}?error=${errorCode(numErr, "app/documents/actions:createNote")}`);
 
       const { data: full } = await supabase
         .from("partner_documents")
@@ -903,16 +904,17 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
         .select("id")
         .single();
 
-      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:createNote")}`);
       const newId = (created as { id: string }).id;
 
       // A CREDIT note copies the invoice's lines in, because crediting the whole thing is the
       // common case and trimming what was actually right is quicker than retyping what was
       // wrong. A DEBIT note starts empty, it is the bit that was LEFT OFF, so there is
       // nothing on the invoice to copy.
+      // The note exists from here on: return (runOnce records it), never redirect.
       if (noteKind === "debit_note") {
         revalidatePath("/documents");
-        redirect(`/documents/${newId}?credit=1`);
+        return `/documents/${newId}?credit=1`;
       }
 
       const { data: lines } = await supabase
@@ -930,7 +932,7 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
         if (linesError) {
           captureError(linesError, { where: `documents:${noteKind}:lines` });
           revalidatePath("/documents");
-          redirect(`/documents/${newId}?error=lines-failed`);
+          return `/documents/${newId}?error=lines-failed`;
         }
       }
 
@@ -1039,7 +1041,7 @@ export async function reviseDocument(formData: FormData) {
     p_lines: lines,
   });
 
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:reviseDocument")}`);
   revalidatePath(`/documents/${id}`);
   revalidatePath("/documents");
   redirect(`/documents/${id}?revised=1`);
@@ -1091,7 +1093,7 @@ export async function recordRefund(formData: FormData) {
         recorded_by: profile.id,
       });
 
-      if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+      if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:recordRefund")}`);
       revalidatePath(`/documents/${id}`);
       return `/documents/${id}?refunded=1`;
     },
@@ -1121,7 +1123,7 @@ export async function writeOffDocument(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("write_off_document", { p_document: id, p_reason: reason });
-  if (error) redirect(`/documents/${id}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:writeOffDocument")}`);
 
   revalidatePath(`/documents/${id}`);
   revalidatePath("/documents");

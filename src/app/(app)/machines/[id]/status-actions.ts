@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireFarmRole, requireProfile } from "@/lib/auth";
 import { MACHINE_STATUSES } from "@/lib/machine-options";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Change only a machine's status (standby, in the workshop, sold, retired...).
@@ -39,7 +40,7 @@ export async function setMachineStatus(formData: FormData) {
     .update({ status })
     .eq("id", id)
     .eq("farm_id", farmId);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${back}?error=${errorCode(error, "app/machines/[id]/status-actions:setMachineStatus")}`);
 
   revalidatePath(back);
   revalidatePath("/machines");

@@ -10,6 +10,7 @@ import { JOB_TYPES } from "@/lib/job-options";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { todayInSouthAfrica } from "@/lib/assistant/date";
 import { canEditJobWork, canChangeJobStatus, jobCardPatch, needsJobMeter, parseJobLine, type JobWork } from "@/lib/jobcard-workflow";
+import { errorCode } from "@/lib/action-errors";
 
 // Who may work job cards (Scope §2): internal mechanic, manager, owner, external workshop.
 const CREW: Role[] = ["rr_admin", "owner", "manager", "mechanic", "workshop"];
@@ -122,7 +123,7 @@ export async function createJobCard(formData: FormData) {
       date_in: todayInSouthAfrica(),
     },
   });
-  if (error || typeof data !== "string") redirect(`/jobcards?error=${encodeURIComponent(error?.message ?? "save-failed")}`);
+  if (error || typeof data !== "string") redirect(`/jobcards?error=${errorCode(error, "app/jobcards/actions:createJobCard", "save-failed")}`);
 
   // Linking the source fault is performed atomically by the database trigger. Keeping
   // the side effect in the same transaction prevents a card from being created while

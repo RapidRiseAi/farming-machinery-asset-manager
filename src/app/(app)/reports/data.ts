@@ -7,6 +7,7 @@ import {
 } from "@/lib/analytics";
 import { budgetProgress, type Budget, type BudgetCostRow, type BudgetStatus } from "@/lib/budgets";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 
 export type ReportFilters = { from: string | null; to: string | null; includeInactive: boolean; group: string | null };
 
@@ -98,7 +99,7 @@ export async function getReportData(
     farmId ? (q as { eq(c: string, v: string): Q }).eq("farm_id", farmId) : q;
   // Analysis window for utilisation/downtime (bounded; a trailing window for "all time").
   const win = analysisWindow(f.from, f.to);
-  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }, { data: wrData }, { data: wreData }, { data: wsData }, { data: budgetData }, { data: readingData }, { data: downtimeData }] = await Promise.all([
+  const results = await Promise.all([
     byFarm(supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null)),
     readAll(() => byFarm(supabase.from(operational("job_cards")).select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null))),
     readAll(() => byFarm(supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null))),
@@ -116,6 +117,10 @@ export async function getReportData(
     // Downtime days per machine, reconstructed from the audit-log status trail (0361 rpc).
     supabase.rpc("fleet_downtime", { p_from: win.from, p_to: win.to }),
   ]);
+  // Every read or none: one failed read used to become zeros in a report that was then
+  // downloaded, or emailed to an accountant on the 1st, as the real thing.
+  mustAll(results, "reports:data");
+  const [{ data: mData }, { data: jcData }, { data: partData }, { data: faultData }, { data: splData }, { data: costData }, { data: fuelData }, { data: delData }, { data: wrData }, { data: wreData }, { data: wsData }, { data: budgetData }, { data: readingData }, { data: downtimeData }] = results;
 
   const machines = (mData as Machine[] | null) ?? [];
   const activeFilter = (m: Machine) => f.includeInactive || (m.status !== "retired" && m.status !== "sold");
@@ -321,7 +326,7 @@ export async function getReportData(
   let hoursPerDay = DEFAULT_HOURS_PER_DAY;
   let kmPerDay = DEFAULT_KM_PER_DAY;
   if (farmId) {
-    const { data: farmRow } = await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle();
+    const farmRow = must(await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle(), "reports:farm-settings");
     const s = ((farmRow as { settings: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
     hoursPerDay = Number(s.utilisation_hours_per_day) || DEFAULT_HOURS_PER_DAY;
     kmPerDay = Number(s.utilisation_km_per_day) || DEFAULT_KM_PER_DAY;

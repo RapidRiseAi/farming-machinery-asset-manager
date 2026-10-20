@@ -10,6 +10,7 @@ import { percentToBps } from "@/lib/format";
 import { ownedUpdate } from "@/lib/partial-form";
 import { LAYOUT_SWITCHES } from "@/lib/doc-layout";
 import { isDocTemplate, templateLayout } from "@/lib/doc-templates";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * A partner maintaining its own business profile and letterhead (F14a).
@@ -108,7 +109,7 @@ export async function updatePartnerProfile(formData: FormData) {
     .update(patch)
     .eq("id", profile.workshop_id);
 
-  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/contractor/settings?error=${errorCode(error, "app/contractor/settings/actions:updatePartnerProfile")}`);
   revalidatePath("/contractor/settings");
   redirect("/contractor/settings?saved=1");
 }
@@ -140,7 +141,7 @@ export async function uploadPartnerLogo(formData: FormData) {
 
   const service = createServiceClient();
   const { error } = await service.storage.from("partner-branding").upload(path, bytes, { contentType, upsert: true });
-  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/contractor/settings?error=${errorCode(error, "app/contractor/settings/actions:uploadPartnerLogo")}`);
 
   const supabase = await createClient();
   await supabase.from("workshops").update({ logo_path: path }).eq("id", profile.workshop_id);
@@ -191,7 +192,7 @@ export async function updateDocumentLayout(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("update_document_layout", { p_patch: patch });
-  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/contractor/settings?error=${errorCode(error, "app/contractor/settings/actions:updateDocumentLayout")}`);
 
   revalidatePath("/contractor/settings");
   revalidatePath("/documents");
@@ -230,7 +231,7 @@ export async function applyDocumentTemplate(formData: FormData) {
     p_template: id,
     p_layout: templateLayout(id),
   });
-  if (error) redirect(`/contractor/settings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/contractor/settings?error=${errorCode(error, "app/contractor/settings/actions:applyDocumentTemplate")}`);
 
   revalidatePath("/contractor/settings");
   revalidatePath("/documents");

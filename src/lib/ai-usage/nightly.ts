@@ -34,7 +34,10 @@ export async function refreshFxRate(supabase: SupabaseClient): Promise<string> {
     await openHealthEvent(supabase, "fx_stale", "usd_zar", { proposed: rate, current: Number(last.usd_zar), day });
     return `ok (held: ${rate} is outside the band of ${last.usd_zar})`;
   }
-  await supabase.from("fx_rates").upsert({ day, usd_zar: rate.toFixed(4), source: "ecb" }, { onConflict: "day", ignoreDuplicates: true });
+  // Thrown, not reported as "ok": AI is billed cost-plus from this rate, and a rate that
+  // did not save left billing on a stale one while the cron said all was well.
+  const { error: fxError } = await supabase.from("fx_rates").upsert({ day, usd_zar: rate.toFixed(4), source: "ecb" }, { onConflict: "day", ignoreDuplicates: true });
+  if (fxError) throw new Error(`fx rate not saved (${fxError.code ?? "error"})`);
   await resolveHealthEvents(supabase, "fx_stale");
   return `ok (${day} ${rate})`;
 }
@@ -91,7 +94,8 @@ export async function refreshPrices(supabase: SupabaseClient): Promise<string> {
         held += 1;
         continue;
       }
-      await supabase.from("ai_prices").insert({ model, unit, usd_per_unit: proposed, source: "gateway" });
+      const { error: priceError } = await supabase.from("ai_prices").insert({ model, unit, usd_per_unit: proposed, source: "gateway" });
+      if (priceError) throw new Error(`price for ${model} ${unit} not saved (${priceError.code ?? "error"})`);
       taken += 1;
     }
     if (await onFile()) await resolveHealthEvents(supabase, "model_unpriced", model);

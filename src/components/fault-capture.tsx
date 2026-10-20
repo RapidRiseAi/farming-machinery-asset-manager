@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Fact, FactList } from "@/components/ui/facts";
 import { Photo } from "@/components/ui/photo";
 import { cn } from "@/components/ui/cn";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 const COMMON = ["wont_start", "leak", "noise", "tyre", "hydraulic", "electrical", "other"] as const;
 const URGENCIES = ["can_work", "limping", "stopped"] as const;
@@ -265,7 +266,7 @@ export function FaultCapture({
         Object.entries(fields).forEach(([key,value])=>form.set(key,value));
         if (compressedPhoto) form.set("photo",compressedPhoto,"photo.jpg");
         if (voice) form.set("voice",voice,"voice.webm");
-        const response = await fetch("/api/public/fault",{method:"POST",body:form});
+        const response = await fetchWithTimeout("/api/public/fault",{method:"POST",body:form});
         const result=await response.json();
         if (!response.ok || result.media_saved===false) throw new Error("capture_failed");
         window.location.href=redirectTo;
@@ -304,7 +305,7 @@ export function FaultCapture({
 
     let res: Response;
     try {
-      res = await fetch("/api/sync", { method: "POST", body: buildFormData(mutation) });
+      res = await fetchWithTimeout("/api/sync", { method: "POST", body: buildFormData(mutation) });
     } catch {
       // Network dropped mid-send → queue for later if we can.
       if (canQueueOffline()) {

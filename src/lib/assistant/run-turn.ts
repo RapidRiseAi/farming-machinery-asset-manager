@@ -51,6 +51,7 @@ import {
   updateVoiceCapture,
 } from "@/lib/assistant/store";
 import type { AssistantAnswerPage, AssistantDraft, AssistantLocale, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
+import { captureError } from "@/lib/observability";
 
 
 function json(body: AssistantTurnResponse, status = 200) {
@@ -218,7 +219,10 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
     } else {
       writableMachines = machines;
     }
-  } catch {
+  } catch (error) {
+    // Said to the person; reported for us. A paid turn failing for a reason nobody hears
+    // about is a farm's AI quietly not working.
+    captureError(error, { where: "assistant:turn:fleet-data" });
     return json({
       kind: "error",
       code: "data_unavailable",
@@ -1043,7 +1047,8 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
       conversationId: interactionId,
       proposal: proposalFor(interactionId, draft, machine, body.locale, expiresAt, tanks.find((tank) => tank.id === draft.tankId) ?? null),
     });
-  } catch {
+  } catch (error) {
+    captureError(error, { where: "assistant:turn" });
     if (interactionId && expectedInteractionStatus === "processing") {
       await releaseClarification(interactionId, context.farmId, context.profile.id).catch(() => undefined);
     }

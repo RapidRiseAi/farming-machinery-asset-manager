@@ -14,6 +14,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DateText } from "@/components/ui/date-text";
 import { FaultStatus } from "@/components/ui/status";
 import { ReportFaultDialog } from "@/components/report-fault-dialog";
+import { mustAll } from "@/lib/supabase/must";
 import {
   MachinesIcon, FaultsIcon, FuelIcon, JobCardsIcon, SignOutIcon, ChevronRightIcon, CheckIcon,
 } from "@/components/ui/icons";
@@ -103,12 +104,15 @@ export default async function DriverHomePage({
   // Their own reports, so the loop closes: a driver used to report a fault and never
   // hear anything again, so next time he told the foreman and the system went quiet.
   // Open ones say where they stand; ones fixed this week say so, with the day.
-  const [{ data: mData }, { data: openData }, { data: fixedData }, { count: everCount }] = await Promise.all([
+  const results = await Promise.all([
     machinesQ,
     myReports().neq("status", "resolved").order("created_at", { ascending: false }).limit(10),
     myReports().eq("status", "resolved").gte("resolved_at", weekAgo).order("resolved_at", { ascending: false }).limit(5),
     supabase.from("faults").select("id", { count: "exact", head: true }).eq("reported_by", profile.id).is("deleted_at", null),
   ]);
+  // A failed read told an operator "no machines" and "nothing reported". Fail honestly instead.
+  mustAll(results, "driver:home");
+  const [{ data: mData }, { data: openData }, { data: fixedData }, { count: everCount }] = results;
 
   const machines = (mData as MachineRow[] | null) ?? [];
   const openMine = (openData as MyFault[] | null) ?? [];
