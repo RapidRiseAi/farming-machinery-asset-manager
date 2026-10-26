@@ -125,3 +125,12 @@ test("a request that takes too long gives up, and a caller's own cancel still wo
     globalThis.fetch = original;
   }
 });
+
+test("must throws on a failed read, soft reports and carries on, both pass data through", async () => {
+  const { must, mustAll, soft, ReadFailed } = await import("./supabase/must");
+  assert.deepEqual(must({ data: [1], error: null }, "x"), [1]);
+  assert.throws(() => must({ data: null, error: { code: "08006", message: "down" } }, "x"), ReadFailed);
+  assert.throws(() => mustAll([{ data: 1, error: null }, { data: null, error: { code: "42P01" } }], "y"), /y#1: read failed \(42P01\)/);
+  assert.equal(soft({ data: null, error: { code: "08006" } }, "z"), null);
+  assert.equal(soft({ data: "ok", error: null }, "z"), "ok");
+});

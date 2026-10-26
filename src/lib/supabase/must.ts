@@ -35,3 +35,18 @@ export function must<T>(result: ReadResult<T>, where: string): T {
 export function mustAll(results: ReadonlyArray<ReadResult<unknown>>, where: string): void {
   results.forEach((result, index) => must(result, `${where}#${index}`));
 }
+
+/**
+ * For a read the page can do without (a count in a header, a name beside a title): the
+ * failure is reported, and the page goes on without that piece instead of stopping. Use
+ * `must` for the page's own data and anything a decision is made from; `soft` only where
+ * showing nothing is honest because nothing depends on it.
+ */
+export function soft<T>(result: ReadResult<T>, where: string): T | null {
+  if (result.error) {
+    captureError(new ReadFailed(where, result.error as { message?: string; code?: string }), { where });
+    return null;
+  }
+  if (result.truncated) captureError(new Error(`${where}: read cut short at its row cap`), { where });
+  return result.data;
+}
