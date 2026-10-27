@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentFarmId, effectiveFarmRole, requireProfile, requireRole } from "@/lib/auth";
-import { recordMeterReading } from "@/lib/domain/fleet-commands";
+import { FleetCommandError, recordMeterReading } from "@/lib/domain/fleet-commands";
 import { todayLocal } from "@/lib/format";
 import { DASH_COOKIE, DASH_SECTIONS, serializeDashPrefs, type DashPrefs } from "@/lib/dashboard-prefs";
 import { runOnce } from "@/lib/request-claim";
@@ -48,12 +48,15 @@ async function recordOne(
     throw new Error("enter-a-valid-reading");
   }
   // The farm comes from the machine row under RLS, never from the form.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("machines")
     .select("farm_id")
     .eq("id", machineId)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed read is not "not found". errorCode reports it; the caller encodes the code
+  // for the URL itself, so it is decoded here to avoid encoding it twice.
+  if (error) throw new Error(decodeURIComponent(errorCode(error, "app/dashboard/actions:recordOne")));
   const farmId = (data as { farm_id: string } | null)?.farm_id;
   if (!farmId) throw new Error("not-found");
   const role = await effectiveFarmRole(farmId, profile);
@@ -68,6 +71,12 @@ async function recordOne(
 }
 
 function codeOf(error: unknown): string {
+  // The meter command carries the database's code and words. Our own refusals (a reading
+  // below the last one) keep their words; anything else is reported and said as "try
+  // again", never the database's message in the address bar.
+  if (error instanceof FleetCommandError) {
+    return decodeURIComponent(errorCode({ code: error.code, message: error.message }, "app/dashboard/actions:record-reading"));
+  }
   return error instanceof Error && error.message ? error.message : "enter-a-valid-reading";
 }
 
@@ -129,7 +138,11 @@ export async function recordDashboardReadings(formData: FormData) {
           saved += 1;
         } catch (error) {
           if (saved > 0) revalidatePath("/dashboard");
-          redirect(`/dashboard?error=${encodeURIComponent(codeOf(error))}`);
+          const failedAt = `/dashboard?error=${encodeURIComponent(codeOf(error))}`;
+          // Readings before this one are saved: returned, so the claim holds and a retry of
+          // this request does not record them a second time (a redirect releases it).
+          if (saved > 0) return failedAt;
+          redirect(failedAt);
         }
       }
       revalidatePath("/dashboard");

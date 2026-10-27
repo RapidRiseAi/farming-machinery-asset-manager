@@ -6,6 +6,7 @@ import { errorMessage } from "@/lib/errors";
 import { requireProfile, homePathFor, currentPlan } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { countLabel, hourOfDay, num, quietHoursRange, vatPercent } from "@/lib/format";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
@@ -61,11 +62,16 @@ export default async function SettingsPage({
   const apiAllowed = plan != null && planAllows(plan, "api_access");
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("farms")
-    .select("name, settings, trading_name, reg_number, vat_number, billing_address, billing_email")
-    .eq("id", profile.farm_id ?? "")
-    .maybeSingle();
+  // must: a failed read stated every default (VAT rate, quiet hours) as the farm's own, and
+  // the edit dialogs offered those defaults to save.
+  const data = must(
+    await supabase
+      .from("farms")
+      .select("name, settings, trading_name, reg_number, vat_number, billing_address, billing_email")
+      .eq("id", profile.farm_id ?? "")
+      .maybeSingle(),
+    "settings:farm",
+  );
   const farm = data as {
     name: string; settings: Settings;
     trading_name: string | null; reg_number: string | null; vat_number: string | null;

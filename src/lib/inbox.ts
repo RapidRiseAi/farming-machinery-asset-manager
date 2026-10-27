@@ -4,6 +4,7 @@
  * under the caller's RLS (no service role), so it only ever sees the caller's own farm.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { soft } from "@/lib/supabase/must";
 
 /** Statuses where the ball is in the OWNER's court (they must accept / approve). */
 export const INBOX_ACTION_STATUSES = ["quoted", "invoiced"] as const;
@@ -18,12 +19,15 @@ export async function countInboxUnread(
   userId: string
 ): Promise<number> {
   const nowIso = new Date().toISOString();
-  const { count } = await supabase
+  const result = await supabase
     .from("notifications")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .is("read_at", null)
     .is("deleted_at", null)
     .or(`deliver_after.is.null,deliver_after.lte.${nowIso}`);
-  return count ?? 0;
+  // soft: a badge the shell draws on every page. A failure is reported and shows no badge,
+  // rather than taking every screen down; the alerts themselves are on their own page.
+  soft(result, "inbox:unread-count");
+  return result.count ?? 0;
 }

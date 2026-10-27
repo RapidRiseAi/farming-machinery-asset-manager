@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CURRENT_FARM_COOKIE } from "@/lib/auth";
 import { syncLocaleOnSignIn } from "@/lib/locale-sync";
+import { soft } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 /** GoTrue's hashed token is hex; anything else never reaches the auth server. */
 const TOKEN_HASH = /^[A-Za-z0-9_-]{16,256}$/;
@@ -14,9 +16,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * The button on /auth/confirm: verify the emailed token and start the session.
  *
  * `type: "email"` finds the token whether GoTrue filed it as a magic link or as a sign-up
- * confirmation, so this does not depend on which one the admin API chose to mint. A
- * failure of any kind is the same "that link has expired or was used" the sign-in page
- * already explains, with the form to ask for a new one right under it.
+ * confirmation, so this does not depend on which one the admin API chose to mint. A link
+ * the auth server refuses is the same "that link has expired or was used" the sign-in page
+ * already explains, with the form to ask for a new one right under it. A failure that is
+ * ours (no answer, a server fault) is reported and said as "try again" instead, because a
+ * new link would not have helped.
  */
 export async function confirmSignIn(formData: FormData) {
   const tokenHash = String(formData.get("token_hash") ?? "");
@@ -25,7 +29,11 @@ export async function confirmSignIn(formData: FormData) {
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "email" });
-  if (error || !data.session) redirect("/login?error=auth");
+  if (error || !data.session) {
+    const refused = !error || (typeof error.status === "number" && error.status >= 400 && error.status < 500);
+    if (!refused) captureError(error, { where: "auth/confirm:verify", extra: { status: error.status ?? null } });
+    redirect(refused ? "/login?error=auth" : "/login?error=try-again");
+  }
 
   // The same reconciliation the other two ways of signing in run.
   await syncLocaleOnSignIn();
@@ -33,12 +41,18 @@ export async function confirmSignIn(formData: FormData) {
   // Open on the farm that sent the invite. Read back through RLS with the new session, so
   // a farm id edited into the link opens nothing that person could not already reach.
   if (UUID.test(farm)) {
-    const { data: row } = await supabase
-      .from("farms")
-      .select("id")
-      .eq("id", farm)
-      .is("deleted_at", null)
-      .maybeSingle();
+    // soft: they are signed in by now, and failing that over which farm opens first would
+    // be worse. A failure is reported and they open on their primary farm, which the farm
+    // switcher names.
+    const row = soft(
+      await supabase
+        .from("farms")
+        .select("id")
+        .eq("id", farm)
+        .is("deleted_at", null)
+        .maybeSingle(),
+      "auth/confirm:invite-farm",
+    );
     if (row) {
       (await cookies()).set(CURRENT_FARM_COOKIE, farm, {
         path: "/",

@@ -13,6 +13,7 @@ import { planAllows } from "@/lib/entitlements";
 import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { must } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -69,11 +70,15 @@ export default async function AssistantPage() {
   // The owner's farm-wide AI switch (/settings/ai). Members cannot read the settings row,
   // so the server reads it: with AI off for the farm there is no notice to show and no AI
   // hearing to ask for. The server refuses AI on its own either way.
-  const { data: farmAi } = await createServiceClient()
-    .from("farm_ai_settings")
-    .select("ai_enabled")
-    .eq("farm_id", farmId)
-    .maybeSingle();
+  // must: a failed read looked like "AI on" on a farm whose owner had switched it off.
+  const farmAi = must(
+    await createServiceClient()
+      .from("farm_ai_settings")
+      .select("ai_enabled")
+      .eq("farm_id", farmId)
+      .maybeSingle(),
+    "assistant:farm-ai-settings",
+  );
   const farmAiEnabled = farmAi?.ai_enabled !== false;
   // The same request-scoped client, so RLS decides whose history this is. The
   // machine list is passed through so a pending proposal is only rebuilt for

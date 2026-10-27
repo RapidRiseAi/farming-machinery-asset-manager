@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n";
 import { currentPlan, homePathFor, requireProfile } from "@/lib/auth";
 import { hourOfDay, quietHoursRange, shortDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { errorMessage } from "@/lib/errors";
 import {
   START_COOKIE,
@@ -112,9 +113,10 @@ export default async function AccountPage({
 
   const supabase = await createClient();
   // Two-step sign-in (B9): on when the person has a verified authenticator factor.
-  const { data: factorList } = await supabase.auth.mfa.listFactors();
+  // must: a failed lookup said "two-step is off" and offered to set it up again.
+  const factorList = must(await supabase.auth.mfa.listFactors(), "account:mfa-factors");
   const twoStepOn = (factorList?.totp ?? []).some((f) => f.status === "verified");
-  const [{ data }, farmRes, { plan }, store] = await Promise.all([
+  const [accountRes, farmRes, { plan }, store] = await Promise.all([
     supabase
       .from("users")
       .select("email_verified_at, notify_inapp, notify_push, notify_email, quiet_hours_start, quiet_hours_end")
@@ -122,10 +124,13 @@ export default async function AccountPage({
       .maybeSingle(),
     profile.farm_id
       ? supabase.from("farms").select("settings").eq("id", profile.farm_id).maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     currentPlan(profile),
     cookies(),
   ]);
+  // A failed read showed "unverified" and default alert settings, which a save then kept.
+  const data = must(accountRes, "account:user");
+  const farmData = must(farmRes, "account:farm-settings");
   const row = (data as AccountRow | null) ?? null;
   const verifiedAt = row?.email_verified_at ?? null;
   const prefs = {
@@ -135,7 +140,7 @@ export default async function AccountPage({
     quietStart: row?.quiet_hours_start ?? null,
     quietEnd: row?.quiet_hours_end ?? null,
   };
-  const farm = ((farmRes.data as { settings: Record<string, unknown> | null } | null)?.settings ?? {}) as Record<
+  const farm = ((farmData as { settings: Record<string, unknown> | null } | null)?.settings ?? {}) as Record<
     string,
     unknown
   >;

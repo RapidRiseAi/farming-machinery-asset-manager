@@ -33,6 +33,8 @@ import { AssistantAgentInvalidOutput, type AgentUsage } from "./llm";
 import { canReadFinancialDocuments } from "./read-data";
 import { detectFarmTopics, questionPeriod, type FarmTopic, type QuestionPeriod } from "./topics";
 import type { AssistantAnswerPage, AssistantDraft, AssistantLocale, AssistantMachine } from "./types";
+import { soft } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 /**
  * The assistant's AI with the farm in view.
@@ -135,7 +137,11 @@ const PROPOSAL_TOOLS = ["propose_fault_report", "propose_meter_reading", "propos
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
 
 function safely<T>(read: () => Promise<T>) {
-  return read().catch(() => ({ error: "That could not be read just now. Say so; do not guess." }));
+  return read().catch((error) => {
+    // The model is told to say so; this is so that we hear of it too.
+    captureError(error, { where: "assistant:tool-read" });
+    return { error: "That could not be read just now. Say so; do not guess." };
+  });
 }
 
 /** The read tools, and the proposal tools this role may use. */
@@ -431,6 +437,9 @@ export async function prefetchDigest(
   const digest: Record<string, unknown> = {};
   settled.forEach((result, index) => {
     if (result.status === "fulfilled") digest[parts[index][0]] = result.value;
+    // Left out, so the model calls the tool instead (which says so if it fails again); we
+    // hear of the failure either way.
+    else captureError(result.reason, { where: "assistant:prefetch-digest", extra: { block: parts[index][0] } });
   });
   return Object.keys(digest).length ? JSON.stringify(digest) : null;
 }
@@ -441,16 +450,21 @@ export async function prefetchDigest(
  */
 export async function recentExchanges(context: AssistantContext, minutes = 20, limit = 3): Promise<Exchange[]> {
   const since = new Date(Date.now() - minutes * 60_000).toISOString();
-  const { data } = await context.supabase
-    .from("ai_interactions")
-    .select("input_text, response_text, created_at")
-    .eq("farm_id", context.farmId)
-    .eq("user_id", context.profile.id)
-    .gte("created_at", since)
-    .in("result_status", ["answered", "proposed", "applied"])
-    .not("response_text", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  // soft: without the last few exchanges the question is answered on its own, as a first
+  // question is; a failure is reported rather than stopping the answer.
+  const data = soft(
+    await context.supabase
+      .from("ai_interactions")
+      .select("input_text, response_text, created_at")
+      .eq("farm_id", context.farmId)
+      .eq("user_id", context.profile.id)
+      .gte("created_at", since)
+      .in("result_status", ["answered", "proposed", "applied"])
+      .not("response_text", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    "assistant:recent-exchanges",
+  );
   return ((data as Array<{ input_text: string | null; response_text: string | null }> | null) ?? [])
     .filter((row) => row.input_text && row.response_text)
     .reverse()
@@ -480,7 +494,8 @@ export async function loadFarmAgentContext(
   ]);
   return {
     scope,
-    farmName: (farm.data as { name?: string } | null)?.name ?? "this farm",
+    // soft: the name only addresses the farm in the prompt; "this farm" is honest without it.
+    farmName: (soft(farm, "assistant:farm-name") as { name?: string } | null)?.name ?? "this farm",
     today,
     topics,
     digest,

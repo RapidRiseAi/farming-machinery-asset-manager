@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole, requireFarmRole } from "@/lib/auth";
 import { workTransitions } from "@/lib/work-lifecycle";
 import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 // The activity inbox is the owner/manager cockpit, only they act on quotes/invoices.
 const OWNERS = ["owner", "manager"] as const;
@@ -14,12 +15,13 @@ const OWNERS = ["owner", "manager"] as const;
 async function advance(id: string, to: "accepted" | "closed", noteKey: string) {
   const profile = await requireRole([...OWNERS]);
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error: readError } = await supabase
     .from("work_requests")
     .select("farm_id, status, workshop_id, job_card_id")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (readError) redirect(`/inbox?error=${errorCode(readError, "app/inbox/actions:advance-read")}`);
   const row = data as { farm_id: string; status: string; workshop_id: string | null; job_card_id: string | null } | null;
   if (!row) redirect("/inbox?error=Not+found");
   const { role } = await requireFarmRole(row.farm_id, OWNERS, "/inbox?error=forbidden", profile);
@@ -62,12 +64,13 @@ export async function markInboxRead(formData: FormData) {
   const profile = await requireRole([...OWNERS]);
   const id = String(formData.get("id") ?? "");
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", profile.id)
     .is("read_at", null);
+  if (error) redirect(`/inbox?error=${errorCode(error, "app/inbox/actions:mark-read")}`);
   revalidatePath("/inbox");
   redirect("/inbox");
 }
@@ -83,20 +86,24 @@ export async function openInboxAlert(formData: FormData) {
   const profile = await requireRole([...OWNERS]);
   const id = String(formData.get("id") ?? "");
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error: readError } = await supabase
     .from("notifications")
     .select("template, payload")
     .eq("id", id)
     .eq("user_id", profile.id)
     .maybeSingle();
+  if (readError) redirect(`/inbox?error=${errorCode(readError, "app/inbox/actions:open-alert")}`);
   const row = data as { template: string; payload: Record<string, unknown> | null } | null;
   if (!row) redirect("/inbox");
-  await supabase
+  const { error: markError } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", profile.id)
     .is("read_at", null);
+  // Opening the alert is what they asked for; a failed "read" mark must not stop it, but
+  // we hear of it.
+  if (markError) captureError(markError, { where: "app/inbox/actions:open-alert-mark", extra: { code: markError.code ?? null } });
   revalidatePath("/inbox");
   // Imported here rather than at the top so this addition stays clear of the import
   // block another in-flight change rewrites.
@@ -109,11 +116,12 @@ export async function openInboxAlert(formData: FormData) {
 export async function markAllInboxRead() {
   const profile = await requireRole([...OWNERS]);
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
     .eq("user_id", profile.id)
     .is("read_at", null);
+  if (error) redirect(`/inbox?error=${errorCode(error, "app/inbox/actions:mark-all-read")}`);
   revalidatePath("/inbox");
   redirect("/inbox");
 }

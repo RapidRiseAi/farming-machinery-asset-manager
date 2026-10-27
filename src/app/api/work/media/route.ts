@@ -6,6 +6,9 @@ import { uploadWorkRequestMedia } from "@/lib/workrequest-media";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { canRecordWorkAmount } from "@/lib/work-lifecycle";
 import { sameOrigin } from "@/lib/security/same-origin";
+import { ReadFailed } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
+import { classifyFailure } from "@/lib/action-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +49,17 @@ export async function POST(request: Request) {
   if (!workRequestId) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
 
   const supabase = await createClient();
-  const { data: wrData } = await supabase
+  const { data: wrData, error: wrError } = await supabase
     .from("work_requests")
     .select("id, farm_id, machine_id, workshop_id, status, vat_rate_bps")
     .eq("id", workRequestId)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed lookup is not "no such request": a 404 told them the job was gone.
+  if (wrError) {
+    captureError(new ReadFailed("api/work/media:request", wrError), { where: "api/work/media:request", userId: profile.id });
+    return NextResponse.json({ error: "failed" }, { status: 500 });
+  }
   const wr = wrData as { id: string; farm_id: string; machine_id: string; workshop_id: string | null; status: string; vat_rate_bps: number | null } | null;
   if (!wr) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
@@ -83,7 +91,10 @@ export async function POST(request: Request) {
     if (amount == null || amount < 0 || (kind === "quote" && amount === 0)) return NextResponse.json({ error: "need-amount" }, { status: 400 });
     const { data: documents, error } = await supabase.from("partner_documents").select("id")
       .eq("work_request_id", wr.id).eq("kind", kind).neq("status", "void").is("deleted_at", null).limit(1);
-    if (error) return NextResponse.json({ error: "failed" }, { status: 500 });
+    if (error) {
+      captureError(new ReadFailed("api/work/media:documents", error), { where: "api/work/media:documents", farmId: wr.farm_id });
+      return NextResponse.json({ error: "failed" }, { status: 500 });
+    }
     if (documents?.length) return NextResponse.json({ error: "work-use-document" }, { status: 409 });
   }
 
@@ -109,7 +120,15 @@ export async function POST(request: Request) {
       [kind === "invoice" ? "p_invoice_cents" : "p_quote_cents"]: exVat,
       p_note: String(form.get("note") ?? "").trim() || null,
     });
-    if (error) return NextResponse.json({ error: stored ? "work-file-saved-amount-failed" : error.message, stored }, { status: 409 });
+    if (error) {
+      // Our SQL's own refusals keep their words (a 409, as before); anything else is ours,
+      // reported and answered as a 500 with a code, never the database's message.
+      const { report, code } = classifyFailure(error);
+      if (report) {
+        captureError(error, { where: "api/work/media:amount", farmId: wr.farm_id, extra: { code: error.code ?? null } });
+      }
+      return NextResponse.json({ error: stored ? "work-file-saved-amount-failed" : code, stored }, { status: report ? 500 : 409 });
+    }
     amountRecorded = true;
   }
 

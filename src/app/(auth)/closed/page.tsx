@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { requireProfile } from "@/lib/auth";
 import { shortDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { farmBillingGate } from "@/lib/billing/service";
 import { errorMessage } from "@/lib/errors";
 import { Flash } from "@/components/ui/flash";
@@ -56,14 +57,19 @@ export default async function ClosedPage({
   // The SELECT policy on the billing tables is `app.is_farm_billing_admin`, so an operator
   // gets nothing back and reads the general sentence rather than their employer's
   // commercial position, which is the right outcome, not a limitation to work around.
-  const { data } = await supabase
-    .from("billing_subscriptions")
-    .select("status, ended_on, downgraded_at, plan")
-    .eq("farm_id", profile.farm_id)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // must: nothing back because of RLS is the operator's answer; a failed read is not, and
+  // would have told an owner the farm was suspended and hidden the way back.
+  const data = must(
+    await supabase
+      .from("billing_subscriptions")
+      .select("status, ended_on, downgraded_at, plan")
+      .eq("farm_id", profile.farm_id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    "closed:subscription",
+  );
   const sub = data as
     | { status: string; ended_on: string | null; downgraded_at: string | null; plan: string }
     | null;

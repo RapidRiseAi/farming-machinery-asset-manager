@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { isLocale, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from "@/lib/locale";
 import type { Locale } from "@/lib/i18n";
+import { soft } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 /**
  * Reconcile the device's language choice with the profile's, at sign-in.
@@ -32,11 +34,16 @@ export async function syncLocaleOnSignIn(): Promise<void> {
   const uid = userData.user?.id;
   if (!uid) return;
 
-  const { data } = await supabase
-    .from("users")
-    .select("language, language_set_at")
-    .eq("id", uid)
-    .maybeSingle();
+  // soft: this runs inside sign-in, which must not fail over a language cookie. A failure
+  // is reported and the pages still render in the profile's language.
+  const data = soft(
+    await supabase
+      .from("users")
+      .select("language, language_set_at")
+      .eq("id", uid)
+      .maybeSingle(),
+    "locale-sync:profile",
+  );
   if (!data) return;
 
   const profileLang = isLocale(data.language) ? (data.language as Locale) : "en";
@@ -54,6 +61,7 @@ export async function syncLocaleOnSignIn(): Promise<void> {
       .update({ language: device, language_set_at: new Date().toISOString() })
       .eq("id", uid);
     if (!error) effective = device;
+    else captureError(error, { where: "locale-sync:adopt-device", userId: uid, extra: { code: error.code ?? null } });
   }
 
   // Always leave the cookie equal to what the pages will actually render in, so

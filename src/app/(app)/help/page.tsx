@@ -1,5 +1,6 @@
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { dateTime } from "@/lib/format";
@@ -87,7 +88,8 @@ export default async function HelpPage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const { data } = await supabase.rpc("my_help_requests");
+  // must: a failed read showed "no requests" to somebody waiting on an answer.
+  const data = must(await supabase.rpc("my_help_requests"), "help:my-requests");
   const requests = (data as HelpRequest[] | null) ?? [];
   const openCount = requests.filter((r) => r.status === "open" || r.status === "waiting").length;
 

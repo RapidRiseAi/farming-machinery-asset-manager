@@ -7,6 +7,7 @@ import { rands } from "@/lib/money";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { must } from "@/lib/supabase/must";
 import { farmBillingGate } from "@/lib/billing/service";
 import { STALE_PENDING_MINUTES } from "@/lib/billing/worker";
 import { buttonVariants } from "@/components/ui/button";
@@ -52,25 +53,31 @@ export default async function ActivatePage({
   // reason, there is nothing to activate and the app is theirs.
   if (gate !== "pending") redirect("/home");
 
-  const { data } = await supabase
-    .from("billing_subscriptions")
-    .select("plan, billing_period, asset_quota")
-    .eq("farm_id", profile.farm_id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("billing_subscriptions")
+      .select("plan, billing_period, asset_quota")
+      .eq("farm_id", profile.farm_id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "activate:subscription",
+  );
   const sub = data as
     | { plan: string; billing_period: string; asset_quota: number | null }
     | null;
 
-  const { data: invData } = await supabase
-    .from("billing_invoices")
-    .select("invoice_ref, total_incl_cents")
-    .eq("farm_id", profile.farm_id)
-    .eq("status", "open")
-    .is("deleted_at", null)
-    .order("issued_on", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const invData = must(
+    await supabase
+      .from("billing_invoices")
+      .select("invoice_ref, total_incl_cents")
+      .eq("farm_id", profile.farm_id)
+      .eq("status", "open")
+      .is("deleted_at", null)
+      .order("issued_on", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    "activate:invoice",
+  );
   const invoice = invData as { invoice_ref: string; total_incl_cents: number } | null;
 
   // == Has this person ALREADY paid, seconds ago? ==============================
@@ -89,14 +96,18 @@ export default async function ActivatePage({
   // RLS on attempts is owner-or-Rapid-Rise, so a manager would otherwise read nothing here
   // and be shown the one screen this exists to prevent.
   const svc = createServiceClient();
-  const { data: attemptData } = await svc
-    .from("billing_payment_attempts")
-    .select("status, requested_at")
-    .eq("farm_id", profile.farm_id)
-    .in("status", ["pending", "succeeded"])
-    .order("requested_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // must: a failed read here showed the Pay button to somebody whose money was moving.
+  const attemptData = must(
+    await svc
+      .from("billing_payment_attempts")
+      .select("status, requested_at")
+      .eq("farm_id", profile.farm_id)
+      .in("status", ["pending", "succeeded"])
+      .order("requested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    "activate:payment-attempt",
+  );
   const attempt = attemptData as { status: string; requested_at: string } | null;
 
   // A `pending` attempt older than the reconciler's own staleness window is not somebody

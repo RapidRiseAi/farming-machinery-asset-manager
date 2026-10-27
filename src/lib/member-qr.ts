@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 
 export async function memberQr(
   token: string,
@@ -13,7 +14,7 @@ export async function memberQr(
   const db = await createClient();
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return null;
-  const { data, error } = await db.rpc("resolve_member_qr", { p_token: token });
-  if (error) throw new Error("QR access unavailable");
+  // Thrown as before, now with the database's code in the report.
+  const data = must(await db.rpc("resolve_member_qr", { p_token: token }), "member-qr:resolve");
   return data?.[0] ?? null;
 }

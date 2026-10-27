@@ -6,6 +6,7 @@ import { deviceLocale } from "@/lib/locale";
 import { readAssurance } from "@/lib/mfa";
 import { safePath } from "@/lib/safe-path";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { PublicShell } from "@/components/public-shell";
 import { SetupForm } from "./setup-form";
 
@@ -29,7 +30,8 @@ export default async function MfaSetupPage({ searchParams }: { searchParams: Pro
     redirect(`/mfa/verify?next=${encodeURIComponent(`/mfa/setup?next=${encodeURIComponent(next)}`)}`);
   }
   const alreadyOn = assurance.next === "aal2";
-  const { data: profile } = await supabase.from("users").select("role").eq("id", data.user.id).maybeSingle();
+  // must: a failed read told Rapid Rise staff the second factor was optional.
+  const profile = must(await supabase.from("users").select("role").eq("id", data.user.id).maybeSingle(), "mfa-setup:role");
   const required = (profile as { role?: string } | null)?.role === "rr_admin";
 
   const locale = await deviceLocale();

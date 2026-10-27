@@ -4,6 +4,8 @@ import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Photo } from "@/components/ui/photo";
 import { createServiceClient } from "@/lib/supabase/service";
+import { ReadFailed, soft } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { APP_NAME } from "@/lib/env";
@@ -86,7 +88,8 @@ async function getMachine(token: string): Promise<MachineLookup> {
       .is("farms.deleted_at", null)
       .maybeSingle();
     if (error) {
-      console.error("[public-qr] machine lookup failed", { code: error.code });
+      // The driver is told it could not run (below); this is so that we hear of it too.
+      captureError(new ReadFailed("public-qr:machine", error), { where: "public-qr:machine" });
       return { status: "unavailable" };
     }
     if (!data) return { status: "not_found" };
@@ -100,9 +103,8 @@ async function getMachine(token: string): Promise<MachineLookup> {
       machine: { ...(row as object), farms } as PublicMachine,
     };
   } catch (error) {
-    console.error("[public-qr] machine lookup was unavailable", {
-      cause: error instanceof Error ? error.name : "unknown",
-    });
+    // Told it could not run, like a failed read above; reported so that we hear of it too.
+    captureError(error, { where: "public-qr:machine" });
     return { status: "unavailable" };
   }
 }
@@ -114,15 +116,20 @@ async function getPhotoUrl(attachmentId: string | null): Promise<string | null> 
   if (!attachmentId) return null;
   try {
     const svc = createServiceClient();
-    const { data: att } = await svc
-      .from("attachments")
-      .select("storage_path")
-      .eq("id", attachmentId)
-      .is("deleted_at", null)
-      .maybeSingle();
+    // The photo is a check, not the page: without it the machine's name still shows, so
+    // a failure is reported and the placeholder stands in.
+    const att = soft(
+      await svc
+        .from("attachments")
+        .select("storage_path")
+        .eq("id", attachmentId)
+        .is("deleted_at", null)
+        .maybeSingle(),
+      "public-qr:photo-row",
+    );
     const path = (att as { storage_path: string | null } | null)?.storage_path;
     if (!path) return null;
-    const { data: signed } = await svc.storage.from("machine-photos").createSignedUrl(path, 3600);
+    const signed = soft(await svc.storage.from("machine-photos").createSignedUrl(path, 3600), "public-qr:photo-url");
     return signed?.signedUrl ?? null;
   } catch {
     return null;
@@ -267,11 +274,19 @@ export default async function PublicMachinePage({
   }
 
   const db=await createClient();
-  const [photoUrl, profile, visible] = await Promise.all([
+  const [photoUrl, profile, visibleRes] = await Promise.all([
     getPhotoUrl(machine.primary_attachment_id),
-    getProfile(),
+    // Only fills in the name boxes, which the driver can type: a failed profile read is
+    // reported and the capture screen still opens.
+    getProfile().catch((error) => {
+      captureError(error, { where: "public-qr:profile" });
+      return null;
+    }),
     db.from("machines").select("id").eq("id",member.id).maybeSingle(),
   ]);
+  // Only decides whether the extra links show, and each linked page checks access itself,
+  // so a failure is reported and the capture screen still works without them.
+  const visible = soft(visibleRes, "public-qr:machine-visible");
   const rememberedName=profile?.name;
   const nameHint = t("driving.signedInAs",locale);
 
@@ -460,7 +475,7 @@ export default async function PublicMachinePage({
 
       <nav className="grid gap-3" aria-label={t("driving.quickActions", locale)}>
         <Link className={SUBMIT_CLASS} href={`/driver/activity?farm=${member.farm_id}&machine=${member.id}`}>{t("driving.title", locale)}</Link>
-        {visible.data && <>
+        {visible && <>
           <Link className={SUBMIT_CLASS} href={`/machines/${member.id}`}>{t("driving.vehicleDetails", locale)}</Link>
           <Link className={SUBMIT_CLASS} href={`/machines/${member.id}?tab=servicing`}>{t("machine.tabServicing", locale)}</Link>
           <Link className={SUBMIT_CLASS} href={`/machines/${member.id}/checklists/new`}>{t("driving.inspection", locale)}</Link>

@@ -12,6 +12,8 @@ import {
   type AssistantReadScope,
 } from "./read-data";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, ReadFailed } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 import type { AssistantMachine } from "./types";
 
 /**
@@ -151,11 +153,16 @@ export async function machineNames(scope: FarmDataScope, ids: Array<string | nul
   const names = new Map(scope.machines.map((machine) => [machine.id, machine.name]));
   const missing = [...new Set(ids.filter((id): id is string => Boolean(id) && !names.has(id!)))];
   if (missing.length) {
-    const { data } = await scope.supabase
-      .from("machines")
-      .select("id, name, status")
-      .eq("farm_id", scope.farmId)
-      .in("id", missing.slice(0, 200));
+    // must: a failed read named the machines "Machine"; thrown, the tool says it could not
+    // read (agent.ts `safely`) rather than answer with nameless figures.
+    const data = must(
+      await scope.supabase
+        .from("machines")
+        .select("id, name, status")
+        .eq("farm_id", scope.farmId)
+        .in("id", missing.slice(0, 200)),
+      "assistant:machine-names",
+    );
     for (const row of (data as Array<{ id: string; name: string; status: string }> | null) ?? []) {
       names.set(row.id, row.status === "sold" || row.status === "retired" ? `${row.name} (${row.status})` : row.name);
     }
@@ -195,6 +202,8 @@ async function tankBalances(scope: FarmDataScope) {
     scope.supabase.from("fuel_tanks").select("id, name, capacity_l").eq("farm_id", scope.farmId).is("deleted_at", null),
   ]);
   if (balances.error) throw balances.error;
+  // Thrown like the balances: without it every tank is "Tank" with no capacity.
+  if (tanks.error) throw tanks.error;
   const info = new Map(((tanks.data as Array<{ id: string; name: string; capacity_l: number | null }> | null) ?? []).map((t) => [t.id, t]));
   return ((balances.data as TankBalanceRow[] | null) ?? []).map((row) => {
     const tank = info.get(row.tank_id);
@@ -332,7 +341,13 @@ async function fuelPurchases(scope: FarmDataScope, period: { from: string; to: s
     .lte("date", period.to)
     .order("date", { ascending: true })
     .limit(PAGE_ROWS);
-  if (error) return null;
+  if (error) {
+    // What the machines used still answers the question, so the summary goes on; but it
+    // says this part could not be read, or "what did we buy" was answered as if nothing
+    // had been. Reported too.
+    captureError(new ReadFailed("assistant:fuel-purchases", error), { where: "assistant:fuel-purchases", farmId: scope.farmId });
+    return { error: "Diesel bought could not be read just now. Say so; do not guess." };
+  }
   const rows = (data as Array<{ date: string; litres: number | string | null; price_per_l_cents: number | string | null }> | null) ?? [];
   let litres = 0;
   let cents = 0;
@@ -625,6 +640,9 @@ export async function machineDetails(scope: FarmDataScope, input: { machine: str
     jobCardList(one, { status: "active", machine: machine.name }),
     fuelSummary(one, { from: since, to: today, machine: machine.name }, today),
   ]);
+  // Thrown like the other blocks: a failed read said "no recent readings" and no make.
+  if (info.error) throw info.error;
+  if (readings.error) throw readings.error;
   const row = (info.data as { type: string | null; make: string | null; model: string | null; year: number | null; reg_no: string | null; location: string | null; status: string } | null) ?? null;
   const unit = machine.meterType === "km" ? "km" : machine.meterType === "hours" ? "h" : machine.meterType;
   return {

@@ -4,6 +4,7 @@ import { gateway } from "ai";
 import { configuredLlmFallbackModel } from "@/lib/assistant/llm";
 import { configuredTranscribeModels } from "@/lib/assistant/transcription";
 import { openHealthEvent, resolveHealthEvents } from "./health";
+import { must, ReadFailed } from "@/lib/supabase/must";
 
 /**
  * The AI and voice ledger's nightly upkeep (docs/AI_USAGE.md), run by /api/cron/nightly.
@@ -29,7 +30,11 @@ export async function refreshFxRate(supabase: SupabaseClient): Promise<string> {
   const day = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : null;
   if (!(rate > 0) || !day) throw new Error("fx feed returned no usable rate");
 
-  const { data: last } = await supabase.from("fx_rates").select("day, usd_zar").order("day", { ascending: false }).limit(1).maybeSingle();
+  // must: a failed read looked like "no rate yet" and saved the feed's value past the band.
+  const last = must(
+    await supabase.from("fx_rates").select("day, usd_zar").order("day", { ascending: false }).limit(1).maybeSingle(),
+    "ai-usage:fx-last",
+  );
   if (last && !withinBand(rate, Number(last.usd_zar))) {
     await openHealthEvent(supabase, "fx_stale", "usd_zar", { proposed: rate, current: Number(last.usd_zar), day });
     return `ok (held: ${rate} is outside the band of ${last.usd_zar})`;
@@ -70,8 +75,12 @@ export async function refreshPrices(supabase: SupabaseClient): Promise<string> {
     const pricing = list.find((entry) => entry.id === model)?.pricing;
     // Priced means a price on file for this model, whatever the feed says: an unpriced
     // model is billed at ai_price_units' deliberately high default and must be flagged.
-    const onFile = async () =>
-      ((await supabase.from("ai_prices").select("model", { count: "exact", head: true }).eq("model", model)).count ?? 0) > 0;
+    const onFile = async () => {
+      const priced = await supabase.from("ai_prices").select("model", { count: "exact", head: true }).eq("model", model);
+      // A failed count is not "no price on file": it raised a false unpriced alarm.
+      must(priced, "ai-usage:price-on-file");
+      return (priced.count ?? 0) > 0;
+    };
     if (!pricing) {
       if (!(await onFile())) await openHealthEvent(supabase, "model_unpriced", model, { reason: "not in the Gateway list and no price on file" });
       continue;
@@ -79,14 +88,18 @@ export async function refreshPrices(supabase: SupabaseClient): Promise<string> {
     for (const [field, unit] of Object.entries(UNIT_FIELDS)) {
       const proposed = Number(pricing[field]);
       if (!(proposed > 0)) continue;
-      const { data: current } = await supabase
-        .from("ai_prices")
-        .select("usd_per_unit")
-        .eq("model", model)
-        .eq("unit", unit)
-        .order("effective_from", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // must: a failed read looked like "first price" and took the feed's value unchecked.
+      const current = must(
+        await supabase
+          .from("ai_prices")
+          .select("usd_per_unit")
+          .eq("model", model)
+          .eq("unit", unit)
+          .order("effective_from", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        "ai-usage:price-current",
+      );
       const now = current ? Number(current.usd_per_unit) : null;
       if (now !== null && Math.abs(proposed / now - 1) < 1e-6) continue;
       if (now !== null && !withinBand(proposed, now)) {
@@ -133,7 +146,8 @@ type ModelWindow = { model: string; ai_calls: number; ai_failed: number; no_cred
 export async function detectModelFailures(supabase: SupabaseClient): Promise<string> {
   const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
   const { data, error } = await supabase.rpc("ai_ops_window", { p_since: since });
-  if (error) throw new Error(error.message);
+  // By code, not the database's words: the run prints a failed step's message in its answer.
+  if (error) throw new ReadFailed("ai-usage:ops-window", error);
   const models = ((data ?? []) as ModelWindow[]).map((row) => ({
     model: String(row.model),
     aiCalls: Number(row.ai_calls) || 0,
@@ -177,7 +191,7 @@ type TokenWindow = { farm_id: string; user_id: string; tokens: number; reported_
 export async function detectVoiceUnderReporting(supabase: SupabaseClient): Promise<string> {
   const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
   const { data, error } = await supabase.rpc("ai_voice_token_window", { p_since: since });
-  if (error) throw new Error(error.message);
+  if (error) throw new ReadFailed("ai-usage:voice-token-window", error);
   let flagged = 0;
   for (const row of (data ?? []) as TokenWindow[]) {
     const tokens = Number(row.tokens) || 0;

@@ -2,6 +2,8 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { must, ReadFailed } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 /**
  * Posting a support case to the RapidRise OS support dashboard.
@@ -128,10 +130,15 @@ export async function postDueSupportTickets(
   const problem = supportWebhookProblem();
   if (problem) return { considered: 0, posted: 0, failed: 0, skipped: problem };
 
-  const { data, error } = await supabase.rpc("support_tickets_to_post", {
-    p_limit: opts.limit ?? 50,
-  });
-  if (error) return { considered: 0, posted: 0, failed: 1, skipped: error.message };
+  // Thrown, so the billing run reports the step as an error. It used to answer "skipped"
+  // with the database's words, so a failed read looked like a pass with nothing to do, and
+  // nobody heard of it.
+  const data = must(
+    await supabase.rpc("support_tickets_to_post", {
+      p_limit: opts.limit ?? 50,
+    }),
+    "support:tickets-to-post",
+  );
 
   const rows = (data ?? []) as { id: string }[];
   let posted = 0;
@@ -140,21 +147,29 @@ export async function postDueSupportTickets(
   for (const row of rows) {
     // Read the case itself rather than trusting the shortlist to carry it: the evidence is
     // the payload, and the shortlist deliberately returns only ids.
-    const { data: full } = await supabase
+    const { data: full, error: readError } = await supabase
       .from("support_tickets")
       .select("id, kind, status, subject, opened_at, due_at, external_ref, evidence")
       .eq("id", row.id)
       .maybeSingle();
+    // Counted as failed either way (it is posted on the next run); a failed read is also
+    // reported, so a case stuck on our side is heard of.
+    if (readError) captureError(new ReadFailed("support:ticket", readError), { where: "support:ticket" });
     if (!full) {
       failed += 1;
       continue;
     }
     const t = full as Omit<SupportTicketPayload, "source">;
     const result = await postSupportTicket({ ...t, source: "fleetwise" });
-    await supabase.rpc("record_support_ticket_post", {
+    const { error: recordError } = await supabase.rpc("record_support_ticket_post", {
       p_ticket: row.id,
       p_error: result.ok ? null : result.error,
     });
+    // The count still says what the post did; an unrecorded outcome means the case is
+    // posted again next run (the receiver upserts on id), so it is reported, not fatal.
+    if (recordError) {
+      captureError(recordError, { where: "support:record-post", extra: { code: recordError.code ?? null } });
+    }
     if (result.ok) posted += 1;
     else failed += 1;
   }

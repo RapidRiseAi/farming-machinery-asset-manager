@@ -41,10 +41,14 @@ export function SetupForm({ next, locale }: { next: string; locale: Lang }) {
     setError(undefined);
     try {
       const supabase = createClient();
-      const { data: list } = await supabase.auth.mfa.listFactors();
+      const { data: list, error: listError } = await supabase.auth.mfa.listFactors();
+      // Clearing old attempts is housekeeping: enrolling may still work without it, and if
+      // it does not, that is the failure shown. We hear of it either way.
+      if (listError) reportClientError(asError(listError), "mfa:list-factors");
       for (const factor of list?.all ?? []) {
         if (factor.factor_type === "totp" && factor.status === "unverified") {
-          await supabase.auth.mfa.unenroll({ factorId: factor.id });
+          const { error: clearError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+          if (clearError) reportClientError(asError(clearError), "mfa:clear-unverified");
         }
       }
       const { data, error: enrolError } = await supabase.auth.mfa.enroll({
@@ -80,7 +84,11 @@ export function SetupForm({ next, locale }: { next: string; locale: Lang }) {
       const { error: verifyError } = await createClient().auth.mfa.challengeAndVerify({ factorId: enrolment.id, code });
       if (verifyError) {
         release();
-        setError(t("mfa.wrongCode", locale));
+        // A code the server refused (4xx) is theirs to retype. No connection or a server
+        // fault is ours: reported, and not blamed on their typing.
+        const refused = typeof verifyError.status === "number" && verifyError.status >= 400 && verifyError.status < 500;
+        if (!refused) reportClientError(asError(verifyError), "mfa:confirm");
+        setError(t(refused ? "mfa.wrongCode" : "interaction.actionFailed", locale));
         return;
       }
       window.location.assign(next);

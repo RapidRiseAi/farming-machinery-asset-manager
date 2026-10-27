@@ -2,6 +2,8 @@ import "server-only";
 import { createServiceClient } from "@/lib/supabase/service";
 import { KeySecretMismatch, keySecretConfigured, openFarmKey } from "./key-crypto";
 import { notifyFarmOwners } from "./ledger";
+import { must, ReadFailed } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 /**
  * A farm's own OpenAI key, read for one call and never kept beyond it.
@@ -33,7 +35,12 @@ export async function loadFarmOpenAiKey(farmId: string): Promise<FarmKey> {
       service.from("farm_ai_keys").select("ciphertext, status").eq("farm_id", farmId).maybeSingle(),
       service.from("farm_ai_settings").select("own_key_fallback").eq("farm_id", farmId).maybeSingle(),
     ]);
-    if (keyRes.error || settingsRes.error) return { state: "unavailable" };
+    if (keyRes.error || settingsRes.error) {
+      // Still fails closed; reported by code only, so the key can never travel with it.
+      const failed = keyRes.error ?? settingsRes.error;
+      captureError(new ReadFailed("ai-usage:farm-key", failed ?? {}), { where: "ai-usage:farm-key", farmId });
+      return { state: "unavailable" };
+    }
     const row = keyRes.data;
     if (!row) return { state: "none" };
     const fallback: OwnKeyFallback = settingsRes.data?.own_key_fallback === "platform" ? "platform" : "pause";
@@ -51,7 +58,12 @@ export async function loadFarmOpenAiKey(farmId: string): Promise<FarmKey> {
       await markFarmKeyFailed(farmId, "farm_key_unreadable");
       return { state: "broken", fallback };
     }
-  } catch {
+  } catch (error) {
+    // The error's name only: whatever threw may have been holding the key.
+    captureError(new Error(`ai-usage:farm-key threw (${error instanceof Error ? error.name : "unknown"})`), {
+      where: "ai-usage:farm-key",
+      farmId,
+    });
     return { state: "unavailable" };
   }
 }
@@ -67,21 +79,29 @@ export async function markFarmKeyFailed(
   try {
     const service = createServiceClient();
     const status = code === "farm_key_quota" ? "no_quota" : "invalid";
-    const { data } = await service
+    const { data, error } = await service
       .from("farm_ai_keys")
       .update({ status, last_error_code: code, checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("farm_id", farmId)
       .eq("status", "active")
       .select("farm_id");
+    if (error) captureError(error, { where: "ai-usage:mark-farm-key-failed", farmId, extra: { code: error.code ?? null } });
     if (data?.length) {
-      const { data: settings } = await service.from("farm_ai_settings").select("own_key_fallback").eq("farm_id", farmId).maybeSingle();
+      // must: guessing "pause" told an owner whose AI carries on billed on ours that it had
+      // stopped. Throwing skips the notice (caught and reported below); their AI settings
+      // page still shows the key as failed.
+      const settings = must(
+        await service.from("farm_ai_settings").select("own_key_fallback").eq("farm_id", farmId).maybeSingle(),
+        "ai-usage:mark-farm-key-failed-settings",
+      );
       await notifyFarmOwners(farmId, "ai_key_failed", {
         reason: code === "farm_key_quota" ? "quota" : code === "farm_key_unreadable" ? "unreadable" : "refused",
         fallback: settings?.own_key_fallback === "platform" ? "platform" : "pause",
       });
     }
     // The update changed nothing when the key was already marked: one notice per failure.
-  } catch {
+  } catch (error) {
     // Best effort: the next call will try the key again and land here again.
+    captureError(error, { where: "ai-usage:mark-farm-key-failed", farmId });
   }
 }

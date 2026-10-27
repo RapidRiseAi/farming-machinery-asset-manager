@@ -10,6 +10,7 @@ import {
   type Role,
 } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 
 /**
  * The deliberately closed set from 0507. Keep this list byte-for-byte aligned with
@@ -73,12 +74,17 @@ export async function farmPermissionState(
 
   if (farmId && role && role !== "workshop" && role !== "rr_admin") {
     const supabase = await createClient();
-    const { data } = await supabase
-      .from("user_permission_grants")
-      .select("permission")
-      .eq("farm_id", farmId)
-      .eq("user_id", p.id)
-      .is("deleted_at", null);
+    // Throws, like effectiveFarmRole beside it: a failed read is not "no grants", which
+    // turned a stock keeper away as if their access had been taken.
+    const data = must(
+      await supabase
+        .from("user_permission_grants")
+        .select("permission")
+        .eq("farm_id", farmId)
+        .eq("user_id", p.id)
+        .is("deleted_at", null),
+      "permissions:grants",
+    );
 
     for (const row of (data ?? []) as { permission: unknown }[]) {
       if (isUserPermission(row.permission)) grants.add(row.permission);

@@ -18,6 +18,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email/verify";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * A person's own account: their name, their address, their password.
@@ -173,7 +174,9 @@ export async function turnOffTwoStep(): Promise<void> {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/account?error=mfa-required");
   const supabase = await createClient();
-  const { data } = await supabase.auth.mfa.listFactors();
+  const { data, error: listError } = await supabase.auth.mfa.listFactors();
+  // A failed lookup removed nothing and then said "saved", with two-step still on.
+  if (listError) redirect(`/account?error=${errorCode(listError, "account:mfa-off-list")}`);
   for (const factor of data?.all ?? []) {
     if (factor.factor_type !== "totp") continue;
     const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });

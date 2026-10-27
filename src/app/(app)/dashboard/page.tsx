@@ -39,7 +39,7 @@ import { dismissSetupCard, recordDashboardReading, recordDashboardReadings, save
 import { warrantyStatus, dateExpiryStatus, licenceTypeLabel } from "@/lib/compliance";
 import { ExpiryStatus, FineStatus, UrgencyStatus, ServiceStatus, MachineStatus } from "@/components/ui/status";
 import { RequestIdInput } from "@/components/ui/request-id-input";
-import { mustAll } from "@/lib/supabase/must";
+import { must, mustAll, soft } from "@/lib/supabase/must";
 
 type Machine = {
   id: string;
@@ -264,11 +264,11 @@ export default async function DashboardPage({
   type PendingFine = { id: string; machineId: string; machineName: string; label: string; deadline: string | null; status: string };
   let pendingNominations: PendingFine[] = [];
   if (aartoAllowed) {
-    const { data: fineData } = await readAll(() => byFarm(supabase
+    const fineData = must(await readAll(() => byFarm(supabase
       .from("fines")
       .select("id, machine_id, offence, notice_number, nomination_deadline, status")
       .in("status", ["received", "driver_identified"])
-      .is("deleted_at", null)));
+      .is("deleted_at", null))), "dashboard:fines");
     pendingNominations = ((fineData as DashFine[] | null) ?? [])
       .filter((f) => activeIds.has(f.machine_id))
       .map((f) => ({
@@ -413,10 +413,14 @@ export default async function DashboardPage({
   // done or somebody hides it (farms.settings, no migration).
   let setup: { done: number; total: number; next: ReturnType<typeof setupSteps>[number] } | null = null;
   if (isBoss && prefs.setup && !settings.setup_card_dismissed_at && active.length > 0) {
-    const { count: userCount } = await supabase
+    const usersRes = await supabase
       .from("users")
       .select("id", { count: "exact", head: true })
       .eq("active", true);
+    // soft: the card is a nudge, not the board. A failed count read as "nobody invited yet"
+    // and named that as the next step; now it is reported and the card is left out.
+    soft(usersRes, "dashboard:setup-users");
+    const userCount = usersRes.count;
     const steps = setupSteps({
       machines: machines.length,
       plans: spl.length,
@@ -424,7 +428,7 @@ export default async function DashboardPage({
       users: userCount ?? 0,
     });
     const next = steps.find((s) => !s.done);
-    if (next) setup = { done: steps.filter((s) => s.done).length, total: steps.length, next };
+    if (next && !usersRes.error) setup = { done: steps.filter((s) => s.done).length, total: steps.length, next };
   }
 
   const statusBadge = (s: Attend["status"]) =>

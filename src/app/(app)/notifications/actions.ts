@@ -5,13 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { notificationUrl } from "@/lib/notifications/format";
+import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 /** Mark one in-app alert read (read_at is the read marker; 0205). */
 export async function markRead(formData: FormData) {
   const profile = await requireProfile();
   const id = String(formData.get("id") ?? "");
   const supabase = await createClient();
-  await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id).eq("user_id", profile.id).is("read_at", null);
+  const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id).eq("user_id", profile.id).is("read_at", null);
+  if (error) redirect(`/notifications?error=${errorCode(error, "app/notifications/actions:markRead")}`);
   revalidatePath("/notifications");
   redirect("/notifications");
 }
@@ -30,22 +33,28 @@ export async function openNotification(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) redirect("/notifications");
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error: readError } = await supabase
     .from("notifications")
     .select("id, template, payload, read_at")
     .eq("id", id)
     .eq("user_id", profile.id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (readError) redirect(`/notifications?error=${errorCode(readError, "app/notifications/actions:openNotification")}`);
   const note = data as { id: string; template: string; payload: Record<string, unknown> | null; read_at: string | null } | null;
   if (!note) redirect("/notifications");
   if (note.read_at == null) {
-    await supabase
+    const { error: markError } = await supabase
       .from("notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("id", note.id)
       .eq("user_id", profile.id)
       .is("read_at", null);
+    // Opening it is what they asked for; a failed "read" mark must not stop that, but we
+    // hear of it.
+    if (markError) {
+      captureError(markError, { where: "app/notifications/actions:openNotification-mark", extra: { code: markError.code ?? null } });
+    }
     revalidatePath("/notifications");
   }
   redirect(notificationUrl(note.template, note.payload ?? {}));
@@ -54,7 +63,8 @@ export async function openNotification(formData: FormData) {
 export async function markAllRead() {
   const profile = await requireProfile();
   const supabase = await createClient();
-  await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", profile.id).is("read_at", null);
+  const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", profile.id).is("read_at", null);
+  if (error) redirect(`/notifications?error=${errorCode(error, "app/notifications/actions:markAllRead")}`);
   revalidatePath("/notifications");
   redirect("/notifications");
 }

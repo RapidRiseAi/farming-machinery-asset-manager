@@ -12,17 +12,21 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { INBOX_ACTION_STATUSES } from "@/lib/inbox";
+import { soft } from "@/lib/supabase/must";
 
 export async function countInboxDecisions(
   supabase: SupabaseClient,
   farmId: string | null,
 ): Promise<number> {
   if (!farmId) return 0;
-  const { count } = await supabase
+  const result = await supabase
     .from("work_requests_visible")
     .select("id", { count: "exact", head: true })
     .eq("farm_id", farmId)
     .is("deleted_at", null)
     .in("status", [...INBOX_ACTION_STATUSES]);
-  return count ?? 0;
+  // soft: a badge the shell draws on every page. A failure is reported and shows no badge,
+  // rather than taking every screen down; the inbox page lists the decisions itself.
+  soft(result, "inbox:decision-count");
+  return result.count ?? 0;
 }

@@ -14,7 +14,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DateText } from "@/components/ui/date-text";
 import { FaultStatus } from "@/components/ui/status";
 import { ReportFaultDialog } from "@/components/report-fault-dialog";
-import { mustAll } from "@/lib/supabase/must";
+import { mustAll, soft } from "@/lib/supabase/must";
 import {
   MachinesIcon, FaultsIcon, FuelIcon, JobCardsIcon, SignOutIcon, ChevronRightIcon, CheckIcon,
 } from "@/components/ui/icons";
@@ -126,15 +126,17 @@ export default async function DriverHomePage({
   const primaryIds = shown.map((m) => m.primary_attachment_id).filter((v): v is string => !!v);
   const photoByMachine = new Map<string, string>();
   if (primaryIds.length > 0) {
-    const { data: atts } = await supabase
-      .from("attachments").select("id, storage_path").in("id", primaryIds).is("deleted_at", null);
+    // Photos are decoration: without them the cards still say everything, so a failure is
+    // reported and the cards show without pictures.
+    const atts = soft(await supabase
+      .from("attachments").select("id, storage_path").in("id", primaryIds).is("deleted_at", null), "driver:photo-rows");
     const pathById = new Map<string, string>();
     for (const a of (atts as { id: string; storage_path: string | null }[] | null) ?? []) {
       if (a.storage_path) pathById.set(a.id, a.storage_path);
     }
     const paths = [...new Set(pathById.values())];
     if (paths.length > 0) {
-      const { data: signed } = await supabase.storage.from("machine-photos").createSignedUrls(paths, 3600);
+      const signed = soft(await supabase.storage.from("machine-photos").createSignedUrls(paths, 3600), "driver:photo-urls");
       const urlByPath = new Map<string, string>();
       for (const sg of signed ?? []) if (sg.path && sg.signedUrl) urlByPath.set(sg.path, sg.signedUrl);
       for (const m of shown) {

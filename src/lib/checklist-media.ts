@@ -1,6 +1,8 @@
 // Server-only helper: imported solely from the "use server" checklists actions module,
 // which keeps it off the client bundle (mirrors src/lib/machine-photo.ts).
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { soft } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 const MAX_PHOTO_BYTES = 6 * 1024 * 1024; // decoded cap (the client already compresses)
 
@@ -36,7 +38,11 @@ export async function uploadChecklistPhotoDataUrl(
   const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
   const path = `${farmId}/${instanceId}/photo-${crypto.randomUUID()}.${ext}`;
   const up = await supabase.storage.from("checklist-photos").upload(path, bytes, { contentType });
-  if (up.error) return null;
+  // Best effort, as documented above, but heard of: a lost photo is otherwise invisible.
+  if (up.error) {
+    captureError(up.error, { where: "checklist-media:upload", farmId });
+    return null;
+  }
 
   const ins = await supabase
     .from("attachments")
@@ -50,7 +56,14 @@ export async function uploadChecklistPhotoDataUrl(
     })
     .select("id")
     .single();
-  if (ins.error || !ins.data) return null;
+  if (ins.error || !ins.data) {
+    captureError(ins.error ?? new Error("checklist-media: attachment insert returned no row"), {
+      where: "checklist-media:attachment",
+      farmId,
+      extra: { code: ins.error?.code ?? null },
+    });
+    return null;
+  }
   return (ins.data as { id: string }).id;
 }
 
@@ -62,7 +75,8 @@ export async function signChecklistPhotos(
   return Promise.all(
     paths.map(async (p) => {
       if (!p) return null;
-      const { data } = await supabase.storage.from("checklist-photos").createSignedUrl(p, 3600);
+      // soft: a photo that will not sign shows as missing; the answers beside it still stand.
+      const data = soft(await supabase.storage.from("checklist-photos").createSignedUrl(p, 3600), "checklist-media:sign");
       return data?.signedUrl ?? null;
     }),
   );

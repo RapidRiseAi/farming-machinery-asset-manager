@@ -5,7 +5,8 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { rapidRiseLockPath, rapidRiseVerdict, readAssurance } from "@/lib/mfa";
 import { safePath } from "@/lib/safe-path";
-import { must } from "@/lib/supabase/must";
+import { must, ReadFailed } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 import {
   type Plan,
   type Feature,
@@ -99,7 +100,8 @@ export const rapidRiseUnlocked = cache(async (): Promise<boolean> => {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("session_is_rapid_rise");
-    if (error) console.error(`[auth] session_is_rapid_rise failed: ${error.code ?? ""} ${error.message}`);
+    // Still answers no (the safe direction), but we hear of it rather than only the log.
+    if (error) captureError(new ReadFailed("auth:session-is-rapid-rise", error), { where: "auth:session-is-rapid-rise" });
     return !error && data === true;
   } catch {
     return false;
@@ -139,8 +141,15 @@ const loadProfile = cache(async (): Promise<LoadedProfile> => {
     // read the rest. A Rapid Rise account still gets nothing, because the database check
     // below cannot answer yes until the migration is there too.
     if (error.code === "42703") {
-      const retry = await supabase.from("users").select(PROFILE_COLUMNS_BEFORE_FENCE).eq("id", uid).maybeSingle();
-      row = retry.data ? ({ ...(retry.data as object), is_test: false } as ProfileRow) : null;
+      const retry = must(
+        await supabase.from("users").select(PROFILE_COLUMNS_BEFORE_FENCE).eq("id", uid).maybeSingle(),
+        "auth:profile-before-fence",
+      );
+      row = retry ? ({ ...(retry as object), is_test: false } as ProfileRow) : null;
+    } else {
+      // A failed read is not "no profile": answering null sent a signed-in person to the
+      // sign-in page with "no profile", as if their account had gone.
+      throw new ReadFailed("auth:profile", error);
     }
   }
   if (!row) return { profile: null, lock: null };
@@ -271,11 +280,16 @@ export async function accessibleFarms(profile?: Profile): Promise<FarmOption[]> 
   const p = profile ?? (await requireProfile());
   if (p.role === "rr_admin" || p.role === "workshop") return [];
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("farms")
-    .select("id, name")
-    .is("deleted_at", null)
-    .order("name");
+  // Throws on failure: an empty list quietly put a person back on their primary farm
+  // (currentFarmId) while they believed they were acting in the one they chose.
+  const data = must(
+    await supabase
+      .from("farms")
+      .select("id, name")
+      .is("deleted_at", null)
+      .order("name"),
+    "auth:accessible-farms",
+  );
   return (data as FarmOption[] | null) ?? [];
 }
 
@@ -304,7 +318,9 @@ export async function supportFarm(profile?: Profile): Promise<FarmOption | null>
   const id = await supportFarmId(profile);
   if (!id) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("farms").select("id, name").eq("id", id).maybeSingle();
+  // must: without the banner an admin still scoped to a customer's farm cannot tell, and
+  // the shell grants API tokens from this value.
+  const data = must(await supabase.from("farms").select("id, name").eq("id", id).maybeSingle(), "auth:support-farm");
   return (data as FarmOption | null) ?? null;
 }
 
@@ -389,12 +405,16 @@ export async function requireFarmRole(
 
   if (profile.role === "workshop" && roles.includes("workshop")) {
     const supabase = await createClient();
-    const { data } = await supabase
-      .from("farms")
-      .select("id")
-      .eq("id", farmId)
-      .is("deleted_at", null)
-      .maybeSingle();
+    // A failed read is not "no link": it would have told the partner they were denied.
+    const data = must(
+      await supabase
+        .from("farms")
+        .select("id")
+        .eq("id", farmId)
+        .is("deleted_at", null)
+        .maybeSingle(),
+      "auth:workshop-farm-link",
+    );
     if (data) role = "workshop";
   } else {
     role = await effectiveFarmRole(farmId, profile);

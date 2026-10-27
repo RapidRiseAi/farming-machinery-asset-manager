@@ -27,11 +27,14 @@ export async function updateSettings(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { data: farm } = await supabase
+  const { data: farm, error: readError } = await supabase
     .from("farms")
     .select("settings")
     .eq("id", profile.farm_id)
     .maybeSingle();
+  // Stop here on a failed read: merging the form over "nothing" and saving the whole blob
+  // would wipe every setting this form does not own.
+  if (readError) redirect(`/settings?error=${errorCode(readError, "app/settings/actions:updateSettings-read")}`);
 
   const settings = mergeSettings(
     (farm as { settings: Record<string, unknown> | null } | null)?.settings ?? null,

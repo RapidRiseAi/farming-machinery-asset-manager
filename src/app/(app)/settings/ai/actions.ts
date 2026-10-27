@@ -10,6 +10,8 @@ import { parseRandsToCents } from "@/lib/money";
 import { keyHint, looksLikeOpenAiKey, openFarmKey, sealFarmKey } from "@/lib/ai-usage/key-crypto";
 import { checkOpenAiKey } from "@/lib/ai-usage/openai-key";
 import type { AiResult } from "@/lib/ai-usage/results";
+import { ReadFailed } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 /**
  * The owner's AI and voice actions (docs/AI_USAGE.md).
@@ -147,7 +149,12 @@ export async function recheckOpenAiKey(formData: FormData): Promise<void> {
   const { profile, farmId } = await requireAiAdmin(formData);
   if (!keyCheckAllowed(profile.id)) done("key-rate-limited");
   const service = createServiceClient();
-  const { data: row } = await service.from("farm_ai_keys").select("ciphertext").eq("farm_id", farmId).maybeSingle();
+  const { data: row, error: readError } = await service.from("farm_ai_keys").select("ciphertext").eq("farm_id", farmId).maybeSingle();
+  // Said as "failed" either way, but a failed read is ours to hear of, not a missing key.
+  if (readError) {
+    captureError(new ReadFailed("settings-ai:recheck-key", readError), { where: "settings-ai:recheck-key", farmId });
+    done("failed");
+  }
   if (!row) done("failed");
   let key: string;
   try {

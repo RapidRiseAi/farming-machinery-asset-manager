@@ -5,6 +5,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { uploadFaultMedia } from "@/lib/fault-media";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
+import { ReadFailed } from "@/lib/supabase/must";
+import { captureError } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +55,12 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
   // RLS scopes this to the user's farm(s), an unauthorised machine id returns null.
-  const { data: machine } = await supabase.from("machines").select("id, farm_id").eq("id", machineId).is("deleted_at", null).maybeSingle();
+  const { data: machine, error: machineError } = await supabase.from("machines").select("id, farm_id").eq("id", machineId).is("deleted_at", null).maybeSingle();
+  // A failed lookup is not "no such machine": answering 404 told the reporter it was gone.
+  if (machineError) {
+    captureError(new ReadFailed("api/faults:machine", machineError), { where: "api/faults:machine", userId: profile.id });
+    return NextResponse.json({ error: "lookup_failed" }, { status: 500 });
+  }
   const m = machine as { id: string; farm_id: string } | null;
   if (!m) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
@@ -62,7 +69,15 @@ export async function POST(request: Request) {
     .insert({ farm_id: m.farm_id, machine_id: m.id, description, urgency, category, reported_by: profile.id, status: "open", ...geoFields(form) })
     .select("id")
     .single();
-  if (error || !fault) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
+  if (error || !fault) {
+    captureError(error ?? new Error("api/faults: insert returned no row"), {
+      where: "api/faults:insert",
+      userId: profile.id,
+      farmId: m.farm_id,
+      extra: { code: error?.code ?? null },
+    });
+    return NextResponse.json({ error: "insert_failed" }, { status: 500 });
+  }
 
   const media = await uploadFaultMedia(createServiceClient(), form, m.farm_id, fault.id, profile.id);
   return NextResponse.json({ ok: true, fault_id: fault.id, media_saved: media.ok });
