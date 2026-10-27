@@ -5627,3 +5627,74 @@ Monitoring, read from the Vercel account on 2026-10-20: `SENTRY_DSN`, `OPS_ALERT
 `AI_ALERT_EMAIL` are not set in production, so every report above reaches only Vercel's
 log stream. Setting `OPS_ALERT_EMAIL` and a Sentry DSN is on the founder's checklist.
 668 unit tests, the click-through and all spam checks on a production build.
+
+## 2026-10-27 - Honest reads, finished (interaction safety, release 4)
+
+Release 3 left about 200 lesser page reads dropping their error. They are done: every page
+and route read in about 120 files goes through `must`/`mustAll` (the page's own data, and
+anything a decision is made from) or `soft` (a count in a header, a name beside a title:
+reported, and the page goes on without it), and the writes beside them are checked. Making
+reads loud surfaced bugs that silence had hidden, and closing those is most of this entry.
+
+- **Two screens were broken on production and showed it as "nothing here".** Checklist
+  templates and report schedule recipients embedded a table PostgREST can reach two ways
+  (PGRST201), so the query always failed and the page showed no fields and no recipients.
+  The embeds name their foreign key now. `scripts/embed_check.mjs` asks the live API for
+  every embedded select with `limit=0` (read-only, no rows) and fails on any it cannot
+  resolve, because the PGlite suites have no PostgREST and cannot see this class.
+- **Addresses people can type or be sent.** A malformed id (a link wrapped by an email
+  client) or a stale filter (`?status=foo`, `?machine=abc`, `?from=2026-02-30`) used to
+  fail quietly into an empty page and now made Postgres refuse the query, so the error
+  screen. `lib/ids` (`isUuid`, `isIsoDate`, which rebuilds the date because `Date.parse`
+  rolls 30 February into March) is checked first wherever a route takes an id, and on the work, job
+  card, machines, QR sheet, driver activity, reports, money, VAT, fines and notifications
+  filters; `requireFarmRole` denies a farm id that is not one. `scripts/address_sweep.mjs`
+  finds every dynamic route and every search parameter from the file tree and visits them
+  with nonsense, watching the server log as well, since a streamed error changes neither
+  the status nor the HTML. Its first run found the reports page, whose impossible date
+  crashed mid-stream and left the response hanging.
+- **Reports said "[object Object]".** PostgREST returns its errors as plain objects, and
+  `captureError` stringified them, so every database failure reported since release 3 had
+  lost its code. `asReportable` keeps the code always, the message only where it names
+  schema objects (PGRST*, 42xxx) or is the library's own network text (a timeout, a
+  dropped connection, a URL too long), never a message that can quote what was typed.
+- **An Auth outage is not "signed out".** The middleware and the profile loader treated
+  Auth unreachable (status 0 or 5xx) as no session and sent a signed-in person to a sign-in
+  form that could not work. Now the page throws and says "try again"
+  (`lib/auth-unanswered`); a missing session or a refused token still means sign in.
+- **Contractor connections.** A contractor re-asking a farm that had disconnected them
+  updated the link through row-level security that only lets the farm change it: zero
+  rows, no error, and "asked" while nothing reached the farm. That one write (revoked to
+  pending, nothing else) now goes through the service role, and it clears what the farm
+  had once let them see, so approving the new request does not quietly hand back costs or
+  the team's phone numbers. Across the test fence the reply is the same "asked" as for an
+  unknown address. A partner counts as connected only with an active link: an invite that
+  stopped half way (its link or the contractor's profile failed) offers Invite again,
+  which finishes it and reuses the workshop, instead of a login link to an account that
+  sees nothing.
+- **Smaller ones.** A failed Paystack attempt lookup releases the stored event and answers
+  500, so the redelivery is processed (the dedupe key used to turn it into a no-op), and
+  it is reported. The order page shows the latest of several supplier invoices (0501
+  allows more than one, and a single-row read failed on two). A checklist copy or create
+  whose fields fail is taken back, and an edit whose new fields fail puts the old ones
+  back. The AI key notice reads its fallback before marking the key, so a failed read can
+  no longer lose the one notice. Saving a card, stock, fuel, incidents, licences, job card
+  and warranty writes, the vehicle copy and the lapsed-farm reopen report what is ours and
+  keep the person's message. The fault form, the offline queue and the billing return
+  still work when the profile read fails (and re-throw Next's own signals, which a plain
+  catch swallowed on the queue page during the build).
+- From the start of this release: the recurring invoice generator locks its schedule
+  (20261026090000); the activity log's read policy works out the readable farms once per
+  query, 3.9 s to 0.16 s for an owner's 4,900 rows on production (20261026100000, applied
+  on 2026-10-27); a refused save in a dialog brings the dialog back with what was typed
+  and the reason (spam_check check 7).
+
+Reviewed by three adversarial lenses (security, runtime, reporting); their nine findings
+are fixed above. 683 unit tests, 163 voice tests, all 46 SQL suites (PGlite), lint, types,
+translations, design, dashes and error coverage; on a production build every spam check,
+the click-through (31), the UI check (55 routes at 360 and 1024px), eight roles through
+the loud pages, and the address sweep.
+
+Monitoring, read from the Vercel account again on 2026-10-27: `SENTRY_DSN`, `OPS_ALERT_EMAIL`,
+`AI_ALERT_EMAIL`, `SUPPORT_WEBHOOK_URL` and `AI_KEY_SECRET` are still not set in production,
+so the reports this release makes honest still reach only Vercel's log stream.

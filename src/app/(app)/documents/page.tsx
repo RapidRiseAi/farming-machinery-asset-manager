@@ -53,7 +53,7 @@ type Row = {
   due_date: string | null;
   total_cents: number;
   amount_paid_cents: number;
-  farm_id: string;
+  farm_id: string | null;
   workshop_id: string;
   machine_id: string | null;
 };
@@ -100,7 +100,9 @@ export default async function DocumentsPage({
   const rows = (data ?? []) as Row[];
 
   // Names for the other side of each document.
-  const farmIds = [...new Set(rows.map((r) => r.farm_id))];
+  // A document for a client-book or one-time customer has no farm: leave those out, or the
+  // .in() below asks Postgres for a null uuid, which it refuses.
+  const farmIds = [...new Set(rows.map((r) => r.farm_id).filter(Boolean))] as string[];
   const shopIds = [...new Set(rows.map((r) => r.workshop_id))];
   const machineIds = [...new Set(rows.map((r) => r.machine_id).filter(Boolean))] as string[];
 
@@ -199,7 +201,7 @@ export default async function DocumentsPage({
   const fromList = listQuery ? `?from=${encodeURIComponent(`/documents?${listQuery}`)}` : "";
 
   function DocRow({ r }: { r: Row }) {
-    const other = isPartner ? farmName.get(r.farm_id) : shopName.get(r.workshop_id);
+    const other = isPartner ? (r.farm_id ? farmName.get(r.farm_id) : undefined) : shopName.get(r.workshop_id);
     const due = r.kind === "invoice" ? balanceDueCents(r) : r.total_cents;
     return (
       <li>

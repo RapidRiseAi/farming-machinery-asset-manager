@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseRandsToCents } from "@/lib/money";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireRole } from "@/lib/auth";
-import { errorCode } from "@/lib/action-errors";
+import { classifyFailure, errorCode } from "@/lib/action-errors";
 import { captureError } from "@/lib/observability";
 
 /**
@@ -272,19 +272,45 @@ export async function requestClientLink(formData: FormData) {
     // Pending grants nothing, `has_farm_access` counts only active, so raising or
     // reopening one is safe. A revoked row is set back to pending so a relationship can
     // be restarted; the farm still has to approve it.
+    //
+    // The test fence (20261014120000) refuses a link between a test workshop and a real
+    // farm, or the other way round. To this partner that farm is not on FleetWise: the
+    // reply is the same "asked" as for an unknown address, since "forbidden" would tell a
+    // test account which addresses have real farms, and nothing is reported, because the
+    // refusal is the design working. Any other refusal is still an error.
+    let fenced = false;
+    const isFence = (e: { code?: string; message?: string }) =>
+      e.code === "42501" && /^Test and real never mix/.test(e.message ?? "");
     if (current === null) {
       const { error: raiseError } = await supabase
         .from("workshop_links")
         .insert({ workshop_id: workshopId, farm_id: match.farm_id, status: "pending" });
       // "Asked" over a failed insert is the silent no-request this action was rewritten to end.
-      if (raiseError) redirect(`/contractor/clients/${clientId}?error=${errorCode(raiseError, "app/contractor/clients/actions:requestClientLink:raise")}`);
+      if (raiseError && isFence(raiseError)) fenced = true;
+      else if (raiseError) redirect(`/contractor/clients/${clientId}?error=${errorCode(raiseError, "app/contractor/clients/actions:requestClientLink:raise")}`);
     } else if (current === "revoked") {
-      const { error: reopenError } = await supabase
+      // Through the service role, narrowly: `wl_upd` (0403) lets only the farm's owner or
+      // manager update a link, so a partner may never approve itself, and through the
+      // partner's own client this update matched zero rows, returned no error, and said
+      // "asked" while no request reached the farm. Only revoked -> pending is written here,
+      // which grants nothing; the farm still has to approve it. The extras the farm once
+      // granted (0400) are cleared with it: a disconnect changes only the status, and a
+      // reopened request approved as new would otherwise hand back costs and the team's
+      // phone numbers that nobody chose again. It starts where a new request starts.
+      const { data: reopened, error: reopenError } = await svc
         .from("workshop_links")
-        .update({ status: "pending" })
+        .update({ status: "pending", see_all_vehicles: false, see_service_history: false, see_costs: false, see_team: false })
         .eq("workshop_id", workshopId)
-        .eq("farm_id", match.farm_id);
-      if (reopenError) redirect(`/contractor/clients/${clientId}?error=${errorCode(reopenError, "app/contractor/clients/actions:requestClientLink:reopen")}`);
+        .eq("farm_id", match.farm_id)
+        .eq("status", "revoked")
+        .select("workshop_id");
+      if (reopenError && isFence(reopenError)) fenced = true;
+      else if (reopenError) redirect(`/contractor/clients/${clientId}?error=${errorCode(reopenError, "app/contractor/clients/actions:requestClientLink:reopen")}`);
+      // No row: the link changed since it was read (the farm acted meanwhile). Not "asked".
+      else if (!reopened?.length) {
+        captureError(new Error("requestClientLink:reopen matched no revoked link"), { where: "contractor-clients:reopen", workshopId });
+        redirect(`/contractor/clients/${clientId}?error=try-again`);
+      }
     }
 
     const { error: markError } = await supabase
@@ -293,8 +319,9 @@ export async function requestClientLink(formData: FormData) {
         link_status: "requested",
         requested_at: new Date().toISOString(),
         // Which farm this request is aimed at, so an approval binds exactly this record
-        // and not another of the workshop's outstanding requests (0392).
-        requested_farm_id: match.farm_id,
+        // and not another of the workshop's outstanding requests (0392). None across the
+        // fence: no request reached that farm, so there is nothing for it to approve.
+        ...(fenced ? {} : { requested_farm_id: match.farm_id }),
       })
       .eq("id", clientId);
     // Without `requested_farm_id` the farm's approval cannot bind this record.
@@ -392,6 +419,9 @@ export async function syncClientVehicles(formData: FormData) {
 
     if (error || !created) {
       failed += 1;
+      // The count tells the partner; a refusal our SQL raises on purpose (the vehicle
+      // ceiling, a duplicate registration) is theirs to fix, anything else is ours to hear of.
+      if (error && classifyFailure(error).report) captureError(error, { where: "contractor-clients:sync:copy" });
       continue;
     }
     const { error: traceError } = await supabase
@@ -415,8 +445,9 @@ export async function syncClientVehicles(formData: FormData) {
       .from("partner_clients")
       .update({ synced_at: new Date().toISOString() })
       .eq("id", clientId);
-    // The vehicles did move, so the count stands. Left open, the offer only finds the
-    // ones not yet copied, so it cannot duplicate; we hear of it all the same.
+    // The vehicles did move, so the count stands. Left open, the offer finds only the
+    // vehicles without a trace; one whose trace update also failed above would be copied
+    // again by a second press, which is why both failures are reported.
     if (closeError) captureError(closeError, { where: "contractor-clients:sync:close" });
   }
 

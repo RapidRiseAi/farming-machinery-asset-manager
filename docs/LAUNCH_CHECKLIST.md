@@ -143,7 +143,7 @@ Order: correctness and security first, then load, then product.
 - [ ] **Taps, release 2 follow-ups (medium):** work-request media capture id; assistant turn,
       transcribe and voice-session ids (AI spend on a retry); activation "Pay" resuming an
       attempt already in flight; contractor vehicle sync claim; service template unique per
-      machine; `FOR UPDATE SKIP LOCKED` in the recurring invoice generator loop.
+      machine. (The recurring invoice generator locks its schedule since 2026-10-27.)
 - [x] **Taps, release 3 (errors):** server actions report what they catch and never put a
       raw database message in the address bar; reads that fail stop pretending to be empty.
       2026-10-20: `errorCode` on 109 redirects (refusals keep their words, our failures are
@@ -154,14 +154,25 @@ Order: correctness and security first, then load, then product.
       default, receipt and failure-notice releases, erasure's auth scrub, sign-up terms,
       contractor connect); client fetches time out; error screens for the public and sign-in
       areas, "Try again" refetches. Swept as eight personas: no page fails for any role.
-- [ ] **Errors follow-ups:** about 200 lesser page reads still drop `error`; contractor
-      vehicle sync writes unchecked; checklist template duplicate; push toggle out of step
-      after a failed subscribe; speech-token logs no Azure status; a form that fails on a
-      dropped connection could queue offline (needs the online path's request id in the
-      offline envelope); DialogActions closes on an error redirect (the message is on the
-      page behind it). **Founder:** set `OPS_ALERT_EMAIL` and a `SENTRY_DSN` in Vercel;
-      read from the account on 2026-10-20, neither is set, so every report reaches only
-      Vercel's log stream.
+- [x] **Taps, release 4 (honest reads, finished):** 2026-10-27, every remaining page read
+      goes through `must`/`mustAll`/`soft` and its writes are checked. Found by it: checklist
+      templates and report schedule recipients were broken on production by ambiguous
+      embeds (fixed; `scripts/embed_check.mjs`); malformed ids and stale filters crashed
+      pages (`lib/ids`; `scripts/address_sweep.mjs` visits every dynamic route and every
+      search parameter with nonsense); every database failure was reported as "[object
+      Object]" (`asReportable`); an Auth outage sent signed-in people to sign-in; a
+      contractor re-asking a farm that disconnected them reached nobody (and now starts
+      with no extras); a half-made partner connection looked connected; a failed webhook
+      lookup made Paystack's redelivery a no-op. A refused dialog save comes back with what
+      was typed; push toggle, speech-token, checklist copies, vehicle sync and the
+      activity log's slow policy (3.9 s to 0.16 s) are done.
+- [ ] **Errors follow-ups:** a form that fails on a dropped connection could queue offline
+      (needs the online path's request id in the offline envelope); the address sweep's
+      accounts (`SWEEP_ACCOUNTS`, `SWEEP_PASSWORD` in `.env.local`) are not in CI.
+      **Founder:** set `OPS_ALERT_EMAIL` and a `SENTRY_DSN` in Vercel; read from the
+      account again on 2026-10-27, neither is set (nor `AI_ALERT_EMAIL`,
+      `SUPPORT_WEBHOOK_URL`, `AI_KEY_SECRET`), so every report reaches only Vercel's log
+      stream.
 - [ ] **Follow-ups from B7:** the farm export is one in-memory JSON response (a very large
       farm could pass a function's response limit: stream it or split it); the accounting
       summary sums journal lines in the page (move it into SQL); five older SQL suites are not

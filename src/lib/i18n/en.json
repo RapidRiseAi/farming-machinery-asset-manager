@@ -880,6 +880,7 @@
     "addPhoto": "Add photo",
     "uploading": "Uploading…",
     "noPhotos": "No photos yet.",
+    "somePhotosMissing": "Some photos could not be shown.",
     "uploadFailed": "Upload failed",
     "setPrimary": "Set primary",
     "unsetPrimary": "Unset primary",

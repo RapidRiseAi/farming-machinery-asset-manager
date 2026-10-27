@@ -42,6 +42,7 @@ import { downloadLabels } from "@/lib/interaction-labels";
 import { RequestIdInput } from "@/components/ui/request-id-input";
 import { errorMessage } from "@/lib/errors";
 import { must, mustAll, soft } from "@/lib/supabase/must";
+import { isUuid } from "@/lib/ids";
 
 /**
  * One quote or invoice, as both sides see it (F14c/F14d).
@@ -107,6 +108,7 @@ export default async function DocumentPage({
   if (profile.role === "operator") redirect(`${homePathFor(profile.role)}?denied=1`);
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
 
   const supabase = await createClient();

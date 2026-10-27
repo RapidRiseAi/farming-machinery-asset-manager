@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { authUnanswered } from "@/lib/auth-unanswered";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -78,7 +79,12 @@ export async function updateSession(request: NextRequest) {
   // Touch the session so refreshed tokens are written back to cookies.
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+  // Auth did not answer (unreachable, or a 5xx): not "signed out". The page runs, its own
+  // profile read throws, and the person sees "try again" rather than a sign-in form that
+  // cannot work during the outage (lib/auth-unanswered).
+  if (authUnanswered(error)) return response;
 
   // Guard the authenticated areas. The public-lite QR page (/m/[token]) and the
   // auth routes stay open.

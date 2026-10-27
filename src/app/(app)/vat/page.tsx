@@ -24,6 +24,7 @@ import { PeriodChips } from "@/components/books/period-chips";
 import { DownloadIcon } from "@/components/ui/icons";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { isIsoDate } from "@/lib/ids";
 
 export const dynamic = "force-dynamic";
 
@@ -81,8 +82,9 @@ export default async function VatPage({
   const open = currentVatPeriod(category);
   const periods = [open, ...closed];
   const chosen = periods.find((p) => p.from === sp.from && p.to === sp.to);
-  const from = chosen?.from ?? sp.from ?? closed[0].from;
-  const to = chosen?.to ?? sp.to ?? closed[0].to;
+  // A custom range only from real dates: Postgres refuses `2026-02-30`.
+  const from = chosen?.from ?? (isIsoDate(sp.from) ? sp.from : closed[0].from);
+  const to = chosen?.to ?? (isIsoDate(sp.to) ? sp.to : closed[0].to);
   const viewingOpen = from === open.from && to === open.to;
 
   const supabase = await createClient();

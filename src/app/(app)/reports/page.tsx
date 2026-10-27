@@ -24,6 +24,7 @@ import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { budgetTone, budgetPeriodLabel, budgetCategoryLabel } from "@/lib/budgets";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { isIsoDate } from "@/lib/ids";
 
 /**
  * Reports (FR-11).
@@ -110,12 +111,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   // the default. "thisYear" in the URL is accepted too and means the same as none.
   const today = todayLocal();
   const named = PERIODS.find((p) => p === sp.period);
-  const custom = !named && Boolean(sp.from || sp.to);
+  const custom = !named && Boolean(isIsoDate(sp.from) || isIsoDate(sp.to));
   const period: Period | null = named ?? (custom ? null : DEFAULT_PERIOD);
   const range = period ? periodRange(period, today) : null;
   const filters = parseFilters({
-    from: range ? (range.from ?? undefined) : sp.from,
-    to: range ? (range.to ?? undefined) : sp.to,
+    from: range ? (range.from ?? undefined) : isIsoDate(sp.from) ? sp.from : undefined,
+    to: range ? (range.to ?? undefined) : isIsoDate(sp.to) ? sp.to : undefined,
     inactive: sp.inactive,
     group: sp.group,
   });

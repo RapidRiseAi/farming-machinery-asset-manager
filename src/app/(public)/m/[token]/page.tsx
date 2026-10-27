@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { memberQr } from "@/lib/member-qr";
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -279,6 +280,7 @@ export default async function PublicMachinePage({
     // Only fills in the name boxes, which the driver can type: a failed profile read is
     // reported and the capture screen still opens.
     getProfile().catch((error) => {
+      unstable_rethrow(error);
       captureError(error, { where: "public-qr:profile" });
       return null;
     }),

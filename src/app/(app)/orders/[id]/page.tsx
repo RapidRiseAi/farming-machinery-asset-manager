@@ -32,6 +32,7 @@ import {
 } from "@/lib/purchase-orders";
 import { expenseTotalCents, type Expense } from "@/lib/expenses";
 import { setOrderStatus, receiveAll, updateOrder, deleteOrder } from "../actions";
+import { isUuid } from "@/lib/ids";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function OrderPage({
   if (profile.role !== "workshop") redirect("/documents");
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) redirect("/orders?error=po-notFound");
   const sp = await searchParams;
 
   const { workshop } = await currentWorkshop(profile);
@@ -88,14 +90,17 @@ export default async function OrderPage({
   );
   const lines = (lineRows ?? []) as PurchaseOrderLine[];
 
-  // The supplier invoice, if it has arrived. 0475's unique index means there is at most
-  // one live row here, so `maybeSingle` is a statement about the schema, not a guess.
+  // The supplier invoice, if it has arrived. 0475's unique index once meant at most one
+  // live row, but 0501 dropped it (an order can be invoiced more than once), so the latest
+  // is shown; maybeSingle on several rows is an error, and reads now fail loudly.
   const expenseRow = must(
     await supabase
       .from("partner_expenses")
       .select("*")
       .eq("purchase_order_id", order.id)
       .is("deleted_at", null)
+      .order("expense_date", { ascending: false })
+      .limit(1)
       .maybeSingle(),
     "orders:detail-expense",
   );

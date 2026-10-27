@@ -35,6 +35,7 @@ import { Stepper } from "@/components/ui/stepper";
 import { PhoneIcon, ChatIcon, MailIcon, JobCardsIcon } from "@/components/ui/icons";
 import { WorkStatus } from "@/components/ui/status";
 import { RequestIdInput } from "@/components/ui/request-id-input";
+import { isUuid } from "@/lib/ids";
 import {
   updateWorkRequestStatus, addWorkRequestNote, setWorkRequestQuote,
   setWorkRequestInvoice, convertToJobCard, assignWorkRequestProvider,
@@ -75,6 +76,7 @@ export default async function WorkRequestDetailPage({
 }) {
   const profile = await requireProfile();
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
   const locale = profile.lang;
   const closeLabel = t("ui.close", locale);

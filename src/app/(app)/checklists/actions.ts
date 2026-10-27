@@ -9,6 +9,7 @@ import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists"
 import { t, type Lang } from "@/lib/i18n";
 import { errorCode, type DbFailure } from "@/lib/action-errors";
 import { errorMessage } from "@/lib/errors";
+import { captureError } from "@/lib/observability";
 
 // Who may build/maintain checklist templates: farm crew for their own farm's templates,
 // RR admin for the GLOBAL library. Operators/workshop are read-only here (they fill
@@ -105,6 +106,23 @@ async function insertFields(
 }
 
 /**
+ * Take back a template row whose fields did not save, so the list does not show an empty
+ * template (and a retry does not add a second one). Soft, the way every delete here is.
+ */
+async function discardTemplate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  templateId: string,
+  profileId: string,
+  where: string,
+) {
+  const { error } = await supabase
+    .from("checklist_templates")
+    .update({ deleted_at: new Date().toISOString(), deleted_by: profileId })
+    .eq("id", templateId);
+  if (error) captureError(error, { where });
+}
+
+/**
  * The builder shows the returned string as it is, so a failure is said in the person's
  * language, never in the database's words. `errorCode` reports the ones that are ours.
  */
@@ -149,11 +167,24 @@ export async function saveChecklistTemplate(payload: TemplatePayload): Promise<{
     if (upErr) return { error: saveFailed(upErr, "checklists:save:update", profile.lang) };
 
     // Replace fields (hard delete + re-insert). Completed instances keep their own
-    // snapshotted field metadata, so history is unaffected.
+    // snapshotted field metadata, so history is unaffected. The old rows are read first:
+    // if the new ones then fail to save, they are put back, or a failed edit would leave
+    // the template with no fields at all.
+    const { data: previous, error: previousError } = await supabase
+      .from("checklist_template_fields")
+      .select("*")
+      .eq("template_id", payload.id);
+    if (previousError) return { error: saveFailed(previousError, "checklists:save:read-fields", profile.lang) };
     const { error: delErr } = await supabase.from("checklist_template_fields").delete().eq("template_id", payload.id);
     if (delErr) return { error: saveFailed(delErr, "checklists:save:clear-fields", profile.lang) };
     const insErr = await insertFields(supabase, payload.id, row.farm_id, fields);
-    if (insErr) return { error: saveFailed(insErr, "checklists:save:fields", profile.lang) };
+    if (insErr) {
+      if (previous?.length) {
+        const { error: restoreError } = await supabase.from("checklist_template_fields").insert(previous);
+        if (restoreError) captureError(restoreError, { where: "checklists:save:restore-fields" });
+      }
+      return { error: saveFailed(insErr, "checklists:save:fields", profile.lang) };
+    }
   } else {
     const farmId = profile.role === "rr_admin" ? null : profile.farm_id;
     if (profile.role !== "rr_admin" && !farmId) return { error: "No farm." };
@@ -165,7 +196,10 @@ export async function saveChecklistTemplate(payload: TemplatePayload): Promise<{
       .single();
     if (insErr || !created) return { error: saveFailed(insErr, "checklists:save:create", profile.lang) };
     const fieldErr = await insertFields(supabase, (created as { id: string }).id, farmId, fields);
-    if (fieldErr) return { error: saveFailed(fieldErr, "checklists:save:fields", profile.lang) };
+    if (fieldErr) {
+      await discardTemplate(supabase, (created as { id: string }).id, profile.id, "checklists:save:undo");
+      return { error: saveFailed(fieldErr, "checklists:save:fields", profile.lang) };
+    }
   }
 
   revalidatePath("/checklists");
@@ -196,7 +230,7 @@ export async function duplicateChecklistTemplate(formData: FormData) {
 
   const { data: src, error: srcError } = await supabase
     .from("checklist_templates")
-    .select("name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
+    .select("name, description, machine_type, checklist_template_fields!checklist_template_fields_template_fk(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
@@ -237,8 +271,12 @@ export async function duplicateChecklistTemplate(formData: FormData) {
     }));
   if (fields.length > 0) {
     const { error: fieldsError } = await supabase.from("checklist_template_fields").insert(fields);
-    // Otherwise "saved" announces a copy that has no fields.
-    if (fieldsError) redirect(`/checklists?error=${errorCode(fieldsError, "checklists:duplicate:fields")}`);
+    // Otherwise "saved" announces a copy that has no fields. The empty copy is taken back,
+    // so the list does not show it and a retry does not leave two.
+    if (fieldsError) {
+      await discardTemplate(supabase, (created as { id: string }).id, profile.id, "checklists:duplicate:undo");
+      redirect(`/checklists?error=${errorCode(fieldsError, "checklists:duplicate:fields")}`);
+    }
   }
   revalidatePath("/checklists");
   redirect("/checklists?saved=1");

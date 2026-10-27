@@ -14,6 +14,7 @@ import { withTab } from "@/components/ui/tabs-url";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteChecklistInstance } from "../actions";
 import { meterReading, shortDate } from "@/lib/format";
+import { isUuid } from "@/lib/ids";
 
 type Instance = {
   id: string; farm_id: string; machine_id: string; template_name: string; status: string;
@@ -29,6 +30,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
   const profile = await requireProfile();
   const locale = profile.lang;
   const { id: machineId, instanceId } = await params;
+  if (!isUuid(machineId) || !isUuid(instanceId)) notFound();
   const canEdit = ["owner", "manager", "mechanic"].includes(profile.role);
 
   const supabase = await createClient();

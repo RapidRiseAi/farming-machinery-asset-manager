@@ -6,6 +6,7 @@ import { must } from "@/lib/supabase/must";
 import { loadReceipt } from "@/lib/billing/receipt";
 import { buildBillingReceiptPdf } from "@/lib/pdf/billing-receipt";
 import { pdfResponse } from "@/lib/pdf/doc";
+import { isUuid } from "@/lib/ids";
 
 /**
  * The receipt for an invoice, on demand.
@@ -35,6 +36,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json({ error: "not-found" }, { status: 404 });
   // `getProfile` rather than `requireProfile`: the latter REDIRECTS to /login, and anything
   // that follows redirects, a browser download, curl -L, a script, would save the HTML
   // login page as "FW-2026-000005.pdf". The VAT routes settled this when they shipped: a

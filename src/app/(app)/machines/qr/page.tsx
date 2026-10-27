@@ -16,6 +16,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Card } from "@/components/ui/card";
 import { MachinesIcon } from "@/components/ui/icons";
 import { acknowledgeQrLabels } from "@/app/(app)/onboarding/actions";
+import { MACHINE_TYPES } from "@/lib/machine-options";
 
 type SP = { type?: string; cc?: string; dept?: string; q?: string; from?: string };
 
@@ -32,7 +33,11 @@ type SP = { type?: string; cc?: string; dept?: string; q?: string; from?: string
 export default async function MachineQrSheetPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
   const locale = profile.lang;
-  const sp = await searchParams;
+  const raw = await searchParams;
+  // Only a real machine type: Postgres refuses any other value for the enum column, which
+  // (reads failing loudly) would turn a stale or hand-edited link into the error screen,
+  // and a dropped one must not leave "only the filtered machines" over the whole fleet.
+  const sp = { ...raw, type: raw.type && (MACHINE_TYPES as readonly string[]).includes(raw.type) ? raw.type : undefined };
 
   const supabase = await createClient();
   const farmId = await currentFarmId(profile);

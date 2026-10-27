@@ -201,7 +201,16 @@ async function issueLoginUrl(
     email,
     options: { redirectTo },
   });
-  if (error || !data) return { url: null, userId: null, error: error?.message };
+  if (error || !data) {
+    // Both callers say "no login link" to the farmer; we hear of it unless Auth refused the
+    // request itself (a 4xx: a malformed address, too many emails). The status and code
+    // only: GoTrue's message can quote the email address.
+    const status = (error as { status?: number } | null)?.status;
+    if (!(typeof status === "number" && status >= 400 && status < 500)) {
+      captureError(new Error(`partners:login-link failed (${(error as { code?: string } | null)?.code ?? status ?? "no data"})`), { where: "partners:login-link" });
+    }
+    return { url: null, userId: null, error: error?.message };
+  }
   const url = (data.properties as { action_link?: string } | null)?.action_link ?? null;
   return { url, userId: data.user?.id ?? null };
 }
@@ -270,6 +279,11 @@ export async function inviteContractor(formData: FormData) {
           .single();
         if (wErr || !ws) redirect(`/partners?error=${errorCode(wErr, "app/partners/actions:inviteContractor", "Could not create workshop")}`);
         workshopId = ws.id;
+        // Stamped at once, before anything below can stop the run: an unstamped partner's
+        // next "Connect" makes a second workshop for the same contractor, so every later
+        // early return (an unread link, an unread profile) must find the stamp already done.
+        const { error: stampError } = await svc.from("partners").update({ workshop_id: workshopId }).eq("id", partnerId);
+        if (stampError) captureError(stampError, { where: "partners:invite:stamp" });
       }
 
       // 2) Active workshop_link farm ↔ workshop (idempotent; re-activate if revoked).
@@ -330,11 +344,7 @@ export async function inviteContractor(formData: FormData) {
         }
       }
 
-      // 4) Stamp the partner with its workshop and hand back the login URL.
-      const { error: stampError } = await svc.from("partners").update({ workshop_id: workshopId }).eq("id", partnerId);
-      // Unstamped, the next "Connect" would make a second workshop for the same contractor.
-      if (stampError) captureError(stampError, { where: "partners:invite:stamp" });
-
+      // 4) Hand back the login URL (the partner was stamped with its workshop in step 1).
       revalidatePath("/partners");
       // The connection stands either way; `linkerror` says only that no login link could be
       // made, and the page says so in the farmer's language rather than in Auth's.
@@ -371,6 +381,22 @@ export async function sendLoginUrl(formData: FormData) {
       }
 
       const svc = createServiceClient();
+      // A workshop on the partner is not a connection: an invite that stopped after making
+      // the workshop (its link or the contractor's profile failed), or a farm that has since
+      // disconnected them, leaves the stamp without an active link. A login link then opens
+      // an account that can see nothing, so the farmer is sent back to the invite instead,
+      // which finishes the connection and reuses the workshop.
+      const { data: activeLink, error: activeError } = await svc
+        .from("workshop_links")
+        .select("id")
+        .eq("workshop_id", partner.workshop_id)
+        .eq("farm_id", farmId)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (activeError) redirect(`/partners?error=${errorCode(activeError, "app/partners/actions:sendLoginUrl:link")}`);
+      if (!activeLink) redirect("/partners?error=This+partner+is+not+connected+yet");
+
       const origin = await siteOrigin();
       const { url, error } = await issueLoginUrl(svc, email, origin);
       if (error || !url) redirect("/partners?linkerror=1");

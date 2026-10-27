@@ -58,3 +58,13 @@ export function errorCode(error: DbFailure | Error, where: string, fallback?: st
   }
   return encodeURIComponent(code);
 }
+
+/**
+ * Report `error` when it is ours, for a site that keeps its own slug for the person (a
+ * "save-failed" the page already translates). A refusal our SQL raises on purpose is the
+ * person's to fix and is not reported; anything else is, with where it happened.
+ */
+export function reportUnlessRefused(error: DbFailure | Error, where: string): void {
+  if (!error || !classifyFailure(error).report) return;
+  captureError(error, { where, extra: { code: (error as { code?: string }).code ?? null } });
+}

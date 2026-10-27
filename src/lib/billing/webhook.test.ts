@@ -81,8 +81,11 @@ type WebhookEventRow = {
  */
 function fakeSupabase(opts: {
   attempt?: Record<string, unknown> | null;
+  /** The attempt lookup fails this many times before answering (a dropped connection). */
+  attemptFailures?: number;
   rpc?: (name: string, args: Record<string, unknown>) => Result;
 }) {
+  let attemptFailures = opts.attemptFailures ?? 0;
   const rpcCalls: RpcCall[] = [];
   const queries: QueryCtx[] = [];
   const events: WebhookEventRow[] = [];
@@ -124,8 +127,17 @@ function fakeSupabase(opts: {
         if (found) Object.assign(found, ctx.payload as Record<string, unknown>);
         return { data: null, error: null };
       }
+      if (ctx.kind === "delete") {
+        const at = events.findIndex((e) => e.id === ctx.filters.id);
+        if (at >= 0) events.splice(at, 1);
+        return { data: null, error: null };
+      }
     }
     if (ctx.table === "billing_payment_attempts" && ctx.kind === "select") {
+      if (attemptFailures > 0) {
+        attemptFailures -= 1;
+        return { data: null, error: { message: "connection reset", code: "08006" } };
+      }
       return { data: opts.attempt ?? null, error: null };
     }
     return { data: null, error: null };
@@ -449,6 +461,22 @@ test("a replayed delivery performs EXACTLY ONE side effect", async () => {
   assert.equal(count.n, 1, "a duplicate does not even re-verify");
   assert.equal(db.events.length, 1);
   assert.equal(db.events[0].delivery_count, 3, "a redelivery storm is made visible, not silent");
+});
+
+test("a failed attempt lookup releases the event, so Paystack's redelivery is processed", async () => {
+  const raw = body("charge.success");
+  const signature = sign(raw);
+  const db = fakeSupabase({ attempt: attemptRow(), attemptFailures: 1 });
+  const p = provider(async () => ({ ok: true, transaction: txn() }));
+
+  const first = await handlePaystackWebhook({ rawBody: raw, signature, supabase: db.client, provider: p });
+  assert.equal(first.status, 500, "our own failure asks for a redelivery");
+  assert.equal(db.events.length, 0, "and the stored dedupe key is released, or the redelivery would be a no-op");
+  assert.equal(settleCalls(db.rpcCalls).length, 0);
+
+  const redelivery = await handlePaystackWebhook({ rawBody: raw, signature, supabase: db.client, provider: p });
+  assert.equal(redelivery.outcome, "processed", "the redelivery is treated as new");
+  assert.equal(settleCalls(db.rpcCalls).length, 1, "and settles the invoice once");
 });
 
 test("out of order: a failure arriving after a recorded success changes nothing", async () => {

@@ -22,6 +22,7 @@ import { GetStarted } from "@/components/ui/empty-state";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import type { BookValueRow } from "@/lib/depreciation";
+import { isIsoDate } from "@/lib/ids";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export default async function AssetRegisterPage({
   const supabase = await createClient();
   const canSeeCosts = await canViewFarmCosts(supabase, farmId);
 
-  const on = sp.on && /^\d{4}-\d{2}-\d{2}$/.test(sp.on) ? sp.on : undefined;
+  const on = isIsoDate(sp.on) ? sp.on : undefined;
   const rows = canSeeCosts ? await readBookValues(supabase, farmId, on) : [];
   const totals = registerTotals(rows);
   // The farm day, not UTC: before 02:00 in South Africa UTC is still on yesterday.

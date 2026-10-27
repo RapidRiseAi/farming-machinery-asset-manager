@@ -18,6 +18,7 @@ import { AllClear } from "@/components/ui/empty-state";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { PeriodChips } from "@/components/books/period-chips";
 import { RememberView } from "@/components/books/remember-view";
+import { isIsoDate } from "@/lib/ids";
 
 export const dynamic = "force-dynamic";
 
@@ -65,8 +66,9 @@ export default async function MoneyPage({
 
   const periods = moneyPeriods();
   const chosen = periods.find((p) => p.from === sp.from && p.to === sp.to);
-  const from = chosen?.from ?? sp.from ?? periods[0].from;
-  const to = chosen?.to ?? sp.to ?? periods[0].to;
+  // A custom range only from real dates: Postgres refuses `2026-02-30`.
+  const from = chosen?.from ?? (isIsoDate(sp.from) ? sp.from : periods[0].from);
+  const to = chosen?.to ?? (isIsoDate(sp.to) ? sp.to : periods[0].to);
 
   const supabase = await createClient();
   const results = await Promise.all([

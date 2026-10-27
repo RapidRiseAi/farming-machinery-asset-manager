@@ -7,6 +7,7 @@ import { ratingMax, isChecklistFieldType, type ChecklistFieldType } from "@/lib/
 import { Card } from "@/components/ui/card";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ChecklistTemplateBuilder } from "@/components/checklists/template-builder";
+import { isUuid } from "@/lib/ids";
 
 type FieldRow = {
   sort_order: number;
@@ -32,12 +33,13 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
   const profile = await requireRole(["owner", "manager", "mechanic", "rr_admin"]);
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
 
   const supabase = await createClient();
   // A failed read is the error screen, not a 404 for a template that exists.
   const data = must(await supabase
     .from("checklist_templates")
-    .select("id, farm_id, name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
+    .select("id, farm_id, name, description, machine_type, checklist_template_fields!checklist_template_fields_template_fk(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
     .eq("id", id)
     .is("deleted_at", null)
     .is("checklist_template_fields.deleted_at", null)

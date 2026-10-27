@@ -29,6 +29,7 @@ import { DownloadIcon } from "@/components/ui/icons";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { must, mustAll } from "@/lib/supabase/must";
+import { isUuid } from "@/lib/ids";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,7 @@ export default async function SupplierAccountPage({
   if (profile.role !== "workshop") redirect("/documents");
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) redirect("/suppliers?error=not-found");
   const sp = await searchParams;
 
   const { workshop } = await currentWorkshop(profile);

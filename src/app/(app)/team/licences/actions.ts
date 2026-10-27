@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { homePathFor, requireProfile } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 import { OTHER_PERSON } from "./credential-person";
 
 /**
@@ -97,7 +97,10 @@ export async function addDriverCredential(formData: FormData): Promise<void> {
     notes: String(formData.get("notes") ?? "").trim() || null,
     created_by: profile.id,
   });
-  if (error) bounce("credential-save-failed");
+  if (error) {
+    reportUnlessRefused(error, "licences:addDriverCredential");
+    bounce("credential-save-failed");
+  }
 
   revalidatePath("/team/licences");
   redirect("/team/licences?saved=credential-added");
@@ -134,7 +137,10 @@ export async function renewDriverCredential(formData: FormData): Promise<void> {
     .eq("id", id)
     .is("deleted_at", null)
     .select("id");
-  if (error) bounce("credential-save-failed");
+  if (error) {
+    reportUnlessRefused(error, "licences:renewDriverCredential");
+    bounce("credential-save-failed");
+  }
   // RLS returns success with zero rows to somebody the policy refuses. Saying "saved"
   // there would be the screen telling a farm that a licence had been renewed when the
   // database had declined to write it.
@@ -171,7 +177,10 @@ export async function removeDriverCredential(formData: FormData): Promise<void> 
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id)
     .is("deleted_at", null);
-  if (error) bounce("credential-save-failed");
+  if (error) {
+    reportUnlessRefused(error, "licences:removeDriverCredential");
+    bounce("credential-save-failed");
+  }
 
   revalidatePath("/team/licences");
   redirect("/team/licences?saved=credential-removed");

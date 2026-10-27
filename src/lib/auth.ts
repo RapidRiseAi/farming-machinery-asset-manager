@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { rapidRiseLockPath, rapidRiseVerdict, readAssurance } from "@/lib/mfa";
 import { safePath } from "@/lib/safe-path";
 import { must, ReadFailed } from "@/lib/supabase/must";
+import { authUnanswered } from "@/lib/auth-unanswered";
 import { captureError } from "@/lib/observability";
 import {
   type Plan,
@@ -32,6 +33,7 @@ import {
   isTone,
 } from "@/lib/i18n";
 import { isLocale } from "@/lib/locale";
+import { isUuid } from "@/lib/ids";
 
 export type Role =
   | "rr_admin"
@@ -82,10 +84,11 @@ const PROFILE_COLUMNS_BEFORE_FENCE =
   "ai_processing_withdrawn_at, ai_notice_seen_at, active";
 const PROFILE_COLUMNS = `${PROFILE_COLUMNS_BEFORE_FENCE}, is_test`;
 
-/** The authenticated Supabase auth user, or null. */
+/** The authenticated Supabase auth user, or null. Throws when Auth could not answer. */
 export async function getUser(): Promise<User | null> {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+  if (authUnanswered(error)) throw new ReadFailed("auth:get-user", { code: error?.name });
   return data.user ?? null;
 }
 
@@ -126,7 +129,10 @@ type LoadedProfile = { profile: Profile | null; lock: string | null };
  */
 const loadProfile = cache(async (): Promise<LoadedProfile> => {
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  // Thrown, like a failed profile read below: an Auth outage read as "no user" sent a
+  // signed-in person to /login?error=no-profile, which says nothing about why.
+  if (authUnanswered(userError)) throw new ReadFailed("auth:get-user", { code: userError?.name });
   const uid = userData.user?.id;
   if (!uid) return { profile: null, lock: null };
   const { data, error } = await supabase
@@ -402,6 +408,9 @@ export async function requireFarmRole(
 ): Promise<FarmRoleContext> {
   const profile = existingProfile ?? (await requireProfile());
   let role: Role | null = null;
+  // A farm id that is not a uuid (a hand-edited `?farm=`) is no farm of theirs: denied, as
+  // before, rather than the error screen Postgres's refusal of it would now raise.
+  if (!isUuid(farmId)) redirect(deniedPath ?? `${homePathFor(profile.role)}?denied=1`);
 
   if (profile.role === "workshop" && roles.includes("workshop")) {
     const supabase = await createClient();

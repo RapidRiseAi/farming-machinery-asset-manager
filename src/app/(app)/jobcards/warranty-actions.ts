@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { currentFarmId, requireProfile } from "@/lib/auth";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 import { WARRANTY_STATUSES, requiredFor, type WarrantyStatus } from "@/lib/warranty-claims";
 
 /**
@@ -88,6 +88,7 @@ function readFields(jobCardId: string, formData: FormData) {
 function bounceForError(jobCardId: string, error: { code?: string; message?: string }): never {
   if (error.code === "23505") bounce(jobCardId, "warranty-duplicate");
   if (error.code === "23514") bounce(jobCardId, "warranty-too-much");
+  reportUnlessRefused(error, "jobcards:warranty");
   bounce(jobCardId, "warranty-save-failed");
 }
 

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 import { memberQr } from "@/lib/member-qr";
 import { getProfile } from "@/lib/auth";
+import { captureError } from "@/lib/observability";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
@@ -46,7 +48,14 @@ export async function POST(request: Request) {
   const clientId=String(form.get("client_id")??"");
   if(clientId&&!UUID_PATTERN.test(clientId)) return NextResponse.json({error:"invalid_fault"},{status:400});
   if (!await memberQr(token)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  const profile = await getProfile();
+  // The profile only fills in the optional reporter name, so an unread one records the
+  // fault without a name rather than refusing a driver's report (getProfile throws when
+  // the read fails, so as not to treat a signed-in person as signed out).
+  const profile = await getProfile().catch((error) => {
+    unstable_rethrow(error);
+    captureError(error, { where: "public-qr:fault-profile" });
+    return null;
+  });
   const description = String(form.get("description") ?? "").trim();
   const urgencyRaw = String(form.get("urgency") ?? "can_work");
   const urgency = URGENCIES.includes(urgencyRaw) ? urgencyRaw : "can_work";

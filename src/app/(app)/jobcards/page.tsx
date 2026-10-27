@@ -18,6 +18,11 @@ import { Pager, PAGE_SIZE, pageNumber, pageRange } from "@/components/ui/pager";
 import { NewJobCard, type JobMachine, type JobContractor } from "./new-job-card";
 import { Flash } from "@/components/ui/flash";
 import { errorMessage } from "@/lib/errors";
+import { isUuid } from "@/lib/ids";
+import { JOB_STATUSES } from "@/lib/job-options";
+
+/** Every value of `job_card_status`: the working ones, and approved history. */
+const JOB_CARD_STATUSES = [...JOB_STATUSES, "approved"] as const;
 
 const STATUSES = ["reported", "open", "in_progress", "waiting_parts", "completed", "approved"];
 const ACTIVE = new Set(["reported", "open", "in_progress", "waiting_parts"]);
@@ -41,7 +46,14 @@ export default async function JobCardsPage({
   searchParams: Promise<{ status?: string; machine?: string; error?: string; page?: string }>;
 }) {
   const profile = await requireProfile();
-  const sp = await searchParams;
+  const raw = await searchParams;
+  // A status or machine the columns cannot hold (a stale or hand-edited link) filters
+  // nothing, rather than reaching Postgres and coming back as an error.
+  const sp = {
+    ...raw,
+    status: raw.status && (JOB_CARD_STATUSES as readonly string[]).includes(raw.status) ? raw.status : undefined,
+    machine: isUuid(raw.machine) ? raw.machine : undefined,
+  };
   // Current query string, so a chip preserves whatever else is filtered. Not the page: a
   // different filter starts again at its first page.
   const search = new URLSearchParams(

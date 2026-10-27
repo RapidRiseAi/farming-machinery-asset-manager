@@ -43,7 +43,7 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
   // A failed read would say "no templates yet".
   const data = must(await supabase
     .from("checklist_templates")
-    .select("id, farm_id, name, description, machine_type, updated_at, checklist_template_fields(id)")
+    .select("id, farm_id, name, description, machine_type, updated_at, checklist_template_fields!checklist_template_fields_template_fk(id)")
     .is("deleted_at", null)
     .is("checklist_template_fields.deleted_at", null)
     .order("name"), "checklists:templates");

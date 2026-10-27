@@ -55,8 +55,11 @@ export default async function NotificationsPage({
   const sp = await searchParams;
   const supabase = await createClient();
   const nowIso = new Date().toISOString();
-  // Only a real timestamp pages; anything else is the newest page.
-  const before = sp.before && !Number.isNaN(Date.parse(sp.before)) ? sp.before : null;
+  // Only a real timestamp pages; anything else is the newest page. Passed on as the
+  // timestamp it parsed to, not as typed: Date.parse accepts `2026-02-30` (rolling it into
+  // March) where Postgres refuses it, and reads fail loudly.
+  const beforeMs = sp.before ? Date.parse(sp.before) : Number.NaN;
+  const before = Number.isNaN(beforeMs) ? null : new Date(beforeMs).toISOString();
 
   let noteQuery = supabase
     .from("notifications")

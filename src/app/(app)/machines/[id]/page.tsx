@@ -96,6 +96,7 @@ import {
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { RequestIdInput } from "@/components/ui/request-id-input";
+import { isIsoDate, isUuid } from "@/lib/ids";
 
 type Machine = {
   id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null;
@@ -155,6 +156,7 @@ export default async function MachineDetailPage({
   const fuelAllowed = plan == null ? true : planAllows(plan, "fuel");   // Professional+
   const aartoAllowed = plan == null ? true : planAllows(plan, "aarto"); // Complete+
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
   const locale = profile.lang;
   const closeLabel = t("ui.close", locale);
@@ -269,7 +271,7 @@ export default async function MachineDetailPage({
   const canFuel = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
 
   // Driver-on-date lookup (AARTO nomination basis, FR-13.1): usage on a chosen date.
-  const usageDate = sp.usageDate && /^\d{4}-\d{2}-\d{2}$/.test(sp.usageDate) ? sp.usageDate : null;
+  const usageDate = isIsoDate(sp.usageDate) ? sp.usageDate : null;
   // Asked of the database, not of the 20 rows the log below shows: a fine arrives weeks
   // later, and "no usage recorded" for a date past that window was simply wrong.
   const usageDayData = usageDate

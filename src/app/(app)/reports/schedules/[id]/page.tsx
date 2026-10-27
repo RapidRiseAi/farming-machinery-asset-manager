@@ -32,6 +32,7 @@ import { ActionMenu } from "@/components/ui/action-menu";
 import { Fact, FactList } from "@/components/ui/facts";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
+import { isUuid } from "@/lib/ids";
 import {
   addReportRecipient, deleteReportSchedule, removeReportRecipient,
   sendReportScheduleNow, toggleReportSchedule, updateReportSchedule,
@@ -69,6 +70,7 @@ export default async function ReportSchedulePage({
   const profile = gate.profile;
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
   const farmId = await currentFarmId(profile);
   const role = farmId ? await effectiveFarmRole(farmId, profile) : null;
@@ -99,7 +101,7 @@ export default async function ReportSchedulePage({
       .maybeSingle(),
     supabase
       .from("report_schedule_recipients")
-      .select("id, user_id, email, users(name, email, active)")
+      .select("id, user_id, email, users!report_schedule_recipients_user_fk(name, email, active)")
       .eq("schedule_id", id)
       .eq("farm_id", farmId)
       .is("deleted_at", null),

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { currentFarmId, homePathFor, requireProfile } from "@/lib/auth";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 import {
   INCIDENT_KINDS,
   INCIDENT_STATUSES,
@@ -152,7 +152,10 @@ export async function recordIncident(formData: FormData): Promise<void> {
     reported_by: profile.id,
     ...readFields(formData),
   });
-  if (error) bounce("incident-save-failed");
+  if (error) {
+    reportUnlessRefused(error, "incidents:recordIncident");
+    bounce("incident-save-failed");
+  }
 
   revalidatePath("/incidents");
   redirect("/incidents?saved=incident-added");
@@ -175,7 +178,10 @@ export async function updateIncident(formData: FormData): Promise<void> {
     .eq("id", id)
     .is("deleted_at", null)
     .select("id");
-  if (error) bounce("incident-save-failed");
+  if (error) {
+    reportUnlessRefused(error, "incidents:updateIncident");
+    bounce("incident-save-failed");
+  }
   // RLS answers success with zero rows to somebody it refuses. Saying "saved" there would
   // be the screen reporting a change the database declined to make.
   if (!data || data.length === 0) bounce("incident-missing");
@@ -208,7 +214,10 @@ export async function removeIncident(formData: FormData): Promise<void> {
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id)
     .is("deleted_at", null);
-  if (error) bounce("incident-save-failed");
+  if (error) {
+    reportUnlessRefused(error, "incidents:removeIncident");
+    bounce("incident-save-failed");
+  }
 
   revalidatePath("/incidents");
   redirect("/incidents?saved=incident-removed");

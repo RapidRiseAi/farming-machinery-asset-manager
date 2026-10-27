@@ -86,7 +86,14 @@ const worst = (a: string, b: string) => {
 
 export default async function MachinesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const profile = await requireProfile();
-  const sp = await searchParams;
+  const raw = await searchParams;
+  // Only values the enum columns can hold: Postgres refuses any other, which (reads now
+  // failing loudly) would turn a stale or hand-edited link into the error screen.
+  const sp = {
+    ...raw,
+    type: raw.type && (MACHINE_TYPES as readonly string[]).includes(raw.type) ? raw.type : undefined,
+    status: raw.status && (MACHINE_STATUSES as readonly string[]).includes(raw.status) ? raw.status : undefined,
+  };
   const locale = profile.lang;
 
   // `sort` is "" (name) or one of SORTS; a legacy `sort=name` from an old link reads as name.

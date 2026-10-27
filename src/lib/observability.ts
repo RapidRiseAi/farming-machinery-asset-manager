@@ -99,13 +99,53 @@ function frames(stack: string | undefined) {
 }
 
 /**
+ * What a reported value says, as an Error. PostgREST does not throw: a failed query returns
+ * `{ error }` as a plain object (`{ code, message, details, hint }`), and `String()` of
+ * that is "[object Object]", which is what every database failure was reported as. The code
+ * is kept always. The message is kept only for the codes whose text names schema objects
+ * (PGRST*: an embed or column PostgREST cannot resolve; 42xxx: an undefined table, column or
+ * function, a permission refusal), never for the rest, whose messages can quote what the
+ * user typed (22P02 quotes the malformed value, a raised exception says anything) and so
+ * fall under the "no row content" rule above. `details` are never sent.
+ *
+ * A failure to reach the database at all has no code: postgrest-js words it itself, from
+ * the fetch error's name and message ("TypeError: fetch failed", "AbortError: ..."), and
+ * may add a hint of its own (a timeout, headers or a URL too long). That text is the
+ * library's, never a row's, and it is the only thing that tells a timeout from a dropped
+ * connection from an `.in()` list too long, so it is kept, bounded.
+ */
+export function asReportable(err: unknown): Error {
+  if (err instanceof Error) return err;
+  if (err && typeof err === "object") {
+    const { code, message, hint } = err as { code?: unknown; message?: unknown; hint?: unknown };
+    const known = typeof code === "string" && code ? code : null;
+    const schemaText = known && /^(PGRST|42)/.test(known) && typeof message === "string";
+    const fetchText = !known && typeof message === "string" && /^(TypeError|AbortError|FetchError): /.test(message);
+    if (fetchText) {
+      const libraryHint = typeof hint === "string" && /^(Request was aborted|HTTP headers exceeded)/.test(hint)
+        ? ` (${hint.split(".")[0]})`
+        : "";
+      const error = new Error(`no code: ${(message as string).slice(0, 200)}${libraryHint}`);
+      error.name = "DatabaseUnreachable";
+      return error;
+    }
+    const error = new Error(
+      `${known ?? "no code"}${schemaText ? `: ${(message as string).slice(0, 300)}` : ""}`,
+    );
+    error.name = known ? "DatabaseError" : "ReportedValue";
+    return error;
+  }
+  return new Error(String(err));
+}
+
+/**
  * Report an error. Never throws and never rejects, an error in the error reporter must not
  * become the error the user sees. Fire-and-forget by design: nothing awaits delivery,
  * because a farmer waiting on a round trip to Sentry is a worse outcome than a lost report.
  */
 export function captureError(err: unknown, ctx: ErrorContext = {}): void {
   const target = dsn();
-  const error = err instanceof Error ? err : new Error(String(err));
+  const error = asReportable(err);
 
   if (!target) {
     // No DSN: still surface it where Vercel's log drain will find it.

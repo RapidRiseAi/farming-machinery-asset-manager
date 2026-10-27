@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { withTab } from "@/components/ui/tabs-url";
 import { ChecklistForm, type FormTemplate } from "@/components/checklists/checklist-form";
+import { isUuid } from "@/lib/ids";
 
 type Machine = { id: string; farm_id: string; name: string; type: string; meter_type: string; current_reading: number | null };
 type FieldRow = { id: string; sort_order: number; field_type: string; label: string; required: boolean; help_text: string | null; config: Record<string, unknown> | null };
@@ -23,6 +24,7 @@ export default async function NewMachineChecklistPage({
   const profile = await requireRole(["owner", "manager", "mechanic", "workshop", "operator"]);
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
 
   const supabase = await createClient();
@@ -40,7 +42,7 @@ export default async function NewMachineChecklistPage({
   // A failed read would offer no checklists to fill, as if the farm had none.
   const data = must(await supabase
     .from("checklist_templates")
-    .select("id, name, description, machine_type, checklist_template_fields(id, sort_order, field_type, label, required, help_text, config)")
+    .select("id, name, description, machine_type, checklist_template_fields!checklist_template_fields_template_fk(id, sort_order, field_type, label, required, help_text, config)")
     .is("deleted_at", null)
     .is("checklist_template_fields.deleted_at", null)
     .or(`machine_type.eq.${machine.type},machine_type.is.null`)

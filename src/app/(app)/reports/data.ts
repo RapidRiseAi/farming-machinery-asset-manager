@@ -8,6 +8,7 @@ import {
 import { budgetProgress, type Budget, type BudgetCostRow, type BudgetStatus } from "@/lib/budgets";
 import { readAll } from "@/lib/supabase/read-all";
 import { must, mustAll } from "@/lib/supabase/must";
+import { isIsoDate } from "@/lib/ids";
 
 export type ReportFilters = { from: string | null; to: string | null; includeInactive: boolean; group: string | null };
 
@@ -67,7 +68,8 @@ type WRE = { work_request_id: string; to_status: string; created_at: string };
 
 /** Parse report filters from URL search params. */
 export function parseFilters(sp: { from?: string; to?: string; inactive?: string; group?: string }): ReportFilters {
-  const iso = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  // A real date, not only its shape: Postgres refuses `2026-02-30`, and reads fail loudly.
+  const iso = (v?: string) => (isIsoDate(v) ? v : null);
   const group = (sp.group ?? "").trim();
   return { from: iso(sp.from), to: iso(sp.to), includeInactive: sp.inactive === "1", group: group === "" ? null : group };
 }

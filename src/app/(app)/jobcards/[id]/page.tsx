@@ -35,6 +35,7 @@ import { ServiceKitForm } from "../service-kit-form";
 import { IntakeAcknowledgement } from "@/components/jobcards/intake-acknowledgement";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { isUuid } from "@/lib/ids";
 
 type JobCard = {
   id: string; farm_id: string; machine_id: string; type: string; status: string;
@@ -84,6 +85,7 @@ export default async function JobCardDetail({ params, searchParams }: {
 }) {
   const profile = await requireProfile();
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
   const locale = profile.lang;
   const supabase = await createClient();

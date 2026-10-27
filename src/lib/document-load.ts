@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PdfContext, PdfDocRow, PdfLine } from "@/lib/pdf/partner-document";
 import { must, mustAll } from "@/lib/supabase/must";
+import { isUuid } from "@/lib/ids";
 
 /**
  * Everything a document needs to render, fetched once.
@@ -53,6 +54,9 @@ export async function loadDocument(
   supabase: SupabaseClient,
   by: { id: string } | { token: string },
 ): Promise<LoadedDocument | null> {
+  // A malformed id or link token (a link wrapped by an email client) is "no such document",
+  // not a query Postgres refuses: the customer's page used to answer that with a 500.
+  if (!isUuid("id" in by ? by.id : by.token)) return null;
   const query = supabase.from("partner_documents").select(DOC_COLUMNS).is("deleted_at", null);
   // A failed read is not "no such document": a customer with a good link was sent to "not
   // found", and an invoice could be built and emailed without its lines.

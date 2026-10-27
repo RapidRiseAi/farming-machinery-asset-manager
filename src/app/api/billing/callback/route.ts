@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { unstable_rethrow } from "next/navigation";
 
 import { billingSiteUrl } from "@/lib/billing/config";
 import { getAttemptByReference, getSaasProvider } from "@/lib/billing/service";
@@ -41,7 +42,14 @@ export async function GET(request: Request) {
 
   // No session: send them to /billing, which bounces to login and back. Saying anything
   // about the reference to an unauthenticated caller would be the oracle described above.
-  const profile = await getProfile();
+  // An unread profile is not "signed out": the payment may well have gone through, so the
+  // billing page is told "pending" and checks again, as for any other failure below.
+  const profile = await getProfile().catch((error) => {
+    unstable_rethrow(error);
+    captureError(error, { where: "billing:callback:profile" });
+    return "unread" as const;
+  });
+  if (profile === "unread") return back(request, "pending");
   if (!profile) return back(request, "unknown");
 
   if (!reference || reference.trim() === "") return back(request, "unknown");

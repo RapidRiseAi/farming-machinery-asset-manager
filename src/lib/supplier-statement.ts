@@ -34,6 +34,7 @@
  */
 
 import { t, type Lang } from "@/lib/i18n";
+import { isIsoDate } from "@/lib/ids";
 
 /** An opening balance, a bill from the supplier, or a bill of theirs we settled. */
 export type SupplierStatementKind = "opening" | "bill" | "payment";
@@ -183,7 +184,8 @@ export function defaultSupplierPeriod(today = new Date()): { from: string; to: s
 
 /** A date the caller supplied, or null. Guards every date that reaches SQL or a URL. */
 export function isoDateOrNull(value: string | null | undefined): string | null {
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  // A real date, not only its shape: `2026-02-30` is refused by Postgres (isIsoDate).
+  return isIsoDate(value) ? value : null;
 }
 
 /**

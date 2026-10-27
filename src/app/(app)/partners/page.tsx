@@ -561,7 +561,13 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {yours.map((p) => {
               const access = p.workshop_id ? accessByWorkshop.get(p.workshop_id) : undefined;
-              const loginLabel = p.workshop_id ? t("partners.sendLogin", locale) : t("partners.invite", locale);
+              // Connected means an active link, not only a workshop on the row: an invite
+              // that stopped after making the workshop, or a farm that has disconnected
+              // them, leaves the stamp, and only the invite can finish or restore the link
+              // (it reuses the workshop). Where the links are not read (no invite rights),
+              // the stamp is all there is to go on.
+              const connected = !!p.workshop_id && (canInvite && viewingFarmId ? !!access : true);
+              const loginLabel = connected ? t("partners.sendLogin", locale) : t("partners.invite", locale);
               return (
                 <li key={p.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-sand-200 p-3.5">
                   <div className="flex items-start justify-between gap-2">
@@ -569,7 +575,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="min-w-0 break-words font-semibold text-sand-900">{p.name}</span>
                         <Badge tone="neutral">{t(`partnerKind.${p.kind}`, locale)}</Badge>
-                        {p.workshop_id ? (
+                        {connected ? (
                           <Badge tone="ok">{t("partners.connected", locale)}</Badge>
                         ) : null}
                       </div>
@@ -592,14 +598,14 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                             trigger={loginLabel}
                             triggerIcon={<LinkIcon className="text-base" />}
                             title={loginLabel}
-                            description={p.workshop_id ? p.name : t("partners.inviteHint", locale)}
+                            description={connected ? p.name : t("partners.inviteHint", locale)}
                             closeLabel={closeLabel}
                             size="md"
                           >
                             {/* Two different actions behind one row: a connected partner gets
                                 a login link, an unconnected one gets an invitation. */}
-                            <form action={p.workshop_id ? sendLoginUrl : inviteContractor}>
-                              <RequestIdInput action={p.workshop_id ? "partners:login-url" : "partners:invite"} />
+                            <form action={connected ? sendLoginUrl : inviteContractor}>
+                              <RequestIdInput action={connected ? "partners:login-url" : "partners:invite"} />
                               <input type="hidden" name="id" value={p.id} />
                               <DialogFields columns={1}>
                                 <Field label={t("partners.inviteEmail", locale)} htmlFor={`iv_${p.id}`}>

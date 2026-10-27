@@ -6,6 +6,7 @@ import { must } from "@/lib/supabase/must";
 import { loadReceipt } from "@/lib/billing/receipt";
 import { buildBillingReceiptPdf } from "@/lib/pdf/billing-receipt";
 import { pdfResponse } from "@/lib/pdf/doc";
+import { isUuid } from "@/lib/ids";
 
 /**
  * The bill itself, what is owed, by when, and how to pay it.
@@ -50,6 +51,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json({ error: "not-found" }, { status: 404 });
 
   // `getProfile`, never `requireProfile`: the latter REDIRECTS to /login, and anything
   // that follows redirects, a browser download, `curl -L`, a script, would save the

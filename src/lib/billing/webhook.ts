@@ -52,7 +52,8 @@ import type { SaasBillingProvider, VerifiedTransaction } from "./types";
 import {
   BILLING_RPC,
   finishWebhookEvent,
-  getAttemptByReference,
+  findAttemptByReference,
+  releaseWebhookEvent,
   notifyRapidRise,
   recordWebhookEvent,
   redactMessage,
@@ -298,7 +299,14 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
   if (DISPUTE_EVENTS.has(eventType) || REFUND_EVENTS.has(eventType)) {
     const data = isObject(parsed) && isObject(parsed.data) ? parsed.data : {};
     const reference = relatedReference(data);
-    const attempt = reference ? await getAttemptByReference(supabase, reference) : null;
+    const found = reference ? await findAttemptByReference(supabase, reference) : { attempt: null, error: null };
+    // Nothing has happened yet: release the event so Paystack's redelivery is processed,
+    // rather than leave a stored key that turns the redelivery into a no-op.
+    if (found.error) {
+      await releaseWebhookEvent(supabase, record.id);
+      return { status: 500, outcome: "rejected", reason: `attempt lookup failed (${found.error.code ?? "error"})` };
+    }
+    const attempt = found.attempt;
 
     let ledger: string | null = null;
     if (eventType === "refund.processed" && reference) {
@@ -400,7 +408,13 @@ export async function handlePaystackWebhook(input: WebhookInput): Promise<Webhoo
 
   // The reference must be one WE minted. An event about a transaction we have no record
   // of is not ours to act on, whoever signed it.
-  const attempt = await getAttemptByReference(supabase, reference);
+  const found = await findAttemptByReference(supabase, reference);
+  if (found.error) {
+    // Before any side effect: release the event so the redelivery is processed as new.
+    await releaseWebhookEvent(supabase, record.id);
+    return { status: 500, outcome: "rejected", reason: `attempt lookup failed (${found.error.code ?? "error"})` };
+  }
+  const attempt = found.attempt;
   if (!attempt) {
     await finishWebhookEvent(supabase, record.id, {
       error: "no payment attempt matches this reference",

@@ -79,6 +79,15 @@ export async function markFarmKeyFailed(
   try {
     const service = createServiceClient();
     const status = code === "farm_key_quota" ? "no_quota" : "invalid";
+    // Read BEFORE the key is marked. The notice goes out once, on the update that flips an
+    // active key, so a failed read after the flip would lose it for good. Read first, a
+    // failure changes nothing (thrown, caught and reported below): the key stays active and
+    // the next refused call marks it and sends the notice. must, because guessing "pause"
+    // told an owner whose AI carries on billed on ours that it had stopped.
+    const settings = must(
+      await service.from("farm_ai_settings").select("own_key_fallback").eq("farm_id", farmId).maybeSingle(),
+      "ai-usage:mark-farm-key-failed-settings",
+    );
     const { data, error } = await service
       .from("farm_ai_keys")
       .update({ status, last_error_code: code, checked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -87,13 +96,6 @@ export async function markFarmKeyFailed(
       .select("farm_id");
     if (error) captureError(error, { where: "ai-usage:mark-farm-key-failed", farmId, extra: { code: error.code ?? null } });
     if (data?.length) {
-      // must: guessing "pause" told an owner whose AI carries on billed on ours that it had
-      // stopped. Throwing skips the notice (caught and reported below); their AI settings
-      // page still shows the key as failed.
-      const settings = must(
-        await service.from("farm_ai_settings").select("own_key_fallback").eq("farm_id", farmId).maybeSingle(),
-        "ai-usage:mark-farm-key-failed-settings",
-      );
       await notifyFarmOwners(farmId, "ai_key_failed", {
         reason: code === "farm_key_quota" ? "quota" : code === "farm_key_unreadable" ? "unreadable" : "refused",
         fallback: settings?.own_key_fallback === "platform" ? "platform" : "pause",

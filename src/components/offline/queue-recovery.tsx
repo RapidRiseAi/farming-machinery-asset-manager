@@ -18,7 +18,9 @@ async function blobData(blob?: Blob): Promise<string | undefined> {
   });
 }
 
-export function QueueRecovery({ userId, locale }: { userId: string | null; locale: Lang }) {
+// userId undefined: the server could not read who this is (a failed profile read on a bad
+// connection), so the browser's own session decides whose captures to show.
+export function QueueRecovery({ userId, locale }: { userId: string | null | undefined; locale: Lang }) {
   const [items, setItems] = useState<QueuedMutation[]>([]);
   const [other, setOther] = useState(0);
   const [ready, setReady] = useState(false);
@@ -36,7 +38,7 @@ export function QueueRecovery({ userId, locale }: { userId: string | null; local
     // sign-out or an account change in another tab. This only controls local display;
     // the API still validates the real authenticated session before every write.
     const { data: { subscription } } = createClient().auth.onAuthStateChange((_event, session) => {
-      visibleActor = session?.user.id === userId ? userId : null;
+      visibleActor = userId === undefined ? (session?.user.id ?? null) : session?.user.id === userId ? userId : null;
       setItems(previous => previous.filter(m => m.scope === "public" || m.actor_id === visibleActor));
       refresh();
     });

@@ -18,6 +18,9 @@ type Photo = { id: string; url: string | null };
  * (machines.primary_attachment_id, 0280) which then shows on list cards + the detail
  * header. Uploads are compressed client-side (~200-400 KB) to suit low bandwidth.
  */
+/** A stale row (its file deleted) fails to sign on every visit; one report per page session. */
+let signReported = false;
+
 export function MachinePhotos({
   farmId,
   machineId,
@@ -34,6 +37,9 @@ export function MachinePhotos({
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Set when the list itself could not be read, so the gallery does not also say
+  // "No photos yet" under the error: a failed read is not an empty gallery.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -50,8 +56,10 @@ export function MachinePhotos({
     if (error) {
       if (navigator.onLine !== false) reportClientError(asError(error), "machine-photos:load");
       setErr(t("errors.generic", locale));
+      setLoadFailed(true);
       return;
     }
+    setLoadFailed(false);
     const rows = (data ?? []) as { id: string; storage_path: string | null }[];
     let signFailure: unknown = null;
     const withUrls = await Promise.all(
@@ -68,10 +76,15 @@ export function MachinePhotos({
       })
     );
     setPhotos(withUrls);
-    // A photo without a link is hidden, so tell the person some did not load (and us, once).
+    // A photo without a link is hidden, so tell the person some did not load. One row whose
+    // file is gone fails on every visit, so it is reported once per page session, not on
+    // every load of every machine.
     if (signFailure) {
-      if (navigator.onLine !== false) reportClientError(asError(signFailure), "machine-photos:sign");
-      setErr(t("errors.generic", locale));
+      if (navigator.onLine !== false && !signReported) {
+        signReported = true;
+        reportClientError(asError(signFailure), "machine-photos:sign");
+      }
+      setErr(t("machine.somePhotosMissing", locale));
     }
   }, [machineId, locale]);
 
@@ -177,7 +190,7 @@ export function MachinePhotos({
             </figure>
           ) : null;
         })}
-        {photos.length === 0 ? (
+        {photos.length === 0 && !loadFailed ? (
           <p className="col-span-3 text-sm text-sand-400">{t("machine.noPhotos", locale)}</p>
         ) : null}
       </div>

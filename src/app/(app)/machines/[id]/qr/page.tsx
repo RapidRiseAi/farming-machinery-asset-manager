@@ -11,6 +11,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { Flash } from "@/components/ui/flash";
 import { BackLink, PageContainer } from "@/components/ui/page-header";
 import { reissueQr } from "../qr-actions";
+import { isUuid } from "@/lib/ids";
 
 export default async function MachineQrPage({
   params,
@@ -22,6 +23,7 @@ export default async function MachineQrPage({
   const profile = await requireProfile();
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
 
   const supabase = await createClient();

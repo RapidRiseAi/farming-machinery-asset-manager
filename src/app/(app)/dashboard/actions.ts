@@ -75,7 +75,8 @@ function codeOf(error: unknown): string {
   // below the last one) keep their words; anything else is reported and said as "try
   // again", never the database's message in the address bar.
   if (error instanceof FleetCommandError) {
-    return decodeURIComponent(errorCode({ code: error.code, message: error.message }, "app/dashboard/actions:record-reading"));
+    // The error itself, not a copy of its fields: a report then keeps the stack.
+    return decodeURIComponent(errorCode(error, "app/dashboard/actions:record-reading"));
   }
   return error instanceof Error && error.message ? error.message : "enter-a-valid-reading";
 }

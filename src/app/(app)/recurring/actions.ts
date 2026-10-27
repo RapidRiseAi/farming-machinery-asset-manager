@@ -64,7 +64,7 @@ async function resolveRecipient(
       .is("deleted_at", null)
       .maybeSingle();
     if (error) redirect(`/recurring?error=${errorCode(error, "app/recurring/actions:resolveRecipient")}`);
-    return data ?{ farm_id: null, partner_client_id: clientId, bill_to_name: null } : null;
+    return data ? { farm_id: null, partner_client_id: clientId, bill_to_name: null } : null;
   }
 
   const name = s(formData, "bill_to_name");

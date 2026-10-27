@@ -8,7 +8,8 @@ import { Pager, PAGE_SIZE, pageNumber, pageRange } from "@/components/ui/pager";
 import { rands } from "@/lib/money";
 import { relativeDate } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
-import { WORK_STATUSES, workStatusLabel, workKindLabel, workPriorityLabel, workPriorityTone } from "@/lib/work";
+import { isUuid } from "@/lib/ids";
+import { WORK_STATUSES, isWorkStatus, workStatusLabel, workKindLabel, workPriorityLabel, workPriorityTone } from "@/lib/work";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +40,15 @@ export default async function WorkListPage({
   searchParams: Promise<{ status?: string; machine?: string; page?: string }>;
 }) {
   const profile = await requireProfile();
-  const sp = await searchParams;
+  const raw = await searchParams;
+  // A hand-edited or stale address (`?status=foo`, `?machine=abc`) filters nothing, as
+  // it always did: Postgres refuses a value its enum or uuid column cannot hold, and now
+  // that reads fail loudly that refusal would be the error screen instead of the list.
+  const sp = {
+    ...raw,
+    status: raw.status && isWorkStatus(raw.status) ? raw.status : undefined,
+    machine: isUuid(raw.machine) ? raw.machine : undefined,
+  };
   // Current query string, so a chip preserves whatever else is filtered.
   // Not the page: a different filter starts again at its first page.
   const search = new URLSearchParams(

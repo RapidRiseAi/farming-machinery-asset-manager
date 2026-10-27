@@ -32,7 +32,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { captureError } from "@/lib/observability";
-import { must } from "@/lib/supabase/must";
+import { must, ReadFailed } from "@/lib/supabase/must";
 
 import type {
   ChargeRequest,
@@ -381,9 +381,11 @@ export async function generateInvoicesFor(
 
 // The single-row reads below throw on a failed read (`must`) rather than answer null: null
 // means "no such row" to every caller, and a webhook told "unknown reference", or a worker
-// told "no stored card", would act on it. Every caller already catches a throw (the worker
-// per invoice, the webhook and checkout routes as a 5xx or a bounce, a page as its error
-// screen), and the ReadFailed message carries a code, never a row.
+// told "no stored card", would act on it. Server actions show the error screen; the
+// callback and checkout routes catch; the worker catches per invoice. The webhook must not
+// throw after it has stored the event's dedupe key (Paystack's redelivery would then be a
+// duplicate and the event never processed), so it uses findAttemptByReference instead.
+// A ReadFailed message carries a code, never a row.
 
 export async function getAttemptByReference(
   supabase: SupabaseClient,
@@ -398,6 +400,29 @@ export async function getAttemptByReference(
     "billing:attempt-by-reference",
   );
   return (data as AttemptRow | null) ?? null;
+}
+
+/**
+ * getAttemptByReference for the webhook: the failure comes back instead of being thrown,
+ * so the webhook can release the event it has stored and ask Paystack to send it again.
+ */
+export async function findAttemptByReference(
+  supabase: SupabaseClient,
+  reference: string,
+): Promise<{ attempt: AttemptRow | null; error: ServiceError | null }> {
+  const { data, error } = await supabase
+    .from("billing_payment_attempts")
+    .select(ATTEMPT_COLUMNS)
+    .eq("attempt_ref", reference)
+    .maybeSingle();
+  if (error) {
+    // Reported here, where the code is known: the webhook answers 500 and releases its
+    // stored event so Paystack redelivers, which leaves no trace in the database and none
+    // in the route (it reports only what is thrown). The code only, never the reference.
+    captureError(new ReadFailed("billing:attempt-by-reference", error), { where: "billing:webhook:attempt-lookup" });
+    return { attempt: null, error: { message: redactMessage(error.message), code: error.code } };
+  }
+  return { attempt: (data as AttemptRow | null) ?? null, error: null };
 }
 
 export async function getAttemptById(
@@ -645,6 +670,14 @@ export async function storeAuthorization(
   const email = txn.customerEmail;
   if (!email) return { paymentMethodId: null, reason: "no_authorization_email" };
 
+  // Both callers (the webhook and the reconcile worker) ignore the result, so a database
+  // failure here is reported where it happens; otherwise the card silently goes unsaved and
+  // the next renewal has nothing to charge.
+  const failed = (error: { message: string }, step: string) => {
+    captureError(error, { where: `billing:save-card:${step}`, farmId });
+    return { paymentMethodId: null, reason: redactMessage(error.message) };
+  };
+
   const nowIso = new Date().toISOString();
   const payload = {
     farm_id: farmId,
@@ -680,7 +713,7 @@ export async function storeAuthorization(
       .is("deleted_at", null)
       .maybeSingle();
     // Unknown is not "a new card": refused before the incumbent is stood down.
-    if (lookupError) return { paymentMethodId: null, reason: redactMessage(lookupError.message) };
+    if (lookupError) return failed(lookupError, "lookup");
     existingId = (data as { id: string } | null)?.id ?? null;
   }
 
@@ -695,7 +728,7 @@ export async function storeAuthorization(
     .eq("is_default", true)
     .is("deleted_at", null)
     .select("id");
-  if (demoteError) return { paymentMethodId: null, reason: redactMessage(demoteError.message) };
+  if (demoteError) return failed(demoteError, "demote");
   const restoreIncumbent = async () => {
     const ids = ((demoted ?? []) as { id: string }[]).map((row) => row.id);
     if (!ids.length) return;
@@ -703,7 +736,7 @@ export async function storeAuthorization(
       .from("billing_payment_methods")
       .update({ is_default: true, updated_at: nowIso })
       .in("id", ids);
-    if (error) captureError(error, { where: "billing:save-card:restore-default" });
+    if (error) captureError(error, { where: "billing:save-card:restore-default", farmId });
   };
 
   let id = existingId;
@@ -714,7 +747,7 @@ export async function storeAuthorization(
       .eq("id", existingId);
     if (error) {
       await restoreIncumbent();
-      return { paymentMethodId: null, reason: redactMessage(error.message) };
+      return failed(error, "update");
     }
   } else {
     const { data, error } = await supabase
@@ -724,7 +757,7 @@ export async function storeAuthorization(
       .maybeSingle();
     if (error) {
       await restoreIncumbent();
-      return { paymentMethodId: null, reason: redactMessage(error.message) };
+      return failed(error, "insert");
     }
     id = (data as { id: string } | null)?.id ?? null;
   }
@@ -737,7 +770,7 @@ export async function storeAuthorization(
       .eq("farm_id", farmId);
     // The card is saved; only the subscription's pointer to it did not move. Reported, as a
     // renewal would otherwise charge the card this replaced.
-    if (error) captureError(error, { where: "billing:save-card:subscription-default" });
+    if (error) captureError(error, { where: "billing:save-card:subscription-default", farmId });
   }
   return { paymentMethodId: id };
 }
@@ -1059,6 +1092,16 @@ export async function recordWebhookEvent(
  * payment did not land, and the two things a provider message is most likely to quote
  * back at us are a customer's email address and an authorization code.
  */
+/**
+ * Forget a stored event that could not be processed (before any side effect), so Paystack's
+ * redelivery is treated as new instead of as a duplicate. Reports when even that fails.
+ */
+export async function releaseWebhookEvent(supabase: SupabaseClient, eventId: string | null): Promise<void> {
+  if (!eventId) return;
+  const { error } = await supabase.from("billing_webhook_events").delete().eq("id", eventId);
+  if (error) captureError(error, { where: "billing:webhook:release" });
+}
+
 export async function finishWebhookEvent(
   supabase: SupabaseClient,
   eventId: string | null,
@@ -1206,7 +1249,12 @@ export async function reopenFarmSubscription(
     p_farm: farmId,
     p_by: byUserId,
   });
-  if (error) return { ok: false, error: error.message };
+  // A lapsed farm that cannot come back is a lost customer we would otherwise never hear
+  // of: the page only says "could not save". Reported here, and the words redacted.
+  if (error) {
+    captureError(error, { where: "billing:reopen", farmId });
+    return { ok: false, error: redactMessage(error.message) };
+  }
   return { ok: true };
 }
 

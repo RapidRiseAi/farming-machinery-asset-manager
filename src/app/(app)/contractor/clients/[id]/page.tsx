@@ -20,6 +20,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { TrashIcon, PlusIcon, PhoneIcon, ChatIcon, MailIcon } from "@/components/ui/icons";
+import { isUuid } from "@/lib/ids";
 import {
   updateClientRecord, removeClientRecord, addClientVehicle,
   removeClientVehicle, requestClientLink, syncClientVehicles,
@@ -62,6 +63,7 @@ export default async function PartnerClientPage({
   if (profile.role !== "workshop") redirect(`${homePathFor(profile.role)}?denied=1`);
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
 
   const supabase = await createClient();

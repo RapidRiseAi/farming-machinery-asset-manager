@@ -10,7 +10,7 @@ import { JOB_TYPES } from "@/lib/job-options";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { todayInSouthAfrica } from "@/lib/assistant/date";
 import { canEditJobWork, canChangeJobStatus, jobCardPatch, needsJobMeter, parseJobLine, type JobWork } from "@/lib/jobcard-workflow";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, reportUnlessRefused, type DbFailure } from "@/lib/action-errors";
 
 // Who may work job cards (Scope §2): internal mechanic, manager, owner, external workshop.
 const CREW: Role[] = ["rr_admin", "owner", "manager", "mechanic", "workshop"];
@@ -23,6 +23,12 @@ type JobContextRow = JobWork & {
 
 function fail(id: string, code: string): never {
   redirect(`/jobcards/${id}?error=${encodeURIComponent(code)}`);
+}
+
+/** A failed database call: said as "save-failed" as before, and reported when it is ours. */
+function failSave(id: string, error: DbFailure, where: string): never {
+  reportUnlessRefused(error, where);
+  fail(id, "save-failed");
 }
 
 function refreshJob(id: string, machineId: string) {
@@ -38,7 +44,7 @@ async function jobCardContext(id: string, roles: readonly Role[] = CREW, edit = 
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
-  if (error) fail(id, "save-failed");
+  if (error) failSave(id, error, "jobcards:jobCardContext");
   const row = data as JobContextRow | null;
   if (!row) redirect("/jobcards?error=not-found");
   const auth = await requireFarmRole(
@@ -157,7 +163,7 @@ export async function saveJobCard(formData: FormData) {
     .eq("farm_id", farmId)
     .eq("updated_at", s(formData, "updated_at") ?? job.updated_at)
     .select("id").maybeSingle();
-  if (error) fail(id, "save-failed");
+  if (error) failSave(id, error, "jobcards:saveJobCard");
   if (!data) fail(id, "job-changed");
   refreshJob(id, machineId);
   redirect(`/jobcards/${id}?saved=1`);
@@ -185,7 +191,7 @@ export async function addLine(formData: FormData) {
   const draftToken = s(formData, "draft_token");
   if (!draftToken || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(draftToken)) fail(jobCardId, "job-invalid-line");
   const { error } = await supabase.rpc("record_job_card_line", { p_job: jobCardId, p_capture: draftToken, p_line: line });
-  if (error) fail(jobCardId, "save-failed");
+  if (error) failSave(jobCardId, error, "jobcards:addLine");
   refreshJob(jobCardId, machineId);
   const acknowledgement = draftToken && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(draftToken) ? `&line_token=${draftToken}` : "";
   redirect(`/jobcards/${jobCardId}?saved=line${acknowledgement}`);
@@ -210,7 +216,7 @@ export async function editJobLine(formData: FormData) {
   const { data, error } = await supabase.from("job_card_lines").update(patch)
     .eq("id", lineId).eq("job_card_id", jobCardId).eq("farm_id", farmId)
     .eq("kind", line.kind).eq("updated_at", version).is("deleted_at", null).select("id").maybeSingle();
-  if (error) fail(jobCardId, "save-failed");
+  if (error) failSave(jobCardId, error, "jobcards:editJobLine");
   if (!data) fail(jobCardId, "job-changed");
   refreshJob(jobCardId, machineId);
   redirect(`/jobcards/${jobCardId}?saved=line&line_token=${encodeURIComponent(s(formData, "draft_token") ?? "")}`);
@@ -224,7 +230,7 @@ export async function removeLine(formData: FormData) {
   const { error, data } = await supabase.rpc("remove_job_card_line", {
     p_job: jobCardId, p_line: id, p_version: s(formData, "line_updated_at"),
   });
-  if (error) fail(jobCardId, "save-failed");
+  if (error) failSave(jobCardId, error, "jobcards:removeLine");
   if (!data) fail(jobCardId, "job-changed");
   refreshJob(jobCardId, machineId);
   redirect(`/jobcards/${jobCardId}?saved=line`);
@@ -254,7 +260,7 @@ export async function completeJobCard(formData: FormData) {
     .eq("updated_at", s(formData, "updated_at") ?? job.updated_at)
     .eq("status", "in_progress")
     .select("id").maybeSingle();
-  if (error) fail(id, "save-failed");
+  if (error) failSave(id, error, "jobcards:completeJobCard");
   if (!data) fail(id, "job-changed");
   refreshJob(id, machineId);
   redirect(`/jobcards/${id}?saved=completed`);
@@ -279,7 +285,7 @@ export async function approveJobCard(formData: FormData) {
     .eq("updated_at", s(formData, "updated_at") ?? job.updated_at)
     .eq("status", "completed")
     .select("id").maybeSingle();
-  if (error) fail(id, "save-failed");
+  if (error) failSave(id, error, "jobcards:approveJobCard");
   if (!data) fail(id, "job-changed");
   refreshJob(id, machineId);
   redirect(`/jobcards/${id}?saved=approved`);
@@ -294,7 +300,7 @@ export async function changeJobCardStatus(formData: FormData) {
   const { data, error } = await supabase.from("job_cards").update({ status })
     .eq("id", id).eq("farm_id", farmId).eq("status", job.status)
     .eq("updated_at", s(formData, "updated_at") ?? job.updated_at).select("id").maybeSingle();
-  if (error) fail(id, "save-failed");
+  if (error) failSave(id, error, "jobcards:changeJobCardStatus");
   if (!data) fail(id, "job-changed");
   refreshJob(id, machineId);
   redirect(`/jobcards/${id}?saved=1`);
@@ -310,7 +316,7 @@ export async function returnJobCard(formData: FormData) {
   const { data, error } = await supabase.from("job_cards").update({ status: "in_progress", review_note: reason })
     .eq("id", id).eq("farm_id", farmId).eq("status", "completed")
     .eq("updated_at", s(formData, "updated_at") ?? job.updated_at).select("id").maybeSingle();
-  if (error) fail(id, "save-failed");
+  if (error) failSave(id, error, "jobcards:returnJobCard");
   if (!data) fail(id, "job-changed");
   refreshJob(id, machineId);
   redirect(`/jobcards/${id}?saved=returned`);
@@ -345,7 +351,7 @@ export async function applyServiceKit(formData: FormData) {
   const capture = s(formData, "capture_id");
   if (!capture) fail(jobCardId, "job-invalid-line");
   const { error } = await supabase.rpc("apply_job_card_kit", { p_job: jobCardId, p_kit: kitId, p_capture: capture });
-  if (error) fail(jobCardId, "save-failed");
+  if (error) failSave(jobCardId, error, "jobcards:applyServiceKit");
   refreshJob(jobCardId, machineId);
   redirect(`/jobcards/${jobCardId}?saved=line&kit_token=${encodeURIComponent(capture)}`);
 }
@@ -381,7 +387,7 @@ export async function toggleServiceLine(formData: FormData) {
         farm_id: farmId,
         machine_id: machineId,
       }, { onConflict: "job_card_id,service_plan_line_id", ignoreDuplicates: true });
-    if (error) redirect(`/jobcards/${jobCardId}?error=save-failed`);
+    if (error) failSave(jobCardId, error, "jobcards:toggleServiceLine:on");
   } else {
     const { error } = await supabase
       .from("job_card_service_lines")
@@ -390,7 +396,7 @@ export async function toggleServiceLine(formData: FormData) {
       .eq("service_plan_line_id", lineId)
       .eq("farm_id", farmId)
       .eq("machine_id", machineId);
-    if (error) redirect(`/jobcards/${jobCardId}?error=save-failed`);
+    if (error) failSave(jobCardId, error, "jobcards:toggleServiceLine:off");
   }
   refreshJob(jobCardId, machineId);
   redirect(`/jobcards/${jobCardId}?saved=service`);

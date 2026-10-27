@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { requireProfile, workshopPlan } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { readAll } from "@/lib/supabase/read-all";
+import { readAll, readByIds } from "@/lib/supabase/read-all";
 import { must, mustAll } from "@/lib/supabase/must";
 import { rands } from "@/lib/money";
 import { ledgerSign, isNote } from "@/lib/partner-docs";
@@ -130,16 +130,15 @@ export default async function ContractorDashboardPage({
   const farmIds = [...new Set(all.map((r) => r.farm_id))];
   const machineIds = [...new Set(all.map((r) => r.machine_id))];
 
+  // In chunks: a contractor serving many farms has hundreds of machines, and one `.in()`
+  // that long is refused for its URL length, which (now that reads fail loudly) would stop
+  // the whole dashboard. readByIds makes no request for an empty list.
   const results = await Promise.all([
-    machineIds.length
-      ? supabase.from("machines").select("id, name, type").in("id", machineIds)
-      : Promise.resolve({ data: [], error: null }),
-    farmIds.length
-      ? supabase.from("farms").select("id, name").in("id", farmIds)
-      : Promise.resolve({ data: [], error: null }),
-    farmIds.length
-      ? supabase.from("users").select("id, name, farm_id, role, phone, email").in("farm_id", farmIds).in("role", ["owner", "manager"]).is("deleted_at", null)
-      : Promise.resolve({ data: [], error: null }),
+    readByIds(machineIds, (chunk) => supabase.from("machines").select("id, name, type").in("id", chunk)),
+    readByIds(farmIds, (chunk) => supabase.from("farms").select("id, name").in("id", chunk)),
+    readByIds(farmIds, (chunk) =>
+      supabase.from("users").select("id, name, farm_id, role, phone, email").in("farm_id", chunk).in("role", ["owner", "manager"]).is("deleted_at", null),
+    ),
     // Real money, from the documents that carry it. The analytics used to sum
     // `work_requests.invoice_amount_cents`, the field from before documents existed -
     // so a partner billing entirely through FleetWise documents saw R0 in the panel they

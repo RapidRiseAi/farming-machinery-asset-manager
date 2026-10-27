@@ -355,6 +355,8 @@ const CODE_KEYS: Record<string, string> = {
   "logo-format": "errors.logoFormat",
   "logo-too-big": "errors.logoTooBig",
   "receipt": "errors.receipt",
+  // The expense saved but its photo did not link (expenses/actions.ts).
+  "receipt-failed": "errors.receipt",
   "no-csv-provided": "errors.noCsv",
   "invalid-csv-header": "errors.badCsvHeader",
   "no-valid-rows": "errors.noValidRows",

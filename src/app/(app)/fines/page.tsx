@@ -37,6 +37,7 @@ import { ActionMenu } from "@/components/ui/action-menu";
 import { DialogActions, DialogFields, DialogForm, DialogSection } from "@/components/ui/dialog-form";
 import { ExpiryStatus, FineStatus } from "@/components/ui/status";
 import { TrashIcon } from "@/components/ui/icons";
+import { isIsoDate } from "@/lib/ids";
 
 type MachineRow = { id: string; farm_id: string; name: string; reg_no: string | null; status: string };
 type OperatorRow = { id: string; name: string };
@@ -172,7 +173,7 @@ export default async function FinesPage({
   // == Driver auto-suggestion (FR-13.1 → FR-13.2): usage_logs for the chosen vehicle on the
   // chosen offence date. This is the heart of "who was driving vehicle X on date D?".
   const sm = sp.sm && machineById.has(sp.sm) ? sp.sm : null;
-  const sd = sp.sd && /^\d{4}-\d{2}-\d{2}$/.test(sp.sd) ? sp.sd : null;
+  const sd = isIsoDate(sp.sd) ? sp.sd : null;
   let suggestions: UsageRow[] = [];
   if (sm && sd) {
     // Not soft: "nobody logged on that day" is an answer someone nominates a driver from.

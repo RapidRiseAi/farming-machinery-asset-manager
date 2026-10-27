@@ -31,6 +31,7 @@ import { Fact, FactList } from "@/components/ui/facts";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { dateTime, roleLabel } from "@/lib/format";
 import { RequestIdInput } from "@/components/ui/request-id-input";
+import { isUuid } from "@/lib/ids";
 
 type Farm = {
   id: string;
@@ -61,6 +62,7 @@ export default async function FarmDetailPage({
   const profile = await requireRole(["rr_admin"]);
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
   const supabase = await createClient();
 

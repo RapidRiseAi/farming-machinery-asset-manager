@@ -9,12 +9,15 @@ import { MOVE_KINDS, type MoveKind } from "@/lib/stock";
 import { clampLookahead } from "@/lib/reorder";
 import { todayLocal } from "@/lib/format";
 import { runOnce } from "@/lib/request-claim";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, type DbFailure } from "@/lib/action-errors";
 
-/** Log the raw database message for us, and send the person a translated slug. */
-function failed(where: string, message: string): never {
-  console.error(`[parts] ${where}`, message);
-  redirect("/parts?error=save-failed");
+/**
+ * Send the person a translated slug. A refusal our SQL raises on purpose keeps its words;
+ * anything else is reported (a console line from a server action is read by nobody) and
+ * said as "try again".
+ */
+function failed(where: string, error: DbFailure): never {
+  redirect(`/parts?error=${errorCode(error, `parts:${where}`)}`);
 }
 
 /**
@@ -60,7 +63,7 @@ export async function trackPart(formData: FormData) {
 
   // The unique index is the guard against tracking the same part twice, a second attempt
   // is somebody pressing again, not an error worth a red screen.
-  if (error && !/duplicate key/i.test(error.message)) failed("trackPart", error.message);
+  if (error && !/duplicate key/i.test(error.message)) failed("trackPart", error);
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
 }
@@ -85,7 +88,7 @@ export async function updateStockItem(formData: FormData) {
     .select("id")
     .maybeSingle();
 
-  if (error) failed("updateStockItem", error.message);
+  if (error) failed("updateStockItem", error);
   if (!data) redirect("/parts?error=not-found");
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
@@ -145,7 +148,7 @@ export async function recordMovement(formData: FormData) {
         by_user: profile.id,
       });
 
-      if (error) failed("recordMovement", error.message);
+      if (error) failed("recordMovement", error);
       revalidatePath("/parts");
       revalidatePath("/machines");
       return "/parts?saved=1#store";
@@ -209,7 +212,7 @@ export async function receiveDelivery(formData: FormData) {
         })),
       );
 
-      if (error) failed("receiveDelivery", error.message);
+      if (error) failed("receiveDelivery", error);
       revalidatePath("/parts");
       return "/parts?saved=1#store";
     },
@@ -232,7 +235,7 @@ export async function untrackPart(formData: FormData) {
     .eq("farm_id", farmId)
     .select("id")
     .maybeSingle();
-  if (error) failed("untrackPart", error.message);
+  if (error) failed("untrackPart", error);
   if (!data) redirect("/parts?error=not-found");
   revalidatePath("/parts");
   redirect("/parts?saved=1#store");
@@ -266,7 +269,7 @@ export async function setReorderWindow(formData: FormData) {
     p_settings: { reorder_lookahead_days: days },
   });
 
-  if (error) failed("setReorderWindow", error.message);
+  if (error) failed("setReorderWindow", error);
   revalidatePath("/parts");
   redirect("/parts?saved=1#next");
 }

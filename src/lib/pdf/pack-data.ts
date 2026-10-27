@@ -260,7 +260,7 @@ export async function gatherFleetCompliance(
   // record that nobody checked.
   mustAll([machinesRes, licRes, planRes, faultRes, chkRes, usageRes], "packs:fleet-compliance");
 
-  const all =((machinesRes.data as MachineBaseRow[] | null) ?? []).map(withoutFinancials);
+  const all = ((machinesRes.data as MachineBaseRow[] | null) ?? []).map(withoutFinancials);
   // Retired and sold are out of every fleet compliance figure (Scope 4.1 / C8), but the
   // NUMBER excluded is carried through and printed, because a total nobody can reconcile
   // against the farm's own machine list is a total an auditor will query.

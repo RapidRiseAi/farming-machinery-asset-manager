@@ -28,6 +28,7 @@ import {
   toggleSchedule, runScheduleNow, deleteSchedule,
 } from "../actions";
 import { must, mustAll } from "@/lib/supabase/must";
+import { isUuid } from "@/lib/ids";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export default async function SchedulePage({
   if (profile.role !== "workshop") redirect("/documents");
   const locale = profile.lang;
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const sp = await searchParams;
 
   const { workshop } = await currentWorkshop(profile);

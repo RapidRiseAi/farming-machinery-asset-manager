@@ -4,6 +4,7 @@ import { must, mustAll } from "@/lib/supabase/must";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { Pdf, pdfResponse } from "@/lib/pdf/doc";
+import { isUuid } from "@/lib/ids";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const profile = await getProfile();
   if (!profile || !profile.active) return new Response("Unauthorized", { status: 401 });
   const { id } = await params;
+  if (!isUuid(id)) return new Response("Not found", { status: 404 });
 
   const supabase = await createClient();
   const data = must(await supabase.from("job_cards_visible").select("*").eq("id", id).is("deleted_at", null).maybeSingle(), "jobcard-pdf:job-card");

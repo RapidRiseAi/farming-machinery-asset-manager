@@ -23,6 +23,7 @@ import { SendStatement } from "@/components/statements/send-statement";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { must, mustAll, soft } from "@/lib/supabase/must";
+import { isoDateOrNull } from "@/lib/supplier-statement";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +61,10 @@ export default async function StatementsPage({
   // terms issued last month is the whole point of the screen, and a month-to-date window
   // opens on an empty table for most of every month.
   const period = defaultStatementPeriod();
-  const from = sp.from || period.from;
-  const to = sp.to || period.to;
+  // A hand-edited or truncated date falls back to the default rather than reaching the
+  // statement query, which refuses it (and reads now fail loudly).
+  const from = isoDateOrNull(sp.from) ?? period.from;
+  const to = isoDateOrNull(sp.to) ?? period.to;
 
   // Everyone this partner has ever billed, farms they are linked to and clients in their
   // own book. Both, in one list, because a partner does not think of them as two kinds.

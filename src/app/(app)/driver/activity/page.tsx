@@ -19,6 +19,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { DrivingLocation } from "@/components/driving-location";
 import { recordActivity } from "./actions";
+import { isUuid } from "@/lib/ids";
 
 type Person = { id: string; name: string };
 type Session = {
@@ -40,7 +41,14 @@ export default async function ActivityPage({
     saved?: string;
   }>;
 }) {
-  const sp = await searchParams;
+  const raw = await searchParams;
+  // Filters only when they are ids: a stale or hand-edited `?driver=` or `?machine=` shows
+  // the unfiltered list, as it did before reads failed loudly on Postgres's refusal.
+  const sp = {
+    ...raw,
+    driver: isUuid(raw.driver) ? raw.driver : undefined,
+    machine: isUuid(raw.machine) ? raw.machine : undefined,
+  };
   const profile = await requireProfile();
   const farm = sp.farm || (await currentFarmId(profile));
   if (!farm) redirect("/home");

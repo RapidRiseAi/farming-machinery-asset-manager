@@ -12,7 +12,7 @@ import { FUEL_ACTIVITIES, FUEL_FARM_LEVEL } from "@/lib/fuel";
 import { todayLocal } from "@/lib/format";
 import { recordFuelIssue } from "@/lib/domain/fleet-commands";
 import { runOnce } from "@/lib/request-claim";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 
 function bounce(msg: string): never {
   redirect(`/fuel?error=${encodeURIComponent(msg)}`);
@@ -47,7 +47,7 @@ export async function addFuelTank(formData: FormData) {
     capacity_l: capacity != null && Number.isFinite(capacity) && capacity > 0 ? capacity : null,
   });
   if (error) {
-    console.error("[fuel] save failed:", error.message);
+    reportUnlessRefused(error, "fuel:tank");
     bounce("save-failed");
   }
   revalidatePath("/fuel");
@@ -101,7 +101,7 @@ export async function addFuelDelivery(formData: FormData) {
         by_user: profile.id,
       });
       if (error) {
-        console.error("[fuel] save failed:", error.message);
+        reportUnlessRefused(error, "fuel:delivery");
         bounce("save-failed");
       }
       revalidatePath("/fuel");
@@ -239,7 +239,10 @@ export async function addFuelDip(formData: FormData) {
     note,
     by_user: profile.id,
   });
-  if (error) redirect("/fuel?error=save-failed");
+  if (error) {
+    reportUnlessRefused(error, "fuel:dip");
+    redirect("/fuel?error=save-failed");
+  }
 
   revalidatePath("/fuel");
   redirect("/fuel?saved=dip");
