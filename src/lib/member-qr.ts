@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { must } from "@/lib/supabase/must";
+import { must, ReadFailed } from "@/lib/supabase/must";
+import { authUnanswered } from "@/lib/auth-unanswered";
 
 export async function memberQr(
   token: string,
@@ -12,7 +13,10 @@ export async function memberQr(
   )
     return null;
   const db = await createClient();
-  const { data: auth } = await db.auth.getUser();
+  const { data: auth, error: authError } = await db.auth.getUser();
+  // Auth not answering is not "signed out": thrown, so the person is told to try again
+  // rather than shown the QR page as if they were nobody (lib/auth-unanswered).
+  if (authUnanswered(authError)) throw new ReadFailed("member-qr:get-user", { code: authError?.name });
   if (!auth.user) return null;
   // Thrown as before, now with the database's code in the report.
   const data = must(await db.rpc("resolve_member_qr", { p_token: token }), "member-qr:resolve");

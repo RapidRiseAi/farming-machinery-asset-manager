@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 /**
  * Two-step sign-in (B9). An authenticator app's six-digit code on top of the password, per
@@ -54,9 +54,45 @@ function level(value: string | null | undefined): "aal1" | "aal2" | null {
   return value === "aal1" || value === "aal2" ? value : null;
 }
 
-/** The session's assurance, read from its own token: no network call. */
-export async function readAssurance(supabase: SupabaseClient): Promise<Assurance> {
+/** The `aal` claim of an access token, or null when it cannot be read. No signature check. */
+function tokenLevel(accessToken: string | null | undefined): "aal1" | "aal2" | null {
+  const payload = accessToken?.split(".")[1];
+  if (!payload) return null;
   try {
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "="));
+    return level((JSON.parse(json) as { aal?: string }).aal);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Supabase's own rule, applied to a user Auth has confirmed: `current` is the token's `aal`,
+ * `next` is `aal2` once the person has a verified factor. Pure, so it is tested directly.
+ */
+export function assuranceFrom(
+  accessToken: string | null | undefined,
+  user: { factors?: { status: string }[] | null } | null,
+): Assurance {
+  const current = tokenLevel(accessToken);
+  const verified = (user?.factors ?? []).some((factor) => factor.status === "verified");
+  return { current, next: verified ? "aal2" : current };
+}
+
+/**
+ * The session's assurance. Given the user `getUser()` just confirmed with Auth, the factors
+ * come from that user and only the session's token is read: the library's own reading takes
+ * them from the copy of the user stored in the cookie, which on the server is unverified
+ * (and logs Supabase's "could be insecure" warning on every page). The token itself is the
+ * one `getUser()` validated in this request. Without a confirmed user it falls back to the
+ * library (straight after a sign-in, whose session came from Auth a moment ago).
+ */
+export async function readAssurance(supabase: SupabaseClient, confirmedUser?: User | null): Promise<Assurance> {
+  try {
+    if (confirmedUser) {
+      const { data } = await supabase.auth.getSession();
+      return assuranceFrom(data.session?.access_token, confirmedUser);
+    }
     const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (error || !data) return { current: null, next: null };
     return { current: level(data.currentLevel), next: level(data.nextLevel) };

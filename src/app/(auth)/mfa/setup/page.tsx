@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
 import { PublicShell } from "@/components/public-shell";
 import { SetupForm } from "./setup-form";
+import { authUnanswered } from "@/lib/auth-unanswered";
+import { ReadFailed } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +24,12 @@ export default async function MfaSetupPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const next = safePath(sp.next ?? "", "/home");
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+  // Auth not answering is not "signed out" (lib/auth-unanswered): try again, not sign-in.
+  if (authUnanswered(error)) throw new ReadFailed("mfa:get-user", { code: error?.name });
   if (!data.user) redirect(`/login?next=${encodeURIComponent("/mfa/setup")}`);
-  const assurance = await readAssurance(supabase);
+  // From the user Auth just confirmed, not the cookie's copy of it.
+  const assurance = await readAssurance(supabase, data.user);
   // A code already set up but not given this session: give it first.
   if (assurance.next === "aal2" && assurance.current !== "aal2") {
     redirect(`/mfa/verify?next=${encodeURIComponent(`/mfa/setup?next=${encodeURIComponent(next)}`)}`);

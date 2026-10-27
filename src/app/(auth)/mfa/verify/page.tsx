@@ -9,6 +9,8 @@ import { PublicShell } from "@/components/public-shell";
 import { signOut } from "@/app/(app)/actions";
 import { VerifyForm } from "./verify-form";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { authUnanswered } from "@/lib/auth-unanswered";
+import { ReadFailed } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +23,12 @@ export default async function MfaVerifyPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const next = safePath(sp.next ?? "", "/home");
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+  // Auth not answering is not "signed out" (lib/auth-unanswered): try again, not sign-in.
+  if (authUnanswered(error)) throw new ReadFailed("mfa:get-user", { code: error?.name });
   if (!data.user) redirect(`/login?next=${encodeURIComponent(next)}`);
-  const assurance = await readAssurance(supabase);
+  // From the user Auth just confirmed, not the cookie's copy of it.
+  const assurance = await readAssurance(supabase, data.user);
   // Nothing to give (no code set up) or already given: carry on.
   if (assurance.current === "aal2" || assurance.next !== "aal2") redirect(next);
 

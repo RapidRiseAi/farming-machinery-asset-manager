@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import {
+  currentAssurance,
   currentPlan,
   accessibleFarms,
   currentFarmId,
@@ -13,7 +14,7 @@ import {
 import { planAllows } from "@/lib/entitlements";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
-import { mfaGate, readAssurance } from "@/lib/mfa";
+import { mfaGate } from "@/lib/mfa";
 import { safePath } from "@/lib/safe-path";
 import { countInboxUnread } from "@/lib/inbox";
 import { countInboxDecisions } from "@/lib/inbox-decisions";
@@ -88,7 +89,7 @@ export default async function AppLayout({
   // Two-step sign-in (B9): someone who has set up a code gives it once per session, and
   // Rapid Rise staff, whose account reaches every farm, set one up before anything else.
   // Both pages sit outside this layout, so this cannot loop.
-  const twoStep = mfaGate(profile.role, await readAssurance(await createClient()));
+  const twoStep = mfaGate(profile.role, await currentAssurance());
   if (twoStep) {
     const here = safePath((await headers()).get("x-fw-path") ?? "", "/home");
     redirect(`/mfa/${twoStep === "verify" ? "verify" : "setup"}?next=${encodeURIComponent(here)}`);

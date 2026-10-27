@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { rapidRiseLockPath, rapidRiseVerdict, readAssurance } from "@/lib/mfa";
+import { rapidRiseLockPath, rapidRiseVerdict, readAssurance, type Assurance } from "@/lib/mfa";
 import { safePath } from "@/lib/safe-path";
 import { must, ReadFailed } from "@/lib/supabase/must";
 import { authUnanswered } from "@/lib/auth-unanswered";
@@ -112,10 +112,30 @@ export const rapidRiseUnlocked = cache(async (): Promise<boolean> => {
 });
 
 /** Where a Rapid Rise account goes when this session cannot act as Rapid Rise. */
-async function lockPathFor(supabase: SupabaseClient, profile: Profile): Promise<string> {
+async function lockPathFor(supabase: SupabaseClient, user: User, profile: Profile): Promise<string> {
   const here = safePath((await headers()).get("x-fw-path") ?? "", "/home");
-  return rapidRiseLockPath(profile.is_test, await readAssurance(supabase), here);
+  return rapidRiseLockPath(profile.is_test, await readAssurance(supabase, user), here);
 }
+
+/**
+ * This request's client and the user Auth confirmed for it, asked once per request and
+ * shared by the profile loader and the two-step check, so the check reads the confirmed
+ * user rather than the cookie's copy, at no extra round trip. Throws when Auth could not
+ * answer (lib/auth-unanswered): an outage read as "no user" sent a signed-in person to
+ * /login?error=no-profile, which says nothing about why.
+ */
+const confirmedAuth = cache(async (): Promise<{ supabase: SupabaseClient; user: User | null }> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+  if (authUnanswered(error)) throw new ReadFailed("auth:get-user", { code: error?.name });
+  return { supabase, user: data.user ?? null };
+});
+
+/** The session's two-step assurance (B9), from the user Auth confirmed in this request. */
+export const currentAssurance = cache(async (): Promise<Assurance> => {
+  const { supabase, user } = await confirmedAuth();
+  return user ? readAssurance(supabase, user) : { current: null, next: null };
+});
 
 type LoadedProfile = { profile: Profile | null; lock: string | null };
 
@@ -128,13 +148,9 @@ type LoadedProfile = { profile: Profile | null; lock: string | null };
  * password alone past B9's second factor.
  */
 const loadProfile = cache(async (): Promise<LoadedProfile> => {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  // Thrown, like a failed profile read below: an Auth outage read as "no user" sent a
-  // signed-in person to /login?error=no-profile, which says nothing about why.
-  if (authUnanswered(userError)) throw new ReadFailed("auth:get-user", { code: userError?.name });
-  const uid = userData.user?.id;
-  if (!uid) return { profile: null, lock: null };
+  const { supabase, user } = await confirmedAuth();
+  const uid = user?.id;
+  if (!user || !uid) return { profile: null, lock: null };
   const { data, error } = await supabase
     .from("users")
     .select(PROFILE_COLUMNS)
@@ -167,7 +183,7 @@ const loadProfile = cache(async (): Promise<LoadedProfile> => {
   // only asked about Rapid Rise accounts.
   if (profile.role === "rr_admin") {
     const verdict = rapidRiseVerdict(profile.role, profile.active, await rapidRiseUnlocked());
-    if (verdict === "lock") return { profile: null, lock: await lockPathFor(supabase, profile) };
+    if (verdict === "lock") return { profile: null, lock: await lockPathFor(supabase, user, profile) };
     if (verdict === "withhold") return { profile: null, lock: null };
   }
   return { profile, lock: null };

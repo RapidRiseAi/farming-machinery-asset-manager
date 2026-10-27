@@ -5698,3 +5698,20 @@ the loud pages, and the address sweep.
 Monitoring, read from the Vercel account again on 2026-10-27: `SENTRY_DSN`, `OPS_ALERT_EMAIL`,
 `AI_ALERT_EMAIL`, `SUPPORT_WEBHOOK_URL` and `AI_KEY_SECRET` are still not set in production,
 so the reports this release makes honest still reach only Vercel's log stream.
+
+## 2026-10-27 - The session warning, and the last sign-in reads
+
+- Every signed-in page logged Supabase's "Using the user object as returned from
+  supabase.auth.getSession() ... could be insecure" warning, so production's log was mostly
+  that line and a real failure was hard to see. The cause was the two-step check in the app
+  layout: it read the person's factors from the copy of the user stored in the cookie, on a
+  fresh client that had not asked Auth. The check now uses the user `getUser()` confirmed in
+  the same request (`currentAssurance`, shared with the profile loader, so no extra round
+  trip), and only the token that call validated. Zero warnings across eight roles and the
+  spam checks, from hundreds. The two-step pages read it the same way.
+- The QR member lookup, the two-step pages and the test-account page treat Auth not
+  answering as "try again", like the rest of the app since release 4.
+- CI's `run.sh` runs the five SQL suites it had skipped (ai_usage_invoicing,
+  assistant_farm_data, assistant_fuel_proposal, fuel_tank_balances, team_invites).
+
+686 unit tests; on a production build eight roles and every spam check.

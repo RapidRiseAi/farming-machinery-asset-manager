@@ -6,6 +6,8 @@ import { deviceLocale } from "@/lib/locale";
 import { createClient } from "@/lib/supabase/server";
 import { PublicShell } from "@/components/public-shell";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { authUnanswered } from "@/lib/auth-unanswered";
+import { ReadFailed } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function TestAccountPage() {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+  // Auth not answering is not "signed out" (lib/auth-unanswered): try again, not sign-in.
+  if (authUnanswered(error)) throw new ReadFailed("test-account:get-user", { code: error?.name });
   if (!data.user) redirect("/login");
   const locale = await deviceLocale();
 

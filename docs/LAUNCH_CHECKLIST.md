@@ -175,9 +175,8 @@ Order: correctness and security first, then load, then product.
       stream.
 - [ ] **Follow-ups from B7:** the farm export is one in-memory JSON response (a very large
       farm could pass a function's response limit: stream it or split it); the accounting
-      summary sums journal lines in the page (move it into SQL); five older SQL suites are not
-      run by CI's `run.sh` (ai_usage_invoicing, assistant_farm_data, assistant_fuel_proposal,
-      fuel_tank_balances, team_invites).
+      summary sums journal lines in the page (move it into SQL). (The five SQL suites CI's
+      `run.sh` skipped run there since 2026-10-27.)
 - [x] **B3** Error tracking wired to Sentry when `SENTRY_DSN` is set; `/api/health` for the
       uptime monitor; alert email when a nightly job fails.
       2026-10-14 (0efd5e3, live): error reporting was already wired without the SDK

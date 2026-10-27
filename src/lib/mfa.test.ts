@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanCode, mfaGate, rapidRiseLockPath, rapidRiseVerdict } from "./mfa";
+import { assuranceFrom, cleanCode, mfaGate, rapidRiseLockPath, rapidRiseVerdict } from "./mfa";
 
 test("a verified session carries on, whoever it is", () => {
   assert.equal(mfaGate("rr_admin", { current: "aal2", next: "aal2" }), null);
@@ -63,4 +63,23 @@ test("a refused Rapid Rise session is sent on if active, withheld quietly if not
   // A deactivated account the database still answers yes for is the database's call: the
   // loader's other checks (requireProfile refuses inactive profiles) still apply.
   assert.equal(rapidRiseVerdict("rr_admin", false, true), "allow");
+});
+
+/** A token with the given claims; the signature is not part of what is read. */
+const token = (claims: object) => ["e30", Buffer.from(JSON.stringify(claims)).toString("base64url"), "sig"].join(".");
+
+test("assurance comes from the token and the user Auth confirmed", () => {
+  assert.deepEqual(assuranceFrom(token({ aal: "aal1" }), { factors: [{ status: "verified" }] }), { current: "aal1", next: "aal2" });
+  assert.deepEqual(assuranceFrom(token({ aal: "aal2" }), { factors: [{ status: "verified" }] }), { current: "aal2", next: "aal2" });
+  assert.deepEqual(assuranceFrom(token({ aal: "aal1" }), { factors: [] }), { current: "aal1", next: "aal1" });
+});
+
+test("an unverified factor does not make the code step reachable", () => {
+  assert.deepEqual(assuranceFrom(token({ aal: "aal1" }), { factors: [{ status: "unverified" }] }), { current: "aal1", next: "aal1" });
+});
+
+test("an unreadable token is unknown, which never locks anyone out on its own", () => {
+  assert.deepEqual(assuranceFrom("not-a-token", { factors: [] }), { current: null, next: null });
+  assert.deepEqual(assuranceFrom(undefined, null), { current: null, next: null });
+  assert.equal(mfaGate("owner", assuranceFrom("x.y.z", null)), null);
 });
