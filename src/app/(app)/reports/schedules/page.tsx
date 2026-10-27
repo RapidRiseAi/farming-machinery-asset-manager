@@ -10,6 +10,7 @@ import {
 import { planAllows } from "@/lib/entitlements";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { shortDate, todayLocal } from "@/lib/format";
 import {
@@ -91,7 +92,7 @@ export default async function ReportSchedulesPage({
     .eq("farm_id", farmId)
     .is("deleted_at", null)
     .order("next_run_date");
-  const { data } = await q;
+  const data = must(await q, "report-schedules:list");
   const schedules = (data ?? []) as ReportSchedule[];
 
   // The farm's day, not UTC's: before 02:00 in South Africa UTC is still on yesterday.

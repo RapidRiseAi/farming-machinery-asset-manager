@@ -69,12 +69,14 @@ async function orderRate(
   supabase: Awaited<ReturnType<typeof createClient>>,
   orderId: string,
 ): Promise<number | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("purchase_orders")
     .select("vat_rate_bps")
     .eq("id", orderId)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed read is not a missing order: said as a failure, before anything is written.
+  if (error) redirect(orderPath(orderId, `?error=${errorCode(error, "orders:rate")}`));
   return (data as { vat_rate_bps: number } | null)?.vat_rate_bps ?? null;
 }
 
@@ -207,11 +209,13 @@ export async function deleteOrder(formData: FormData) {
   if (!id) redirect(`${HOME}?error=po-notFound`);
 
   const supabase = await createClient();
-  const { count } = await supabase
+  const { count, error: countError } = await supabase
     .from("partner_expenses")
     .select("id", { count: "exact", head: true })
     .eq("purchase_order_id", id)
     .is("deleted_at", null);
+  // Unknown is not zero: deleting an order whose invoice was captured is the thing refused.
+  if (countError) redirect(orderPath(id, `?error=${errorCode(countError, "orders:delete:expenses")}`));
   if ((count ?? 0) > 0) redirect(orderPath(id, "?error=po-hasExpense"));
 
   const { error } = await supabase
@@ -248,7 +252,7 @@ export async function addLine(formData: FormData) {
       if (rate == null) redirect(`${HOME}?error=po-notFound`);
 
       // Appended, not inserted: the order should read in the sequence it was written.
-      const { data: last } = await supabase
+      const { data: last, error: lastError } = await supabase
         .from("purchase_order_lines")
         .select("sort_order")
         .eq("purchase_order_id", id)
@@ -256,6 +260,7 @@ export async function addLine(formData: FormData) {
         .order("sort_order", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (lastError) redirect(orderPath(id, `?error=${errorCode(lastError, "orders:add-line:last")}`));
 
       const { error } = await supabase.from("purchase_order_lines").insert({
         workshop_id: workshop.id,
@@ -406,12 +411,13 @@ export async function convertOrder(formData: FormData) {
   if (!id) redirect(`${HOME}?error=po-notFound`);
 
   const supabase = await createClient();
-  const { data: order } = await supabase
+  const { data: order, error: orderError } = await supabase
     .from("purchase_orders")
     .select("id, supplier_name, status, vat_rate_bps")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (orderError) redirect(orderPath(id, `?error=${errorCode(orderError, "orders:convert:read")}`));
   const po = order as { supplier_name: string; status: PurchaseOrderStatus; vat_rate_bps: number } | null;
   if (!po) redirect(`${HOME}?error=po-notFound`);
   if (!canConvert(po.status)) redirect(orderPath(id, "?error=po-cannotConvert"));
@@ -461,17 +467,23 @@ export async function convertOrder(formData: FormData) {
   // they have shipped and sends the rest next week leaves an order that is still open, and
   // closing it here would hide the outstanding items, which is the exact record this
   // feature exists to keep.
-  const { data: lineRows } = await supabase
+  //
+  // Best effort from here: the expense is already saved, and a retry would only be refused
+  // as already converted. A failure is reported and the order is left open, which the
+  // person can see and close by hand.
+  const { data: lineRows, error: linesError } = await supabase
     .from("purchase_order_lines")
     .select("qty_ordered, qty_received")
     .eq("purchase_order_id", id)
     .is("deleted_at", null);
+  if (linesError) captureError(linesError, { where: "orders:convert:lines" });
   const summary = receivedSummary((lineRows ?? []) as { qty_ordered: number; qty_received: number }[]);
   if (summary.complete) {
-    await supabase
+    const { error: closeError } = await supabase
       .from("purchase_orders")
       .update({ status: "closed", updated_at: new Date().toISOString() })
       .eq("id", id);
+    if (closeError) captureError(closeError, { where: "orders:convert:close" });
   }
 
   refresh(id);

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
@@ -68,10 +69,7 @@ export default async function MoneyPage({
   const to = chosen?.to ?? sp.to ?? periods[0].to;
 
   const supabase = await createClient();
-  const [
-    { data: plData }, { data: breakdownData }, { data: debtorData },
-    { data: creditorData }, { data: cashData }, { data: convData },
-  ] = await Promise.all([
+  const results = await Promise.all([
     supabase.rpc("partner_pl", { p_workshop: workshop.id, p_from: from, p_to: to }),
     supabase.rpc("partner_expense_breakdown", { p_workshop: workshop.id, p_from: from, p_to: to }),
     supabase.rpc("partner_debtors", { p_workshop: workshop.id }),
@@ -79,6 +77,11 @@ export default async function MoneyPage({
     supabase.rpc("partner_cash", { p_workshop: workshop.id, p_from: from, p_to: to }),
     supabase.rpc("partner_quote_conversion", { p_workshop: workshop.id, p_from: from, p_to: to }),
   ]);
+  mustAll(results, "money:page");
+  const [
+    { data: plData }, { data: breakdownData }, { data: debtorData },
+    { data: creditorData }, { data: cashData }, { data: convData },
+  ] = results;
 
   const pl = (((plData ?? []) as Pl[])[0] ?? EMPTY_PL);
   const breakdown = (breakdownData ?? []) as { category: string; cost_cents: number }[];

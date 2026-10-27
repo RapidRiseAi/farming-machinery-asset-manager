@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole, currentWorkshop, requireWorkshopEntitlement } from "@/lib/auth";
 import { parseStatement, MAX_STATEMENT_ROWS } from "@/lib/banking";
 import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 /**
  * Bank statement import and reconciliation (G15).
@@ -108,10 +109,13 @@ export async function importBankStatement(formData: FormData) {
     added += (data ?? []).length;
   }
 
-  await supabase
+  // Best effort: the lines are in, and a retry would add none of them again. Only the
+  // batch's own count is stale, so it is reported rather than shown as a failed import.
+  const { error: countError } = await supabase
     .from("bank_statement_imports")
     .update({ rows_added: added, updated_at: new Date().toISOString() })
     .eq("id", (batch as { id: string }).id);
+  if (countError) captureError(countError, { where: "banking:import:count" });
 
   revalidatePath("/banking");
   redirect(`/banking?imported=${added}&seen=${parsed.validCount}`);
@@ -137,13 +141,14 @@ export async function confirmMatch(formData: FormData) {
   if (!lineId || !targetId) redirect("/banking?error=not_found");
 
   const supabase = await createClient();
-  const { data: line } = await supabase
+  const { data: line, error: lineError } = await supabase
     .from("bank_lines")
     .select("id, amount_cents, txn_date, description, reference, status")
     .eq("id", lineId)
     .is("deleted_at", null)
     .maybeSingle();
 
+  if (lineError) redirect(`/banking?error=${errorCode(lineError, "banking:confirm:line")}`);
   if (!line) redirect("/banking?error=not_found");
   const l = line as {
     id: string; amount_cents: number; txn_date: string;
@@ -154,12 +159,13 @@ export async function confirmMatch(formData: FormData) {
   if (kind === "invoice") {
     if (l.amount_cents <= 0) redirect("/banking?error=wrong_direction");
 
-    const { data: doc } = await supabase
+    const { data: doc, error: docError } = await supabase
       .from("partner_documents")
       .select("id, farm_id, kind, status, total_cents, amount_paid_cents")
       .eq("id", targetId)
       .is("deleted_at", null)
       .maybeSingle();
+    if (docError) redirect(`/banking?error=${errorCode(docError, "banking:confirm:document")}`);
     if (!doc) redirect("/banking?error=not_found");
     const d = doc as {
       id: string; farm_id: string | null; kind: string; status: string;
@@ -286,11 +292,12 @@ export async function setAsideLine(formData: FormData) {
   if (!lineId) redirect("/banking?error=not_found");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("bank_lines")
     .update({ status: "ignored", updated_at: new Date().toISOString() })
     .eq("id", lineId)
     .eq("status", "unmatched");
+  if (error) redirect(`/banking?error=${errorCode(error, "banking:set-aside")}`);
 
   revalidatePath("/banking");
   redirect("/banking?aside=1");
@@ -303,11 +310,12 @@ export async function restoreLine(formData: FormData) {
   if (!lineId) redirect("/banking?error=not_found");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("bank_lines")
     .update({ status: "unmatched", updated_at: new Date().toISOString() })
     .eq("id", lineId)
     .eq("status", "ignored");
+  if (error) redirect(`/banking?error=${errorCode(error, "banking:restore")}`);
 
   revalidatePath("/banking");
   redirect("/banking?restored=1");
@@ -328,11 +336,12 @@ export async function removeLine(formData: FormData) {
   if (!lineId) redirect("/banking?error=not_found");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("bank_lines")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", lineId)
     .eq("status", "unmatched");
+  if (error) redirect(`/banking?error=${errorCode(error, "banking:remove")}`);
 
   revalidatePath("/banking");
   redirect("/banking?removed=1");

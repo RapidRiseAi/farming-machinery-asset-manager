@@ -9,6 +9,7 @@ import { MOVE_KINDS, type MoveKind } from "@/lib/stock";
 import { clampLookahead } from "@/lib/reorder";
 import { todayLocal } from "@/lib/format";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 /** Log the raw database message for us, and send the person a translated slug. */
 function failed(where: string, message: string): never {
@@ -117,13 +118,15 @@ export async function recordMovement(formData: FormData) {
       const machineId = s(formData, "machine_id");
       const supabase = await createClient();
 
-      const { data: item } = await supabase
+      const { data: item, error: itemError } = await supabase
         .from("stock_items")
         .select("id")
         .eq("id", itemId)
         .eq("farm_id", farmId)
         .is("deleted_at", null)
         .maybeSingle();
+      // Before anything is written, so a redirect is safe; a failed read is not "not found".
+      if (itemError) redirect(`/parts?error=${errorCode(itemError, "stock:movement:item")}`);
       if (!item) redirect("/parts?error=not-found");
 
       const { error } = await supabase.from("stock_movements").insert({
@@ -179,12 +182,13 @@ export async function receiveDelivery(formData: FormData) {
       if (lines.length === 0) redirect("/parts?error=stock-need-qty");
 
       const supabase = await createClient();
-      const { data: items } = await supabase
+      const { data: items, error: itemsError } = await supabase
         .from("stock_items")
         .select("id")
         .in("id", lines.map((l) => l.id))
         .eq("farm_id", farmId)
         .is("deleted_at", null);
+      if (itemsError) redirect(`/parts?error=${errorCode(itemsError, "stock:delivery:items")}`);
       const known = new Set(((items ?? []) as { id: string }[]).map((i) => i.id));
       if (lines.some((l) => !known.has(l.id))) redirect("/parts?error=not-found");
 

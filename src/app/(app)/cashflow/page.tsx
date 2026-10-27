@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
@@ -82,10 +83,12 @@ export default async function CashflowPage({
   const openingRejected = openingRaw != null && openingRaw.trim() !== "" && opening == null;
 
   const supabase = await createClient();
-  const [{ data: bucketData }, { data: itemData }] = await Promise.all([
+  const results = await Promise.all([
     supabase.rpc("partner_cashflow", { p_workshop: workshop.id, p_horizon_days: horizon }),
     supabase.rpc("partner_cashflow_items", { p_workshop: workshop.id, p_horizon_days: horizon }),
   ]);
+  mustAll(results, "cashflow:page");
+  const [{ data: bucketData }, { data: itemData }] = results;
 
   const buckets = ((bucketData ?? []) as CashflowBucket[]);
   const rows = buckets.length > 0 ? buckets : EMPTY_BUCKETS;

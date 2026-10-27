@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { loadReceipt } from "@/lib/billing/receipt";
 import { buildBillingReceiptPdf } from "@/lib/pdf/billing-receipt";
 import { pdfResponse } from "@/lib/pdf/doc";
@@ -60,12 +61,16 @@ export async function GET(
   }
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("billing_invoices")
-    .select("id, invoice_ref, status")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  // A failed read is a 500, not a 404: "no such invoice" would be false.
+  const data = must(
+    await supabase
+      .from("billing_invoices")
+      .select("id, invoice_ref, status")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "billing:invoice-pdf",
+  );
   const invoice = data as { id: string; invoice_ref: string; status: string } | null;
 
   if (!invoice) return NextResponse.json({ error: "not-found" }, { status: 404 });

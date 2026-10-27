@@ -13,6 +13,7 @@ import { shortDate } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
 import { BILLING_RPC } from "@/lib/billing/service";
 import { captureError } from "@/lib/observability";
+import { must, soft } from "@/lib/supabase/must";
 
 /**
  * Telling the farm what happened to their money.
@@ -63,15 +64,19 @@ function fromLine(sellerName: string): string {
 
 /** The reader's language: the farm owner's own choice, falling back to English. */
 async function farmLocale(supabase: SupabaseClient, farmId: string): Promise<Lang> {
-  const { data } = await supabase
-    .from("users")
-    .select("language")
-    .eq("farm_id", farmId)
-    .eq("role", "owner")
-    .eq("active", true)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true })
-    .limit(1);
+  // Soft: a failed read sends the same receipt in English, which is still true.
+  const data = soft(
+    await supabase
+      .from("users")
+      .select("language")
+      .eq("farm_id", farmId)
+      .eq("role", "owner")
+      .eq("active", true)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1),
+    "billing:receipt:locale",
+  );
   const rows = (data ?? []) as { language: string | null }[];
   const lang = rows[0]?.language;
   return lang === "af" ? "af" : "en";
@@ -144,29 +149,37 @@ export async function loadReceipt(
   locale: Lang,
   kind: BillingDocumentKind = "receipt",
 ): Promise<BillingReceiptData | null> {
-  const { data } = await supabase
-    .from("billing_invoices")
-    .select(
-      "id, farm_id, invoice_ref, period_start, period_end, plan, asset_count, " +
-        "unit_price_incl_cents, months_charged, subtotal_ex_vat_cents, vat_cents, " +
-        "total_incl_cents, vat_rate_bps, seller_snapshot, bill_to_snapshot, " +
-        "due_on, amount_paid_cents, kind, discount_cents, discount_label, " +
-        "ai_usage_ex_vat_cents, ai_usage_incl_cents, ai_usage_from, ai_usage_to, ai_usage_people",
-    )
-    .eq("id", invoiceId)
-    .maybeSingle();
+  // Every read here throws on failure: this object becomes a PDF that is emailed and
+  // downloaded as the real document, so a missing piece must stop it, not thin it.
+  const data = must(
+    await supabase
+      .from("billing_invoices")
+      .select(
+        "id, farm_id, invoice_ref, period_start, period_end, plan, asset_count, " +
+          "unit_price_incl_cents, months_charged, subtotal_ex_vat_cents, vat_cents, " +
+          "total_incl_cents, vat_rate_bps, seller_snapshot, bill_to_snapshot, " +
+          "due_on, amount_paid_cents, kind, discount_cents, discount_label, " +
+          "ai_usage_ex_vat_cents, ai_usage_incl_cents, ai_usage_from, ai_usage_to, ai_usage_people",
+      )
+      .eq("id", invoiceId)
+      .maybeSingle(),
+    "billing:receipt:invoice",
+  );
   const inv = data as InvoiceRow | null;
   if (!inv) return null;
 
   // How it was paid, and when. A payment recorded by hand has no card, which the PDF
   // renders as an absent block rather than inventing one.
-  const { data: payData } = await supabase
-    .from("billing_payments")
-    .select("paid_at, channel, provider_reference, attempt_id")
-    .eq("invoice_id", invoiceId)
-    .is("deleted_at", null)
-    .order("paid_at", { ascending: false })
-    .limit(1);
+  const payData = must(
+    await supabase
+      .from("billing_payments")
+      .select("paid_at, channel, provider_reference, attempt_id")
+      .eq("invoice_id", invoiceId)
+      .is("deleted_at", null)
+      .order("paid_at", { ascending: false })
+      .limit(1),
+    "billing:receipt:payment",
+  );
   const pay = ((payData ?? []) as {
     paid_at: string | null;
     channel: string | null;
@@ -177,20 +190,26 @@ export async function loadReceipt(
   let cardBrand: string | null = null;
   let last4: string | null = null;
   if (pay?.attempt_id) {
-    const { data: pmData } = await supabase
-      .from("billing_payment_attempts")
-      .select("payment_method_id")
-      .eq("id", pay.attempt_id)
-      .maybeSingle();
+    const pmData = must(
+      await supabase
+        .from("billing_payment_attempts")
+        .select("payment_method_id")
+        .eq("id", pay.attempt_id)
+        .maybeSingle(),
+      "billing:receipt:attempt",
+    );
     const pmId = (pmData as { payment_method_id: string | null } | null)?.payment_method_id;
     if (pmId) {
       // Display columns only. The authorization code is not selected here and must never
       // be: this object is on its way into a PDF and an email.
-      const { data: card } = await supabase
-        .from("billing_payment_methods")
-        .select("card_brand, last4")
-        .eq("id", pmId)
-        .maybeSingle();
+      const card = must(
+        await supabase
+          .from("billing_payment_methods")
+          .select("card_brand, last4")
+          .eq("id", pmId)
+          .maybeSingle(),
+        "billing:receipt:card",
+      );
       const c = card as { card_brand: string | null; last4: string | null } | null;
       cardBrand = c?.card_brand ?? null;
       last4 = c?.last4 ?? null;

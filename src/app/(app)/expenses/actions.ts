@@ -56,7 +56,9 @@ async function resolveSupplier(
 ): Promise<{ supplier_id: string | null; supplier_name: string } | null> {
   const id = s(fd, "supplier_id");
   if (id) {
-    const { data } = await supabase.from("suppliers").select("name").eq("id", id).maybeSingle();
+    const { data, error } = await supabase.from("suppliers").select("name").eq("id", id).maybeSingle();
+    // A failed lookup is not "no supplier named": said as a failure, before anything is written.
+    if (error) redirect(`/expenses?error=${errorCode(error, "expenses:supplier")}`);
     const name = (data as { name: string } | null)?.name;
     return name ? { supplier_id: id, supplier_name: name } : null;
   }
@@ -214,10 +216,11 @@ export async function removeReceipt(formData: FormData) {
   if (!id) redirect("/expenses?error=not-found");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("partner_expenses")
     .update({ receipt_path: null, updated_at: new Date().toISOString() })
     .eq("id", id);
+  if (error) redirect(`/expenses?error=${errorCode(error, "expenses:remove-receipt")}`);
 
   revalidatePath("/expenses");
   revalidatePath("/vat");

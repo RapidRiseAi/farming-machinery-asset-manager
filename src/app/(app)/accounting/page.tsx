@@ -5,6 +5,7 @@ import {
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readJournal } from "@/lib/accounting-read";
+import { must, soft } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate, num } from "@/lib/format";
@@ -104,17 +105,22 @@ export default async function AccountingPage({
     if (workshop) {
       subjectName = workshop.trading_name ?? workshop.name ?? null;
       // Every line: the totals and the account summary below are summed from them.
-      const { data } = await readJournal(supabase, { scope: "partner", workshopId: workshop.id, from, to });
+      const data = must(
+        await readJournal(supabase, { scope: "partner", workshopId: workshop.id, from, to }),
+        "accounting:partner-journal",
+      );
       lines = data ?? [];
     }
   } else {
     const farmId = await currentFarmId(profile);
     if (farmId) {
-      const [{ data }, { data: farm }] = await Promise.all([
+      const [journal, farmResult] = await Promise.all([
         readJournal(supabase, { scope: "farm", farmId, from, to }),
         supabase.from("farms").select("name").eq("id", farmId).maybeSingle(),
       ]);
-      lines = data ?? [];
+      lines = must(journal, "accounting:farm-journal") ?? [];
+      // Soft: only the name in the lead, which falls back to the generic lead.
+      const farm = soft(farmResult, "accounting:farm-name");
       subjectName = (farm as { name: string } | null)?.name ?? null;
     }
   }

@@ -5,6 +5,7 @@ import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
@@ -85,7 +86,7 @@ export default async function VatPage({
   const viewingOpen = from === open.from && to === open.to;
 
   const supabase = await createClient();
-  const [{ data: vatData }, { data: docData }, { data: expData }] = await Promise.all([
+  const results = await Promise.all([
     supabase.rpc("partner_vat_return", { p_workshop: workshop.id, p_from: from, p_to: to }),
     readAll(() => supabase
       .from("partner_documents")
@@ -105,6 +106,8 @@ export default async function VatPage({
       .is("deleted_at", null)
       .order("expense_date")),
   ]);
+  mustAll(results, "vat:page");
+  const [{ data: vatData }, { data: docData }, { data: expData }] = results;
 
   const vat = (((vatData ?? []) as VatReturn[])[0] ?? EMPTY_VAT_RETURN);
   const docs = (docData ?? []) as {

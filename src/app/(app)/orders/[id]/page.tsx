@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireProfile, currentWorkshop } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate, todayLocal, vatPercent } from "@/lib/format";
@@ -64,31 +65,40 @@ export default async function OrderPage({
   if (!workshop) redirect("/contractor?error=no-workshop");
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("purchase_orders")
-    .select("*")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("purchase_orders")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "orders:detail",
+  );
   const order = data as PurchaseOrder | null;
   if (!order) redirect("/orders?error=po-notFound");
 
-  const { data: lineRows } = await supabase
-    .from("purchase_order_lines")
-    .select("*")
-    .eq("purchase_order_id", order.id)
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: true });
+  const lineRows = must(
+    await supabase
+      .from("purchase_order_lines")
+      .select("*")
+      .eq("purchase_order_id", order.id)
+      .is("deleted_at", null)
+      .order("sort_order", { ascending: true }),
+    "orders:detail-lines",
+  );
   const lines = (lineRows ?? []) as PurchaseOrderLine[];
 
   // The supplier invoice, if it has arrived. 0475's unique index means there is at most
   // one live row here, so `maybeSingle` is a statement about the schema, not a guess.
-  const { data: expenseRow } = await supabase
-    .from("partner_expenses")
-    .select("*")
-    .eq("purchase_order_id", order.id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const expenseRow = must(
+    await supabase
+      .from("partner_expenses")
+      .select("*")
+      .eq("purchase_order_id", order.id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "orders:detail-expense",
+  );
   const expense = expenseRow as Expense | null;
 
   const summary = receivedSummary(lines);

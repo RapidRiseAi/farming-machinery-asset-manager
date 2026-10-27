@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { captureError } from "@/lib/observability";
+import { soft } from "@/lib/supabase/must";
 
 /**
  * The supplier's own tax invoice, attached to an expense (G6, bucket from migration 0430).
@@ -47,6 +49,8 @@ export async function uploadReceipt(
     .from("partner-receipts")
     .upload(path, file, { contentType: file.type, upsert: true });
 
+  // The caller tells the person; this tells us, as nobody reads a failed upload otherwise.
+  if (error) captureError(error, { where: "receipts:upload" });
   return error ? { error: "failed" } : { path };
 }
 
@@ -56,7 +60,11 @@ export async function signedReceiptUrl(
   path: string | null | undefined,
 ): Promise<string | null> {
   if (!path) return null;
-  const { data } = await supabase.storage.from("partner-receipts").createSignedUrl(path, SIGNED_TTL);
+  // Soft: the link is what fails, while the row still says a receipt is attached.
+  const data = soft(
+    await supabase.storage.from("partner-receipts").createSignedUrl(path, SIGNED_TTL),
+    "receipts:signed-url",
+  );
   return data?.signedUrl ?? null;
 }
 
@@ -69,7 +77,12 @@ export async function signedReceiptUrls(
   const out = new Map<string, string>();
   if (wanted.length === 0) return out;
 
-  const { data } = await supabase.storage.from("partner-receipts").createSignedUrls(wanted, SIGNED_TTL);
+  // Soft, like one missing object below: the links fail, the rows still say a receipt is
+  // attached, and the page goes on.
+  const data = soft(
+    await supabase.storage.from("partner-receipts").createSignedUrls(wanted, SIGNED_TTL),
+    "receipts:signed-urls",
+  );
   for (const row of data ?? []) {
     // createSignedUrls reports per-object failures inline rather than throwing, so a single
     // missing object (deleted behind our back) must not take the whole page down.

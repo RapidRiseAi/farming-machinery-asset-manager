@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { dateTime, shortDate } from "@/lib/format";
 import { num } from "@/lib/format";
@@ -88,7 +89,7 @@ export default async function ReportSchedulePage({
   }
   const supabase = await createClient();
 
-  const [{ data: sData }, { data: rData }, { data: runData }, { data: uData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("report_schedules")
       .select("*")
@@ -118,6 +119,8 @@ export default async function ReportSchedulePage({
       .is("deleted_at", null)
       .order("name"),
   ]);
+  mustAll(results, "report-schedules:detail");
+  const [{ data: sData }, { data: rData }, { data: runData }, { data: uData }] = results;
 
   const schedule = sData as ReportSchedule | null;
   if (!schedule) notFound();

@@ -2,6 +2,7 @@ import { requireProfile } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { must, mustAll } from "@/lib/supabase/must";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
@@ -69,17 +70,20 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
   // the search lost its part number in the store ("-"). A farm catalogue is a few hundred
   // rows; filtering them in memory also keeps the typed text out of a PostgREST filter.
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("parts_catalogue_visible")
-    .select("id, farm_id, part_no, description, supplier, category, typical_cost_cents")
-    .is("deleted_at", null)
-    .order("part_no", { ascending: true });
+  const data = must(
+    await supabase
+      .from("parts_catalogue_visible")
+      .select("id, farm_id, part_no, description, supplier, category, typical_cost_cents")
+      .is("deleted_at", null)
+      .order("part_no", { ascending: true }),
+    "parts:catalogue",
+  );
   const allParts = (data as Part[] | null) ?? [];
   const parts = q ? allParts.filter((p) => matches(p, q)) : allParts;
 
   // The store (0450). Farm-side only by RLS, so an rr_admin or a contractor simply gets
   // nothing back and the section stays hidden rather than rendering an empty promise.
-  const [{ data: stockData }, { data: machineData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("stock_items")
       .select("id, farm_id, part_catalogue_id, unit, on_hand, reorder_point, bin")
@@ -91,6 +95,8 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
       .not("status", "in", "(retired,sold)")
       .order("name"),
   ]);
+  mustAll(results, "parts:store");
+  const [{ data: stockData }, { data: machineData }] = results;
   const stockItems = (stockData ?? []) as StoreRow[];
   const machines = (machineData ?? []) as { id: string; name: string }[];
 
@@ -101,13 +107,16 @@ export default async function PartsPage({ searchParams }: { searchParams: Promis
   let lookaheadDays = 0;
   let shortfall: ShortfallRow[] = [];
   if (farmId) {
-    const { data: daysData } = await supabase.rpc("reorder_lookahead_days", { p_farm: farmId });
+    const daysData = must(await supabase.rpc("reorder_lookahead_days", { p_farm: farmId }), "parts:lookahead");
     lookaheadDays = typeof daysData === "number" ? daysData : 0;
     if (lookaheadDays > 0) {
-      const { data: shortData } = await supabase.rpc("stock_shortfall", {
-        p_farm: farmId,
-        p_days: lookaheadDays,
-      });
+      const shortData = must(
+        await supabase.rpc("stock_shortfall", {
+          p_farm: farmId,
+          p_days: lookaheadDays,
+        }),
+        "parts:shortfall",
+      );
       shortfall = (shortData ?? []) as ShortfallRow[];
     }
   }

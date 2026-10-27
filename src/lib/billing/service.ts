@@ -32,6 +32,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { captureError } from "@/lib/observability";
+import { must } from "@/lib/supabase/must";
 
 import type {
   ChargeRequest,
@@ -378,15 +379,24 @@ export async function generateInvoicesFor(
 
 // == Reads ====================================================================
 
+// The single-row reads below throw on a failed read (`must`) rather than answer null: null
+// means "no such row" to every caller, and a webhook told "unknown reference", or a worker
+// told "no stored card", would act on it. Every caller already catches a throw (the worker
+// per invoice, the webhook and checkout routes as a 5xx or a bounce, a page as its error
+// screen), and the ReadFailed message carries a code, never a row.
+
 export async function getAttemptByReference(
   supabase: SupabaseClient,
   reference: string,
 ): Promise<AttemptRow | null> {
-  const { data } = await supabase
-    .from("billing_payment_attempts")
-    .select(ATTEMPT_COLUMNS)
-    .eq("attempt_ref", reference)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("billing_payment_attempts")
+      .select(ATTEMPT_COLUMNS)
+      .eq("attempt_ref", reference)
+      .maybeSingle(),
+    "billing:attempt-by-reference",
+  );
   return (data as AttemptRow | null) ?? null;
 }
 
@@ -394,11 +404,14 @@ export async function getAttemptById(
   supabase: SupabaseClient,
   id: string,
 ): Promise<AttemptRow | null> {
-  const { data } = await supabase
-    .from("billing_payment_attempts")
-    .select(ATTEMPT_COLUMNS)
-    .eq("id", id)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("billing_payment_attempts")
+      .select(ATTEMPT_COLUMNS)
+      .eq("id", id)
+      .maybeSingle(),
+    "billing:attempt-by-id",
+  );
   return (data as AttemptRow | null) ?? null;
 }
 
@@ -451,12 +464,15 @@ export async function paymentMethodCredential(
   paymentMethodId: string,
   farmId: string,
 ): Promise<{ authorizationCode: string; email: string } | null> {
-  const { data } = await supabase
-    .from("billing_payment_methods")
-    .select("authorization_code, authorization_email, reusable, status, deleted_at")
-    .eq("id", paymentMethodId)
-    .eq("farm_id", farmId)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("billing_payment_methods")
+      .select("authorization_code, authorization_email, reusable, status, deleted_at")
+      .eq("id", paymentMethodId)
+      .eq("farm_id", farmId)
+      .maybeSingle(),
+    "billing:credential",
+  );
   const row = data as
     | {
         authorization_code: string | null;
@@ -492,12 +508,15 @@ export async function farmSubscription(
   supabase: SupabaseClient,
   farmId: string,
 ): Promise<SubscriptionRow | null> {
-  const { data } = await supabase
-    .from("billing_subscriptions")
-    .select(SUBSCRIPTION_COLUMNS)
-    .eq("farm_id", farmId)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("billing_subscriptions")
+      .select(SUBSCRIPTION_COLUMNS)
+      .eq("farm_id", farmId)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "billing:subscription",
+  );
   return (data as SubscriptionRow | null) ?? null;
 }
 
@@ -520,14 +539,17 @@ export async function openInvoiceForFarm(
   supabase: SupabaseClient,
   farmId: string,
 ): Promise<InvoiceRow | null> {
-  const { data } = await supabase
-    .from("billing_invoices")
-    .select(INVOICE_COLUMNS)
-    .eq("farm_id", farmId)
-    .eq("status", "open")
-    .is("deleted_at", null)
-    .order("due_on", { ascending: true, nullsFirst: false })
-    .limit(5);
+  const data = must(
+    await supabase
+      .from("billing_invoices")
+      .select(INVOICE_COLUMNS)
+      .eq("farm_id", farmId)
+      .eq("status", "open")
+      .is("deleted_at", null)
+      .order("due_on", { ascending: true, nullsFirst: false })
+      .limit(5),
+    "billing:open-invoice",
+  );
   const rows = (data ?? []) as InvoiceRow[];
   return rows.find((r) => r.total_incl_cents > r.amount_paid_cents) ?? null;
 }
@@ -536,11 +558,14 @@ export async function getInvoiceById(
   supabase: SupabaseClient,
   invoiceId: string,
 ): Promise<InvoiceRow | null> {
-  const { data } = await supabase
-    .from("billing_invoices")
-    .select(INVOICE_COLUMNS)
-    .eq("id", invoiceId)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("billing_invoices")
+      .select(INVOICE_COLUMNS)
+      .eq("id", invoiceId)
+      .maybeSingle(),
+    "billing:invoice-by-id",
+  );
   return (data as InvoiceRow | null) ?? null;
 }
 
@@ -553,7 +578,7 @@ export async function recordCheckoutSession(
   attemptId: string,
   session: { authorizationUrl: string; accessCode: string },
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from("billing_payment_attempts")
     .update({
       authorization_url: session.authorizationUrl,
@@ -561,6 +586,9 @@ export async function recordCheckoutSession(
       updated_at: new Date().toISOString(),
     })
     .eq("id", attemptId);
+  // Best effort: the reference is already persisted, which is what reconciles the payment.
+  // Only this evidence is missing, so it is reported and the checkout goes on.
+  if (error) captureError(error, { where: "billing:checkout:record-session" });
 }
 
 /**
@@ -579,7 +607,7 @@ export async function noteReconciliation(
 ): Promise<void> {
   const stamped = `${new Date().toISOString()} ${redactMessage(note, 240)}`;
   const combined = existing ? `${existing}\n${stamped}` : stamped;
-  await supabase
+  const { error } = await supabase
     .from("billing_payment_attempts")
     .update({
       reconciled_at: new Date().toISOString(),
@@ -587,6 +615,8 @@ export async function noteReconciliation(
       updated_at: new Date().toISOString(),
     })
     .eq("id", attemptId);
+  // Evidence, not the settlement: the outcome stands either way, and the lost note is reported.
+  if (error) captureError(error, { where: "billing:reconcile:note" });
 }
 
 /**
@@ -641,7 +671,7 @@ export async function storeAuthorization(
   // An existing card for this farm with the same Paystack fingerprint is the same card.
   let existingId: string | null = null;
   if (auth.signature) {
-    const { data } = await supabase
+    const { data, error: lookupError } = await supabase
       .from("billing_payment_methods")
       .select("id")
       .eq("farm_id", farmId)
@@ -649,6 +679,8 @@ export async function storeAuthorization(
       .eq("signature", auth.signature)
       .is("deleted_at", null)
       .maybeSingle();
+    // Unknown is not "a new card": refused before the incumbent is stood down.
+    if (lookupError) return { paymentMethodId: null, reason: redactMessage(lookupError.message) };
     existingId = (data as { id: string } | null)?.id ?? null;
   }
 
@@ -782,7 +814,15 @@ export async function beginCheckout(
   if (!invoice) {
     // Nothing open: it may simply be time to raise this period's. With no active price
     // version this makes nothing, which is the shipped state.
-    await generateInvoicesFor(supabase, subscription.id);
+    const generated = await generateInvoicesFor(supabase, subscription.id);
+    // A failed run is not "nothing due": said as a failed checkout, and reported.
+    if (generated.error) {
+      captureError(new Error(`billing:checkout:generate: ${generated.error.code ?? "no code"}`), {
+        where: "billing:checkout:generate",
+        farmId: input.farmId,
+      });
+      return { ok: false, code: "billing-checkout-failed" };
+    }
     invoice = await openInvoiceForFarm(supabase, input.farmId);
   }
   if (!invoice) return { ok: false, code: "billing-nothing-due" };
@@ -827,20 +867,34 @@ export async function beginCheckout(
     // have charged anybody, so the attempt is ABANDONED rather than left `unknown`: an
     // unknown would block every later attempt on this invoice for a request that never
     // could have taken a rand.
-    await settleBillingAttempt(supabase, {
+    const abandoned = await settleBillingAttempt(supabase, {
       attemptId,
       status: "abandoned",
       failureReason: session.reason,
     });
+    // The checkout has failed either way; an attempt left pending is verified by the
+    // reconciler later, so the stuck settle is reported rather than shown.
+    if (abandoned.error) {
+      captureError(new Error(`billing:checkout:abandon: ${abandoned.error.code ?? "no code"}`), {
+        where: "billing:checkout:abandon",
+        farmId: input.farmId,
+      });
+    }
     return { ok: false, code: session.deferred ? "billing-unavailable" : "billing-checkout-failed" };
   }
 
   if (!isPaystackCheckoutUrl(session.authorizationUrl)) {
-    await settleBillingAttempt(supabase, {
+    const abandoned = await settleBillingAttempt(supabase, {
       attemptId,
       status: "abandoned",
       failureReason: "checkout url rejected",
     });
+    if (abandoned.error) {
+      captureError(new Error(`billing:checkout:abandon: ${abandoned.error.code ?? "no code"}`), {
+        where: "billing:checkout:abandon",
+        farmId: input.farmId,
+      });
+    }
     return { ok: false, code: "billing-checkout-failed" };
   }
 
@@ -906,11 +960,14 @@ export const BILLING_SETTINGS_COLUMNS =
 export async function billingSettings(
   supabase: SupabaseClient,
 ): Promise<BillingSettings | null> {
-  const { data } = await supabase
-    .from("billing_settings")
-    .select(BILLING_SETTINGS_COLUMNS)
-    .eq("singleton", true)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("billing_settings")
+      .select(BILLING_SETTINGS_COLUMNS)
+      .eq("singleton", true)
+      .maybeSingle(),
+    "billing:settings",
+  );
   return (data as BillingSettings | null) ?? null;
 }
 
@@ -975,18 +1032,22 @@ export async function recordWebhookEvent(
     };
   }
 
-  const { data: existing } = await supabase
+  // It IS a duplicate whatever happens next, the unique index said so. The count is only
+  // visibility, so a failure to read or bump it is reported and the answer stands.
+  const { data: existing, error: existingError } = await supabase
     .from("billing_webhook_events")
     .select("id, delivery_count")
     .eq("provider", input.provider)
     .eq("dedupe_key", input.dedupeKey)
     .maybeSingle();
+  if (existingError) captureError(existingError, { where: "billing:webhook:duplicate-read" });
   const row = existing as { id: string; delivery_count: number } | null;
   if (row) {
-    await supabase
+    const { error: countError } = await supabase
       .from("billing_webhook_events")
       .update({ delivery_count: (row.delivery_count ?? 1) + 1 })
       .eq("id", row.id);
+    if (countError) captureError(countError, { where: "billing:webhook:delivery-count" });
   }
   return { id: row?.id ?? null, duplicate: true, error: null };
 }
@@ -1009,7 +1070,7 @@ export async function finishWebhookEvent(
   } = {},
 ): Promise<void> {
   if (!eventId) return;
-  await supabase
+  const { error } = await supabase
     .from("billing_webhook_events")
     .update({
       processed_at: new Date().toISOString(),
@@ -1019,6 +1080,9 @@ export async function finishWebhookEvent(
       ...(input.attemptId ? { attempt_id: input.attemptId } : {}),
     })
     .eq("id", eventId);
+  // Best effort: the event was acted on, and a non-200 would only bring a redelivery that
+  // is then a duplicate. The row stays unprocessed, and we hear why.
+  if (error) captureError(error, { where: "billing:webhook:finish" });
 }
 
 // == Subscription writes the owner and Rapid Rise screens need ================
@@ -1115,8 +1179,11 @@ export async function farmBillingGate(
   // farm screen, so a transient database error must not lock the entire customer base out
   // of a product they have paid for. The gate's job is to stop somebody who has not paid,
   // and the cost of missing one of those for a few minutes is far below the cost of
-  // shutting everybody out.
-  if (error) return "ok";
+  // shutting everybody out. Reported, so failing open is something we hear about.
+  if (error) {
+    captureError(error, { where: "billing:gate", farmId });
+    return "ok";
+  }
   if (data === "pending") return "pending";
   if (data === "closed") return "closed";
   return "ok";
@@ -1218,7 +1285,11 @@ export async function vehicleAllowance(
   farmId: string,
 ): Promise<VehicleAllowance | null> {
   const { data, error } = await supabase.rpc(BILLING_RPC.vehicleAllowance, { p_farm: farmId });
-  if (error) return null;
+  // "Do not block" stands, and the trigger still holds the ceiling; the failure is reported.
+  if (error) {
+    captureError(error, { where: "billing:vehicle-allowance", farmId });
+    return null;
+  }
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
@@ -1267,7 +1338,11 @@ export async function notifyRapidRise(
     p_template: input.template,
     p_payload: input.payload,
   });
-  if (error) return 0;
+  // Not thrown (see above), but a dispute nobody was alerted to must be heard of somewhere.
+  if (error) {
+    captureError(error, { where: "billing:notify-rr", farmId: input.farmId });
+    return 0;
+  }
   return typeof data === "number" ? data : 0;
 }
 
@@ -1381,14 +1456,17 @@ export async function activePaymentMethod(
   supabase: SupabaseClient,
   farmId: string,
 ): Promise<{ id: string; card_brand: string | null; last4: string | null } | null> {
-  const { data } = await supabase
-    .from("billing_payment_methods")
-    .select("id, card_brand, last4, is_default")
-    .eq("farm_id", farmId)
-    .eq("status", "active")
-    .is("deleted_at", null)
-    .order("is_default", { ascending: false })
-    .limit(1);
+  const data = must(
+    await supabase
+      .from("billing_payment_methods")
+      .select("id, card_brand, last4, is_default")
+      .eq("farm_id", farmId)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .order("is_default", { ascending: false })
+      .limit(1),
+    "billing:active-card",
+  );
   const rows = (data ?? []) as unknown as {
     id: string;
     card_brand: string | null;
@@ -1422,15 +1500,20 @@ export async function billingContactEmail(
   farmId: string,
   fallback?: string | null,
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from("users")
-    .select("email")
-    .eq("farm_id", farmId)
-    .eq("role", "owner")
-    .eq("active", true)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true })
-    .limit(1);
+  // Must, not the fallback: a failed read would raise the checkout against whoever pressed
+  // the button, which is exactly what the owner rule above exists to stop.
+  const data = must(
+    await supabase
+      .from("users")
+      .select("email")
+      .eq("farm_id", farmId)
+      .eq("role", "owner")
+      .eq("active", true)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1),
+    "billing:contact-email",
+  );
   const rows = (data ?? []) as unknown as { email: string | null }[];
   const owner = rows[0]?.email;
   const chosen = (owner ?? fallback ?? "").trim();

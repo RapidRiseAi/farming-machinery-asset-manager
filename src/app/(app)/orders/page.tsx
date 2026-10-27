@@ -5,6 +5,7 @@ import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readAll, readByIds } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { num, shortDate } from "@/lib/format";
@@ -83,7 +84,7 @@ export default async function OrdersPage({
   // for its invoice, however old: the three figures above the list are summed from these,
   // and an order that fell off the bottom of a capped list used to fall out of them too.
   // Converting the invoice closes a fully received order, so that second set stays short.
-  const [{ data }, { data: activeData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("purchase_orders")
       .select("*")
@@ -97,6 +98,8 @@ export default async function OrdersPage({
       .is("deleted_at", null)
       .in("status", ["sent", "part_received", "received"])),
   ]);
+  mustAll(results, "orders:list");
+  const [{ data }, { data: activeData }] = results;
   const recent = (data ?? []) as PurchaseOrder[];
   const capped = recent.length >= LIST_ROWS;
   const orders = [...new Map([...recent, ...((activeData ?? []) as PurchaseOrder[])].map((o) => [o.id, o])).values()]
@@ -106,11 +109,11 @@ export default async function OrdersPage({
   // is refused once it is long enough). RLS scopes both reads to this workshop, so the
   // `in` list cannot widen anything.
   const ids = orders.map((o) => o.id);
-  const { data: lineRows } = await readByIds(ids, (chunk) => supabase
+  const lineRows = must(await readByIds(ids, (chunk) => supabase
     .from("purchase_order_lines")
     .select("id, purchase_order_id, qty_ordered, qty_received")
     .in("purchase_order_id", chunk)
-    .is("deleted_at", null));
+    .is("deleted_at", null)), "orders:lines");
 
   const byOrder = new Map<string, Pick<PurchaseOrderLine, "qty_ordered" | "qty_received">[]>();
   for (const l of (lineRows ?? []) as (Pick<PurchaseOrderLine, "qty_ordered" | "qty_received"> & {
@@ -123,11 +126,11 @@ export default async function OrdersPage({
 
   // Which of these orders the supplier has already invoiced. The link lives on the expense
   // (0475); asked only for the orders on the page, not every converted order ever.
-  const { data: expenseRows } = await readByIds(ids, (chunk) => supabase
+  const expenseRows = must(await readByIds(ids, (chunk) => supabase
     .from("partner_expenses")
     .select("purchase_order_id")
     .in("purchase_order_id", chunk)
-    .is("deleted_at", null));
+    .is("deleted_at", null)), "orders:invoiced");
   const invoiced = new Set(
     ((expenseRows ?? []) as { purchase_order_id: string }[]).map((e) => e.purchase_order_id),
   );

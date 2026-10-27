@@ -4,6 +4,7 @@ import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readByIds } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
@@ -43,7 +44,7 @@ type ExpensePosition = {
 };
 
 /** The one row of `partner_expense_position`, as numbers (bigint arrives as a number or a
- *  string), all zero when there is nothing yet or the read failed. */
+ *  string), all zero when there is nothing yet. A failed read stops the page instead. */
 function expensePosition(data: unknown): ExpensePosition {
   const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined;
   const n = (k: keyof ExpensePosition) => Number(row?.[k] ?? 0) || 0;
@@ -118,7 +119,7 @@ export default async function ExpensesPage({
     if (category) q = q.eq("category", category);
     return q.order("expense_date", { ascending: false }).order("id").limit(LIST_ROWS);
   };
-  const [{ data }, { data: supplierData }, { data: positionData }] = await Promise.all([
+  const results = await Promise.all([
     listQuery(),
     // The book, for the capture form's picker. Inactive suppliers are left out: they are
     // the ones this workshop has stopped buying from, and offering them is how a dormant
@@ -134,6 +135,8 @@ export default async function ExpensesPage({
     // out of "still owed".
     supabase.rpc("partner_expense_position", { p_workshop: workshop.id }),
   ]);
+  mustAll(results, "expenses:page");
+  const [{ data }, { data: supplierData }, { data: positionData }] = results;
 
   // `supplier_id` (0481) and `purchase_order_id` (0475) are on the row but not on the
   // shared `Expense` type, which several other screens read, widened here rather than
@@ -147,11 +150,12 @@ export default async function ExpensesPage({
   // Orders, so an expense converted from one can say which: only the orders the listed
   // rows name, rather than every order the workshop ever placed.
   const orderIds = expenses.map((e) => e.purchase_order_id).filter((v): v is string => !!v);
-  const { data: orderData } = await readByIds(orderIds, (chunk) => supabase
+  // Must, not soft: a missing order would print "(no reference)", which would be false.
+  const orderData = must(await readByIds(orderIds, (chunk) => supabase
     .from("purchase_orders")
     .select("id, reference, order_date")
     .in("id", chunk)
-    .is("deleted_at", null));
+    .is("deleted_at", null)), "expenses:orders");
   const orders = new Map(
     ((orderData ?? []) as { id: string; reference: string | null; order_date: string }[]).map((o) => [o.id, o])
   );
