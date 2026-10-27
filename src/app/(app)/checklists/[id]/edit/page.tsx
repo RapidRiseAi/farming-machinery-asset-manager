@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { ratingMax, isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { Card } from "@/components/ui/card";
@@ -33,13 +34,14 @@ export default async function EditChecklistTemplatePage({ params }: { params: Pr
   const { id } = await params;
 
   const supabase = await createClient();
-  const { data } = await supabase
+  // A failed read is the error screen, not a 404 for a template that exists.
+  const data = must(await supabase
     .from("checklist_templates")
     .select("id, farm_id, name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
     .eq("id", id)
     .is("deleted_at", null)
     .is("checklist_template_fields.deleted_at", null)
-    .maybeSingle();
+    .maybeSingle(), "checklist-template-edit");
   const tpl = data as TemplateRow | null;
   if (!tpl) notFound();
 

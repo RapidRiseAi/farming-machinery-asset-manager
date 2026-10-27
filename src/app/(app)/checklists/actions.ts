@@ -6,8 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import type { Role } from "@/lib/auth";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
-import { t } from "@/lib/i18n";
-import { errorCode } from "@/lib/action-errors";
+import { t, type Lang } from "@/lib/i18n";
+import { errorCode, type DbFailure } from "@/lib/action-errors";
+import { errorMessage } from "@/lib/errors";
 
 // Who may build/maintain checklist templates: farm crew for their own farm's templates,
 // RR admin for the GLOBAL library. Operators/workshop are read-only here (they fill
@@ -100,7 +101,15 @@ async function insertFields(
     fail_urgency: f.fail_urgency,
   }));
   const { error } = await supabase.from("checklist_template_fields").insert(rows);
-  return error?.message ?? null;
+  return error;
+}
+
+/**
+ * The builder shows the returned string as it is, so a failure is said in the person's
+ * language, never in the database's words. `errorCode` reports the ones that are ours.
+ */
+function saveFailed(error: DbFailure, where: string, lang: Lang): string {
+  return errorMessage(decodeURIComponent(errorCode(error, where, "save-failed")), lang) ?? t("checklists.saveFailed", lang);
 }
 
 /**
@@ -122,12 +131,14 @@ export async function saveChecklistTemplate(payload: TemplatePayload): Promise<{
 
   if (payload.id) {
     // Edit: keep the template's existing scope (farm_id); replace its fields.
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("checklist_templates")
       .select("id, farm_id")
       .eq("id", payload.id)
       .is("deleted_at", null)
       .maybeSingle();
+    // A failed read is not a deleted template.
+    if (existingError) return { error: saveFailed(existingError, "checklists:save:template", profile.lang) };
     const row = existing as { id: string; farm_id: string | null } | null;
     if (!row) return { error: "Template not found." };
 
@@ -135,14 +146,14 @@ export async function saveChecklistTemplate(payload: TemplatePayload): Promise<{
       .from("checklist_templates")
       .update({ name, description, machine_type: machineType, updated_at: new Date().toISOString() })
       .eq("id", payload.id);
-    if (upErr) return { error: upErr.message };
+    if (upErr) return { error: saveFailed(upErr, "checklists:save:update", profile.lang) };
 
     // Replace fields (hard delete + re-insert). Completed instances keep their own
     // snapshotted field metadata, so history is unaffected.
     const { error: delErr } = await supabase.from("checklist_template_fields").delete().eq("template_id", payload.id);
-    if (delErr) return { error: delErr.message };
+    if (delErr) return { error: saveFailed(delErr, "checklists:save:clear-fields", profile.lang) };
     const insErr = await insertFields(supabase, payload.id, row.farm_id, fields);
-    if (insErr) return { error: insErr };
+    if (insErr) return { error: saveFailed(insErr, "checklists:save:fields", profile.lang) };
   } else {
     const farmId = profile.role === "rr_admin" ? null : profile.farm_id;
     if (profile.role !== "rr_admin" && !farmId) return { error: "No farm." };
@@ -152,9 +163,9 @@ export async function saveChecklistTemplate(payload: TemplatePayload): Promise<{
       .insert({ farm_id: farmId, name, description, machine_type: machineType, created_by: profile.id })
       .select("id")
       .single();
-    if (insErr || !created) return { error: insErr?.message ?? "Could not create template." };
+    if (insErr || !created) return { error: saveFailed(insErr, "checklists:save:create", profile.lang) };
     const fieldErr = await insertFields(supabase, (created as { id: string }).id, farmId, fields);
-    if (fieldErr) return { error: fieldErr };
+    if (fieldErr) return { error: saveFailed(fieldErr, "checklists:save:fields", profile.lang) };
   }
 
   revalidatePath("/checklists");
@@ -168,7 +179,8 @@ export async function deleteChecklistTemplate(formData: FormData) {
   if (!id) redirect("/checklists?error=Missing+id");
   const supabase = await createClient();
   const now = new Date().toISOString();
-  await supabase.from("checklist_template_fields").update({ deleted_at: now, deleted_by: profile.id }).eq("template_id", id).is("deleted_at", null);
+  const { error: fieldsError } = await supabase.from("checklist_template_fields").update({ deleted_at: now, deleted_by: profile.id }).eq("template_id", id).is("deleted_at", null);
+  if (fieldsError) redirect(`/checklists?error=${errorCode(fieldsError, "checklists:delete:fields")}`);
   const { error } = await supabase.from("checklist_templates").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
   if (error) redirect(`/checklists?error=${errorCode(error, "app/checklists/actions:deleteChecklistTemplate")}`);
   revalidatePath("/checklists");
@@ -182,12 +194,13 @@ export async function duplicateChecklistTemplate(formData: FormData) {
   if (!id) redirect("/checklists?error=Missing+id");
   const supabase = await createClient();
 
-  const { data: src } = await supabase
+  const { data: src, error: srcError } = await supabase
     .from("checklist_templates")
     .select("name, description, machine_type, checklist_template_fields(sort_order, field_type, label, required, help_text, config, fail_when, fail_threshold, fail_urgency)")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (srcError) redirect(`/checklists?error=${errorCode(srcError, "checklists:duplicate:source")}`);
   const source = src as
     | { name: string; description: string | null; machine_type: string | null; checklist_template_fields: { sort_order: number; field_type: string; label: string; required: boolean; help_text: string | null; config: Record<string, unknown> | null; fail_when: string | null; fail_threshold: number | null; fail_urgency: string | null }[] | null }
     | null;
@@ -223,7 +236,9 @@ export async function duplicateChecklistTemplate(formData: FormData) {
       fail_urgency: f.fail_urgency,
     }));
   if (fields.length > 0) {
-    await supabase.from("checklist_template_fields").insert(fields);
+    const { error: fieldsError } = await supabase.from("checklist_template_fields").insert(fields);
+    // Otherwise "saved" announces a copy that has no fields.
+    if (fieldsError) redirect(`/checklists?error=${errorCode(fieldsError, "checklists:duplicate:fields")}`);
   }
   revalidatePath("/checklists");
   redirect("/checklists?saved=1");

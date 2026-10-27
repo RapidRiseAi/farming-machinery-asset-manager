@@ -7,6 +7,7 @@ import { planAllows, requiredPlan } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, mustAll, soft } from "@/lib/supabase/must";
 import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
@@ -160,11 +161,12 @@ export default async function MachineDetailPage({
   const cancelLabel = t("common.cancel", locale);
 
   const supabase = await createClient();
-  const { data } = await supabase
+  // A failed read is the error screen, not "this machine does not exist".
+  const data = must(await supabase
     .from("machines")
     .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id")
     .eq("id", id)
-    .maybeSingle();
+    .maybeSingle(), "machine:machine");
   const machineBase = data as Omit<Machine, "purchase_price_cents" | "supplier" | "finance_provider" | "finance_total_cents" | "finance_monthly_cents" | "finance_term_months" | "finance_interest_bps"> | null;
   if (!machineBase) notFound();
 
@@ -196,20 +198,21 @@ export default async function MachineDetailPage({
   // Primary vehicle image (0280): resolve its storage path → signed URL for the header.
   let primaryPhotoUrl: string | null = null;
   if (machine.primary_attachment_id) {
-    const { data: pa } = await supabase
+    // The header photo is decoration: without it the header shows its placeholder icon.
+    const pa = soft(await supabase
       .from("attachments")
       .select("storage_path")
       .eq("id", machine.primary_attachment_id)
       .is("deleted_at", null)
-      .maybeSingle();
+      .maybeSingle(), "machine:primary-photo");
     const storagePath = (pa as { storage_path: string | null } | null)?.storage_path ?? null;
     if (storagePath) {
-      const { data: signed } = await supabase.storage.from("machine-photos").createSignedUrl(storagePath, 3600);
+      const signed = soft(await supabase.storage.from("machine-photos").createSignedUrl(storagePath, 3600), "machine:primary-photo-url");
       primaryPhotoUrl = signed?.signedUrl ?? null;
     }
   }
 
-  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes, budgetRes, dimsRes] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("meter_readings").select("id, reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(24),
     // The machine's whole history: the lifetime spend below is summed from these.
     readAll(() => supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
@@ -221,7 +224,7 @@ export default async function MachineDetailPage({
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
     costsVisible
       ? readAll(() => supabase.from("cost_entries").select("type, amount_cents, occurred_on, machine_id").eq("machine_id", id).is("deleted_at", null))
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     supabase.from("fuel_issues_visible").select("id, date, litres, meter_reading, cost_cents, activity, anomaly_notified_at").eq("machine_id", id).is("deleted_at", null).order("date", { ascending: false }).limit(200),
     supabase.from("fuel_tanks").select("id, name").is("deleted_at", null).order("name"),
     supabase.from("licences").select("id, type, number, expiry_date, reminder_lead_days, notes").eq("machine_id", id).is("deleted_at", null).order("expiry_date"),
@@ -235,11 +238,15 @@ export default async function MachineDetailPage({
     // Budgets (G1): this machine's spend targets → budget-vs-actual.
     costsVisible
       ? supabase.from("budgets").select("id, machine_id, category, period_type, period_start, period_end, amount_cents, note").eq("machine_id", id).is("deleted_at", null).order("period_start", { ascending: false })
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     // The values the farm already uses, as the Edit dialog's suggestions (same as Add machine).
     supabase.from("machines").select("cost_centre, department, location").eq("farm_id", machine.farm_id).is("deleted_at", null),
   ]);
-  const dims = (dimsRes.data as { cost_centre: string | null; department: string | null; location: string | null }[] | null) ?? [];
+  const [readingsRes, jcRes, faultsRes, watchRes, planRes, tplRes, usageRes, opRes, costRes, fuelRes, fuelTankRes, licenceRes, farmRes, kitRes, catalogueRes, checklistRes, budgetRes, dimsRes] = results;
+  // Every read but the last: a failed one showed R0 spend, nothing due and no faults, which
+  // is the error screen's job to deny. The Edit dialog's suggestions can honestly be absent.
+  mustAll(results.slice(0, -1), "machine");
+  const dims = (soft(dimsRes, "machine:dims") as { cost_centre: string | null; department: string | null; location: string | null }[] | null) ?? [];
   const distinctValues = (values: (string | null)[]) =>
     [...new Set(values.map((v) => v?.trim() ?? "").filter((v) => v !== ""))].sort((a, b) => a.localeCompare(b));
 
@@ -265,9 +272,9 @@ export default async function MachineDetailPage({
   const usageDate = sp.usageDate && /^\d{4}-\d{2}-\d{2}$/.test(sp.usageDate) ? sp.usageDate : null;
   // Asked of the database, not of the 20 rows the log below shows: a fine arrives weeks
   // later, and "no usage recorded" for a date past that window was simply wrong.
-  const { data: usageDayData } = usageDate
-    ? await supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).eq("occurred_on", usageDate).is("deleted_at", null)
-    : { data: [] };
+  const usageDayData = usageDate
+    ? must(await supabase.from("usage_logs").select("id, driver_user_id, driver_name, occurred_on, meter_reading, source").eq("machine_id", id).eq("occurred_on", usageDate).is("deleted_at", null), "machine:usage-on-date")
+    : [];
   const usageOnDate = (usageDayData as Usage[] | null) ?? [];
   const driverLabel = (u: Usage) =>
     (u.driver_user_id ? operatorName.get(u.driver_user_id) : null) ?? u.driver_name ?? t("machine.unknownDriver", locale);
@@ -277,13 +284,13 @@ export default async function MachineDetailPage({
   // AARTO fines on this vehicle (G2, FR-13.2). Only fetched when the plan unlocks AARTO.
   let machineFines: MachineFine[] = [];
   if (aartoAllowed) {
-    const { data: fineData } = await supabase
+    const fineData = must(await supabase
       .from("fines")
       .select("id, notice_number, authority, offence, offence_date, amount_cents, nomination_deadline, status, driver_user_id, driver_name")
       .eq("machine_id", id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(12);
+      .limit(12), "machine:fines");
     machineFines = (fineData as MachineFine[] | null) ?? [];
   }
   const fineDriverLabel = (f: MachineFine) =>
@@ -297,11 +304,11 @@ export default async function MachineDetailPage({
   const canKit = resourceRole != null && ["owner", "manager", "mechanic"].includes(resourceRole);
   const catalogue = (catalogueRes.data as CataloguePart[] | null) ?? [];
   const kitHeaders = (kitRes.data ?? []) as { id: string; name: string; notes: string | null }[];
-  const { data: kitItemsData } = kitHeaders.length
-    ? await supabase.from("service_kit_items_visible")
+  const kitItemsData = kitHeaders.length
+    ? must(await supabase.from("service_kit_items_visible")
       .select("id, service_kit_id, part_no, description, qty, unit_cost_cents, part_catalogue_id")
-      .in("service_kit_id", kitHeaders.map((kit) => kit.id)).is("deleted_at", null)
-    : { data: [] };
+      .in("service_kit_id", kitHeaders.map((kit) => kit.id)).is("deleted_at", null), "machine:kit-items")
+    : [];
   const kitItems = (kitItemsData ?? []) as (KitItem & { service_kit_id: string })[];
   const kits: ServiceKit[] = kitHeaders.map((kit) => ({
     ...kit,
@@ -337,7 +344,8 @@ export default async function MachineDetailPage({
   const repairPct = Number(farmSettings.repair_replace_pct) || DEFAULT_REPAIR_REPLACE_PCT;
   const utilisation = computeUtilisation(readings, machine.meter_type, winFrom, todayYmd, hoursPerDay, kmPerDay);
   const repair = repairVsReplace(breakdown, machine.purchase_price_cents, repairPct);
-  const { data: downtimeData } = await supabase.rpc("machine_downtime_days", { p_machine: id, p_from: winFrom, p_to: todayYmd });
+  // A failed call would show "0 days down", the most reassuring number there is.
+  const downtimeData = must(await supabase.rpc("machine_downtime_days", { p_machine: id, p_from: winFrom, p_to: todayYmd }), "machine:downtime");
   const downtimeDays = Number(downtimeData ?? 0);
 
   // Budgets (G1), budget-vs-actual for this machine (actual summed from cost_entries).
@@ -363,11 +371,13 @@ export default async function MachineDetailPage({
   // contractors (RLS returns workshops linked to farms the user can access).
   const canWorkReq = resourceRole != null && ["owner", "manager", "rr_admin"].includes(resourceRole);
   type WR = { id: string; kind: string; status: string; priority: string; title: string | null; workshop_id: string | null; quote_amount_cents: number | null; invoice_amount_cents: number | null; updated_at: string };
-  const [workReqRes, workshopRes, workshopLinkRes] = await Promise.all([
+  const workResults = await Promise.all([
     readAll(() => supabase.from("work_requests_visible").select("id, kind, status, priority, title, workshop_id, quote_amount_cents, invoice_amount_cents, updated_at").eq("machine_id", id).is("deleted_at", null).order("updated_at", { ascending: false })),
     supabase.from("workshops").select("id, name, kind"),
     supabase.from("workshop_links").select("workshop_id").eq("farm_id", machine.farm_id).eq("status", "active").is("deleted_at", null),
   ]);
+  mustAll(workResults, "machine:work");
+  const [workReqRes, workshopRes, workshopLinkRes] = workResults;
   const workRequests = (workReqRes.data as WR[] | null) ?? [];
   const linkedIds = new Set(((workshopLinkRes.data ?? []) as { workshop_id: string }[]).map((link) => link.workshop_id));
   const linkedWorkshops = ((workshopRes.data as { id: string; name: string; kind: string }[] | null) ?? []).filter((workshop) => linkedIds.has(workshop.id));
@@ -389,18 +399,19 @@ export default async function MachineDetailPage({
   // after, so this is the heaviest query on the page per row. Postgres cannot be asked
   // "only rows that changed something a person chose" without reading the diff, so the
   // filtering happens here and the window is kept small enough to pay for.
-  const { data: auditData } = await supabase
+  const auditData = must(await supabase
     .from("audit_log")
     .select("id, user_id, action, at, diff, ip, geo_country, geo_region, geo_city, user_agent")
     .eq("entity", "machines")
     .eq("entity_id", id)
     .order("at", { ascending: false })
-    .limit(25);
+    .limit(25), "machine:audit");
   const recordChanges = ((auditData as AuditRow[] | null) ?? []).filter((row) => isHumanChange(row)).slice(0, 8);
   const changeActorIds = [...new Set(recordChanges.map((r) => r.user_id).filter(Boolean) as string[])];
-  const { data: changeActors } = changeActorIds.length
-    ? await supabase.from("users").select("id, name").in("id", changeActorIds)
-    : { data: [] };
+  // Not soft: a missing name falls back to "System", which would credit a person's change to the engine.
+  const changeActors = changeActorIds.length
+    ? must(await supabase.from("users").select("id, name").in("id", changeActorIds), "machine:audit-actors")
+    : [];
   const changeActorName = new Map(
     ((changeActors as { id: string; name: string }[] | null) ?? []).map((u) => [u.id, u.name])
   );

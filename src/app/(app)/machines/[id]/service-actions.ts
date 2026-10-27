@@ -127,10 +127,15 @@ export async function applyTemplate(formData: FormData) {
   if (!machineId || !farmId || !templateId) redirect(withTab(`/machines/${machineId}?error=Pick+a+template`, "servicing"));
 
   const supabase = await createClient();
-  const [{ data: tpl }, { data: mach }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("service_templates").select("lines").eq("id", templateId).maybeSingle(),
     supabase.from("machines").select("current_reading").eq("id", machineId).maybeSingle(),
   ]);
+  // A failed machine read would seed every line with no last-done reading, so no hour
+  // interval would ever fall due.
+  const readError = results.find((result) => result.error)?.error;
+  if (readError) redirect(withTab(`/machines/${machineId}?error=${errorCode(readError, "machines:apply-template:reads")}`, "servicing"));
+  const [{ data: tpl }, { data: mach }] = results;
   const lines = ((tpl as { lines: TemplateLine[] } | null)?.lines ?? []) as TemplateLine[];
   if (lines.length === 0) redirect(withTab(`/machines/${machineId}?error=Template+has+no+lines`, "servicing"));
 

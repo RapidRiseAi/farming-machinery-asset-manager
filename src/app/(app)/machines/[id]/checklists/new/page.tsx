@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { Card } from "@/components/ui/card";
@@ -25,24 +26,25 @@ export default async function NewMachineChecklistPage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const { data: m } = await supabase
+  const m = must(await supabase
     .from("machines")
     .select("id, farm_id, name, type, meter_type, current_reading")
     .eq("id", id)
-    .maybeSingle();
+    .maybeSingle(), "checklist-new:machine");
   const machine = m as Machine | null;
   if (!machine) notFound();
 
   // Templates usable for this machine: global (farm_id null via RLS) + own-farm, whose
   // machine_type matches the machine or is unset (any type). Mirrors the service-template
   // load on the machine detail page.
-  const { data } = await supabase
+  // A failed read would offer no checklists to fill, as if the farm had none.
+  const data = must(await supabase
     .from("checklist_templates")
     .select("id, name, description, machine_type, checklist_template_fields(id, sort_order, field_type, label, required, help_text, config)")
     .is("deleted_at", null)
     .is("checklist_template_fields.deleted_at", null)
     .or(`machine_type.eq.${machine.type},machine_type.is.null`)
-    .order("name");
+    .order("name"), "checklist-new:templates");
   const rows = (data as TplRow[] | null) ?? [];
 
   const templates: FormTemplate[] = rows.map((r) => ({

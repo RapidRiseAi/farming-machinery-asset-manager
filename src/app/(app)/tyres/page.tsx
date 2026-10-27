@@ -3,6 +3,7 @@ import Link from "next/link";
 import { currentFarmId, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { mustAll } from "@/lib/supabase/must";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -88,20 +89,23 @@ export default async function TyresPage({
   const canManage = ["owner", "manager", "mechanic"].includes(profile.role);
 
   const supabase = await createClient();
-  const [{ data: lifeData }, { data: machineData }] = await Promise.all([
+  const results = await Promise.all([
     // Every tyre, page by page, in the function's own order (machine, then position): a
     // fleet that has fitted and scrapped more than a thousand tyres was cut there.
     farmId
       ? readAll(() => supabase.rpc("tyre_life", { p_farm: farmId })
           .order("machine_name", { ascending: true, nullsFirst: false })
           .order("position_label", { ascending: true, nullsFirst: false }), { key: "tyre_id" })
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     supabase
       .from("machines")
       .select("id, name, meter_type, current_reading")
       .is("deleted_at", null)
       .order("name"),
   ]);
+  // A failed read showed "no tyres yet" and a tyre spend of R0.
+  mustAll(results, "tyres");
+  const [{ data: lifeData }, { data: machineData }] = results;
 
   const rows = (lifeData as TyreLifeRow[] | null) ?? [];
   const machines = (machineData as MachineRow[] | null) ?? [];

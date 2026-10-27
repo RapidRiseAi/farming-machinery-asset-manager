@@ -3,6 +3,7 @@ import Link from "next/link";
 import { currentFarmId, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { enumLabel, meterReading, shortDate, todayLocal } from "@/lib/format";
 import { longMonthYear } from "@/lib/month-names";
@@ -107,7 +108,8 @@ export default async function CalendarPage({
   const supabase = await createClient();
   const calendar = async (range: { from: string; to: string }) => {
     if (!farmId) return [] as CalendarItem[];
-    const { data } = await supabase.rpc("farm_calendar", { p_farm: farmId, p_from: range.from, p_to: range.to });
+    // A failed call would show an empty month and "Overdue 0".
+    const data = must(await supabase.rpc("farm_calendar", { p_farm: farmId, p_from: range.from, p_to: range.to }), "calendar:range");
     return (data as CalendarItem[] | null) ?? [];
   };
 
@@ -122,11 +124,12 @@ export default async function CalendarPage({
           .is("deleted_at", null)
           .is("next_due_date", null)
           .in("status", ["overdue", "due_soon"]))
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     isCurrent && farmId
       ? supabase.from("machines").select("id, name, meter_type, status").eq("farm_id", farmId).is("deleted_at", null)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
+  mustAll([hoursRes, machinesRes], "calendar:by-meter");
 
   const carried = lookback
     .filter((i) => i.state === "overdue")

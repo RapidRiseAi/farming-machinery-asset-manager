@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { currentFarmId, requireProfile } from "@/lib/auth";
+import { errorCode } from "@/lib/action-errors";
 import { WARRANTY_STATUSES, requiredFor, type WarrantyStatus } from "@/lib/warranty-claims";
 
 /**
@@ -159,12 +160,13 @@ export async function removeWarrantyClaim(formData: FormData): Promise<void> {
   const supabase = await createClient();
   // Checked before the write: a soft delete makes the row fail its own SELECT policy, so
   // asking the update to return it asks for the row the policy has just been told to hide.
-  const { data: found } = await supabase
+  const { data: found, error: foundError } = await supabase
     .from("warranty_claims")
     .select("id")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (foundError) redirect(`/jobcards/${jobCardId}?error=${errorCode(foundError, "warranty:remove:find")}`);
   if (!found) bounce(jobCardId, "warranty-missing");
 
   const { error } = await supabase

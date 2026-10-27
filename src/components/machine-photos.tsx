@@ -7,6 +7,8 @@ import { t, type Locale, type Lang } from "@/lib/i18n";
 import { setPrimaryPhoto, clearPrimaryPhoto } from "@/app/(app)/machines/actions";
 import { looksLikeImage, photoUploadErrorKey } from "@/lib/machine-photo-upload-error";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { reportClientError } from "@/lib/client-report";
+import { asError } from "@/lib/single-flight";
 
 type Photo = { id: string; url: string | null };
 
@@ -35,7 +37,7 @@ export function MachinePhotos({
 
   const load = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("attachments")
       .select("id, storage_path")
       .eq("parent_type", "machine")
@@ -43,21 +45,35 @@ export function MachinePhotos({
       .eq("kind", "photo")
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
+    // A failed read is not "no photos yet": say so instead of showing an empty gallery.
+    // Reported unless the phone is simply offline, which is not ours to hear about.
+    if (error) {
+      if (navigator.onLine !== false) reportClientError(asError(error), "machine-photos:load");
+      setErr(t("errors.generic", locale));
+      return;
+    }
     const rows = (data ?? []) as { id: string; storage_path: string | null }[];
+    let signFailure: unknown = null;
     const withUrls = await Promise.all(
       rows.map(async (r) => {
         let url: string | null = null;
         if (r.storage_path) {
-          const { data: s } = await supabase.storage
+          const { data: s, error: signError } = await supabase.storage
             .from("machine-photos")
             .createSignedUrl(r.storage_path, 3600);
+          if (signError) signFailure = signError;
           url = s?.signedUrl ?? null;
         }
         return { id: r.id, url };
       })
     );
     setPhotos(withUrls);
-  }, [machineId]);
+    // A photo without a link is hidden, so tell the person some did not load (and us, once).
+    if (signFailure) {
+      if (navigator.onLine !== false) reportClientError(asError(signFailure), "machine-photos:sign");
+      setErr(t("errors.generic", locale));
+    }
+  }, [machineId, locale]);
 
   useEffect(() => {
     load();

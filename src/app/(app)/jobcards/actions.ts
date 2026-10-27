@@ -80,16 +80,18 @@ export async function createJobCard(formData: FormData) {
     if (!providerName) redirect("/jobcards?error=job-provider-required");
   }
   const supabase = await createClient();
-  const { data: machine } = await supabase
+  const { data: machine, error: machineError } = await supabase
     .from("machines")
     .select("id")
     .eq("id", machineId)
     .eq("farm_id", farmId)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed read is not a missing machine: say "try again", not "not found".
+  if (machineError) redirect(`/jobcards?error=${errorCode(machineError, "jobcards:create:machine")}`);
   if (!machine) redirect("/machines?error=not-found");
   if (faultId) {
-    const { data: fault } = await supabase
+    const { data: fault, error: faultError } = await supabase
       .from("faults")
       .select("id")
       .eq("id", faultId)
@@ -97,12 +99,15 @@ export async function createJobCard(formData: FormData) {
       .eq("machine_id", machineId)
       .is("deleted_at", null)
       .maybeSingle();
+    if (faultError) redirect(`/jobcards?error=${errorCode(faultError, "jobcards:create:fault")}`);
     if (!fault) redirect(`/machines/${machineId}?error=not-found`);
     // The receipt RPC acknowledges an already-created card before its source-fault
     // guard runs. A lost response can therefore be retried after the fault is linked.
   }
   // Snapshot the farm's current VAT rate onto the card (money is stored ex-VAT).
-  const { data: farm } = await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle();
+  const { data: farm, error: farmError } = await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle();
+  // Without the farm's settings the card would be stamped with the default VAT rate.
+  if (farmError) redirect(`/jobcards?error=${errorCode(farmError, "jobcards:create:farm")}`);
   const settings = (farm?.settings ?? {}) as Record<string, unknown>;
   const vatRateBps = typeof settings.vat_rate_bps === "number" ? (settings.vat_rate_bps as number) : 1500;
 
@@ -231,7 +236,8 @@ export async function completeJobCard(formData: FormData) {
   const { farmId, machineId, supabase, job } = await jobCardContext(id);
   if (!job.work_performed?.trim()) fail(id, "job-work-required");
   if (job.status !== "in_progress") fail(id, "job-invalid-transition");
-  const { data: machine } = await supabase.from("machines").select("meter_type,current_reading,current_reading_date").eq("id", machineId).single();
+  const { data: machine, error: machineError } = await supabase.from("machines").select("meter_type,current_reading,current_reading_date").eq("id", machineId).maybeSingle();
+  if (machineError) redirect(`/jobcards/${id}?error=${errorCode(machineError, "jobcards:complete:machine")}`);
   if (!machine) fail(id, "not-found");
   if (needsJobMeter(job.type, machine.meter_type) && job.meter_reading == null) fail(id, "job-meter-required");
   if (job.meter_reading != null && machine.current_reading != null && machine.current_reading_date
@@ -356,7 +362,7 @@ export async function toggleServiceLine(formData: FormData) {
   const { farmId, machineId, supabase, job } = await jobCardContext(jobCardId);
   if (job.type !== "scheduled_service") fail(jobCardId, "job-invalid-transition");
   if (postedFarmId !== farmId) redirect(`/jobcards/${jobCardId}?error=wrong-farm`);
-  const { data: serviceLine } = await supabase
+  const { data: serviceLine, error: serviceLineError } = await supabase
     .from("service_plan_lines")
     .select("id")
     .eq("id", lineId)
@@ -364,6 +370,7 @@ export async function toggleServiceLine(formData: FormData) {
     .eq("machine_id", machineId)
     .is("deleted_at", null)
     .maybeSingle();
+  if (serviceLineError) redirect(`/jobcards/${jobCardId}?error=${errorCode(serviceLineError, "jobcards:toggle-service-line:line")}`);
   if (!serviceLine) redirect(`/jobcards/${jobCardId}?error=not-found`);
   if (on) {
     const { error } = await supabase

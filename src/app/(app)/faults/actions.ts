@@ -5,18 +5,21 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { effectiveFarmRole, requireFarmRole, requireProfile, type Role } from "@/lib/auth";
 import { recordFault } from "@/lib/domain/fleet-commands";
+import { errorCode } from "@/lib/action-errors";
 
 const URGENCIES = ["can_work", "limping", "stopped"];
 
 async function faultContext(id: string, roles: readonly Role[]) {
   const profile = await requireProfile();
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("faults")
     .select("farm_id")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed read is not a missing fault.
+  if (error) redirect(`/faults?error=${errorCode(error, "faults:context")}`);
   const farmId = (data as { farm_id: string } | null)?.farm_id;
   if (!farmId) redirect("/faults?error=not-found");
   const auth = await requireFarmRole(farmId, roles, "/faults?error=forbidden", profile);
@@ -64,8 +67,9 @@ export async function createFault(formData: FormData) {
       category,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not save the fault";
-    redirect(`/faults?error=${encodeURIComponent(message)}`);
+    // Never the database's words in the URL: a refusal our SQL raises keeps its own, and
+    // anything else is reported and said as "try again".
+    redirect(`/faults?error=${errorCode(error as Error, "faults:create")}`);
   }
   revalidatePath("/faults");
   redirect("/faults?saved=1");
@@ -118,7 +122,9 @@ export async function assignFault(formData: FormData) {
       "is_active_farm_member",
       { p_farm: farmId, p_user: raw },
     );
-    if (memberError || isMember !== true) redirect("/faults?error=not-found");
+    // A failed check is not "that person is not on the farm".
+    if (memberError) redirect(`/faults?error=${errorCode(memberError, "faults:assign:member")}`);
+    if (isMember !== true) redirect("/faults?error=not-found");
     assigned_to = raw;
   }
   const { data, error } = await supabase

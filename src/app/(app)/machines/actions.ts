@@ -17,6 +17,7 @@ import { readTab, withTab } from "@/components/ui/tabs-url";
 import { validateCsv, MAX_IMPORT_ROWS } from "./import/csv";
 import { runOnce } from "@/lib/request-claim";
 import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 function str(fd: FormData, k: string): string | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -69,9 +70,10 @@ async function validOperatorId(
   supabase: SupabaseClient,
   farmId: string,
   raw: string | null,
+  back: string,
 ): Promise<string | null> {
   if (!raw) return null;
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_farm_memberships")
     .select("user_id")
     .eq("user_id", raw)
@@ -79,11 +81,13 @@ async function validOperatorId(
     .eq("active", true)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed read would quietly unassign the operator the person chose.
+  if (membershipError) redirect(`${back}?error=${errorCode(membershipError, "machines:operator:membership")}`);
   if (membership) return raw;
 
   // Compatibility fallback for a primary-farm user created before memberships were
   // backfilled. Secondary-farm users are resolved by the authoritative row above.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("users")
     .select("id")
     .eq("id", raw)
@@ -91,6 +95,7 @@ async function validOperatorId(
     .eq("active", true)
     .is("deleted_at", null)
     .maybeSingle();
+  if (error) redirect(`${back}?error=${errorCode(error, "machines:operator:user")}`);
   return data ? raw : null;
 }
 
@@ -98,12 +103,14 @@ async function machineFarmId(
   supabase: SupabaseClient,
   machineId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("machines")
     .select("farm_id")
     .eq("id", machineId)
     .is("deleted_at", null)
     .maybeSingle();
+  // Every caller acts from the machine's page; a failed read is not a missing machine.
+  if (error) redirect(`/machines/${machineId}?error=${errorCode(error, "machines:farm-of-machine")}`);
   return (data as { farm_id: string } | null)?.farm_id ?? null;
 }
 
@@ -164,7 +171,7 @@ export async function createMachine(formData: FormData) {
         redirect("/machines/new?error=vehicle-limit-reached");
       }
 
-      const assigned_operator_id = await validOperatorId(supabase, farmId, str(formData, "assigned_operator_id"));
+      const assigned_operator_id = await validOperatorId(supabase, farmId, str(formData, "assigned_operator_id"), "/machines/new");
       const { data, error } = await supabase
         .from("machines")
         .insert({
@@ -201,7 +208,9 @@ export async function createMachine(formData: FormData) {
         profile.id,
       );
       if (attachmentId) {
-        await supabase.from("machines").update({ primary_attachment_id: attachmentId }).eq("id", data.id);
+        const { error: primaryError } = await supabase.from("machines").update({ primary_attachment_id: attachmentId }).eq("id", data.id);
+        // Best effort like the upload: the machine exists, so this cannot stop the flow, but we hear of it.
+        if (primaryError) captureError(primaryError, { where: "machines:create:primary-photo", farmId });
       }
 
       revalidatePath("/machines");
@@ -237,6 +246,7 @@ export async function updateMachine(formData: FormData) {
     supabase,
     farmId,
     str(formData, "assigned_operator_id"),
+    `/machines/${id}`,
   );
   const { error } = await supabase
     .from("machines")
@@ -307,7 +317,7 @@ export async function setPrimaryPhoto(formData: FormData) {
     `/machines/${machineId}?error=forbidden`,
     profile,
   );
-  const { data: att } = await supabase
+  const { data: att, error: attError } = await supabase
     .from("attachments")
     .select("id")
     .eq("id", attachmentId)
@@ -317,13 +327,16 @@ export async function setPrimaryPhoto(formData: FormData) {
     .eq("kind", "photo")
     .is("deleted_at", null)
     .maybeSingle();
+  if (attError) redirect(`/machines/${machineId}?error=${errorCode(attError, "machines:set-primary-photo:attachment")}`);
   if (!att) return; // not this machine's photo, no-op
 
-  await supabase
+  const { error } = await supabase
     .from("machines")
     .update({ primary_attachment_id: attachmentId })
     .eq("id", machineId)
     .eq("farm_id", farmId);
+  // Without this the button just appears not to work, and nobody hears why.
+  if (error) redirect(`/machines/${machineId}?error=${errorCode(error, "machines:set-primary-photo")}`);
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/machines");
 }
@@ -342,11 +355,12 @@ export async function clearPrimaryPhoto(formData: FormData) {
     `/machines/${machineId}?error=forbidden`,
     profile,
   );
-  await supabase
+  const { error } = await supabase
     .from("machines")
     .update({ primary_attachment_id: null })
     .eq("id", machineId)
     .eq("farm_id", farmId);
+  if (error) redirect(`/machines/${machineId}?error=${errorCode(error, "machines:clear-primary-photo")}`);
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/machines");
 }

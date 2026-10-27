@@ -13,7 +13,9 @@ import { readRequestId } from "@/lib/request-id";
 import { captureError } from "@/lib/observability";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/auth";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, type DbFailure } from "@/lib/action-errors";
+import { errorMessage } from "@/lib/errors";
+import { t, type Lang } from "@/lib/i18n";
 
 // Who may FILL a checklist (pre-use inspection, service sign-off, condition report):
 // the broad operational crew, including operators and linked workshops. Designing
@@ -70,6 +72,14 @@ export async function createChecklistInstance(
   redirect(saved.target);
 }
 
+/**
+ * The form shows the returned string as it is, so a failure is said in the person's
+ * language, never in the database's words. `errorCode` reports the ones that are ours.
+ */
+function saveFailed(error: DbFailure, where: string, lang: Lang): string {
+  return errorMessage(decodeURIComponent(errorCode(error, where, "save-failed")), lang) ?? t("checklists.saveFailed", lang);
+}
+
 async function saveChecklist(
   input: ChecklistInstanceInput,
   profile: Profile,
@@ -80,11 +90,13 @@ async function saveChecklist(
   const status = input.status === "draft" ? "draft" : "completed";
 
   // Resolve the machine's farm (RLS scopes this to farms the user can reach).
-  const { data: m } = await supabase
+  const { data: m, error: machineError } = await supabase
     .from("machines")
     .select("id, farm_id")
     .eq("id", machineId)
     .maybeSingle();
+  // A failed read is not a missing machine.
+  if (machineError) return { error: saveFailed(machineError, "checklists:create:machine", profile.lang) };
   const machine = m as { id: string; farm_id: string } | null;
   if (!machine) return { error: "Machine not found." };
   const farmId = machine.farm_id;
@@ -106,7 +118,7 @@ async function saveChecklist(
     })
     .select("id")
     .single();
-  if (insErr || !created) return { error: insErr?.message ?? "Could not save checklist." };
+  if (insErr || !created) return { error: saveFailed(insErr, "checklists:create:instance", profile.lang) };
   const instanceId = (created as { id: string }).id;
 
   // Build value rows; upload photos first so each row can cite its attachment.
@@ -135,8 +147,11 @@ async function saveChecklist(
       // Not saved means not saved: take the empty inspection away again, so the retry
       // does not leave one behind beside the real one.
       captureError(valErr, { where: "checklists:create:values" });
-      await supabase.from("checklist_instances").update({ deleted_at: new Date().toISOString(), deleted_by: profile.id }).eq("id", instanceId);
-      return { error: valErr.message };
+      const { error: undoError } = await supabase.from("checklist_instances").update({ deleted_at: new Date().toISOString(), deleted_by: profile.id }).eq("id", instanceId);
+      // Best effort: the person is told it did not save either way, but an empty inspection left behind is ours to clear.
+      if (undoError) captureError(undoError, { where: "checklists:create:undo", extra: { instanceId } });
+      // Reported above; the form shows this string as it is, so never the database's words.
+      return { error: t("checklists.saveFailed", profile.lang) };
     }
   }
 
@@ -167,7 +182,8 @@ export async function deleteChecklistInstance(formData: FormData) {
   if (!id || !machineId) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "history"));
   const supabase = await createClient();
   const now = new Date().toISOString();
-  await supabase.from("checklist_instance_values").update({ deleted_at: now, deleted_by: profile.id }).eq("instance_id", id).is("deleted_at", null);
+  const { error: valuesError } = await supabase.from("checklist_instance_values").update({ deleted_at: now, deleted_by: profile.id }).eq("instance_id", id).is("deleted_at", null);
+  if (valuesError) redirect(withTab(`/machines/${machineId}?error=${errorCode(valuesError, "checklists:delete:values")}`, "history"));
   const { error } = await supabase.from("checklist_instances").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
   if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/checklists/actions:deleteChecklistInstance")}`, "history"));
   revalidatePath(`/machines/${machineId}`);

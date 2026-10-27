@@ -25,12 +25,14 @@ export async function setMachineStatus(formData: FormData) {
 
   const profile = await requireProfile();
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error: readError } = await supabase
     .from("machines")
     .select("farm_id")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed read is not a missing machine.
+  if (readError) redirect(`${back}?error=${errorCode(readError, "machines:set-status:machine")}`);
   const farmId = (data as { farm_id: string } | null)?.farm_id ?? null;
   if (!farmId) redirect("/machines?error=not-found");
   await requireFarmRole(farmId, ["owner", "manager"], `${back}?error=forbidden`, profile);

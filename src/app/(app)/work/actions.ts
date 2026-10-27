@@ -28,7 +28,9 @@ async function requestContext(id: string, roles: Role[] = CREW) {
     .select("id, farm_id, machine_id, workshop_id, status, vat_rate_bps, job_card_id")
     .eq("id", id).is("deleted_at", null).maybeSingle();
   const row = data as WorkRow | null;
-  if (error || !row) redirect("/work?error=not-found");
+  // A failed read is not a missing request: report it and say "try again".
+  if (error) redirect(`/work/${id}?error=${errorCode(error, "work:context")}`);
+  if (!row) redirect("/work?error=not-found");
   const { role } = await requireFarmRole(row.farm_id, roles, `/work/${id}?error=forbidden`, profile);
   if (role === "workshop" && (!row.workshop_id || profile.workshop_id !== row.workshop_id)) {
     redirect(`/work/${id}?error=forbidden`);
@@ -55,11 +57,15 @@ export async function createWorkRequest(formData: FormData) {
   const workshopId = s(formData, "workshop_id");
   if (!workshopId) redirect(`/machines/${machineId}?error=need-recipient`);
   const supabase = await createClient();
-  const [{ data: machine }, { data: link }, { data: farm }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("machines").select("id").eq("id", machineId).eq("farm_id", farmId).is("deleted_at", null).maybeSingle(),
     supabase.from("workshop_links").select("id").eq("farm_id", farmId).eq("workshop_id", workshopId).eq("status", "active").is("deleted_at", null).maybeSingle(),
     supabase.from("farms").select("settings").eq("id", farmId).maybeSingle(),
   ]);
+  // A failed read would say "forbidden", or stamp the default VAT rate on the request.
+  const readError = results.find((result) => result.error)?.error;
+  if (readError) redirect(`/machines/${machineId}?error=${errorCode(readError, "work:create:reads")}`);
+  const [{ data: machine }, { data: link }, { data: farm }] = results;
   if (!machine || !link) redirect(`/machines/${machineId}?error=forbidden`);
   const settings = (farm as { settings?: { vat_rate_bps?: number } } | null)?.settings;
   const kindRaw = s(formData, "kind") ?? "repair";
@@ -87,8 +93,9 @@ export async function assignWorkRequestProvider(formData: FormData) {
   const { supabase, row } = await requestContext(id, ["owner", "manager"]);
   const workshopId = s(formData, "workshop_id");
   if (row.workshop_id || row.status !== "requested" || !workshopId) redirect(`/work/${id}?error=bad-status`);
-  const { data: link } = await supabase.from("workshop_links").select("id")
+  const { data: link, error: linkError } = await supabase.from("workshop_links").select("id")
     .eq("farm_id", row.farm_id).eq("workshop_id", workshopId).eq("status", "active").is("deleted_at", null).maybeSingle();
+  if (linkError) redirect(`/work/${id}?error=${errorCode(linkError, "work:assign-provider:link")}`);
   if (!link) redirect(`/work/${id}?error=forbidden`);
   const { data, error } = await supabase.from("work_requests").update({ workshop_id: workshopId })
     .eq("id", id).eq("status", "requested").is("workshop_id", null).select("id").maybeSingle();

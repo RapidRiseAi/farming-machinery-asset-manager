@@ -1,6 +1,7 @@
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { Pdf, pdfResponse } from "@/lib/pdf/doc";
@@ -24,21 +25,25 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
 
   const supabase = await createClient();
-  const { data } = await supabase
+  const data = must(await supabase
     .from("machines")
     .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status")
-    .eq("id", id).is("deleted_at", null).maybeSingle();
+    .eq("id", id).is("deleted_at", null).maybeSingle(), "machine-file:machine");
   const m = data as Machine | null;
   if (!m) return new Response("Not found", { status: 404 });
   const costsVisible = await canViewFarmCosts(supabase, m.farm_id);
 
-  const [{ data: jcData }, { data: planData }, { data: faultData }, { data: readingData }, { data: watchData }] = await Promise.all([
+  // A failed read would print "No job cards" and a lifetime spend of R0 as the machine's
+  // service book; a 500 is the honest answer.
+  const results = await Promise.all([
     readAll(() => supabase.from("job_cards_visible").select("id, type, status, total_cents, date_out, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("service_plan_lines").select("task, interval_hours, interval_months, last_done_reading, last_done_date, next_due_reading, next_due_date, status").eq("machine_id", id).is("deleted_at", null).order("created_at"),
     readAll(() => supabase.from("faults").select("description, urgency, status, created_at").eq("machine_id", id).is("deleted_at", null).order("created_at", { ascending: false })),
     supabase.from("meter_readings").select("reading, reading_date, source").eq("machine_id", id).is("deleted_at", null).order("reading_date", { ascending: false }).limit(30),
     supabase.from("watch_items").select("text, status").eq("machine_id", id).order("created_at", { ascending: false }),
   ]);
+  mustAll(results, "machine-file");
+  const [{ data: jcData }, { data: planData }, { data: faultData }, { data: readingData }, { data: watchData }] = results;
   const jobCards = (jcData as JC[] | null) ?? [];
   const plan = (planData as Plan[] | null) ?? [];
   const faults = (faultData as { description: string | null; urgency: string | null; status: string; created_at: string }[] | null) ?? [];

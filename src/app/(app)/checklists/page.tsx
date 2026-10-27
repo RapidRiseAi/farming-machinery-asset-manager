@@ -2,6 +2,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { typeLabel } from "@/lib/machine-options";
@@ -39,12 +40,13 @@ export default async function ChecklistsPage({ searchParams }: { searchParams: P
   const canCreate = canManageFarm || isAdmin;
 
   const supabase = await createClient();
-  const { data } = await supabase
+  // A failed read would say "no templates yet".
+  const data = must(await supabase
     .from("checklist_templates")
     .select("id, farm_id, name, description, machine_type, updated_at, checklist_template_fields(id)")
     .is("deleted_at", null)
     .is("checklist_template_fields.deleted_at", null)
-    .order("name");
+    .order("name"), "checklists:templates");
   const templates = (data as TemplateRow[] | null) ?? [];
 
   // A global row is editable only by RR admin; a farm row by that farm's crew (RLS also enforces).

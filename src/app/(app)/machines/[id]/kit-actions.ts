@@ -53,7 +53,8 @@ export async function deleteServiceKit(formData: FormData) {
   const supabase = await createClient();
   const now = new Date().toISOString();
   // Soft-delete the kit and its items together (items cascade on hard delete only).
-  await supabase.from("service_kit_items").update({ deleted_at: now, deleted_by: profile.id }).eq("service_kit_id", id).is("deleted_at", null);
+  const { error: itemsError } = await supabase.from("service_kit_items").update({ deleted_at: now, deleted_by: profile.id }).eq("service_kit_id", id).is("deleted_at", null);
+  if (itemsError) redirect(withTab(`/machines/${machineId}?error=${errorCode(itemsError, "machines:delete-kit:items")}`, "servicing"));
   const { error } = await supabase.from("service_kits").update({ deleted_at: now, deleted_by: profile.id }).eq("id", id);
   if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/kit-actions:deleteServiceKit")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
@@ -77,11 +78,13 @@ export async function addKitItem(formData: FormData) {
 
   // If a catalogue part was chosen but fields were left blank, snapshot from it.
   if (catalogueId && (partNo == null || description == null || unitCents == null)) {
-    const { data: part } = await supabase
+    const { data: part, error: partError } = await supabase
       .from("parts_catalogue_visible")
       .select("part_no, description, typical_cost_cents")
       .eq("id", catalogueId)
       .maybeSingle();
+    // A failed read would save the item without the catalogue's number, name and cost.
+    if (partError) redirect(withTab(`/machines/${machineId}?error=${errorCode(partError, "machines:add-kit-item:part")}`, "servicing"));
     const p = part as { part_no: string; description: string | null; typical_cost_cents: number | null } | null;
     if (p) {
       partNo = partNo ?? p.part_no;

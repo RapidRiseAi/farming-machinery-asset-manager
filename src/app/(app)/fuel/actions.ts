@@ -10,8 +10,9 @@ import {
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { FUEL_ACTIVITIES, FUEL_FARM_LEVEL } from "@/lib/fuel";
 import { todayLocal } from "@/lib/format";
-import { FleetCommandError, recordFuelIssue } from "@/lib/domain/fleet-commands";
+import { recordFuelIssue } from "@/lib/domain/fleet-commands";
 import { runOnce } from "@/lib/request-claim";
+import { errorCode } from "@/lib/action-errors";
 
 function bounce(msg: string): never {
   redirect(`/fuel?error=${encodeURIComponent(msg)}`);
@@ -19,7 +20,9 @@ function bounce(msg: string): never {
 
 /** Farm VAT rate (bps) from settings, default 15%. */
 async function vatBps(supabase: Awaited<ReturnType<typeof createClient>>, farmId: string): Promise<number> {
-  const { data } = await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle();
+  const { data, error } = await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle();
+  // A failed read must not price the delivery at the default rate as if it were the farm's.
+  if (error) redirect(`/fuel?error=${errorCode(error, "fuel:vat-rate")}`);
   const s = (data as { settings: Record<string, unknown> } | null)?.settings ?? {};
   const v = s["vat_rate_bps"];
   return typeof v === "number" && v >= 0 ? v : 1500;
@@ -73,13 +76,14 @@ export async function addFuelDelivery(formData: FormData) {
       if (!tankId || !Number.isFinite(litres) || litres <= 0) bounce("Enter a tank and litres");
 
       const supabase = await createClient();
-      const { data: tank } = await supabase
+      const { data: tank, error: tankError } = await supabase
         .from("fuel_tanks")
         .select("id")
         .eq("id", tankId)
         .eq("farm_id", farmId)
         .is("deleted_at", null)
         .maybeSingle();
+      if (tankError) redirect(`/fuel?error=${errorCode(tankError, "fuel:delivery:tank")}`);
       if (!tank) bounce("Pick a tank");
       const rate = await vatBps(supabase, farmId);
       const exCents = inclCents != null ? exVatCents(inclCents, rate) : null;
@@ -137,13 +141,14 @@ export async function addFuelIssue(formData: FormData) {
       if (meter != null && (!Number.isFinite(meter) || meter < 0)) fail("Enter a valid meter reading");
 
       const supabase = await createClient();
-      const { data: tank } = await supabase
+      const { data: tank, error: tankError } = await supabase
         .from("fuel_tanks")
         .select("id")
         .eq("id", tankId)
         .eq("farm_id", farmId)
         .is("deleted_at", null)
         .maybeSingle();
+      if (tankError) redirect(`${back}?error=${errorCode(tankError, "fuel:draw:tank")}`);
       if (!tank) fail("Pick a tank");
 
       // Validate the machine belongs to this farm (or allow farm-level: no machine). The
@@ -151,8 +156,9 @@ export async function addFuelIssue(formData: FormData) {
       // can be a placeholder the browser refuses rather than a silent farm-level draw.
       let machineId: string | null = null;
       if (machineRaw && machineRaw !== FUEL_FARM_LEVEL) {
-        const { data: m } = await supabase
+        const { data: m, error: machineError } = await supabase
           .from("machines").select("id").eq("id", machineRaw).eq("farm_id", farmId).is("deleted_at", null).maybeSingle();
+        if (machineError) redirect(`${back}?error=${errorCode(machineError, "fuel:draw:machine")}`);
         if (!m) fail("Pick a machine");
         machineId = machineRaw;
       }
@@ -165,7 +171,9 @@ export async function addFuelIssue(formData: FormData) {
           "is_active_farm_member",
           { p_farm: farmId, p_user: driverRaw },
         );
-        if (memberError || isMember !== true) fail("not-found");
+        // A failed check is not "that driver is not on the farm".
+        if (memberError) redirect(`${back}?error=${errorCode(memberError, "fuel:draw:driver")}`);
+        if (isMember !== true) fail("not-found");
         driverId = driverRaw;
       }
 
@@ -189,7 +197,9 @@ export async function addFuelIssue(formData: FormData) {
           driverUserId: driverId,
         });
       } catch (e) {
-        fail(e instanceof FleetCommandError ? e.message : "Could not save that fuel draw");
+        // Nothing was written (one transaction), so going back is safe. Never the database's
+        // words in the URL: a refusal our SQL raises keeps its own, anything else is reported.
+        redirect(`${back}?error=${errorCode(e as Error, "fuel:draw")}`);
       }
 
       revalidatePath("/fuel");

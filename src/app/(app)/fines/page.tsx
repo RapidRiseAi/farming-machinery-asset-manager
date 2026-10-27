@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { checkEntitlement, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
@@ -115,8 +116,11 @@ export default async function FinesPage({
     )
     .is("deleted_at", null);
   if (farmId) credentialsQ = credentialsQ.eq("farm_id", farmId);
+  // Someone with no farm (an RR admin outside support mode, a contractor) has no settings
+  // to read. Asking for id "" is an invalid uuid, which is now an error screen, not defaults.
+  const settingsFarmId = farmId ?? profile.farm_id ?? null;
 
-  const [machinesRes, opsRes, pendingRes, historyRes, farmRes, credentialsRes] = await Promise.all([
+  const results = await Promise.all([
     machinesQ,
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
     readAll(() => finesQuery().in("status", [...PENDING_NOMINATION_STATUSES]).order("created_at", { ascending: false })),
@@ -125,9 +129,14 @@ export default async function FinesPage({
       .order("created_at", { ascending: false })
       .order("id")
       .range(...pageRange(page)),
-    supabase.from("farms").select("settings").eq("id", farmId ?? profile.farm_id ?? "").maybeSingle(),
+    settingsFarmId
+      ? supabase.from("farms").select("settings").eq("id", settingsFarmId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     credentialsQ,
   ]);
+  // A failed read showed "no fines" beside a nomination deadline that is a legal one.
+  mustAll(results, "fines");
+  const [machinesRes, opsRes, pendingRes, historyRes, farmRes, credentialsRes] = results;
   const credentials = (credentialsRes.data as CredentialRow[] | null) ?? [];
 
   const machines = (machinesRes.data as MachineRow[] | null) ?? [];
@@ -166,13 +175,14 @@ export default async function FinesPage({
   const sd = sp.sd && /^\d{4}-\d{2}-\d{2}$/.test(sp.sd) ? sp.sd : null;
   let suggestions: UsageRow[] = [];
   if (sm && sd) {
-    const { data: usage } = await supabase
+    // Not soft: "nobody logged on that day" is an answer someone nominates a driver from.
+    const usage = must(await supabase
       .from("usage_logs")
       .select("driver_user_id, driver_name, meter_reading")
       .eq("machine_id", sm)
       .eq("occurred_on", sd)
       .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }), "fines:driver-suggestion");
     suggestions = (usage as UsageRow[] | null) ?? [];
   }
   const topSuggestion = suggestions[0] ?? null;

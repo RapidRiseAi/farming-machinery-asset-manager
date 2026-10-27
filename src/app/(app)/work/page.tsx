@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { mustAll } from "@/lib/supabase/must";
 import { Pager, PAGE_SIZE, pageNumber, pageRange } from "@/components/ui/pager";
 import { rands } from "@/lib/money";
 import { relativeDate } from "@/lib/format";
@@ -60,15 +61,18 @@ export default async function WorkListPage({
     return q;
   };
   const showClosed = !sp.status || sp.status === "closed";
-  const [openRes, closedRes] = await Promise.all([
+  const listResults = await Promise.all([
     sp.status === "closed"
-      ? Promise.resolve({ data: [] as WorkRequest[] })
+      ? Promise.resolve({ data: [] as WorkRequest[], error: null })
       : readAll<WorkRequest>(() => (sp.status ? requests().eq("status", sp.status) : requests().neq("status", "closed"))
           .order("updated_at", { ascending: false })),
     showClosed
       ? requests().eq("status", "closed").order("updated_at", { ascending: false }).order("id").range(...pageRange(page))
-      : Promise.resolve({ data: [] as WorkRequest[] }),
+      : Promise.resolve({ data: [] as WorkRequest[], error: null }),
   ]);
+  // A failed read showed "no work" (and sent a later page back to the first).
+  mustAll(listResults, "work:list");
+  const [openRes, closedRes] = listResults;
   const closedRows = (closedRes.data as WorkRequest[] | null) ?? [];
   const hasOlder = closedRows.length > PAGE_SIZE;
   // A page number past the end (a bookmark, or history since deleted) goes back to the
@@ -90,11 +94,14 @@ export default async function WorkListPage({
     />
   );
 
-  const [{ data: ms }, { data: ws }, { data: fs }] = await Promise.all([
+  const nameResults = await Promise.all([
     supabase.from("machines").select("id, name").is("deleted_at", null).order("name"),
     supabase.from("workshops").select("id, name"),
-    isContractor ? supabase.from("farms").select("id, name") : Promise.resolve({ data: [] }),
+    isContractor ? supabase.from("farms").select("id, name") : Promise.resolve({ data: [], error: null }),
   ]);
+  // Not soft: a missing contractor name reads "Unassigned", which is a different fact.
+  mustAll(nameResults, "work:names");
+  const [{ data: ms }, { data: ws }, { data: fs }] = nameResults;
   const machines = (ms as { id: string; name: string }[] | null) ?? [];
   const nameById = Object.fromEntries(machines.map((m) => [m.id, m.name]));
   const wsById = Object.fromEntries(((ws as { id: string; name: string }[] | null) ?? []).map((w) => [w.id, w.name]));

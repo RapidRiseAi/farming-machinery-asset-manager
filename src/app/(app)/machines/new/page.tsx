@@ -2,6 +2,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { requireRole, currentFarmId } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must, soft } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
 import { MachinePhotoNew } from "@/components/machine-photo-new";
@@ -36,10 +37,13 @@ export default async function NewMachinePage({
     .select("cost_centre, department, location")
     .is("deleted_at", null);
   if (farmId) dimQuery = dimQuery.eq("farm_id", farmId);
-  const [{ data: opData }, { data: dimData }] = await Promise.all([
+  const [opRes, dimRes] = await Promise.all([
     supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"),
     dimQuery,
   ]);
+  // The operator list is the form's own; the suggestions can honestly be absent.
+  const opData = must(opRes, "machines-new:operators");
+  const dimData = soft(dimRes, "machines-new:dims");
   const operators = (opData as OperatorOption[] | null) ?? [];
   const dims = (dimData as { cost_centre: string | null; department: string | null; location: string | null }[] | null) ?? [];
 

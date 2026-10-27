@@ -6,6 +6,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { notFound } from "next/navigation";
 import { requireProfile, effectiveFarmRole, checkWorkshopEntitlement } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must, mustAll } from "@/lib/supabase/must";
 import { rands } from "@/lib/money";
 import { shortDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -80,12 +81,13 @@ export default async function WorkRequestDetailPage({
   const cancelLabel = t("common.cancel", locale);
 
   const supabase = await createClient();
-  const { data } = await supabase
+  // A failed read is the error screen, not a 404 for a request that exists.
+  const data = must(await supabase
     .from("work_requests_visible")
     .select("id, farm_id, machine_id, workshop_id, kind, status, priority, title, description, quote_amount_cents, invoice_amount_cents, vat_rate_bps, job_card_id, created_at, updated_at")
     .eq("id", id)
     .is("deleted_at", null)
-    .maybeSingle();
+    .maybeSingle(), "work-request:request");
   const wr = data as WorkRequest | null;
   if (!wr) notFound();
   const resourceRole = profile.role === "workshop" ? "workshop" : await effectiveFarmRole(wr.farm_id, profile);
@@ -94,16 +96,19 @@ export default async function WorkRequestDetailPage({
   const canApprove = resourceRole === "owner" || resourceRole === "manager";
   const canBuildDocuments = isProvider && (await checkWorkshopEntitlement("build_documents", profile)).allowed;
 
-  const [machineRes, wsRes, evRes, attRes, userRes, docRes, providerRes, farmRes] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("machines").select("id, name, type, meter_type, current_reading, status").eq("id", wr.machine_id).maybeSingle(),
-    wr.workshop_id ? supabase.from("workshops").select("id, name, kind, phone, whatsapp, email, area").eq("id", wr.workshop_id).maybeSingle() : Promise.resolve({ data: null }),
+    wr.workshop_id ? supabase.from("workshops").select("id, name, kind, phone, whatsapp, email, area").eq("id", wr.workshop_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     supabase.from("work_request_events").select("id, from_status, to_status, note, by_user, created_at").eq("work_request_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("attachments").select("id, kind, storage_path, url, created_at").eq("parent_type", "work_request").eq("parent_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("users").select("id, name").is("deleted_at", null),
     supabase.from("partner_documents").select("id, kind, status, number, total_cents").eq("work_request_id", id).is("deleted_at", null).neq("status", "void").order("created_at", { ascending: false }),
-    !wr.workshop_id && canApprove ? supabase.from("workshop_links").select("workshop_id, workshops(id, name)").eq("farm_id", wr.farm_id).eq("status", "active").is("deleted_at", null) : Promise.resolve({ data: [] }),
-    isProvider ? supabase.from("farms").select("name").eq("id", wr.farm_id).maybeSingle() : Promise.resolve({ data: null }),
+    !wr.workshop_id && canApprove ? supabase.from("workshop_links").select("workshop_id, workshops(id, name)").eq("farm_id", wr.farm_id).eq("status", "active").is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
+    isProvider ? supabase.from("farms").select("name").eq("id", wr.farm_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
+  // A failed read showed no quotes, no history and no contractor to send it to.
+  mustAll(results, "work-request");
+  const [machineRes, wsRes, evRes, attRes, userRes, docRes, providerRes, farmRes] = results;
   const machine = machineRes.data as Machine | null;
   const workshop = wsRes.data as Workshop | null;
   const events = (evRes.data as Event[] | null) ?? [];
@@ -118,7 +123,7 @@ export default async function WorkRequestDetailPage({
   const paths = attachments.map((a) => a.storage_path).filter((p): p is string => !!p);
   const signedByPath = new Map<string, string>();
   if (paths.length > 0) {
-    const { data: signed } = await supabase.storage.from("jobcard-photos").createSignedUrls(paths, 3600);
+    const signed = must(await supabase.storage.from("jobcard-photos").createSignedUrls(paths, 3600), "work-request:photo-urls");
     for (const sgn of signed ?? []) {
       if (sgn.path && sgn.signedUrl) signedByPath.set(sgn.path, sgn.signedUrl);
     }

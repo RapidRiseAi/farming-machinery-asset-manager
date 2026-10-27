@@ -2,6 +2,7 @@ import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must, mustAll, soft } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { formatChecklistValue, type ChecklistFieldType } from "@/lib/checklists";
 import { signChecklistPhotos } from "@/lib/checklist-media";
@@ -31,7 +32,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
   const canEdit = ["owner", "manager", "mechanic"].includes(profile.role);
 
   const supabase = await createClient();
-  const [{ data: instData }, { data: mData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("checklist_instances")
       .select("id, farm_id, machine_id, template_name, status, meter_reading, notes, performed_by, completed_at, created_at")
@@ -40,28 +41,33 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
       .maybeSingle(),
     supabase.from("machines").select("id, name, meter_type").eq("id", machineId).maybeSingle(),
   ]);
+  // A failed read is the error screen, not a 404 for an inspection that exists.
+  mustAll(results, "checklist-instance");
+  const [{ data: instData }, { data: mData }] = results;
   const instance = instData as Instance | null;
   const machine = mData as { id: string; name: string; meter_type: string } | null;
   if (!instance || !machine || instance.machine_id !== machineId) notFound();
 
-  const { data: vData } = await supabase
+  const vData = must(await supabase
     .from("checklist_instance_values")
     .select("id, sort_order, field_type, label, value_text, notes, attachment_id")
     .eq("instance_id", instanceId)
     .is("deleted_at", null)
-    .order("sort_order");
+    .order("sort_order"), "checklist-instance:values");
   const values = (vData as ValueRow[] | null) ?? [];
 
   // Resolve performer name + photo signed URLs.
   let performerName: string | null = null;
   if (instance.performed_by) {
-    const { data: u } = await supabase.from("users").select("name").eq("id", instance.performed_by).maybeSingle();
+    // Only the header's "by" line: without it the line is left out, which is honest.
+    const u = soft(await supabase.from("users").select("name").eq("id", instance.performed_by).maybeSingle(), "checklist-instance:performer");
     performerName = (u as { name: string } | null)?.name ?? null;
   }
   const attIds = values.map((v) => v.attachment_id).filter((x): x is string => Boolean(x));
   const pathById = new Map<string, string | null>();
   if (attIds.length > 0) {
-    const { data: atts } = await supabase.from("attachments").select("id, storage_path").in("id", attIds).is("deleted_at", null);
+    // Not soft: a missing path shows "No photo" on a field that has one.
+    const atts = must(await supabase.from("attachments").select("id, storage_path").in("id", attIds).is("deleted_at", null), "checklist-instance:attachments");
     for (const a of (atts as { id: string; storage_path: string | null }[] | null) ?? []) pathById.set(a.id, a.storage_path);
   }
   const orderedAttIds = values.map((v) => (v.attachment_id ? pathById.get(v.attachment_id) ?? null : null));

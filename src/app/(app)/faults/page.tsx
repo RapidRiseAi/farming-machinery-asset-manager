@@ -2,6 +2,7 @@ import { requireProfile, currentFarmId, effectiveFarmRole } from "@/lib/auth";
 import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
+import { must, soft } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { relativeDate } from "@/lib/format";
@@ -81,12 +82,13 @@ export default async function FaultsPage({
   });
 
   const machineQuery = supabase.from("machines").select("id, name, farm_id, assigned_operator_id").is("deleted_at", null).order("name");
-  const { data: mData } = await (farmId ? machineQuery.eq("farm_id", farmId) : machineQuery);
+  // Who may report, and every machine's name, come from this: a failed read is the error screen.
+  const mData = must(await (farmId ? machineQuery.eq("farm_id", farmId) : machineQuery), "faults:machines");
   const machines = (mData as { id: string; name: string; farm_id: string; assigned_operator_id: string | null }[] | null) ?? [];
   const nameById = Object.fromEntries(machines.map((m) => [m.id, m.name]));
 
   // Farm users for the assignee name map + the "assign to" select (FR-7.3).
-  const { data: uData } = await supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name");
+  const uData = must(await supabase.from("users").select("id, name").eq("active", true).is("deleted_at", null).order("name"), "faults:users");
   const users = (uData as { id: string; name: string }[] | null) ?? [];
   const userName = new Map(users.map((u) => [u.id, u.name]));
 
@@ -103,16 +105,18 @@ export default async function FaultsPage({
   const providerNames = new Map((providerResult.data ?? []).map((p) => [p.id, p.name]));
   const contractors = (linkResult.data ?? []).filter((l) => providerNames.has(l.workshop_id))
     .map((l) => ({ id: l.workshop_id, farm_id: l.farm_id, name: providerNames.get(l.workshop_id)! }));
-  const { data: aData } = faultIds.length
-    ? await supabase.from("attachments").select("id, parent_id, kind, storage_path").eq("parent_type", "fault").is("deleted_at", null).in("parent_id", faultIds)
-    : { data: [] };
+  const aData = faultIds.length
+    ? must(await supabase.from("attachments").select("id, parent_id, kind, storage_path").eq("parent_type", "fault").is("deleted_at", null).in("parent_id", faultIds), "faults:attachments")
+    : [];
   const attachments = (aData as Attach[] | null) ?? [];
   const signed = new Map<string, { kind: string; url: string }[]>();
   await Promise.all(
     attachments.map(async (a) => {
       if (!a.storage_path) return;
       const bucket = a.kind === "voice" ? "fault-voice" : "fault-photos";
-      const { data: s } = await supabase.storage.from(bucket).createSignedUrl(a.storage_path, 3600);
+      // Soft, not must: one file missing from storage would otherwise take the whole list
+      // down on every visit. That one is reported and left out.
+      const s = soft(await supabase.storage.from(bucket).createSignedUrl(a.storage_path, 3600), "faults:media-url");
       if (s?.signedUrl) {
         const list = signed.get(a.parent_id) ?? [];
         list.push({ kind: a.kind, url: s.signedUrl });
@@ -135,9 +139,9 @@ export default async function FaultsPage({
   // A fault already in a job links to its job card, with the card's own status. Read
   // through the visibility view, so a card this person may not open is never linked.
   const jobIds = [...new Set(faults.map((f) => f.job_card_id).filter((v): v is string => !!v))];
-  const { data: jcData } = jobIds.length
-    ? await supabase.from("job_cards_visible").select("id, status").in("id", jobIds).is("deleted_at", null)
-    : { data: [] };
+  const jcData = jobIds.length
+    ? must(await supabase.from("job_cards_visible").select("id, status").in("id", jobIds).is("deleted_at", null), "faults:job-cards")
+    : [];
   const jobStatus = new Map(((jcData as { id: string; status: string }[] | null) ?? []).map((j) => [j.id, j.status]));
 
   const search = new URLSearchParams(

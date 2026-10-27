@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { PrintButton } from "@/components/print-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -24,11 +25,12 @@ export default async function MachineQrPage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const { data } = await supabase
+  // A failed read is the error screen, not a 404 for a machine that exists.
+  const data = must(await supabase
     .from("machines")
     .select("name, public_token")
     .eq("id", id)
-    .maybeSingle();
+    .maybeSingle(), "machine-qr:machine");
   const machine = data as { name: string; public_token: string } | null;
   if (!machine) notFound();
 

@@ -39,7 +39,7 @@ import { OfflineForm } from "@/components/offline/offline-form";
 import { MachinesIcon, PlusIcon } from "@/components/ui/icons";
 import { addReading } from "./[id]/reading-actions";
 import { RequestIdInput } from "@/components/ui/request-id-input";
-import { mustAll } from "@/lib/supabase/must";
+import { mustAll, soft } from "@/lib/supabase/must";
 
 type MachineRow = {
   id: string;
@@ -233,11 +233,12 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const primaryIds = machines.map((m) => m.primary_attachment_id).filter((v): v is string => !!v);
   const photoUrlByMachine = new Map<string, string>();
   if (primaryIds.length > 0) {
-    const { data: atts } = await supabase
+    // Thumbnails are decoration: without one a row shows its placeholder icon.
+    const atts = soft(await supabase
       .from("attachments")
       .select("id, storage_path")
       .in("id", primaryIds)
-      .is("deleted_at", null);
+      .is("deleted_at", null), "machines:photos");
     const pathById = new Map<string, string>();
     for (const a of (atts as { id: string; storage_path: string | null }[] | null) ?? []) {
       if (a.storage_path) pathById.set(a.id, a.storage_path);
@@ -254,9 +255,9 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
       // support: `<Photo>` gives every thumbnail intrinsic dimensions (no layout
       // shift as photos land) and lazy loading (only what is on screen is
       // fetched). See lib/storage-image.ts.
-      const { data: signed } = await supabase.storage
+      const signed = soft(await supabase.storage
         .from("machine-photos")
-        .createSignedUrls(paths, 3600);
+        .createSignedUrls(paths, 3600), "machines:photo-urls");
       const urlByPath = new Map<string, string>();
       for (const s of signed ?? []) {
         if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { mustAll } from "@/lib/supabase/must";
 import { t, type Lang } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { num, shortDate } from "@/lib/format";
@@ -71,7 +72,7 @@ export async function WarrantyPanel({
 }) {
   const supabase = await createClient();
 
-  const [{ data: coverData }, { data: claimData }] = await Promise.all([
+  const results = await Promise.all([
     supabase.rpc("job_card_warranty_cover", { p_job_card: jobCardId }).maybeSingle(),
     supabase
       .from("warranty_claims")
@@ -80,6 +81,9 @@ export async function WarrantyPanel({
       .is("deleted_at", null)
       .maybeSingle(),
   ]);
+  // A failed read would say "warranty not recorded" and offer to start a claim that exists.
+  mustAll(results, "warranty-panel");
+  const [{ data: coverData }, { data: claimData }] = results;
 
   const cover = (coverData as WarrantyCover | null) ?? null;
   const claim = (claimData as WarrantyClaimRow | null) ?? null;

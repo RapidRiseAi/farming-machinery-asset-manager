@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { requireProfile, currentFarmId } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { mustAll } from "@/lib/supabase/must";
 import { sanitiseFilterTerm } from "@/lib/search-filter";
 import { num } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -58,12 +59,15 @@ export default async function MachineQrSheetPage({ searchParams }: { searchParam
     );
   }
 
-  const [{ data }, farmResult] = await Promise.all([
+  const results = await Promise.all([
     query,
     farmId
       ? supabase.from("farms").select("settings").eq("id", farmId).maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
   ]);
+  // A failed read printed "no machines to label" for a fleet that has them.
+  mustAll(results, "machines-qr-sheet");
+  const [{ data }, farmResult] = results;
   const machines = ((data as { id: string; name: string; reg_no: string | null; public_token: string | null }[] | null) ?? [])
     .filter((m): m is { id: string; name: string; reg_no: string | null; public_token: string } => !!m.public_token);
 

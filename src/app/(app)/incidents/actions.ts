@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { currentFarmId, homePathFor, requireProfile } from "@/lib/auth";
+import { errorCode } from "@/lib/action-errors";
 import {
   INCIDENT_KINDS,
   INCIDENT_STATUSES,
@@ -193,12 +194,13 @@ export async function removeIncident(formData: FormData): Promise<void> {
   const supabase = await createClient();
   // Checked BEFORE the write. A soft delete makes the row fail its own SELECT policy, so
   // asking the update to return it asks for the row the policy has just been told to hide.
-  const { data: found } = await supabase
+  const { data: found, error: foundError } = await supabase
     .from("incidents")
     .select("id")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (foundError) redirect(`/incidents?error=${errorCode(foundError, "incidents:remove:find")}`);
   if (!found) bounce("incident-missing");
 
   const { error } = await supabase

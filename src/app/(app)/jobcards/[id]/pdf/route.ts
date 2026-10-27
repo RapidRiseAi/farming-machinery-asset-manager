@@ -1,5 +1,6 @@
 import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must, mustAll } from "@/lib/supabase/must";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { Pdf, pdfResponse } from "@/lib/pdf/doc";
@@ -23,16 +24,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
 
   const supabase = await createClient();
-  const { data } = await supabase.from("job_cards_visible").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
+  const data = must(await supabase.from("job_cards_visible").select("*").eq("id", id).is("deleted_at", null).maybeSingle(), "jobcard-pdf:job-card");
   const jc = data as JC | null;
   if (!jc) return new Response("Not found", { status: 404 });
   const costsVisible = await canViewFarmCosts(supabase, jc.farm_id);
 
-  const [{ data: mData }, { data: lData }, { data: farmData }] = await Promise.all([
+  // A failed lines read would print "No lines." on a job card someone files as the record.
+  const results = await Promise.all([
     supabase.from("machines").select("name, make, model, reg_no, meter_type").eq("id", jc.machine_id).maybeSingle(),
     supabase.from("job_card_lines_visible").select("kind, description, part_no, qty, unit_cost_cents, hours, rate_cents, total_cents").eq("job_card_id", id).is("deleted_at", null),
     supabase.from("farms").select("name").eq("id", jc.farm_id).maybeSingle(),
   ]);
+  mustAll(results, "jobcard-pdf");
+  const [{ data: mData }, { data: lData }, { data: farmData }] = results;
   const machine = mData as { name: string; make: string | null; model: string | null; reg_no: string | null; meter_type: string } | null;
   const lines = (lData as Line[] | null) ?? [];
   const farmName = (farmData as { name: string } | null)?.name ?? "";
