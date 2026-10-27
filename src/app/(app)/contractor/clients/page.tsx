@@ -3,6 +3,7 @@ import { errorMessage } from "@/lib/errors";
 import { redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { shortDate, num } from "@/lib/format";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
@@ -54,7 +55,7 @@ export default async function PartnerClientsPage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const [{ data: cData }, { data: vData }, { data: linkData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("partner_clients")
       .select("id, name, contact_name, phone, whatsapp, email, farm_id, link_status, requested_at, linked_at")
@@ -64,6 +65,9 @@ export default async function PartnerClientsPage({
     // Farms already connected, so the book can show which of them are not yet in it.
     supabase.from("workshop_links").select("farm_id, status, farms(id, name)").is("deleted_at", null),
   ]);
+  // A failed read showed an empty book, or every client with "No vehicles".
+  mustAll(results, "contractor-clients:list");
+  const [{ data: cData }, { data: vData }, { data: linkData }] = results;
 
   const clients = (cData ?? []) as ClientRow[];
   const vehicleCount = new Map<string, number>();

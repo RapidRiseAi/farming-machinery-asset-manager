@@ -4,6 +4,7 @@ import { errorMessage } from "@/lib/errors";
 import { homePathFor, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { must, mustAll } from "@/lib/supabase/must";
 import {
   farmPermissionState,
   roleHasBaselinePermission,
@@ -74,7 +75,7 @@ export default async function TeamPage({
   if (!farmId || !canManage) redirect(`${homePathFor(profile.role)}?denied=1`);
 
   const supabase = await createClient();
-  const [{ data: primaryData }, { data: membershipData }, { data: grantData }, { data: farmData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("users")
       .select("id")
@@ -92,6 +93,10 @@ export default async function TeamPage({
       .is("deleted_at", null),
     supabase.from("farms").select("settings").eq("id", farmId).maybeSingle(),
   ]);
+  // A failed read showed an empty team, or people without the permissions they hold, on
+  // the screen where permissions are granted.
+  mustAll(results, "team:page");
+  const [{ data: primaryData }, { data: membershipData }, { data: grantData }, { data: farmData }] = results;
 
   // The farm's "language for new people" (/settings). Read the way lib/settings.ts
   // stores it: anything but "en" is Afrikaans, which is also what /settings shows unset.
@@ -114,13 +119,16 @@ export default async function TeamPage({
    * those IDs. This is a bounded join, never a cross-tenant directory scan.
    */
   const service = createServiceClient();
-  const { data: profileData } = candidateIds.length
-    ? await service
-        .from("users")
-        .select("id, farm_id, name, role, email, active")
-        .in("id", candidateIds)
-        .is("deleted_at", null)
-    : { data: [] };
+  const profileData = candidateIds.length
+    ? must(
+        await service
+          .from("users")
+          .select("id, farm_id, name, role, email, active")
+          .in("id", candidateIds)
+          .is("deleted_at", null),
+        "team:profiles",
+      )
+    : [];
 
   const grantsByUser = new Map<string, Set<UserPermission>>();
   for (const row of (grantData ?? []) as { user_id: string; permission: unknown }[]) {

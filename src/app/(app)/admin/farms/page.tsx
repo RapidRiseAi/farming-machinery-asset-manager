@@ -3,6 +3,7 @@ import { errorMessage } from "@/lib/errors";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { PLANS } from "@/lib/entitlements";
 import { createFarm } from "./actions";
@@ -52,10 +53,13 @@ export default async function AdminFarmsPage({
   // Counted by the database, one row per farm: counting rows here stopped at the API's
   // thousandth machine, user or job card across the whole platform (20261013090000).
   type Activity = { farm_id: string; machines: number; active_users: number; jobs_this_month: number; last_activity: string | null };
-  const [{ data: fData }, { data: aData }] = await Promise.all([
+  const results = await Promise.all([
     readAll(() => supabase.from("farms").select("id, name, plan, status, created_at, is_test").order("created_at", { ascending: false })),
     readAll<Activity>(() => supabase.rpc("admin_farm_activity", { p_month_start: monthStart }), { key: "farm_id" }),
   ]);
+  // A failed read showed "No farms yet", or every farm with 0 machines and no activity.
+  mustAll(results, "admin-farms:list");
+  const [{ data: fData }, { data: aData }] = results;
   const farms = (fData as FarmRow[] | null) ?? [];
   // Test farms (the click-through farm the automatic checks sign in to) are listed, so they
   // can be opened, but are not customers and stay out of the count (20261014110000).

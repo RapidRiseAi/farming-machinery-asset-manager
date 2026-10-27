@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { homePathFor, requireProfile } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
+import { errorCode } from "@/lib/action-errors";
 import { OTHER_PERSON } from "./credential-person";
 
 /**
@@ -155,12 +156,14 @@ export async function removeDriverCredential(formData: FormData): Promise<void> 
   // row fail its own SELECT policy (`deleted_at is null`), so asking the update to return
   // it asks for the one row the policy has just been told to hide, the same trap that
   // made `correct_meter_reading` a definer function earlier in this schema.
-  const { data: found } = await supabase
+  const { data: found, error: findError } = await supabase
     .from("driver_credentials")
     .select("id")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  // A failed read is ours, not "that document is gone".
+  if (findError) redirect(`/team/licences?error=${errorCode(findError, "app/team/licences/actions:removeDriverCredential")}`);
   if (!found) bounce("credential-missing");
 
   const { error } = await supabase

@@ -128,21 +128,24 @@ export async function adoptSuggested(formData: FormData) {
   if (!id || isAdmin || !farmId) redirect("/partners?error=No+farm");
 
   const supabase = await createClient();
-  const { data: src } = await supabase
+  const { data: src, error: srcError } = await supabase
     .from("partners")
     .select("name, kind, phone, whatsapp, email, area, notes")
     .eq("id", id)
     .is("farm_id", null)
     .maybeSingle();
+  if (srcError) redirect(`/partners?error=${errorCode(srcError, "app/partners/actions:adoptSuggested:source")}`);
   if (!src) redirect("/partners?error=Suggested+partner+not+found");
 
   // Already copied? The page hides the button for a match, and this refuses a second
   // tap (or a stale tab) rather than filing a duplicate contractor.
-  const { data: own } = await supabase
+  const { data: own, error: ownError } = await supabase
     .from("partners")
     .select("name, phone")
     .eq("farm_id", farmId)
     .is("deleted_at", null);
+  // A failed read is not "no match": copying on it would file the duplicate this check stops.
+  if (ownError) redirect(`/partners?error=${errorCode(ownError, "app/partners/actions:adoptSuggested:own")}`);
   const srcKey = partnerMatchKey(src.name, src.phone);
   const ownRows = (own ?? []) as { name: string; phone: string | null }[];
   if (ownRows.some((p) => partnerMatchKey(p.name, p.phone) === srcKey)) {
@@ -216,11 +219,12 @@ export async function inviteContractor(formData: FormData) {
 
       // Load the partner through RLS (guarantees it belongs to this farm).
       const rls = await createClient();
-      const { data: partner } = await rls
+      const { data: partner, error: partnerError } = await rls
         .from("partners")
         .select("id, farm_id, name, kind, phone, whatsapp, email, area, workshop_id")
         .eq("id", partnerId)
         .maybeSingle();
+      if (partnerError) redirect(`/partners?error=${errorCode(partnerError, "app/partners/actions:inviteContractor:partner")}`);
       if (!partner || partner.farm_id !== farmId) {
         redirect("/partners?error=Partner+not+found");
       }
@@ -231,7 +235,7 @@ export async function inviteContractor(formData: FormData) {
       // 1) Workshop, reuse the linked one, or create it with the partner's classification.
       let workshopId = partner.workshop_id as string | null;
       if (workshopId) {
-        await svc
+        const { error: refreshError } = await svc
           .from("workshops")
           .update({
             name,
@@ -242,10 +246,14 @@ export async function inviteContractor(formData: FormData) {
             area: partner.area,
           })
           .eq("id", workshopId);
+        // Nothing new exists yet, so a redirect is safe: the retry runs this again.
+        if (refreshError) redirect(`/partners?error=${errorCode(refreshError, "app/partners/actions:inviteContractor:workshop")}`);
       } else {
         // The new workshop takes the farm's test mark (20261014120000): a test farm's contractor
         // is a test workshop, which the fence then lets it link with.
-        const { data: farmMark } = await svc.from("farms").select("is_test").eq("id", farmId).maybeSingle();
+        const { data: farmMark, error: markError } = await svc.from("farms").select("is_test").eq("id", farmId).maybeSingle();
+        // A failed read would mark a test farm's contractor as real, across the fence.
+        if (markError) redirect(`/partners?error=${errorCode(markError, "app/partners/actions:inviteContractor:test-mark")}`);
         const { data: ws, error: wErr } = await svc
           .from("workshops")
           .insert({
@@ -265,12 +273,14 @@ export async function inviteContractor(formData: FormData) {
       }
 
       // 2) Active workshop_link farm ↔ workshop (idempotent; re-activate if revoked).
-      const { data: existingLink } = await svc
+      const { data: existingLink, error: existingError } = await svc
         .from("workshop_links")
         .select("id, status")
         .eq("workshop_id", workshopId)
         .eq("farm_id", farmId)
         .maybeSingle();
+      // The workshop may exist from here on: return, never redirect.
+      if (existingError) return `/partners?error=${errorCode(existingError, "app/partners/actions:inviteContractor:link-read")}`;
       if (!existingLink) {
         const { error: lErr } = await svc
           .from("workshop_links")
@@ -278,7 +288,9 @@ export async function inviteContractor(formData: FormData) {
         // The workshop exists from here on: return (runOnce records it), never redirect.
         if (lErr) return `/partners?error=${errorCode(lErr, "app/partners/actions:inviteContractor")}`;
       } else if (existingLink.status !== "active") {
-        await svc.from("workshop_links").update({ status: "active" }).eq("id", existingLink.id);
+        const { error: reactivateError } = await svc.from("workshop_links").update({ status: "active" }).eq("id", existingLink.id);
+        // Still revoked, the contractor would get a login to a farm they cannot see.
+        if (reactivateError) return `/partners?error=${errorCode(reactivateError, "app/partners/actions:inviteContractor:reactivate")}`;
       }
 
       // 3) Contractor auth user (confirmed) + a workshop-role profile. createUser fails
@@ -292,7 +304,13 @@ export async function inviteContractor(formData: FormData) {
       const { url, userId, error: linkErr } = await issueLoginUrl(svc, email, origin);
       const uid = created.data?.user?.id ?? userId;
       if (uid) {
-        const { data: prof } = await svc.from("users").select("id").eq("id", uid).maybeSingle();
+        const { data: prof, error: profReadError } = await svc.from("users").select("id").eq("id", uid).maybeSingle();
+        // Unread is not "no profile": say the login could not be made, as for a failed insert.
+        if (profReadError) {
+          captureError(profReadError, { where: "partners:invite:profile-read" });
+          revalidatePath("/partners");
+          return "/partners?linkerror=1";
+        }
         if (!prof) {
           const { error: profileError } = await svc.from("users").insert({
             id: uid,
@@ -342,11 +360,12 @@ export async function sendLoginUrl(formData: FormData) {
       if (!email || !email.includes("@")) redirect("/partners?error=A+valid+email+is+required");
 
       const rls = await createClient();
-      const { data: partner } = await rls
+      const { data: partner, error: partnerError } = await rls
         .from("partners")
         .select("id, farm_id, workshop_id")
         .eq("id", partnerId)
         .maybeSingle();
+      if (partnerError) redirect(`/partners?error=${errorCode(partnerError, "app/partners/actions:sendLoginUrl")}`);
       if (!partner || partner.farm_id !== farmId || !partner.workshop_id) {
         redirect("/partners?error=This+partner+is+not+connected+yet");
       }
@@ -429,12 +448,15 @@ export async function approveLinkRequest(formData: FormData) {
    * write it, but this farm's approval is precisely the event that makes the binding true.
    */
   const svc = createServiceClient();
-  await svc
+  const { error: bindError } = await svc
     .from("partner_clients")
     .update({ farm_id: farmId, link_status: "linked", linked_at: new Date().toISOString() })
     .eq("workshop_id", workshopId)
     .eq("requested_farm_id", farmId)
     .is("farm_id", null);
+  // Reported, not swallowed. The link is active either way and the request has left the
+  // farmer's screen, so a "try again" would offer a retry that is not there.
+  if (bindError) captureError(bindError, { where: "partners:approve:bind" });
 
   revalidatePath("/partners");
   // `accepted`, not `connected`: no login link follows an approval, and the invite's
@@ -449,20 +471,25 @@ export async function declineLinkRequest(formData: FormData) {
   if (!workshopId) redirect("/partners?error=missing");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("workshop_links")
     .update({ status: "revoked" })
     .eq("workshop_id", workshopId)
     .eq("farm_id", farmId)
     .eq("status", "pending");
+  // Unrevoked, the request is still there to be approved: "declined" would be false.
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:declineLinkRequest")}`);
 
   const svc = createServiceClient();
-  await svc
+  const { error: markError } = await svc
     .from("partner_clients")
     .update({ link_status: "declined" })
     .eq("workshop_id", workshopId)
     .eq("requested_farm_id", farmId)
     .is("farm_id", null);
+  // The decline itself stands and has left the screen; we hear that the partner's own
+  // record still reads as asked.
+  if (markError) captureError(markError, { where: "partners:decline:mark" });
 
   revalidatePath("/partners");
   redirect("/partners?declined=1");
@@ -509,11 +536,14 @@ export async function revokePartnerAccess(formData: FormData) {
   if (!workshopId) redirect("/partners?error=missing");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("workshop_links")
     .update({ status: "revoked" })
     .eq("workshop_id", workshopId)
     .eq("farm_id", farmId);
+  // "Disconnected" over a failed revoke would leave a contractor with access the farmer
+  // believes is gone.
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:revokePartnerAccess")}`);
 
   revalidatePath("/partners");
   redirect("/partners?disconnected=1");

@@ -2,6 +2,7 @@ import { errorMessage } from "@/lib/errors";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must, mustAll, soft } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import {
@@ -63,7 +64,11 @@ export default async function FarmDetailPage({
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const { data: farmData } = await supabase.from("farms").select("id, name, plan, billing_period, asset_count, status, created_at, settings, is_test").eq("id", id).maybeSingle();
+  // A failed read is the error screen, not "not found".
+  const farmData = must(
+    await supabase.from("farms").select("id, name, plan, billing_period, asset_count, status, created_at, settings, is_test").eq("id", id).maybeSingle(),
+    "admin-farm:farm",
+  );
   const farm = farmData as Farm | null;
   if (!farm) notFound();
   // The farm's own "language for new people" (/settings), read as /team and
@@ -76,14 +81,21 @@ export default async function FarmDetailPage({
   const perVehicle = perVehicleMonthlyCents(farmPlan, farmPeriod);
   const subtotal = subscriptionSubtotalCents(farmPlan, farmPeriod, farm.asset_count);
 
-  const [{ data: usersData }, { data: accessData }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("users").select("id, name, role, email, active").eq("farm_id", id).order("role"),
     supabase.from("audit_log").select("id, user_id, action, at, ip, geo_country, geo_region, geo_city, user_agent").eq("entity", "admin_farm_access").eq("farm_id", id).order("at", { ascending: false }).limit(10),
   ]);
+  // A failed read showed "No users yet" and "No support access recorded", the second on
+  // the audit trail of who has looked inside a customer's books.
+  mustAll(results, "admin-farm:detail");
+  const [{ data: usersData }, { data: accessData }] = results;
   const users = (usersData as FarmUser[] | null) ?? [];
   const access = (accessData as Access[] | null) ?? [];
   const adminIds = [...new Set(access.map((a) => a.user_id).filter(Boolean) as string[])];
-  const { data: adminUsers } = adminIds.length ? await supabase.from("users").select("id, name").in("id", adminIds) : { data: [] };
+  // soft: only the names beside the entries, which read "admin" without them.
+  const adminUsers = adminIds.length
+    ? soft(await supabase.from("users").select("id, name").in("id", adminIds), "admin-farm:admin-names")
+    : [];
   const adminName = Object.fromEntries(((adminUsers as { id: string; name: string }[] | null) ?? []).map((u) => [u.id, u.name]));
 
   return (

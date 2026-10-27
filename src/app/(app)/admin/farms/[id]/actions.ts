@@ -8,6 +8,7 @@ import { requireRole, SUPPORT_FARM_COOKIE } from "@/lib/auth";
 import { isPlan, isBillingPeriod } from "@/lib/entitlements";
 import { getBillingAdapter } from "@/lib/billing";
 import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 const STATUSES = ["trial", "active", "suspended", "cancelled"];
 
@@ -34,7 +35,9 @@ export async function updateFarm(formData: FormData) {
   // Payment seam (deferred): reconcile the subscription with the billing provider. The
   // no-op adapter returns { deferred: true } and moves no money, this is the exact
   // lifecycle point where a real provider will plug in after research.
-  const { data: after } = await supabase.from("farms").select("asset_count").eq("id", id).maybeSingle();
+  const { data: after, error: afterError } = await supabase.from("farms").select("asset_count").eq("id", id).maybeSingle();
+  // Unread is not zero vehicles. Saving again is safe: the update above repeats as is.
+  if (afterError) redirect(`/admin/farms/${id}?error=${errorCode(afterError, "app/admin/farms/[id]/actions:updateFarm:asset-count")}`);
   await getBillingAdapter().syncSubscription({
     farmId: id,
     plan,
@@ -71,7 +74,9 @@ export async function impersonateFarm(formData: FormData) {
 
   // Only ever pin a farm that exists, a forged cookie is harmless but a real id keeps
   // the banner and the audit trail honest.
-  const { data: farm } = await supabase.from("farms").select("id").eq("id", id).maybeSingle();
+  const { data: farm, error: farmError } = await supabase.from("farms").select("id").eq("id", id).maybeSingle();
+  // A failed read is ours, not "Farm not found".
+  if (farmError) redirect(`/admin/farms/${id}?error=${errorCode(farmError, "app/admin/farms/[id]/actions:impersonateFarm:farm")}`);
   if (!farm) redirect("/admin/farms?error=Farm+not+found");
 
   const { error } = await supabase.rpc("log_admin_farm_access", { p_farm: id, p_action: "impersonate" });
@@ -101,8 +106,10 @@ export async function exitSupportMode() {
   if (id) {
     const supabase = await createClient();
     // Best-effort: the exit must clear the cookie even if the log write fails, or an
-    // admin could be stuck in a farm by a transient error.
-    await supabase.rpc("log_admin_farm_access", { p_farm: id, p_action: "exit" });
+    // admin could be stuck in a farm by a transient error. Reported, because the audit
+    // trail now shows a session with no end.
+    const { error } = await supabase.rpc("log_admin_farm_access", { p_farm: id, p_action: "exit" });
+    if (error) captureError(error, { where: "admin-farm:exit-support:log" });
   }
 
   store.set(SUPPORT_FARM_COOKIE, "", {

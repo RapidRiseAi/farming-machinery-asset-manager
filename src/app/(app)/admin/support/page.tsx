@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { dateTime } from "@/lib/format";
@@ -73,16 +74,21 @@ export default async function AdminSupportPage() {
   const locale = profile.lang;
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("support_tickets")
-    .select(
-      "id, kind, status, subject, farm_id, external_ref, due_at, escalated_at, opened_at, resolved_at, evidence",
-    )
-    // Open cases first, then by deadline, a case with a clock outranks one without.
-    .order("resolved_at", { ascending: true, nullsFirst: true })
-    .order("due_at", { ascending: true, nullsFirst: false })
-    .order("opened_at", { ascending: false })
-    .limit(100);
+  // must: a failed read rendered "all clear" on the one screen that exists so a dispute
+  // with a 48-hour clock is never invisible.
+  const data = must(
+    await supabase
+      .from("support_tickets")
+      .select(
+        "id, kind, status, subject, farm_id, external_ref, due_at, escalated_at, opened_at, resolved_at, evidence",
+      )
+      // Open cases first, then by deadline, a case with a clock outranks one without.
+      .order("resolved_at", { ascending: true, nullsFirst: true })
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("opened_at", { ascending: false })
+      .limit(100),
+    "admin-support:tickets",
+  );
 
   const tickets = (data as TicketRow[] | null) ?? [];
   const open = tickets.filter((x) => x.status === "open" || x.status === "waiting");

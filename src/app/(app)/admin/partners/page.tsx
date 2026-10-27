@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import {
@@ -59,7 +60,7 @@ export default async function AdminPartnersPage({
   // Links and documents are counted by the database, one row per partner: counting rows
   // here stopped at the API's thousandth document on the platform (20261013090000).
   type Activity = { workshop_id: string; active_clients: number; documents: number };
-  const [{ data: wData }, { data: activityData }] = await Promise.all([
+  const results = await Promise.all([
     readAll(() => supabase
       .from("workshops")
       .select("id, name, trading_name, kind, plan, area, created_at")
@@ -67,6 +68,9 @@ export default async function AdminPartnersPage({
       .order("created_at", { ascending: false })),
     readAll<Activity>(() => supabase.rpc("admin_partner_activity"), { key: "workshop_id" }),
   ]);
+  // A failed read showed "No partners yet", or every partner with no clients or documents.
+  mustAll(results, "admin-partners:list");
+  const [{ data: wData }, { data: activityData }] = results;
 
   const partners = (wData as Row[] | null) ?? [];
   const activity = (activityData as Activity[] | null) ?? [];

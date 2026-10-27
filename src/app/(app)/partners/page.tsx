@@ -2,6 +2,7 @@ import { requireProfile } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
 import { telHref, waHref, mailtoHref } from "@/lib/contact";
@@ -167,7 +168,8 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   partnersQuery = viewingFarmId
     ? partnersQuery.or(`farm_id.is.null,farm_id.eq.${viewingFarmId}`)
     : partnersQuery.is("farm_id", null);
-  const { data } = await partnersQuery;
+  // A failed read showed an empty directory and offered every suggestion as not yet added.
+  const data = must(await partnersQuery, "partners:directory");
   const all = (data as Partner[] | null) ?? [];
   const yours = all.filter((p) => p.farm_id === viewingFarmId);
   const suggested = all.filter((p) => p.farm_id == null);
@@ -197,25 +199,33 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
     filter a request for another site would render as actionable here and the approval
     would write against the wrong farm.
   */
-  const { data: reqData } = canInvite && viewingFarmId
-    ? await supabase
-        .from("workshop_links")
-        .select("workshop_id, farm_id, status, created_at, workshops(id, name, trading_name, kind, phone, whatsapp, email, area)")
-        .eq("status", "pending")
-        .eq("farm_id", viewingFarmId)
-        .is("deleted_at", null)
-    : { data: null };
+  // must: unread, a contractor's request to connect would simply not be on screen.
+  const reqData = canInvite && viewingFarmId
+    ? must(
+        await supabase
+          .from("workshop_links")
+          .select("workshop_id, farm_id, status, created_at, workshops(id, name, trading_name, kind, phone, whatsapp, email, area)")
+          .eq("status", "pending")
+          .eq("farm_id", viewingFarmId)
+          .is("deleted_at", null),
+        "partners:requests",
+      )
+    : null;
 
   // Connected contractors and what each may see (F16). Same farm scoping as the
-  // requests above, this is a decision about the site you are looking at.
-  const { data: accessData } = canInvite && viewingFarmId
-    ? await supabase
-        .from("workshop_links")
-        .select("workshop_id, farm_id, see_all_vehicles, see_service_history, see_costs, see_team, workshops(id, name, trading_name)")
-        .eq("status", "active")
-        .eq("farm_id", viewingFarmId)
-        .is("deleted_at", null)
-    : { data: null };
+  // requests above, this is a decision about the site you are looking at. A failed read
+  // would hide who has access and the controls that take it away.
+  const accessData = canInvite && viewingFarmId
+    ? must(
+        await supabase
+          .from("workshop_links")
+          .select("workshop_id, farm_id, see_all_vehicles, see_service_history, see_costs, see_team, workshops(id, name, trading_name)")
+          .eq("status", "active")
+          .eq("farm_id", viewingFarmId)
+          .is("deleted_at", null),
+        "partners:access",
+      )
+    : null;
 
   const accessRows: PartnerAccess[] = ((accessData ?? []) as unknown as {
     workshop_id: string; farm_id: string;

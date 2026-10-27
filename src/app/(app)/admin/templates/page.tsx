@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { MACHINE_TYPES, TYPE_LABELS } from "@/lib/machine-options";
 import { createTemplate, updateTemplate, deleteTemplate } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,7 +50,11 @@ export default async function TemplatesPage({
   const supabase = await createClient();
 
   // Global library templates (farm_id null).
-  const { data } = await supabase.from("service_templates").select("id, name, machine_type, lines").is("farm_id", null).is("deleted_at", null).order("name");
+  // A failed read showed "No global templates yet" and invited a duplicate library.
+  const data = must(
+    await supabase.from("service_templates").select("id, name, machine_type, lines").is("farm_id", null).is("deleted_at", null).order("name"),
+    "admin-templates:list",
+  );
   const templates = (data as Template[] | null) ?? [];
 
   const typeSelect = (name: string, def: string) => (

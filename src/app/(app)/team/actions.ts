@@ -18,6 +18,7 @@ import { APP_NAME } from "@/lib/env";
 import { runOnce } from "@/lib/request-claim";
 import { errorCode } from "@/lib/action-errors";
 import { captureError } from "@/lib/observability";
+import { soft } from "@/lib/supabase/must";
 
 const FARM_ROLES = ["manager", "mechanic", "operator"];
 const ALL_ROLES = ["owner", "manager", "mechanic", "operator", "workshop", "rr_admin"];
@@ -108,7 +109,8 @@ export async function inviteUser(formData: FormData) {
       if (decision.outcome === "switched_off") redirect(`${back}?error=invite-switched-off`);
       if (decision.outcome === "none") redirect(`${back}?error=invite-failed`);
 
-      const { data: farm } = await svc.from("farms").select("name").eq("id", farmId).maybeSingle();
+      // soft: only the email's wording depends on it, and they are on the team already.
+      const farm = soft(await svc.from("farms").select("name").eq("id", farmId).maybeSingle(), "team:invite:farm-name");
       const sent = await sendInviteEmail(svc, {
         email,
         name: decision.name ?? name,
@@ -147,12 +149,14 @@ export async function erasePerson(formData: FormData) {
   const supabase = await createClient();
   // Erasure deactivates the whole identity, not one membership. It therefore remains a
   // primary-farm action; a manager of only a secondary site must ask the primary farm.
-  const { data: subject } = await supabase
+  const { data: subject, error: subjectError } = await supabase
     .from("users")
     .select("id")
     .eq("id", id)
     .eq("farm_id", farmId)
     .maybeSingle();
+  // A failed read is ours, not "another primary farm".
+  if (subjectError) redirect(`${back}?error=${errorCode(subjectError, "app/team/actions:erasePerson:subject")}`);
   if (!subject) redirect(`${back}?error=${encodeURIComponent("This account belongs to another primary farm.")}`);
 
   const { error } = await supabase.rpc("erase_personal_data", { p_user: id, p_reason: reason });
@@ -222,7 +226,7 @@ async function requireGrantee(
   if (!userId || userId === actorId) {
     redirect(`${back}?error=${encodeURIComponent("You cannot grant permissions to yourself.")}`);
   }
-  const [{ data: primaryData }, { data: membershipData }] = await Promise.all([
+  const [{ data: primaryData, error: primaryError }, { data: membershipData, error: membershipError }] = await Promise.all([
     supabase
       .from("users")
       .select("id, active, role")
@@ -238,6 +242,9 @@ async function requireGrantee(
       .is("deleted_at", null)
       .maybeSingle(),
   ]);
+  // Unread is not "not active here", and the role read decides which boxes are skipped.
+  const readError = primaryError ?? membershipError;
+  if (readError) redirect(`${back}?error=${errorCode(readError, "app/team/actions:requireGrantee")}`);
   const primary = primaryData as { active?: boolean; role?: Role } | null;
   const membership = membershipData as { active?: boolean; role?: Role } | null;
   if (!primary?.active && !membership?.active) {
@@ -246,7 +253,11 @@ async function requireGrantee(
   return (membership?.active ? membership.role : primary ? primary.role : membership?.role) ?? null;
 }
 
-/** Open, reopen or revoke one 0507 grant row. Returns an error message, or null. */
+/**
+ * Open, reopen or revoke one 0507 grant row. Returns the `?error=` value, already
+ * URL-encoded, or null. A database failure goes through errorCode, so it is reported and
+ * its raw message never reaches the URL.
+ */
 async function writeGrant(
   supabase: ServerClient,
   { userId, farmId, permission, enabled }: { userId: string; farmId: string; permission: UserPermission; enabled: boolean },
@@ -260,7 +271,7 @@ async function writeGrant(
     .eq("farm_id", farmId)
     .eq("permission", permission)
     .maybeSingle();
-  if (findError) return findError.message;
+  if (findError) return errorCode(findError, "app/team/actions:writeGrant:find");
 
   if (existing) {
     // Already the way it was asked for: nothing to write. The dialog posts every box,
@@ -277,15 +288,15 @@ async function writeGrant(
       .eq("id", existing.id)
       .select("id")
       .maybeSingle();
-    if (error) return error.message;
-    if (!data) return "Permission was not changed.";
+    if (error) return errorCode(error, "app/team/actions:writeGrant:update");
+    if (!data) return encodeURIComponent("Permission was not changed.");
   } else if (enabled) {
     const { error } = await supabase.from("user_permission_grants").insert({
       user_id: userId,
       farm_id: farmId,
       permission,
     });
-    if (error) return error.message;
+    if (error) return errorCode(error, "app/team/actions:writeGrant:insert");
   }
   return null;
 }
@@ -305,7 +316,7 @@ export async function setUserPermission(formData: FormData) {
   const supabase = await createClient();
   await requireGrantee(supabase, { actorId: profile.id, userId, farmId, back });
   const failed = await writeGrant(supabase, { userId, farmId, permission: rawPermission, enabled });
-  if (failed) redirect(`${back}?error=${encodeURIComponent(failed)}`);
+  if (failed) redirect(`${back}?error=${failed}`);
 
   revalidatePath(back);
   redirect(`${back}?permissionSaved=1`);
@@ -334,7 +345,7 @@ export async function setUserPermissions(formData: FormData) {
       permission,
       enabled: formData.get(permission) === "on",
     });
-    if (failed) redirect(`${back}?error=${encodeURIComponent(failed)}`);
+    if (failed) redirect(`${back}?error=${failed}`);
   }
 
   revalidatePath(back);

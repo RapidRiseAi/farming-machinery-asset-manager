@@ -8,6 +8,7 @@ import { parseRandsToCents } from "@/lib/money";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireRole } from "@/lib/auth";
 import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 /**
  * A partner's own client book, and the road from it to a real FleetWise farm (F15).
@@ -67,7 +68,7 @@ export async function createClientRecord(formData: FormData) {
   const claimedFarm = String(formData.get("farm_id") ?? "").trim();
   let linkedFarmId: string | null = null;
   if (claimedFarm) {
-    const { data: link } = await supabase
+    const { data: link, error: linkError } = await supabase
       .from("workshop_links")
       .select("farm_id")
       .eq("workshop_id", workshopId)
@@ -75,6 +76,8 @@ export async function createClientRecord(formData: FormData) {
       .eq("status", "active")
       .is("deleted_at", null)
       .maybeSingle();
+    // Unread is not "not connected": saving on it would file the stray unlinked record above.
+    if (linkError) redirect(`/contractor/clients?error=${errorCode(linkError, "app/contractor/clients/actions:createClientRecord:link")}`);
     linkedFarmId = (link as { farm_id: string } | null)?.farm_id ?? null;
   }
 
@@ -137,10 +140,11 @@ export async function removeClientRecord(formData: FormData) {
   const profile = await requireRole(["workshop"]);
   const id = String(formData.get("client_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("partner_clients")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
+  if (error) redirect(`/contractor/clients/${id}?error=${errorCode(error, "app/contractor/clients/actions:removeClientRecord")}`);
   revalidatePath("/contractor/clients");
   redirect("/contractor/clients?removed=1");
 }
@@ -177,11 +181,12 @@ export async function removeClientVehicle(formData: FormData) {
   const clientId = String(formData.get("client_id") ?? "");
   const vehicleId = String(formData.get("vehicle_id") ?? "");
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("partner_client_vehicles")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", vehicleId)
     .eq("client_id", clientId);
+  if (error) redirect(`/contractor/clients/${clientId}?error=${errorCode(error, "app/contractor/clients/actions:removeClientVehicle")}`);
   revalidatePath(`/contractor/clients/${clientId}`);
   redirect(`/contractor/clients/${clientId}`);
 }
@@ -205,11 +210,12 @@ export async function requestClientLink(formData: FormData) {
   const clientId = String(formData.get("client_id") ?? "");
   const supabase = await createClient();
 
-  const { data: clientData } = await supabase
+  const { data: clientData, error: clientError } = await supabase
     .from("partner_clients")
     .select("id, email, farm_id, link_status")
     .eq("id", clientId)
     .maybeSingle();
+  if (clientError) redirect(`/contractor/clients/${clientId}?error=${errorCode(clientError, "app/contractor/clients/actions:requestClientLink:client")}`);
   const client = clientData as { id: string; email: string | null; farm_id: string | null; link_status: string } | null;
   if (!client) redirect("/contractor/clients?error=not-found");
   if (client.farm_id) redirect(`/contractor/clients/${clientId}?error=already-linked`);
@@ -218,7 +224,7 @@ export async function requestClientLink(formData: FormData) {
   if (!email) redirect(`/contractor/clients/${clientId}?error=need-email`);
 
   const svc = createServiceClient();
-  const { data: userData } = await svc
+  const { data: userData, error: userError } = await svc
     .from("users")
     .select("farm_id, role")
     .ilike("email", email)
@@ -226,6 +232,9 @@ export async function requestClientLink(formData: FormData) {
     .eq("active", true)
     .is("deleted_at", null)
     .limit(1);
+  // A failed lookup is not "not on FleetWise": the request would never reach a farm that
+  // is. Saying so reveals nothing about the address, only that we failed.
+  if (userError) redirect(`/contractor/clients/${clientId}?error=${errorCode(userError, "app/contractor/clients/actions:requestClientLink:lookup")}`);
 
   const match = ((userData ?? []) as { farm_id: string | null }[])[0];
 
@@ -236,17 +245,18 @@ export async function requestClientLink(formData: FormData) {
      * relationship could never be reopened: the insert silently did nothing while the
      * screen said "asked", and no request ever reached the farm.
      */
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("workshop_links")
       .select("status")
       .eq("workshop_id", workshopId)
       .eq("farm_id", match.farm_id)
       .maybeSingle();
+    if (existingError) redirect(`/contractor/clients/${clientId}?error=${errorCode(existingError, "app/contractor/clients/actions:requestClientLink:existing")}`);
     const current = (existing as { status: string } | null)?.status ?? null;
 
     if (current === "active") {
       // Already connected, the request is moot; bind the record and say so.
-      await supabase
+      const { error: bindError } = await supabase
         .from("partner_clients")
         .update({
           farm_id: match.farm_id,
@@ -254,6 +264,7 @@ export async function requestClientLink(formData: FormData) {
           linked_at: new Date().toISOString(),
         })
         .eq("id", clientId);
+      if (bindError) redirect(`/contractor/clients/${clientId}?error=${errorCode(bindError, "app/contractor/clients/actions:requestClientLink:bind")}`);
       revalidatePath(`/contractor/clients/${clientId}`);
       redirect(`/contractor/clients/${clientId}?connected=1`);
     }
@@ -262,18 +273,21 @@ export async function requestClientLink(formData: FormData) {
     // reopening one is safe. A revoked row is set back to pending so a relationship can
     // be restarted; the farm still has to approve it.
     if (current === null) {
-      await supabase
+      const { error: raiseError } = await supabase
         .from("workshop_links")
         .insert({ workshop_id: workshopId, farm_id: match.farm_id, status: "pending" });
+      // "Asked" over a failed insert is the silent no-request this action was rewritten to end.
+      if (raiseError) redirect(`/contractor/clients/${clientId}?error=${errorCode(raiseError, "app/contractor/clients/actions:requestClientLink:raise")}`);
     } else if (current === "revoked") {
-      await supabase
+      const { error: reopenError } = await supabase
         .from("workshop_links")
         .update({ status: "pending" })
         .eq("workshop_id", workshopId)
         .eq("farm_id", match.farm_id);
+      if (reopenError) redirect(`/contractor/clients/${clientId}?error=${errorCode(reopenError, "app/contractor/clients/actions:requestClientLink:reopen")}`);
     }
 
-    await supabase
+    const { error: markError } = await supabase
       .from("partner_clients")
       .update({
         link_status: "requested",
@@ -283,13 +297,16 @@ export async function requestClientLink(formData: FormData) {
         requested_farm_id: match.farm_id,
       })
       .eq("id", clientId);
+    // Without `requested_farm_id` the farm's approval cannot bind this record.
+    if (markError) redirect(`/contractor/clients/${clientId}?error=${errorCode(markError, "app/contractor/clients/actions:requestClientLink:mark-farm")}`);
   } else {
     // Not on FleetWise (or not an owner/manager). Record that we asked, so the partner's
     // own list shows they have chased it, and hand them a link to share.
-    await supabase
+    const { error: markError } = await supabase
       .from("partner_clients")
       .update({ link_status: "requested", requested_at: new Date().toISOString() })
       .eq("id", clientId);
+    if (markError) redirect(`/contractor/clients/${clientId}?error=${errorCode(markError, "app/contractor/clients/actions:requestClientLink:mark")}`);
   }
 
   revalidatePath(`/contractor/clients/${clientId}`);
@@ -312,21 +329,25 @@ export async function syncClientVehicles(formData: FormData) {
   const clientId = String(formData.get("client_id") ?? "");
   const supabase = await createClient();
 
-  const { data: clientData } = await supabase
+  const { data: clientData, error: clientError } = await supabase
     .from("partner_clients")
     .select("id, farm_id, synced_at")
     .eq("id", clientId)
     .maybeSingle();
+  if (clientError) redirect(`/contractor/clients/${clientId}?error=${errorCode(clientError, "app/contractor/clients/actions:syncClientVehicles:client")}`);
   const client = clientData as { id: string; farm_id: string | null; synced_at: string | null } | null;
   if (!client?.farm_id) redirect(`/contractor/clients/${clientId}?error=not-linked`);
   if (client.synced_at) redirect(`/contractor/clients/${clientId}?error=already-synced`);
 
-  const { data: vData } = await supabase
+  const { data: vData, error: vError } = await supabase
     .from("partner_client_vehicles")
     .select("id, name, make, model, reg_no, serial_no, year, notes")
     .eq("client_id", clientId)
     .is("machine_id", null)
     .is("deleted_at", null);
+  // Unread is not "nothing to copy": with no failures counted, `synced_at` below would
+  // close the offer on a fleet that never moved.
+  if (vError) redirect(`/contractor/clients/${clientId}?error=${errorCode(vError, "app/contractor/clients/actions:syncClientVehicles:vehicles")}`);
 
   const vehicles = (vData ?? []) as {
     id: string; name: string; make: string | null; model: string | null;
@@ -373,10 +394,13 @@ export async function syncClientVehicles(formData: FormData) {
       failed += 1;
       continue;
     }
-    await supabase
+    const { error: traceError } = await supabase
       .from("partner_client_vehicles")
       .update({ machine_id: (created as { id: string }).id })
       .eq("id", v.id);
+    // The machine exists, so it counts as copied; counting it failed would keep the offer
+    // open and a second press would copy it again. We hear that the trace is missing.
+    if (traceError) captureError(traceError, { where: "contractor-clients:sync:trace" });
     copied += 1;
   }
 
@@ -387,10 +411,13 @@ export async function syncClientVehicles(formData: FormData) {
    * the partner vehicles they believed they had moved, with no way back to the button.
    */
   if (failed === 0) {
-    await supabase
+    const { error: closeError } = await supabase
       .from("partner_clients")
       .update({ synced_at: new Date().toISOString() })
       .eq("id", clientId);
+    // The vehicles did move, so the count stands. Left open, the offer only finds the
+    // ones not yet copied, so it cannot duplicate; we hear of it all the same.
+    if (closeError) captureError(closeError, { where: "contractor-clients:sync:close" });
   }
 
   revalidatePath(`/contractor/clients/${clientId}`);

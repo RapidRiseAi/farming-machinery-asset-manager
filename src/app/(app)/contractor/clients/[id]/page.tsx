@@ -3,6 +3,7 @@ import { errorMessage } from "@/lib/errors";
 import { notFound, redirect } from "next/navigation";
 import { requireProfile, homePathFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must, mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { shortDate, num } from "@/lib/format";
 import { rands } from "@/lib/money";
@@ -64,16 +65,20 @@ export default async function PartnerClientPage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("partner_clients")
-    .select("*")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  // A failed read is the error screen, not "not found".
+  const data = must(
+    await supabase
+      .from("partner_clients")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "contractor-client:record",
+  );
   const client = data as ClientRow | null;
   if (!client) notFound();
 
-  const [{ data: vData }, { data: farmData }, { data: expData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("partner_client_vehicles")
       .select("id, name, make, model, reg_no, serial_no, year, notes, machine_id")
@@ -82,7 +87,7 @@ export default async function PartnerClientPage({
       .order("name"),
     client.farm_id
       ? supabase.from("farms").select("id, name").eq("id", client.farm_id).maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     // What this customer owes against the limit filed below (0500). Runs under the
     // caller's own RLS, a rival workshop passing this id reads zeros.
     supabase.rpc("partner_client_exposure", {
@@ -90,6 +95,9 @@ export default async function PartnerClientPage({
       p_client: id,
     }),
   ]);
+  // A failed read showed no vehicles to copy and hid the over-limit warning.
+  mustAll(results, "contractor-client:detail");
+  const [{ data: vData }, { data: farmData }, { data: expData }] = results;
 
   const vehicles = (vData ?? []) as Vehicle[];
   const farm = farmData as { id: string; name: string } | null;

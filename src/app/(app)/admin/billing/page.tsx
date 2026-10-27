@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { must, mustAll } from "@/lib/supabase/must";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -129,27 +130,32 @@ export default async function AdminBillingPage({
   const savedHere = savedNotice(sp.saved);
 
   const supabase = await createClient();
-  const [{ data: settingsData }, { data: priceData }, { data: subData }, { data: farmData }] =
-    await Promise.all([
-      supabase.from("billing_settings").select(SETTINGS_COLUMNS).eq("singleton", true).maybeSingle(),
-      supabase
-        .from("billing_price_versions")
-        .select(PRICE_COLUMNS)
-        .order("version_label", { ascending: true }),
-      supabase
-        .from("billing_subscriptions")
-        .select(SUBSCRIPTION_COLUMNS)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false }),
-      supabase.from("farms").select(`${FARM_BILLING_COLUMNS}, is_test`).order("name", { ascending: true }),
-    ]);
+  const listResults = await Promise.all([
+    supabase.from("billing_settings").select(SETTINGS_COLUMNS).eq("singleton", true).maybeSingle(),
+    supabase
+      .from("billing_price_versions")
+      .select(PRICE_COLUMNS)
+      .order("version_label", { ascending: true }),
+    supabase
+      .from("billing_subscriptions")
+      .select(SUBSCRIPTION_COLUMNS)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    supabase.from("farms").select(`${FARM_BILLING_COLUMNS}, is_test`).order("name", { ascending: true }),
+  ]);
+  // A failed read here showed "no subscriptions" and "no price list", and offered to start
+  // a subscription for a farm that already pays.
+  mustAll(listResults, "admin-billing:list");
+  const [{ data: settingsData }, { data: priceData }, { data: subData }, { data: farmData }] = listResults;
 
   // Has the schedule actually been firing? The nightly pass can be inferred from the
   // notifications it writes; the billing pass writes NOTHING when nothing is due, so
   // until the ledger existed a cron that had fired every night and one that had never
   // fired produced identical evidence (20260912120000). SECURITY INVOKER the whole way
   // down, so a non-admin gets an empty list from RLS rather than from a check here.
-  const { data: cronData } = await supabase.rpc("cron_health");
+  // must, not soft: a failed read rendered as "nothing has run yet", which is the very
+  // doubt this card exists to settle.
+  const cronData = must(await supabase.rpc("cron_health"), "admin-billing:cron-health");
   const cron = (cronData as CronHealthRow[] | null) ?? [];
 
   const settings = (settingsData as BillingSettingsRow | null) ?? null;
@@ -170,7 +176,7 @@ export default async function AdminBillingPage({
   let attempts: AttemptRow[] = [];
   let payments: PaymentRow[] = [];
   if (selected) {
-    const [{ data: i }, { data: a }, { data: p }] = await Promise.all([
+    const detailResults = await Promise.all([
       supabase
         .from("billing_invoices")
         .select(INVOICE_COLUMNS)
@@ -192,6 +198,10 @@ export default async function AdminBillingPage({
         .order("paid_at", { ascending: false })
         .limit(12),
     ]);
+    // The retry offer is computed from these: a failed attempts read hid an unresolved
+    // charge and offered to take the money again.
+    mustAll(detailResults, "admin-billing:detail");
+    const [{ data: i }, { data: a }, { data: p }] = detailResults;
     invoices = (i as InvoiceRow[] | null) ?? [];
     attempts = (a as AttemptRow[] | null) ?? [];
     payments = (p as PaymentRow[] | null) ?? [];

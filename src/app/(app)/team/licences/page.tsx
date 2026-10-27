@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { homePathFor, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { must } from "@/lib/supabase/must";
 import { farmPermissionState } from "@/lib/permissions";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
@@ -77,13 +78,18 @@ export default async function DriverLicencesPage({
   if (!farmId || !canManage) redirect(`${homePathFor(profile.role)}?denied=1`);
 
   const supabase = await createClient();
-  const { data: credentialData } = await supabase
-    .from("driver_credentials")
-    .select(
-      "id, farm_id, user_id, person_name, type, code, number, issued_on, expiry_date, reminder_lead_days, notes",
-    )
-    .eq("farm_id", farmId)
-    .is("deleted_at", null);
+  // must: a failed read said "0 expired, 0 expiring", on the screen a farm checks before a
+  // truck is loaded.
+  const credentialData = must(
+    await supabase
+      .from("driver_credentials")
+      .select(
+        "id, farm_id, user_id, person_name, type, code, number, issued_on, expiry_date, reminder_lead_days, notes",
+      )
+      .eq("farm_id", farmId)
+      .is("deleted_at", null),
+    "licences:credentials",
+  );
 
   const credentials = (credentialData as CredentialRow[] | null) ?? [];
 
@@ -96,13 +102,17 @@ export default async function DriverLicencesPage({
    * directory scan.
    */
   const service = createServiceClient();
-  const { data: peopleData } = await service
-    .from("users")
-    .select("id, name, email, role")
-    .eq("farm_id", farmId)
-    .eq("active", true)
-    .is("deleted_at", null)
-    .order("name", { ascending: true });
+  // The add form's list of people and the names on every row come from this.
+  const peopleData = must(
+    await service
+      .from("users")
+      .select("id, name, email, role")
+      .eq("farm_id", farmId)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .order("name", { ascending: true }),
+    "licences:people",
+  );
   const people = (peopleData ?? []) as { id: string; name: string | null; email: string | null; role: string }[];
   const nameById = new Map(people.map((p) => [p.id, p.name?.trim() || p.email || ""]));
 

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireProfile, workshopPlan } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 import { rands } from "@/lib/money";
 import { ledgerSign, isNote } from "@/lib/partner-docs";
 import { t } from "@/lib/i18n";
@@ -95,11 +96,16 @@ export default async function ContractorDashboardPage({
   const supabase = await createClient();
 
   // The workshop itself (kind drives the tailored view; plan drives premium extras).
-  const { data: wsData } = await supabase
-    .from("workshops")
-    .select("id, name, kind")
-    .eq("id", profile.workshop_id)
-    .maybeSingle();
+  // must: a failed read fell back to kind "other", whose focus filter can hide the very
+  // requests this trade is sent.
+  const wsData = must(
+    await supabase
+      .from("workshops")
+      .select("id, name, kind")
+      .eq("id", profile.workshop_id)
+      .maybeSingle(),
+    "contractor:workshop",
+  );
   const workshop = (wsData as { id: string; name: string; kind: string } | null) ?? { id: profile.workshop_id, name: "", kind: "other" };
   const view = contractorView(workshop.kind);
   const { plan } = await workshopPlan(profile);
@@ -110,27 +116,30 @@ export default async function ContractorDashboardPage({
   // for a workshop user, so a contractor never sees another workshop's request even on a
   // shared farm. The explicit workshop_id filter is kept (belt-and-suspenders + intent).
   // Together: a contractor sees only its own work, and never an unlinked farm's data.
-  const { data: wrData } = await readAll(() => supabase
-    .from("work_requests_visible")
-    .select("id, farm_id, machine_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
-    .eq("workshop_id", profile.workshop_id!)
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false }));
+  const wrData = must(
+    await readAll(() => supabase
+      .from("work_requests_visible")
+      .select("id, farm_id, machine_id, kind, status, priority, title, quote_amount_cents, invoice_amount_cents, updated_at, created_at")
+      .eq("workshop_id", profile.workshop_id!)
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false })),
+    "contractor:requests",
+  );
   const all = (wrData as WorkRequest[] | null) ?? [];
 
   const farmIds = [...new Set(all.map((r) => r.farm_id))];
   const machineIds = [...new Set(all.map((r) => r.machine_id))];
 
-  const [{ data: msData }, { data: fmData }, { data: usData }, { data: docData }] = await Promise.all([
+  const results = await Promise.all([
     machineIds.length
       ? supabase.from("machines").select("id, name, type").in("id", machineIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     farmIds.length
       ? supabase.from("farms").select("id, name").in("id", farmIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     farmIds.length
       ? supabase.from("users").select("id, name, farm_id, role, phone, email").in("farm_id", farmIds).in("role", ["owner", "manager"]).is("deleted_at", null)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     // Real money, from the documents that carry it. The analytics used to sum
     // `work_requests.invoice_amount_cents`, the field from before documents existed -
     // so a partner billing entirely through FleetWise documents saw R0 in the panel they
@@ -142,6 +151,9 @@ export default async function ContractorDashboardPage({
       .is("deleted_at", null)
       .not("status", "in", "(draft,void,cancelled,declined,expired)")),
   ]);
+  // A failed read showed "Owed to you R0" and "No contact details" for every client.
+  mustAll(results, "contractor:dashboard");
+  const [{ data: msData }, { data: fmData }, { data: usData }, { data: docData }] = results;
   const docs = (docData as PartnerDoc[] | null) ?? [];
   const machineById = new Map(((msData as Machine[] | null) ?? []).map((m) => [m.id, m]));
   const farmById = new Map(((fmData as Farm[] | null) ?? []).map((f) => [f.id, f]));

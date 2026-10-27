@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
+import { must } from "@/lib/supabase/must";
 import { requireProfile, currentWorkshop, homePathFor } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { num, vatPercent } from "@/lib/format";
@@ -92,11 +93,15 @@ export default async function PartnerSettingsPage({
   let chosenTemplate: string | null = null;
   if (workshop) {
     const supabase = await createClient();
-    const { data } = await supabase
-      .from("workshops")
-      .select("doc_template")
-      .eq("id", workshop.id)
-      .maybeSingle();
+    // must, not soft: unread would state the default template as the one they chose.
+    const data = must(
+      await supabase
+        .from("workshops")
+        .select("doc_template")
+        .eq("id", workshop.id)
+        .maybeSingle(),
+      "contractor-settings:doc-template",
+    );
     chosenTemplate = (data as { doc_template?: string } | null)?.doc_template ?? null;
   }
 

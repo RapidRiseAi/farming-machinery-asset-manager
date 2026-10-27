@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireProfile } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/service";
+import { captureError } from "@/lib/observability";
 import type { AiResult } from "@/lib/ai-usage/results";
 
 /**
@@ -21,6 +22,12 @@ function done(code: AiResult): never {
   redirect(`/admin/ai?ai=${code}`);
 }
 
+/** `done("failed")`, reported first: the page's apology alone told nobody it happened. */
+function failed(error: unknown, where: string): never {
+  captureError(error, { where: `admin-ai:${where}` });
+  done("failed");
+}
+
 async function requireRrAdmin(): Promise<string> {
   const profile = await requireProfile();
   if (profile.role !== "rr_admin") done("forbidden");
@@ -35,7 +42,7 @@ export async function setAiMargin(formData: FormData): Promise<void> {
     .from("billing_settings")
     .update({ ai_margin_bps: Math.round(percent * 100) })
     .eq("singleton", true);
-  if (error) done("failed");
+  if (error) failed(error, "margin");
   done("margin-saved");
 }
 
@@ -52,7 +59,9 @@ export async function setAiInvoicing(formData: FormData): Promise<void> {
   if (startsRaw !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(startsRaw)) done("admin-invalid");
   if (!Number.isFinite(minimum) || minimum < 0 || minimum > 100_000) done("admin-invalid");
   const service = createServiceClient();
-  const { data: current } = await service.from("billing_settings").select("ai_billing_starts_on").eq("singleton", true).maybeSingle();
+  const { data: current, error: currentError } = await service.from("billing_settings").select("ai_billing_starts_on").eq("singleton", true).maybeSingle();
+  // Unread, the date in force could not be told apart from a new one reaching back.
+  if (currentError) failed(currentError, "invoicing:read");
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
   // The date already in force may stay (billing is live and only the minimum is changing);
   // a new one may not reach back.
@@ -61,7 +70,7 @@ export async function setAiInvoicing(formData: FormData): Promise<void> {
     .from("billing_settings")
     .update({ ai_billing_starts_on: startsRaw === "" ? null : startsRaw, ai_min_invoice_cents: Math.round(minimum * 100) })
     .eq("singleton", true);
-  if (error) done("failed");
+  if (error) failed(error, "invoicing");
   done("invoicing-saved");
 }
 
@@ -74,8 +83,10 @@ export async function setManualFxRate(formData: FormData): Promise<void> {
   const { error } = await service
     .from("fx_rates")
     .upsert({ day, usd_zar: rate.toFixed(4), source: "manual", fetched_at: new Date().toISOString() }, { onConflict: "day" });
-  if (error) done("failed");
-  await service.from("ai_health_events").update({ resolved_at: new Date().toISOString() }).eq("kind", "fx_stale").is("resolved_at", null);
+  if (error) failed(error, "fx");
+  const { error: resolveError } = await service.from("ai_health_events").update({ resolved_at: new Date().toISOString() }).eq("kind", "fx_stale").is("resolved_at", null);
+  // The rate is saved, which is what was asked; a stale warning left open is ours to hear of.
+  if (resolveError) captureError(resolveError, { where: "admin-ai:fx:resolve" });
   done("fx-saved");
 }
 
@@ -84,7 +95,7 @@ export async function resolveAiHealthEvent(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   if (!/^[0-9a-f-]{36}$/i.test(id)) done("admin-invalid");
   const { error } = await createServiceClient().from("ai_health_events").update({ resolved_at: new Date().toISOString() }).eq("id", id);
-  if (error) done("failed");
+  if (error) failed(error, "resolve");
   done("event-resolved");
 }
 
@@ -94,19 +105,24 @@ export async function acceptHeldPrice(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   if (!/^[0-9a-f-]{36}$/i.test(id)) done("admin-invalid");
   const service = createServiceClient();
-  const { data: event } = await service
+  const { data: event, error: eventError } = await service
     .from("ai_health_events")
     .select("kind, subject, detail")
     .eq("id", id)
     .is("resolved_at", null)
     .maybeSingle();
+  // A failed read is ours, not an invalid request.
+  if (eventError) failed(eventError, "price:read");
   const [model, unit] = String(event?.subject ?? "").split(" ");
   const proposed = Number((event?.detail as { proposed?: unknown } | null)?.proposed);
   if (event?.kind !== "price_pending" || !model || !unit || !(proposed > 0)) done("admin-invalid");
   const { error } = await service
     .from("ai_prices")
     .insert({ model, unit, usd_per_unit: proposed, source: "manual", confirmed_by: adminId });
-  if (error) done("failed");
-  await service.from("ai_health_events").update({ resolved_at: new Date().toISOString() }).eq("id", id);
+  if (error) failed(error, "price");
+  const { error: resolveError } = await service.from("ai_health_events").update({ resolved_at: new Date().toISOString() }).eq("id", id);
+  // The price is in, so "accepted" is true; saying "failed" would invite a second insert.
+  // The event left open is reported instead.
+  if (resolveError) captureError(resolveError, { where: "admin-ai:price:resolve" });
   done("price-accepted");
 }
