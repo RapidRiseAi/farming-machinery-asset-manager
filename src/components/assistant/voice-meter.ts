@@ -60,6 +60,12 @@ export class VoiceMeter {
   /** Use that did not fit the session it happened in, added to the next one opened. */
   private carry: Required<Use> = { audioMs: 0, audioFixedMs: 0, characters: 0 };
   private inFlight: (() => InFlightUse) | null = null;
+  /**
+   * The id of the session being opened, kept until one is in hand: an open whose answer
+   * was lost is asked again with the same id, and the server answers with the session it
+   * already holds rather than a second hold (settled at its full maximum, never used).
+   */
+  private openRequestId: string | null = null;
   private readonly onPageHide = () => {
     this.flushInFlight();
     void this.close(true);
@@ -305,6 +311,7 @@ export class VoiceMeter {
   }
 
   private async open(maxAudioMs: number, maxCharacters: number): Promise<HeldSession> {
+    const requestId = this.openRequestId ?? (this.openRequestId = crypto.randomUUID());
     const response = await fetch(SESSION_ENDPOINT, {
       method: "POST",
       credentials: "same-origin",
@@ -314,11 +321,16 @@ export class VoiceMeter {
         maxAudioMs: Math.min(Math.round(maxAudioMs), 120_000),
         maxCharacters: Math.min(Math.round(maxCharacters), 4_000),
         clientVersion: VOICE_CLIENT_VERSION,
+        requestId,
       }),
     });
+    // A refusal (a limit, voice off, not a member) held nothing: the next open is a new one.
+    // A server error or "still opening" keeps the id, so the retry finds any session held.
+    if (!response.ok && response.status < 500 && response.status !== 409) this.openRequestId = null;
     if (!response.ok) throw await this.refused(response);
     const value = (await response.json().catch(() => null)) as Record<string, unknown> | null;
     if (!value || typeof value.sessionId !== "string") throw await this.refused(response);
+    this.openRequestId = null;
     return {
       sessionId: value.sessionId,
       maxAudioMs: Number(value.maxAudioMs) || 0,
