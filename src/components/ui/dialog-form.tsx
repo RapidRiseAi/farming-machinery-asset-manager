@@ -279,20 +279,42 @@ export function DialogActions({
   const { close } = useDialogForm();
   const { pending } = useFormStatus();
   const wasPending = useRef(false);
+  // The page's error message after a save that failed, shown here instead of closing.
+  const [failure, setFailure] = useState<string | null>(null);
+  // What the page's error banner said when the save started (a DOM read, never state, while
+  // pending): only a new message after it settles is this save's failure.
+  const bannerBefore = useRef("");
 
   useEffect(() => {
     if (pending) {
       wasPending.current = true;
+      bannerBefore.current = pageErrorMessage();
       return;
     }
-    if (wasPending.current) {
-      wasPending.current = false;
-      close();
+    if (!wasPending.current) return;
+    wasPending.current = false;
+    // A failed save redirects back with ?error=, and the page renders its message as an
+    // error banner (Flash, role="alert") in the same commit as this settles. Closing then
+    // threw away everything typed and left the message at the top of the page, off-screen
+    // on a phone. So stay open, fields intact, and show that message here. Read only after
+    // the save has settled: setting state in here while it is pending would re-render this
+    // inside the form and make it read the form as idle (see pending-guard.tsx).
+    const message = pageErrorMessage();
+    if (message && message !== bannerBefore.current) {
+      setFailure(message);
+      return;
     }
+    setFailure(null);
+    close();
   }, [pending, close]);
 
   return (
     <div className="sticky bottom-0 -mx-5 mt-1 flex flex-wrap items-center justify-end gap-2 border-t border-sand-100 bg-surface px-5 py-3">
+      {failure ? (
+        <p role="alert" className="w-full rounded-lg bg-callout-danger-bg px-3 py-2 text-sm font-medium text-callout-danger-ink">
+          {failure}
+        </p>
+      ) : null}
       {note ? <p className="mr-auto text-xs text-sand-500">{note}</p> : null}
       <Button type="button" variant="ghost" onClick={close} disabled={pending}>
         {cancelLabel}
@@ -300,6 +322,12 @@ export function DialogActions({
       {children}
     </div>
   );
+}
+
+/** The text of the page's error banner (a Flash with tone "error"), or "" when there is none. */
+function pageErrorMessage(): string {
+  const banner = document.querySelector('main [role="alert"]');
+  return banner?.querySelector("span.min-w-0")?.textContent?.trim() || banner?.textContent?.trim() || "";
 }
 
 /**

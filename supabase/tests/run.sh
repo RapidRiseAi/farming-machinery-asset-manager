@@ -192,5 +192,7 @@ echo "==> running WhatsApp identity, permissions and delivery tests"
 pg "$DB" < "$ROOT/supabase/tests/whatsapp_channel.sql"
 echo "==> running request claim tests (one request, one effect)"
 pg "$DB" < "$ROOT/supabase/tests/request_claims.sql"
+echo "==> running recurring invoice tests (one invoice per period, locked)"
+pg "$DB" < "$ROOT/supabase/tests/recurring_invoices.sql"
 
 echo "==> OK"

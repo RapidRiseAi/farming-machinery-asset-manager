@@ -38,6 +38,11 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  "20261026100000": "select to_regprocedure('app.audit_readable_farm_ids()') is not null",
+  // An in-place rewrite leaves nothing but the text to check; the migration itself returns
+  // early when applied and stops loudly if the text it rewrites has moved.
+  "20261026090000":
+    "select coalesce(pg_get_functiondef(to_regprocedure('app.generate_recurring_invoices(uuid)')) like '%for update of ri%', false)",
   "20261018100000":
     "select exists(select 1 from information_schema.columns where table_schema='public'" +
     " and table_name='partner_documents' and column_name='payment_claimed_at')",

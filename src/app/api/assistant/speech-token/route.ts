@@ -5,6 +5,7 @@ import { planAllows } from "@/lib/entitlements";
 import { openVoiceSession, reportVoiceSession } from "@/lib/ai-usage/ledger";
 import { takeSharedRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { captureError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,7 +153,9 @@ export async function POST(request: Request) {
   let provider: ReturnType<typeof getAzureSpeechProviderEnv>;
   try {
     provider = getAzureSpeechProviderEnv();
-  } catch {
+  } catch (missing) {
+    // Configuration, not the person: voice is off for every farm until someone fixes it.
+    captureError(missing, { where: "speech-token:config" });
     return jsonError("speech_unavailable", 503);
   }
 
@@ -185,6 +188,7 @@ export async function POST(request: Request) {
     if (session.reason === "voice_off") return jsonError("voice_off", 403);
     if (session.reason === "not_member") return jsonError("forbidden", 403);
     if (session.reason === "token_rate") return jsonError("rate_limited", 429, { "Retry-After": "600" });
+    captureError(new Error(`voice session not opened (${session.reason ?? "unknown"})`), { where: "speech-token:session" });
     return jsonError("speech_unavailable", 503);
   }
   // No token after all: close the session at nothing used, rather than leave it to be
@@ -206,12 +210,17 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
+      // Azure's status is the whole story (401 a bad key, 429 too many recognitions at once,
+      // the known parallel-request limit), and it used to be dropped. Status only, never the
+      // key or the body.
+      captureError(new Error(`Azure speech token answered ${response.status}`), { where: "speech-token:azure" });
       await releaseSession();
       return jsonError("speech_unavailable", 502);
     }
 
     const token = (await response.text()).trim();
     if (!isUsableProviderToken(token)) {
+      captureError(new Error("Azure speech token answered with no usable token"), { where: "speech-token:azure" });
       await releaseSession();
       return jsonError("speech_unavailable", 502);
     }
@@ -229,7 +238,8 @@ export async function POST(request: Request) {
       },
       { status: 200, headers: PRIVATE_NO_STORE_HEADERS }
     );
-  } catch {
+  } catch (failure) {
+    captureError(new Error(`Azure speech token request failed (${failure instanceof Error ? failure.name : "unknown"})`), { where: "speech-token:azure" });
     await releaseSession();
     return jsonError("speech_unavailable", 502);
   }

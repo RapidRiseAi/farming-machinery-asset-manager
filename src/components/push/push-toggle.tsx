@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import type { Locale, Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { reportClientError } from "@/lib/client-report";
+import { asError } from "@/lib/single-flight";
 
 /** VAPID public key → bytes for PushManager.subscribe(applicationServerKey). */
 function urlBase64ToBytes(base64String: string): Uint8Array<ArrayBuffer> {
@@ -76,6 +78,10 @@ export function PushToggle({
   async function enable() {
     setError(null);
     setState("busy");
+    // Held so a failure after the browser subscribed can undo it: otherwise the server has
+    // no record while the browser does, the toggle says off, and after a reload it reads
+    // the browser's subscription and says on, for a phone that will never be sent anything.
+    let created: PushSubscription | null = null;
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
@@ -90,15 +96,18 @@ export function PushToggle({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToBytes(vapidKey as string),
       });
+      created = sub;
       const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
       const res = await fetchWithTimeout("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, ua: navigator.userAgent }),
       });
-      if (!res.ok) throw new Error("subscribe failed");
+      if (!res.ok) throw new Error(`subscribe answered ${res.status}`);
       setState("on");
-    } catch {
+    } catch (failure) {
+      if (created) await created.unsubscribe().catch(() => undefined);
+      if (navigator.onLine !== false) reportClientError(asError(failure), "push:enable");
       setError(t("push.error", locale));
       setState("off");
     }
@@ -111,15 +120,18 @@ export function PushToggle({
       const reg = await navigator.serviceWorker.getRegistration();
       const sub = await reg?.pushManager.getSubscription();
       if (sub) {
-        await fetchWithTimeout("/api/push/unsubscribe", {
+        const res = await fetchWithTimeout("/api/push/unsubscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: sub.endpoint }),
         });
+        // The server must forget it first, or it keeps sending to a phone that said stop.
+        if (!res.ok) throw new Error(`unsubscribe answered ${res.status}`);
         await sub.unsubscribe();
       }
       setState("off");
-    } catch {
+    } catch (failure) {
+      if (navigator.onLine !== false) reportClientError(asError(failure), "push:disable");
       setError(t("push.error", locale));
       setState("on");
     }
