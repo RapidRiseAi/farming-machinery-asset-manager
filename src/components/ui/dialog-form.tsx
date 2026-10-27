@@ -22,7 +22,8 @@
  * `triggerIcon?`, `triggerClassName?`, `triggerLabel?`, `triggerLook?` ("button" |
  * "menuItem"), `triggerTone?`.
  * `DialogActions`: `cancelLabel`, `note?`; closes the dialog when the form's submit
- * settles (server actions redirect, a soft navigation that keeps client state).
+ * succeeds; when it is refused (?error=), the dialog stays, or reopens after the page
+ * remounts, with what was typed and the reason in its action bar.
  * `DialogSection`: `title`, `defaultOpen?`; a collapsed group of optional fields that
  * spans both columns of `DialogFields`. `DialogFields`: `columns?` (1 | 2).
  * `useDialogForm()`: `{ close, titleId }` for anything inside that must close it.
@@ -86,7 +87,21 @@ import { PendingGuardProvider, usePendingContainer } from "./pending-guard";
  * on this product is already read.
  */
 
-type DialogFormState = { close: () => void; titleId: string };
+/** What a dialog reopened after a refused save puts back: the fields and the reason. */
+type Restore = { fields: Array<[string, string]>; message: string };
+
+type DialogFormState = {
+  close: () => void;
+  titleId: string;
+  /**
+   * Names this dialog in the retry snapshot, in a way that survives the page remounting:
+   * its title and trigger text, and its place among triggers with the same text. Null when
+   * that cannot be worked out (no plain-text title, or the trigger is not on the page).
+   */
+  retryIdentity: () => string | null;
+  /** Set when this dialog reopened itself after a refused save, until DialogActions applies it. */
+  restoreRef: { current: Restore | null };
+};
 
 const DialogFormContext = createContext<DialogFormState | null>(null);
 
@@ -171,17 +186,61 @@ export function DialogForm({
     setOpen(false);
   }, [busyRef]);
   const openDialog = () => setOpen(true);
+  const restoreRef = useRef<Restore | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // React's useId does not survive the remount (a server id becomes a client one), so the
+  // snapshot is keyed by what the person sees instead.
+  const retryBase = [title, trigger].map((part) => (typeof part === "string" ? part : "")).join("|");
+  const retryIdentity = useCallback(() => {
+    const button = triggerRef.current;
+    if (!button || retryBase === "|") return null;
+    const same = [...document.querySelectorAll(`[data-retry-key="${CSS.escape(retryBase)}"]`)];
+    return `${retryBase}#${same.indexOf(button)}`;
+  }, [retryBase]);
+
+  // A refused save redirects back with ?error=, and Next mounts the page afresh for the new
+  // address: this dialog and everything typed in it were gone, the reason left at the top
+  // of the page. So DialogActions keeps a snapshot as it submits (retry snapshot below);
+  // when this same dialog mounts again and the page now shows a new error banner, it
+  // reopens with the fields put back and the reason inside it.
+  useEffect(() => {
+    const identity = retryIdentity();
+    const snapshot = identity ? readRetrySnapshot(identity) : null;
+    if (!snapshot) return;
+    let tries = 0;
+    let timer = 0;
+    const look = () => {
+      const message = pageErrorMessage();
+      if (message && message !== snapshot.bannerBefore) {
+        clearRetrySnapshot();
+        restoreRef.current = { fields: snapshot.fields, message };
+        setOpen(true);
+        return;
+      }
+      if (tries >= WATCH_TRIES * 2) {
+        clearRetrySnapshot();
+        return;
+      }
+      tries += 1;
+      timer = window.setTimeout(look, WATCH_EVERY_MS);
+    };
+    look();
+    return () => window.clearTimeout(timer);
+  }, [retryIdentity]);
+
   // Stable, so nothing inside the form re-renders because this dialog did (see the note in
   // pending-guard.tsx on what a mid-save re-render does to the form's status).
-  const context = useMemo(() => ({ close, titleId }), [close, titleId]);
+  const context = useMemo(() => ({ close, titleId, retryIdentity, restoreRef }), [close, titleId, retryIdentity]);
 
   return (
     <>
       {triggerLook === "menuItem" ? (
         <button
+          ref={triggerRef}
           type="button"
           aria-label={triggerLabel}
           aria-haspopup="dialog"
+          data-retry-key={retryBase}
           onClick={openDialog}
           className={menuItemClass(triggerTone, triggerClassName)}
         >
@@ -190,6 +249,7 @@ export function DialogForm({
         </button>
       ) : (
         <Button
+          ref={triggerRef}
           type="button"
           variant={triggerVariant}
           size={triggerSize}
@@ -197,6 +257,7 @@ export function DialogForm({
           leftIcon={triggerIcon}
           aria-label={triggerLabel}
           aria-haspopup="dialog"
+          data-retry-key={retryBase}
           className={triggerClassName}
           onClick={openDialog}
         >
@@ -276,40 +337,76 @@ export function DialogActions({
   cancelLabel: string;
   note?: ReactNode;
 }) {
-  const { close } = useDialogForm();
+  const { close, retryIdentity, restoreRef } = useDialogForm();
   const { pending } = useFormStatus();
   const wasPending = useRef(false);
+  const bar = useRef<HTMLDivElement>(null);
   // The page's error message after a save that failed, shown here instead of closing.
   const [failure, setFailure] = useState<string | null>(null);
   // What the page's error banner said when the save started (a DOM read, never state, while
   // pending): only a new message after it settles is this save's failure.
   const bannerBefore = useRef("");
+  const searchBefore = useRef("");
 
   useEffect(() => {
     if (pending) {
       wasPending.current = true;
       bannerBefore.current = pageErrorMessage();
+      searchBefore.current = window.location.search;
+      const form = bar.current?.closest("form");
+      const identity = retryIdentity();
+      if (form && identity) writeRetrySnapshot(identity, form, bannerBefore.current);
       return;
     }
     if (!wasPending.current) return;
     wasPending.current = false;
     // A failed save redirects back with ?error=, and the page renders its message as an
-    // error banner (Flash, role="alert") in the same commit as this settles. Closing then
-    // threw away everything typed and left the message at the top of the page, off-screen
-    // on a phone. So stay open, fields intact, and show that message here. Read only after
-    // the save has settled: setting state in here while it is pending would re-render this
-    // inside the form and make it read the form as idle (see pending-guard.tsx).
-    const message = pageErrorMessage();
-    if (message && message !== bannerBefore.current) {
-      setFailure(message);
-      return;
-    }
-    setFailure(null);
-    close();
-  }, [pending, close]);
+    // error banner (Flash, role="alert"). Closing threw away everything typed and left the
+    // message at the top of the page, off-screen on a phone. So stay open, fields intact,
+    // and show that message here.
+    //
+    // Next performs an action's redirect AFTER the form stops pending, so the outcome is
+    // not on the page yet when this runs: watch briefly. A new error banner keeps the
+    // dialog open; the address moving to a page without an error (a success redirect)
+    // closes it at once; an action that only refreshed closes after the watch. Nothing here
+    // sets state while the form is pending (see pending-guard.tsx for why that matters).
+    let tries = 0;
+    let timer = 0;
+    const watch = () => {
+      const message = pageErrorMessage();
+      if (message && message !== bannerBefore.current) {
+        // Still mounted (the action refreshed without a new address): the fields are here.
+        clearRetrySnapshot();
+        setFailure(message);
+        return;
+      }
+      const search = window.location.search;
+      const movedOn = search !== searchBefore.current && !/[?&]error=/.test(search);
+      if (movedOn || tries >= WATCH_TRIES) {
+        if (movedOn) clearRetrySnapshot();
+        setFailure(null);
+        close();
+        return;
+      }
+      tries += 1;
+      timer = window.setTimeout(watch, WATCH_EVERY_MS);
+    };
+    watch();
+    return () => window.clearTimeout(timer);
+  }, [pending, close, retryIdentity]);
+
+  // Reopened after a refused save (DialogForm): put the fields back and say why.
+  useEffect(() => {
+    const restore = restoreRef.current;
+    const form = bar.current?.closest("form");
+    if (!restore || !form) return;
+    restoreRef.current = null;
+    restoreFields(form, restore.fields);
+    setFailure(restore.message);
+  }, [restoreRef]);
 
   return (
-    <div className="sticky bottom-0 -mx-5 mt-1 flex flex-wrap items-center justify-end gap-2 border-t border-sand-100 bg-surface px-5 py-3">
+    <div ref={bar} className="sticky bottom-0 -mx-5 mt-1 flex flex-wrap items-center justify-end gap-2 border-t border-sand-100 bg-surface px-5 py-3">
       {failure ? (
         <p role="alert" className="w-full rounded-lg bg-callout-danger-bg px-3 py-2 text-sm font-medium text-callout-danger-ink">
           {failure}
@@ -322,6 +419,70 @@ export function DialogActions({
       {children}
     </div>
   );
+}
+
+/** How long DialogActions watches for a save's outcome: up to 1.5 s, every 100 ms. */
+const WATCH_EVERY_MS = 100;
+const WATCH_TRIES = 15;
+
+/**
+ * The retry snapshot: what a dialog was sending, kept for this tab for a minute, so the
+ * same dialog can reopen with it if the page comes back with an error (DialogForm). One at
+ * a time, keyed by the dialog and the page; files and the request id are left out.
+ */
+const RETRY_KEY = "fw:dialog-retry";
+const RETRY_MS = 60_000;
+type RetrySnapshot = { key: string; path: string; at: number; bannerBefore: string; fields: Array<[string, string]> };
+
+function writeRetrySnapshot(key: string, form: HTMLFormElement, bannerBefore: string) {
+  const fields: Array<[string, string]> = [];
+  for (const [name, value] of new FormData(form)) {
+    if (typeof value === "string" && name !== "request_id" && !name.startsWith("$ACTION")) fields.push([name, value]);
+  }
+  const snapshot: RetrySnapshot = { key, path: window.location.pathname, at: Date.now(), bannerBefore, fields };
+  try {
+    window.sessionStorage.setItem(RETRY_KEY, JSON.stringify(snapshot));
+  } catch {
+    /* storage unavailable: a refused save closes the dialog, as before */
+  }
+}
+
+function readRetrySnapshot(key: string): RetrySnapshot | null {
+  try {
+    const snapshot = JSON.parse(window.sessionStorage.getItem(RETRY_KEY) ?? "null") as RetrySnapshot | null;
+    if (!snapshot || snapshot.key !== key || snapshot.path !== window.location.pathname) return null;
+    if (Date.now() - snapshot.at > RETRY_MS) {
+      clearRetrySnapshot();
+      return null;
+    }
+    return snapshot;
+  } catch {
+    return null;
+  }
+}
+
+function clearRetrySnapshot() {
+  try {
+    window.sessionStorage.removeItem(RETRY_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Put snapshot values back into a form's own fields (not hidden ones the page renders). */
+function restoreFields(form: HTMLFormElement, fields: Array<[string, string]>) {
+  for (const [name, value] of fields) {
+    for (const element of form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`[name="${CSS.escape(name)}"]`)) {
+      if (element instanceof HTMLInputElement) {
+        if (element.type === "hidden" || element.type === "file") continue;
+        if (element.type === "checkbox" || element.type === "radio") {
+          element.checked = element.value === value;
+          continue;
+        }
+      }
+      element.value = value;
+    }
+  }
 }
 
 /** The text of the page's error banner (a Flash with tone "error"), or "" when there is none. */

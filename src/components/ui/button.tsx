@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { cn } from "./cn";
 import { Spinner } from "./icons";
 
@@ -77,6 +77,8 @@ export function buttonVariants({
 }
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  /** React 19 passes a ref as a prop; it reaches the <button> through the spread below. */
+  ref?: Ref<HTMLButtonElement>;
   variant?: ButtonVariant;
   size?: ButtonSize;
   fullWidth?: boolean;

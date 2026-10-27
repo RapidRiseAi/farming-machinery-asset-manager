@@ -9,7 +9,8 @@
  *   3. an error thrown in a timer and a promise nobody caught: both reported;
  *   4. five quick taps on a server-action row (opening a notification): one post;
  *   5. a dialog mid-save ignores Escape and Close, sends one save, and closes when done;
- *   6. a save whose answer is lost, sent again after a reload, is saved once.
+ *   6. a save whose answer is lost, sent again after a reload, is saved once;
+ *   7. a save the server refuses keeps the dialog open, with what was typed and the reason.
  *
  *   node scripts/spam_check.mjs --base=http://localhost:3111
  *
@@ -339,6 +340,44 @@ if (!triggers) {
     }
     const left = (await rows()) ?? [];
     console.log(left.length ? `NOTE  ${left.length} test delivery left on the click-through farm (${marker})` : "NOTE  test delivery removed");
+  }
+}
+
+// 7. A save the server refuses keeps the dialog open, with what was typed and the reason.
+// Litres of 0 passes the browser's own check (min=0) but the server refuses it.
+{
+  const marker = `SPAMCHECK-REFUSED-${Date.now()}`;
+  await open("/fuel");
+  let opened = false;
+  const count = (await evaluate(`document.querySelectorAll('main button[aria-haspopup="dialog"], header button[aria-haspopup="dialog"]').length`)) ?? 0;
+  for (let i = 0; i < Math.min(count, 8) && !opened; i += 1) {
+    const box = await evaluate(`(() => { const b = document.querySelectorAll('main button[aria-haspopup="dialog"], header button[aria-haspopup="dialog"]')[${i}]; b.scrollIntoView({ block: "center" }); const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    await tap(box);
+    await sleep(1200);
+    opened = (await evaluate(`!!document.querySelector('[role="dialog"] input[name="invoice_no"]')`)) === true;
+    if (!opened) {
+      await S("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await sleep(400);
+    }
+  }
+  if (!opened) {
+    console.log("SKIP  no fuel delivery dialog on this farm");
+  } else {
+    await evaluate(`(() => { const d = document.querySelector('[role="dialog"]'); d.querySelector('input[name="litres"]').value = "0"; d.querySelector('input[name="invoice_no"]').value = ${JSON.stringify(marker)}; return true; })()`);
+    await tap(await target('[role="dialog"] form button[type="submit"]:last-of-type'));
+    // The page remounts for the ?error= address and the dialog reopens itself: allow for it.
+    let state = null;
+    for (let i = 0; i < 40 && !state?.reason; i += 1) {
+      await sleep(500);
+      state = await evaluate(`(() => { const d = document.querySelector('[role="dialog"]'); if (!d) return null; return { reason: d.querySelector('[role="alert"]')?.textContent?.trim() ?? "", invoice: d.querySelector('input[name="invoice_no"]')?.value ?? "" }; })()`);
+    }
+    check(!!state, "a refused save keeps the dialog (or brings it back)");
+    check(!!state?.reason, "the dialog says why", state?.reason?.slice(0, 60) || "no reason shown");
+    check(state?.invoice === marker, "what was typed is still there");
+    const saved = await fetch(`${SUPABASE_URL}/rest/v1/fuel_deliveries?invoice_no=eq.${marker}&select=id`, {
+      headers: { apikey: ANON, authorization: `Bearer ${session.access_token}` },
+    }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+    check(saved.length === 0, "nothing was saved");
   }
 }
 
