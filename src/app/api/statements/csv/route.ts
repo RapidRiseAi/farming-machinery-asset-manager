@@ -4,6 +4,7 @@ import { toCsv, csvResponse, centsToR } from "@/app/(app)/reports/data";
 import { withRunningBalance, statementLabel, type StatementRow } from "@/lib/statement";
 import { parseStatementParty } from "@/lib/statement-party";
 import { readPartnerStatement } from "@/lib/statement-read";
+import { must } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,17 @@ export async function GET(request: Request) {
   const { from, to } = party;
 
   const supabase = await createClient();
-  const { data } = await readPartnerStatement(supabase, {
-    p_workshop: workshop.id,
-    p_farm: party.farmId,
-    p_client: party.clientId,
-    p_from: from,
-    p_to: to,
-  });
+  // A failed read is a 500, never a statement that downloads empty.
+  const data = must(
+    await readPartnerStatement(supabase, {
+      p_workshop: workshop.id,
+      p_farm: party.farmId,
+      p_client: party.clientId,
+      p_from: from,
+      p_to: to,
+    }),
+    "statements:csv",
+  );
 
   const rows: (string | number)[][] = [
     ["Date", "Type", "Reference", "Detail", "Charged (R)", "Paid off (R)", "Balance (R)", "Due"],

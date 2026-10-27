@@ -6,6 +6,7 @@ import {
   withSupplierRunningBalance, supplierStatementTotals, supplierStatementLabel,
   isoDateOrNull, defaultSupplierPeriod, isUuid, type SupplierStatementRow,
 } from "@/lib/supplier-statement";
+import { mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +39,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const supabase = await createClient();
   // RLS is the access check: another partner's supplier reads back nothing here, so the
   // download is refused rather than served empty under this partner's name.
-  const [{ data: who }, { data: stmt }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("suppliers").select("id, name").eq("id", id).is("deleted_at", null).maybeSingle(),
     readSupplierStatement(supabase, {
       p_workshop: workshop.id, p_supplier: id, p_from: from, p_to: to,
     }),
   ]);
+  // A failed read is a 500, never a 404 or a statement with nothing on it.
+  mustAll(results, "suppliers:statement-csv");
+  const [{ data: who }, { data: stmt }] = results;
   if (!who) return new Response("Not found", { status: 404 });
 
   const supplier = who as { id: string; name: string };

@@ -22,6 +22,7 @@ import { StatementPicker } from "./picker";
 import { SendStatement } from "@/components/statements/send-statement";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { must, mustAll, soft } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export default async function StatementsPage({
 
   // Everyone this partner has ever billed, farms they are linked to and clients in their
   // own book. Both, in one list, because a partner does not think of them as two kinds.
-  const [{ data: linkData }, { data: clientData }] = await Promise.all([
+  const partyResults = await Promise.all([
     supabase
       .from("workshop_links")
       .select("farm_id, farms(id, name)")
@@ -78,6 +79,8 @@ export default async function StatementsPage({
       .is("deleted_at", null)
       .order("name"),
   ]);
+  mustAll(partyResults, "statements:parties");
+  const [{ data: linkData }, { data: clientData }] = partyResults;
 
   const farmParties: Party[] = [];
   for (const l of (linkData ?? []) as {
@@ -104,9 +107,12 @@ export default async function StatementsPage({
   if (!selected && parties.length > 0) {
     const owed = await Promise.all(
       parties.map(async (p) => {
-        const { data } = await supabase.rpc("partner_ageing", {
-          p_workshop: workshop.id, p_farm: p.farm_id, p_client: p.client_id,
-        });
+        const data = must(
+          await supabase.rpc("partner_ageing", {
+            p_workshop: workshop.id, p_farm: p.farm_id, p_client: p.client_id,
+          }),
+          "statements:default-party",
+        );
         return { p, cents: ((data ?? []) as Ageing[])[0]?.total_cents ?? 0 };
       }),
     );
@@ -117,7 +123,7 @@ export default async function StatementsPage({
   let rows: StatementRow[] = [];
   let ageing: Ageing = EMPTY_AGEING;
   if (selected) {
-    const [{ data: stmt }, { data: aged }] = await Promise.all([
+    const statementResults = await Promise.all([
       readPartnerStatement(supabase, {
         p_workshop: workshop.id,
         p_farm: selected.farm_id,
@@ -131,6 +137,9 @@ export default async function StatementsPage({
         p_client: selected.client_id,
       }),
     ]);
+    // A failed read here showed R0 owed and an empty ledger for somebody who owes money.
+    mustAll(statementResults, "statements:ledger");
+    const [{ data: stmt }, { data: aged }] = statementResults;
     rows = (stmt ?? []) as StatementRow[];
     const agedRows = (aged ?? []) as Ageing[];
     ageing = agedRows[0] ?? EMPTY_AGEING;
@@ -139,9 +148,11 @@ export default async function StatementsPage({
   // Their billing address, so "send" is one tap rather than a lookup.
   let recipientEmail = "";
   if (selected) {
-    const { data: who } = selected.farm_id
+    // Only a prefill: without it the address is typed, so a failure is reported and skipped.
+    const whoResult = selected.farm_id
       ? await supabase.from("farms").select("billing_email").eq("id", selected.farm_id).maybeSingle()
       : await supabase.from("partner_clients").select("email").eq("id", selected.client_id!).maybeSingle();
+    const who = soft<{ billing_email?: string | null; email?: string | null } | null>(whoResult, "statements:recipient-email");
     const w = (who ?? {}) as { billing_email?: string | null; email?: string | null };
     recipientEmail = w.billing_email ?? w.email ?? "";
   }

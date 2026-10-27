@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { t, type Lang } from "@/lib/i18n";
 import { createDocument } from "@/app/(app)/documents/actions";
 import { NewDocumentForm, type Recipient } from "./new-document-form";
+import { mustAll } from "@/lib/supabase/must";
 
 /**
  * "New quote" / "New invoice" for a partner.
@@ -27,7 +28,7 @@ export async function NewDocument({ locale, canBuild }: { locale: Lang; canBuild
   if (!canBuild) return null;
 
   const supabase = await createClient();
-  const [{ data: linkData }, { data: clientData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("workshop_links")
       .select("farm_id, farms(id, name)")
@@ -39,6 +40,10 @@ export async function NewDocument({ locale, canBuild }: { locale: Lang; canBuild
       .is("deleted_at", null)
       .order("name"),
   ]);
+  // Who can be billed is chosen from these lists; a failed read must not look like a
+  // partner with no customers.
+  mustAll(results, "documents:new-recipients");
+  const [{ data: linkData }, { data: clientData }] = results;
 
   // PostgREST types an embedded relation as an array even when it is at most one row.
   const farms: Recipient[] = ((linkData ?? []) as unknown as {

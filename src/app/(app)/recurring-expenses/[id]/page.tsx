@@ -33,6 +33,7 @@ import {
   runExpenseScheduleNow,
   deleteExpenseSchedule,
 } from "../actions";
+import { must } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -54,12 +55,15 @@ export default async function ExpenseSchedulePage({
   if (!workshop) redirect("/contractor?error=no-workshop");
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("recurring_expenses")
-    .select("*")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("recurring_expenses")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "recurring-expenses:detail",
+  );
   const schedule = data as ExpenseSchedule | null;
   if (!schedule) notFound();
 
@@ -67,14 +71,18 @@ export default async function ExpenseSchedulePage({
   // place to look when a partner thinks it is not. Only the most recent one is recorded
   // (`last_expense_id`), the generated rows are ordinary expenses with no back-pointer,
   // deliberately, so nothing downstream has to know this feature exists.
-  const { data: lastData } = schedule.last_expense_id
-    ? await supabase
-        .from("partner_expenses")
-        .select("id, supplier_name, expense_date, paid_on, amount_cents, vat_cents")
-        .eq("id", schedule.last_expense_id)
-        .is("deleted_at", null)
-        .maybeSingle()
-    : { data: null };
+  // A failed read is the error screen, not a schedule that looks as if it never captured.
+  const lastData = schedule.last_expense_id
+    ? must(
+        await supabase
+          .from("partner_expenses")
+          .select("id, supplier_name, expense_date, paid_on, amount_cents, vat_cents")
+          .eq("id", schedule.last_expense_id)
+          .is("deleted_at", null)
+          .maybeSingle(),
+        "recurring-expenses:last-captured",
+      )
+    : null;
   const last = lastData as Pick<Expense, "id" | "supplier_name" | "expense_date" | "paid_on" | "amount_cents" | "vat_cents"> | null;
 
   const live = isLive(schedule);

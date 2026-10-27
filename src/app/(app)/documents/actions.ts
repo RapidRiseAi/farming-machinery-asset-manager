@@ -65,26 +65,31 @@ async function termsDaysFor(
   kind: DocKind | string,
   recipient: { farm_id: string | null; partner_client_id: string | null },
   branding: { quoteValidityDays: number; invoiceTermsDays: number },
+  // Where to send the person when the terms cannot be read: a failed read must not quietly
+  // become the default terms and a wrong due date on the document.
+  failTo: string,
 ): Promise<number> {
   // A quote expires on its validity period; terms are a billing concept.
   if (kind === "quote") return branding.quoteValidityDays;
 
   let filed: number | null = null;
   if (recipient.partner_client_id) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("partner_clients")
       .select("payment_terms_days")
       .eq("id", recipient.partner_client_id)
       .maybeSingle();
+    if (error) redirect(`${failTo}?error=${errorCode(error, "app/documents/actions:termsDaysFor")}`);
     filed = (data as { payment_terms_days: number | null } | null)?.payment_terms_days ?? null;
   } else if (recipient.farm_id && workshopId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("partner_clients")
       .select("payment_terms_days")
       .eq("workshop_id", workshopId)
       .eq("farm_id", recipient.farm_id)
       .is("deleted_at", null)
       .maybeSingle();
+    if (error) redirect(`${failTo}?error=${errorCode(error, "app/documents/actions:termsDaysFor")}`);
     filed = (data as { payment_terms_days: number | null } | null)?.payment_terms_days ?? null;
   }
   return filed ?? branding.invoiceTermsDays;
@@ -111,12 +116,15 @@ type DocRow = {
   work_request_id: string | null;
 };
 
-/** Load a document through RLS, a caller who cannot see it gets `null`, not an error. */
+/**
+ * Load a document through RLS, a caller who cannot see it gets `null`, not an error. A read
+ * that FAILED is not "not found": it goes back to the document saying try again.
+ */
 async function loadDoc(
   supabase: Awaited<ReturnType<typeof createClient>>,
   id: string,
 ): Promise<DocRow | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("partner_documents")
     .select(
       "id, farm_id, partner_client_id, corrects_document_id, workshop_id, kind, status, source, " +
@@ -126,6 +134,7 @@ async function loadDoc(
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:loadDoc")}`);
   return (data as DocRow | null) ?? null;
 }
 
@@ -163,8 +172,9 @@ async function resolveRecipient(
   if (kind === "farm") {
     const farmId = s(formData, "farm_id");
     if (!farmId) return null;
-    // `workshop_links` is the relationship; an inactive or absent link is a refusal.
-    const { data } = await supabase
+    // `workshop_links` is the relationship; an inactive or absent link is a refusal. A read
+    // that failed is neither, so it is not reported as a missing recipient.
+    const { data, error } = await supabase
       .from("workshop_links")
       .select("farm_id")
       .eq("workshop_id", workshopId)
@@ -172,19 +182,21 @@ async function resolveRecipient(
       .eq("status", "active")
       .is("deleted_at", null)
       .maybeSingle();
+    if (error) redirect(`/documents?error=${errorCode(error, "app/documents/actions:resolveRecipient")}`);
     return data ? { farm_id: farmId, partner_client_id: null } : null;
   }
 
   if (kind === "client") {
     const clientId = s(formData, "partner_client_id");
     if (!clientId) return null;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("partner_clients")
       .select("id")
       .eq("id", clientId)
       .eq("workshop_id", workshopId)
       .is("deleted_at", null)
       .maybeSingle();
+    if (error) redirect(`/documents?error=${errorCode(error, "app/documents/actions:resolveRecipient")}`);
     return data ? { farm_id: null, partner_client_id: clientId } : null;
   }
 
@@ -226,8 +238,9 @@ export async function createDocument(formData: FormData) {
       const requestId = recipient.farm_id ? s(formData, "work_request_id") : null;
       const machineId = recipient.farm_id ? s(formData, "machine_id") : null;
       if (requestId) {
-        const { data: request } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
+        const { data: request, error: requestError } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
           .eq("id", requestId).is("deleted_at", null).maybeSingle();
+        if (requestError) redirect(`/documents?error=${errorCode(requestError, "app/documents/actions:createDocument")}`);
         if (!request || request.farm_id !== recipient.farm_id || request.workshop_id !== profile.workshop_id
           || request.machine_id !== machineId) redirect("/documents?error=forbidden");
         if (request.status === "closed") redirect(`/work/${requestId}?error=locked`);
@@ -245,7 +258,7 @@ export async function createDocument(formData: FormData) {
       });
       if (numErr) redirect(`/documents?error=${errorCode(numErr, "app/documents/actions:createDocument")}`);
 
-      const termsDays = await termsDaysFor(supabase, profile.workshop_id, kind, recipient, branding);
+      const termsDays = await termsDaysFor(supabase, profile.workshop_id, kind, recipient, branding, "/documents");
 
       const { data, error } = await supabase
         .from("partner_documents")
@@ -309,11 +322,12 @@ export async function addDocumentLine(formData: FormData) {
       const priceCents = parseRandsToCents(String(formData.get("unit_price") ?? ""));
       const inclVat = formData.get("incl_vat") != null;
 
-      const { count } = await supabase
+      const { count, error: countError } = await supabase
         .from("partner_document_lines")
         .select("id", { count: "exact", head: true })
         .eq("document_id", id)
         .is("deleted_at", null);
+      if (countError) redirect(`/documents/${id}?error=${errorCode(countError, "app/documents/actions:addDocumentLine")}`);
 
       const { error } = await supabase.from("partner_document_lines").insert({
         farm_id: doc.farm_id,
@@ -343,11 +357,12 @@ export async function removeDocumentLine(formData: FormData) {
   if (!doc) redirect("/documents?error=not-found");
   if (doc.status !== "draft") redirect(`/documents/${id}?error=locked`);
 
-  await supabase
+  const { error } = await supabase
     .from("partner_document_lines")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", lineId)
     .eq("document_id", id);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:removeDocumentLine")}`);
 
   revalidatePath(`/documents/${id}`);
   redirect(`/documents/${id}`);
@@ -399,7 +414,13 @@ export async function sendDocument(formData: FormData) {
   if (doc.source === "built" && doc.total_cents <= 0) redirect(`/documents/${id}?error=empty`);
 
   const { workshop } = await currentWorkshop();
-  const { data: farmData } = await supabase.from("farms").select("name").eq("id", doc.farm_id).maybeSingle();
+  // The name is frozen onto the sent document, so a failed read must stop the send rather
+  // than freeze a blank one. Only asked when there is a farm: for a client or a one-time
+  // customer the query was `id=eq.null`, which Postgres refuses as an invalid id.
+  const { data: farmData, error: farmError } = doc.farm_id
+    ? await supabase.from("farms").select("name").eq("id", doc.farm_id).maybeSingle()
+    : { data: null, error: null };
+  if (farmError) redirect(`/documents/${id}?error=${errorCode(farmError, "app/documents/actions:sendDocument")}`);
 
   const { error } = await supabase
     .from("partner_documents")
@@ -441,7 +462,7 @@ export async function convertQuoteToInvoice(formData: FormData) {
 
       // Converted already (the button stays on the quote, and another tab may have done it):
       // open that invoice instead of raising a second one with a number of its own.
-      const { data: converted } = await supabase
+      const { data: converted, error: convertedError } = await supabase
         .from("partner_documents")
         .select("id")
         .eq("quote_id", id)
@@ -451,6 +472,8 @@ export async function convertQuoteToInvoice(formData: FormData) {
         .neq("status", "void")
         .limit(1)
         .maybeSingle();
+      // Not knowing whether it was converted is not "it was not": that raised a second invoice.
+      if (convertedError) redirect(`/documents/${id}?error=${errorCode(convertedError, "app/documents/actions:convertQuoteToInvoice")}`);
       if (converted) redirect(`/documents/${(converted as { id: string }).id}?converted=1`);
 
       const { workshop } = await currentWorkshop(profile);
@@ -462,11 +485,13 @@ export async function convertQuoteToInvoice(formData: FormData) {
       });
       if (numErr) redirect(`/documents/${id}?error=${errorCode(numErr, "app/documents/actions:convertQuoteToInvoice")}`);
 
-      const { data: full } = await supabase
+      const { data: full, error: fullError } = await supabase
         .from("partner_documents")
         .select("subject, notes, terms, discount_cents, vat_rate_bps")
         .eq("id", id)
         .maybeSingle();
+      // A failed read would raise the invoice on default terms, no discount and the wrong VAT.
+      if (fullError) redirect(`/documents/${id}?error=${errorCode(fullError, "app/documents/actions:convertQuoteToInvoice")}`);
       const src = (full ?? {}) as { subject?: string | null; notes?: string | null; terms?: string | null; discount_cents?: number; vat_rate_bps?: number };
 
       // The recipient must come across too. This previously copied `farm_id` alone, so
@@ -480,6 +505,7 @@ export async function convertQuoteToInvoice(formData: FormData) {
         "invoice",
         { farm_id: doc.farm_id, partner_client_id: doc.partner_client_id },
         branding,
+        `/documents/${id}`,
       );
 
       const { data: created, error } = await supabase
@@ -510,12 +536,19 @@ export async function convertQuoteToInvoice(formData: FormData) {
       if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:convertQuoteToInvoice")}`);
       const invoiceId = (created as { id: string }).id;
 
-      const { data: lines } = await supabase
+      const { data: lines, error: linesReadError } = await supabase
         .from("partner_document_lines")
         .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
         .eq("document_id", id)
         .is("deleted_at", null)
         .order("sort_order");
+      // The invoice exists already, so return (never redirect), and say the lines did not copy
+      // rather than "converted" over an empty invoice.
+      if (linesReadError) {
+        captureError(linesReadError, { where: "documents:convert:lines-read" });
+        revalidatePath("/documents");
+        return `/documents/${invoiceId}?error=lines-failed`;
+      }
 
       const rows = (lines ?? []) as Record<string, unknown>[];
       if (rows.length) {
@@ -600,6 +633,7 @@ export async function billQuoteStage(formData: FormData) {
         "invoice",
         { farm_id: quote.farm_id, partner_client_id: quote.partner_client_id },
         branding,
+        `/documents/${quoteId}`,
       );
       const { data: created, error } = await supabase
         .from("partner_documents")
@@ -760,11 +794,12 @@ export async function removePayment(formData: FormData) {
   const paymentId = String(formData.get("payment_id") ?? "");
   const supabase = await createClient();
 
-  await supabase
+  const { error } = await supabase
     .from("partner_payments")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", paymentId)
     .eq("document_id", id);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:removePayment")}`);
 
   revalidatePath(`/documents/${id}`);
   redirect(`/documents/${id}`);
@@ -875,7 +910,7 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
       });
       if (numErr) redirect(`/documents/${id}?error=${errorCode(numErr, "app/documents/actions:createNote")}`);
 
-      const { data: full } = await supabase
+      const { data: full, error: fullError } = await supabase
         .from("partner_documents")
         .select(
           "farm_id, partner_client_id, machine_id, terms, vat_rate_bps, subject, " +
@@ -884,6 +919,9 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
         )
         .eq("id", id)
         .single();
+      // loadDoc has just found this invoice, so no row here is a failure too (PGRST116), not
+      // a state: either way the note would be raised with no customer on it.
+      if (fullError) redirect(`/documents/${id}?error=${errorCode(fullError, "app/documents/actions:createNote")}`);
       const src = (full ?? {}) as unknown as Record<string, unknown>;
 
       const { data: created, error } = await supabase
@@ -917,12 +955,17 @@ async function createNote(formData: FormData, noteKind: "credit_note" | "debit_n
         return `/documents/${newId}?credit=1`;
       }
 
-      const { data: lines } = await supabase
+      const { data: lines, error: linesReadError } = await supabase
         .from("partner_document_lines")
         .select("sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents")
         .eq("document_id", id)
         .is("deleted_at", null)
         .order("sort_order");
+      if (linesReadError) {
+        captureError(linesReadError, { where: `documents:${noteKind}:lines-read` });
+        revalidatePath("/documents");
+        return `/documents/${newId}?error=lines-failed`;
+      }
 
       const rows = (lines ?? []) as Record<string, unknown>[];
       if (rows.length > 0) {
@@ -952,10 +995,11 @@ export async function deleteDraft(formData: FormData) {
   if (!doc) redirect("/documents?error=not-found");
   if (doc.status !== "draft") redirect(`/documents/${id}?error=locked`);
 
-  await supabase
+  const { error } = await supabase
     .from("partner_documents")
     .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq("id", id);
+  if (error) redirect(`/documents/${id}?error=${errorCode(error, "app/documents/actions:deleteDraft")}`);
 
   revalidatePath("/documents");
   redirect("/documents?deleted=1");

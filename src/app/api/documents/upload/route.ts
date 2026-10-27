@@ -7,6 +7,8 @@ import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
 import { sameSupplierUpload, supplierFileHash, validSupplierTotal, type SupplierDocumentReceipt } from "@/lib/supplier-document-upload";
+import { captureError } from "@/lib/observability";
+import { classifyFailure, type DbFailure } from "@/lib/action-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -68,8 +70,13 @@ export async function POST(request: Request) {
   if (!validSupplierTotal(kind, totalIncl)) return NextResponse.json({ error: "missing_total" }, { status: 400 });
 
   const supabase = await createClient();
-  const { data: link } = await supabase.from("workshop_links").select("id")
+  const { data: link, error: linkError } = await supabase.from("workshop_links").select("id")
     .eq("farm_id", farmId).eq("workshop_id", workshopId).eq("status", "active").is("deleted_at", null).maybeSingle();
+  // A failed read is ours, not a refusal of a link that may well exist.
+  if (linkError) {
+    captureError(linkError, { where: "documents:upload:link" });
+    return NextResponse.json({ error: "save-failed" }, { status: 500 });
+  }
   if (!link) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const requestId = String(form.get("work_request_id") ?? "").trim() || null;
   const machineId = String(form.get("machine_id") ?? "").trim() || null;
@@ -87,14 +94,21 @@ export async function POST(request: Request) {
   type SavedReceipt = SupplierDocumentReceipt & { status: string };
   const readReceipt = async () => await supabase.from("partner_documents").select(receiptColumns).eq("id", capture).is("deleted_at", null).maybeSingle();
   const initial = await readReceipt();
-  if (initial.error) return NextResponse.json({ error: "save-failed" }, { status: 500 });
+  if (initial.error) {
+    captureError(initial.error, { where: "documents:upload:receipt" });
+    return NextResponse.json({ error: "save-failed" }, { status: 500 });
+  }
   let saved = initial.data as SavedReceipt | null;
   if (saved && !sameSupplierUpload(saved, receipt)) return NextResponse.json({ error: "work-changed" }, { status: 409 });
   // The receipt is authoritative even if another session has since closed the work.
   if (saved && saved.status !== "draft") return NextResponse.json({ ok: true, id: saved.id, number: saved.number });
   if (requestId) {
-    const { data: work } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
+    const { data: work, error: workError } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
       .eq("id", requestId).is("deleted_at", null).maybeSingle();
+    if (workError) {
+      captureError(workError, { where: "documents:upload:work" });
+      return NextResponse.json({ error: "save-failed" }, { status: 500 });
+    }
     if (!work || work.farm_id !== farmId || work.workshop_id !== workshopId || work.machine_id !== machineId) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
@@ -105,7 +119,12 @@ export async function POST(request: Request) {
 
   // The partner's letterhead and VAT rate, the uploaded document still carries their
   // identity in the list, and the same rate the rest of their paperwork uses.
-  const { data: shopData } = await supabase.from("workshops").select("*").eq("id", workshopId).maybeSingle();
+  const { data: shopData, error: shopError } = await supabase.from("workshops").select("*").eq("id", workshopId).maybeSingle();
+  // The VAT rate and letterhead are frozen onto the document: not from a read that failed.
+  if (shopError) {
+    captureError(shopError, { where: "documents:upload:workshop" });
+    return NextResponse.json({ error: "save-failed" }, { status: 500 });
+  }
   const brand = brandingFrom(shopData as never);
   const vatBps = brand.defaultVatRateBps;
   const exVat = exVatCents(totalIncl, vatBps);
@@ -117,9 +136,20 @@ export async function POST(request: Request) {
       ...receipt, status: "draft", subtotal_cents: exVat,
       vat_cents: totalIncl - exVat, vat_rate_bps: vatBps, issuer_snapshot: snapshotOf(brand),
     });
-    if (error && error.code !== "23505") return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error && error.code !== "23505") {
+      // Our own SQL's refusals keep their words; anything else is reported and never sent
+      // to the browser as database text.
+      const failure = classifyFailure(error);
+      if (failure.report) captureError(error, { where: "documents:upload:insert", extra: { code: error.code ?? null } });
+      return NextResponse.json({ error: failure.report ? "save-failed" : failure.code }, { status: failure.report ? 500 : 400 });
+    }
     // Concurrent retries can race on INSERT; both must use the same stored payload.
     const result = await readReceipt();
+    // Not knowing what was stored is not "the work changed".
+    if (result.error) {
+      captureError(result.error, { where: "documents:upload:receipt-after-insert" });
+      return NextResponse.json({ error: "save-failed" }, { status: 500 });
+    }
     saved = result.data as SavedReceipt | null;
     if (error?.code === "23505" && !result.error && !saved) return NextResponse.json({ error: "document-number-used" }, { status: 409 });
     if (result.error || !saved || !sameSupplierUpload(saved, receipt)) return NextResponse.json({ error: "work-changed" }, { status: 409 });
@@ -128,12 +158,18 @@ export async function POST(request: Request) {
 
   const svc = createServiceClient();
   const { error: uploadError } = await svc.storage.from("partner-docs").upload(path, bytes, { contentType: file.type, upsert: false });
-  if (uploadError && !["409", "Duplicate"].includes(String(uploadError.statusCode ?? uploadError.name))) return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+  if (uploadError && !["409", "Duplicate"].includes(String(uploadError.statusCode ?? uploadError.name))) {
+    captureError(uploadError, { where: "documents:upload:storage" });
+    return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+  }
   const { error: attachmentError } = await svc.from("attachments").upsert({
     id: capture, farm_id: farmId, parent_type: "partner_document", parent_id: capture,
     kind: "invoice", storage_path: path, created_by: profile.id,
   }, { onConflict: "id", ignoreDuplicates: true });
-  if (attachmentError) return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+  if (attachmentError) {
+    captureError(attachmentError, { where: "documents:upload:attachment" });
+    return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+  }
 
   const { data: issued, error: saveError } = await supabase.from("partner_documents")
     .update({ status: "sent", sent_at: new Date().toISOString() })
@@ -144,8 +180,18 @@ export async function POST(request: Request) {
     if (!result.error && concurrent && concurrent.status !== "draft" && sameSupplierUpload(concurrent, receipt)) {
       return NextResponse.json({ ok: true, id: capture, number: concurrent.number });
     }
-    // Retain the draft and receipt so an uncertain upload can safely be retried.
-    return NextResponse.json({ error: saveError?.message ?? "upload_failed", id: capture }, { status: 409 });
+    // Retain the draft and receipt so an uncertain upload can safely be retried. A failed
+    // call is reported, and only our own SQL's refusals keep their words in the answer.
+    const failed = saveError ?? result.error;
+    if (failed) {
+      const failure = classifyFailure(failed as DbFailure);
+      if (failure.report) captureError(failed, { where: "documents:upload:issue" });
+      return NextResponse.json(
+        { error: failure.report ? "upload_failed" : failure.code, id: capture },
+        { status: failure.report ? 500 : 409 },
+      );
+    }
+    return NextResponse.json({ error: "upload_failed", id: capture }, { status: 409 });
   }
   return NextResponse.json({ ok: true, id: capture, number: saved.number });
 }

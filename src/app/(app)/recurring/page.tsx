@@ -12,6 +12,7 @@ import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ScheduleForm } from "@/components/recurring/schedule-form";
+import { mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function RecurringPage({
   if (!workshop) redirect("/contractor?error=no-workshop");
 
   const supabase = await createClient();
-  const [{ data: scheduleData }, { data: linkData }, { data: clientData }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("recurring_invoices").select("*").is("deleted_at", null).order("next_issue_date"),
     supabase
       .from("workshop_links")
@@ -49,6 +50,9 @@ export default async function RecurringPage({
       .is("deleted_at", null),
     supabase.from("partner_clients").select("id, name").is("deleted_at", null).order("name"),
   ]);
+  // A failed read must not say "nothing due": forgetting to bill is what this screen prevents.
+  mustAll(results, "recurring:list");
+  const [{ data: scheduleData }, { data: linkData }, { data: clientData }] = results;
 
   const schedules = (scheduleData ?? []) as Schedule[];
 

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Stat, StatGrid } from "@/components/ui/stat";
 import { AllClear } from "@/components/ui/empty-state";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { must, soft } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -47,25 +48,34 @@ export default async function CorrectionsPage() {
   const locale = profile.lang;
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("partner_document_revisions")
-    .select("id, document_id, version, reason, total_cents_before, total_cents_after, edited_at, edited_by")
-    .order("edited_at", { ascending: false })
-    .limit(200);
+  // A failed read is the error screen, never "no corrections": that is the reassuring answer
+  // this page exists to check.
+  const data = must(
+    await supabase
+      .from("partner_document_revisions")
+      .select("id, document_id, version, reason, total_cents_before, total_cents_after, edited_at, edited_by")
+      .order("edited_at", { ascending: false })
+      .limit(200),
+    "corrections:list",
+  );
 
   const rows = (data ?? []) as Row[];
 
   // Name the documents and the people. Two lookups, only when there is anything to show.
   const docIds = [...new Set(rows.map((r) => r.document_id))];
   const editorIds = [...new Set(rows.map((r) => r.edited_by).filter((v): v is string => !!v))];
-  const [{ data: docs }, { data: editors }] = await Promise.all([
+  const [docsResult, editorsResult] = await Promise.all([
     docIds.length
       ? supabase.from("partner_documents").select("id, number, kind, bill_to_name").in("id", docIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     editorIds.length
       ? supabase.from("users").select("id, name").in("id", editorIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
+  // Without the documents every row would say "unknown document", which is a claim; the
+  // editor's name is only a label beside the time.
+  const docs = must(docsResult, "corrections:documents");
+  const editors = soft(editorsResult, "corrections:editors");
   const docById = new Map(
     ((docs ?? []) as { id: string; number: string; kind: string; bill_to_name: string | null }[])
       .map((d) => [d.id, d]),

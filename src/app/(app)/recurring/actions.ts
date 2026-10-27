@@ -40,7 +40,7 @@ async function resolveRecipient(
   if (kind === "farm") {
     const farmId = s(formData, "farm_id");
     if (!farmId) return null;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("workshop_links")
       .select("farm_id")
       .eq("workshop_id", workshopId)
@@ -48,20 +48,23 @@ async function resolveRecipient(
       .eq("status", "active")
       .is("deleted_at", null)
       .maybeSingle();
+    // A read that failed is not a missing recipient: say try again, and tell us.
+    if (error) redirect(`/recurring?error=${errorCode(error, "app/recurring/actions:resolveRecipient")}`);
     return data ? { farm_id: farmId, partner_client_id: null, bill_to_name: null } : null;
   }
 
   if (kind === "client") {
     const clientId = s(formData, "partner_client_id");
     if (!clientId) return null;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("partner_clients")
       .select("id")
       .eq("id", clientId)
       .eq("workshop_id", workshopId)
       .is("deleted_at", null)
       .maybeSingle();
-    return data ? { farm_id: null, partner_client_id: clientId, bill_to_name: null } : null;
+    if (error) redirect(`/recurring?error=${errorCode(error, "app/recurring/actions:resolveRecipient")}`);
+    return data ?{ farm_id: null, partner_client_id: clientId, bill_to_name: null } : null;
   }
 
   const name = s(formData, "bill_to_name");
@@ -154,11 +157,13 @@ export async function addScheduleLine(formData: FormData) {
       if (!description || priceCents == null) redirect(`/recurring/${id}?error=need-line`);
 
       const supabase = await createClient();
-      const { data: sched } = await supabase
+      const { data: sched, error: schedError } = await supabase
         .from("recurring_invoices")
         .select("vat_rate_bps")
         .eq("id", id)
         .maybeSingle();
+      // The line's ex-VAT price is worked out from this rate; a failed read is not 15%.
+      if (schedError) redirect(`/recurring/${id}?error=${errorCode(schedError, "app/recurring/actions:addScheduleLine")}`);
       const rateBps = (sched as { vat_rate_bps?: number } | null)?.vat_rate_bps ?? 1500;
       const inclusive = formData.get("incl_vat") != null;
 

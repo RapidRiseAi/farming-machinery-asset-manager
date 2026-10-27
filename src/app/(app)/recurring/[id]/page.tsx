@@ -27,6 +27,7 @@ import {
   updateSchedule, addScheduleLine, removeScheduleLine,
   toggleSchedule, runScheduleNow, deleteSchedule,
 } from "../actions";
+import { must, mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +49,14 @@ export default async function SchedulePage({
   if (!workshop) redirect("/contractor?error=no-workshop");
 
   const supabase = await createClient();
-  const { data } = await supabase.from("recurring_invoices").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
+  const data = must(
+    await supabase.from("recurring_invoices").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
+    "recurring:detail",
+  );
   const schedule = data as Schedule | null;
   if (!schedule) notFound();
 
-  const [{ data: lineData }, { data: raisedData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("recurring_invoice_lines")
       .select("id, sort_order, description, qty, unit_price_cents, discount_cents")
@@ -69,8 +73,12 @@ export default async function SchedulePage({
           .eq("workshop_id", workshop.id)
           .eq("id", schedule.last_document_id)
           .is("deleted_at", null)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
+  // The lines are what each invoice bills, and the raised document is the proof the schedule
+  // works: a failed read of either is the error screen, not "no lines" or "never raised".
+  mustAll(results, "recurring:detail-parts");
+  const [{ data: lineData }, { data: raisedData }] = results;
 
   const lines = (lineData ?? []) as ScheduleLine[];
   const netCents = scheduleNetCents(lines);

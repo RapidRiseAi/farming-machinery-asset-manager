@@ -20,6 +20,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { FilterBar, type FilterGroup } from "@/components/ui/filter-bar";
 import { NewDocument } from "@/components/partner/new-document";
 import { UploadDocument } from "@/components/partner/upload-document";
+import { must, mustAll } from "@/lib/supabase/must";
 
 /** i18n key suffix per document kind, one map beats a ternary that forgets a kind. */
 const KIND_KEY: Record<DocKind, string> = {
@@ -93,7 +94,9 @@ export default async function DocumentsPage({
   if (kind) query = query.eq("kind", kind);
   if (status) query = query.eq("status", status);
 
-  const { data } = await query;
+  // The outstanding total and the "needs you" list are summed from this: a failed read is
+  // the error screen, not R0 outstanding.
+  const data = must(await query, "documents:list");
   const rows = (data ?? []) as Row[];
 
   // Names for the other side of each document.
@@ -101,11 +104,13 @@ export default async function DocumentsPage({
   const shopIds = [...new Set(rows.map((r) => r.workshop_id))];
   const machineIds = [...new Set(rows.map((r) => r.machine_id).filter(Boolean))] as string[];
 
-  const [farmsRes, shopsRes, machinesRes] = await Promise.all([
-    farmIds.length ? supabase.from("farms").select("id, name").in("id", farmIds) : Promise.resolve({ data: [] }),
-    shopIds.length ? supabase.from("workshops").select("id, name, trading_name").in("id", shopIds) : Promise.resolve({ data: [] }),
-    machineIds.length ? supabase.from("machines").select("id, name").in("id", machineIds) : Promise.resolve({ data: [] }),
+  const nameResults = await Promise.all([
+    farmIds.length ? supabase.from("farms").select("id, name").in("id", farmIds) : Promise.resolve({ data: [], error: null }),
+    shopIds.length ? supabase.from("workshops").select("id, name, trading_name").in("id", shopIds) : Promise.resolve({ data: [], error: null }),
+    machineIds.length ? supabase.from("machines").select("id, name").in("id", machineIds) : Promise.resolve({ data: [], error: null }),
   ]);
+  mustAll(nameResults, "documents:list-names");
+  const [farmsRes, shopsRes, machinesRes] = nameResults;
   const farmName = new Map((farmsRes.data ?? []).map((f: { id: string; name: string }) => [f.id, f.name]));
   const shopName = new Map(
     (shopsRes.data ?? []).map((w: { id: string; name: string; trading_name?: string | null }) => [w.id, w.trading_name || w.name]),
@@ -114,11 +119,15 @@ export default async function DocumentsPage({
 
   // Who the "attach a document I made elsewhere" dialog can name on the other side: for a
   // partner, the farms linked to them; for a farm, the contractors linked to the farm.
-  const { data: linkData } = await supabase
-    .from("workshop_links")
-    .select("farm_id, workshop_id, farms(id, name), workshops(id, name, trading_name)")
-    .eq("status", "active")
-    .is("deleted_at", null);
+  // A failed read would offer nobody to attach a document to, as if nothing were linked.
+  const linkData = must(
+    await supabase
+      .from("workshop_links")
+      .select("farm_id, workshop_id, farms(id, name), workshops(id, name, trading_name)")
+      .eq("status", "active")
+      .is("deleted_at", null),
+    "documents:upload-parties",
+  );
   // PostgREST types an embedded relation as an array even when the FK makes it at most
   // one row, so normalise both sides before use.
   const links = ((linkData ?? []) as unknown as {

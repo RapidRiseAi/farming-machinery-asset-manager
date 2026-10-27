@@ -41,6 +41,7 @@ import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { RequestIdInput } from "@/components/ui/request-id-input";
 import { errorMessage } from "@/lib/errors";
+import { must, mustAll, soft } from "@/lib/supabase/must";
 
 /**
  * One quote or invoice, as both sides see it (F14c/F14d).
@@ -109,19 +110,19 @@ export default async function DocumentPage({
   const sp = await searchParams;
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("partner_documents")
-    .select("*")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const data = must(
+    await supabase
+      .from("partner_documents")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "documents:detail",
+  );
   const doc = data as Doc | null;
   if (!doc) notFound();
 
-  const [
-    { data: lineData }, { data: payData }, { data: farmData }, { data: shopData },
-    { data: machineData }, { data: creditData }, { data: emailData }, { data: revisionData },
-  ] = await Promise.all([
+  const results = await Promise.all([
       supabase
         .from("partner_document_lines")
         .select("id, sort_order, kind, part_no, description, qty, unit_price_cents, discount_cents, line_total_cents")
@@ -136,11 +137,11 @@ export default async function DocumentPage({
         .order("paid_on", { ascending: false }),
       doc.farm_id
         ? supabase.from("farms").select("id, name").eq("id", doc.farm_id).maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
       supabase.from("workshops").select("id, name, trading_name, phone, whatsapp, email").eq("id", doc.workshop_id).maybeSingle(),
       doc.machine_id
         ? supabase.from("machines").select("id, name, reg_no").eq("id", doc.machine_id).maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
       // Credit notes raised against this invoice, and what we have emailed. Both read
       // through RLS, so a farmer sees the corrections to their own invoice and a partner
       // sees theirs.
@@ -165,6 +166,13 @@ export default async function DocumentPage({
         .eq("document_id", id)
         .order("version", { ascending: false }),
     ]);
+  // Lines, payments, credits and history are what the totals, the balance and the buttons
+  // are worked out from: a failed read is the error screen, not an empty invoice.
+  mustAll(results, "documents:detail-parts");
+  const [
+    { data: lineData }, { data: payData }, { data: farmData }, { data: shopData },
+    { data: machineData }, { data: creditData }, { data: emailData }, { data: revisionData },
+  ] = results;
 
   const lines = (lineData ?? []) as DocLine[];
   const payments = (payData ?? []) as Payment[];
@@ -179,7 +187,8 @@ export default async function DocumentPage({
   const editorIds = [...new Set(revisionRows.map((r) => r.edited_by).filter((v): v is string => !!v))];
   const editorName = new Map<string, string>();
   if (editorIds.length > 0) {
-    const { data: editors } = await supabase.from("users").select("id, name").in("id", editorIds);
+    // Only the editor's name beside each version: without it the history still stands.
+    const editors = soft(await supabase.from("users").select("id, name").in("id", editorIds), "documents:revision-editors");
     for (const u of (editors ?? []) as { id: string; name: string }[]) editorName.set(u.id, u.name);
   }
   const revisions: Revision[] = revisionRows.map((r) => ({
@@ -192,9 +201,9 @@ export default async function DocumentPage({
   // invoice sits in the job), `app.quote_billing` is SECURITY INVOKER, so each side gets
   // the answer built from the documents they are allowed to see.
   const billingOf = doc.kind === "quote" ? doc.id : doc.quote_id;
-  const { data: billingData } = billingOf
-    ? await supabase.rpc("quote_billing", { p_quote: billingOf })
-    : { data: null };
+  const billingData = billingOf
+    ? must(await supabase.rpc("quote_billing", { p_quote: billingOf }), "documents:quote-billing")
+    : null;
   const billing = (((billingData ?? []) as QuoteBilling[])[0] ?? null);
 
   const isPartner = profile.role === "workshop";

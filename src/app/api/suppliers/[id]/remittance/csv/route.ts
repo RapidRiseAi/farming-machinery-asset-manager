@@ -2,6 +2,7 @@ import { requireRole, currentWorkshop, workshopEntitlementOr403 } from "@/lib/au
 import { createClient } from "@/lib/supabase/server";
 import { toCsv, csvResponse, centsToR } from "@/app/(app)/reports/data";
 import { remittanceTotals, isoDateOrNull, isUuid, type RemittanceRow } from "@/lib/supplier-statement";
+import { mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!paidOn) return new Response("Bad request", { status: 400 });
 
   const supabase = await createClient();
-  const [{ data: who }, { data: rowData }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("suppliers").select("id, name, account_number").eq("id", id).is("deleted_at", null).maybeSingle(),
     supabase.rpc("supplier_remittance", {
       p_workshop: workshop.id, p_supplier: id, p_paid_on: paidOn,
     }),
   ]);
+  // A failed read is a 500, never a 404 or a remittance for nothing paid.
+  mustAll(results, "suppliers:remittance-csv");
+  const [{ data: who }, { data: rowData }] = results;
   if (!who) return new Response("Not found", { status: 404 });
 
   const supplier = who as { id: string; name: string; account_number: string | null };

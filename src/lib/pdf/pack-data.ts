@@ -35,6 +35,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { must, mustAll } from "@/lib/supabase/must";
 import { readMachineFinancials } from "@/lib/cost-visibility";
 import {
   type Profile,
@@ -127,10 +128,14 @@ async function loadIssuer(
   farmId: string,
   profile: Profile,
 ): Promise<PackIssuer> {
-  const [{ data: farm }, { data: people }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("farms").select("name, settings").eq("id", farmId).maybeSingle(),
     supabase.from("users").select("id, name").eq("farm_id", farmId),
   ]);
+  // The farm's settings decide what the pack calls urgent and the people are the names it
+  // prints: a failed read is a failed pack, not one with defaults and blanks.
+  mustAll(results, "packs:issuer");
+  const [{ data: farm }, { data: people }] = results;
   const f = farm as { name: string; settings: Record<string, unknown> | null } | null;
   const settings = f?.settings ?? {};
   return defaultIssuer({
@@ -182,12 +187,16 @@ export async function authorizeMachinePack(
   if (!/^[0-9a-f-]{36}$/i.test(machineId)) return { status: 404, reason: "not-found" };
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("machines")
-    .select(MACHINE_COLUMNS)
-    .eq("id", machineId)
-    .is("deleted_at", null)
-    .maybeSingle();
+  // A failed read is a 500, not the 404 that "not there" answers.
+  const data = must(
+    await supabase
+      .from("machines")
+      .select(MACHINE_COLUMNS)
+      .eq("id", machineId)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "packs:machine",
+  );
   const machineBase = data as MachineBaseRow | null;
   // RLS answered this, not a farm filter written by hand: another farm's machine is
   // simply not there.
@@ -247,8 +256,11 @@ export async function gatherFleetCompliance(
       .eq("farm_id", farmId).is("deleted_at", null)
       .order("occurred_on", { ascending: false }).limit(USAGE_LIMIT),
   ]);
+  // A compliance pack missing a section because its read failed would certify a clean
+  // record that nobody checked.
+  mustAll([machinesRes, licRes, planRes, faultRes, chkRes, usageRes], "packs:fleet-compliance");
 
-  const all = ((machinesRes.data as MachineBaseRow[] | null) ?? []).map(withoutFinancials);
+  const all =((machinesRes.data as MachineBaseRow[] | null) ?? []).map(withoutFinancials);
   // Retired and sold are out of every fleet compliance figure (Scope 4.1 / C8), but the
   // NUMBER excluded is carried through and printed, because a total nobody can reconcile
   // against the farm's own machine list is a total an auditor will query.
@@ -290,6 +302,7 @@ export async function gatherMachineCompliance(
       .eq("machine_id", id).is("deleted_at", null)
       .order("occurred_on", { ascending: false }).limit(USAGE_LIMIT),
   ]);
+  mustAll([licRes, planRes, faultRes, chkRes, usageRes], "packs:machine-compliance");
 
   return {
     // Named explicitly, so its status is irrelevant: a retired machine still has a
@@ -333,15 +346,17 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
     supabase.from("attachments").select("id, kind, created_at")
       .eq("parent_type", "machine").eq("parent_id", id).is("deleted_at", null).order("created_at"),
   ]);
+  mustAll([licRes, planRes, jcRes, faultRes, readRes, photoRes], "packs:sale");
 
   const costsAllowed = gate.allowed;
   let costs: PackCost[] = [];
   if (costsAllowed) {
-    const { data } = await readAll(() => supabase
+    // A failed read here printed a machine that cost nothing on a sale document.
+    const data = must(await readAll(() => supabase
       .from("cost_entries")
       .select("type, amount_cents")
       .eq("machine_id", id)
-      .is("deleted_at", null));
+      .is("deleted_at", null)), "packs:sale-costs");
     costs = (data as PackCost[] | null) ?? [];
   }
 
@@ -387,6 +402,7 @@ export async function gatherWarranty(auth: MachinePackAuth): Promise<WarrantyInp
       .eq("machine_id", id).is("deleted_at", null)
       .order("reading_date", { ascending: false }).limit(READING_LIMIT),
   ]);
+  mustAll([planRes, jcRes, faultRes, readRes], "packs:warranty");
 
   return {
     machine,

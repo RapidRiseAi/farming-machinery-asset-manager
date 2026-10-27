@@ -4,6 +4,7 @@ import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { supplierPositions, EMPTY_POSITION, type Supplier } from "@/lib/suppliers";
@@ -73,7 +74,7 @@ export default async function SuppliersPage({
   }
 
   const supabase = await createClient();
-  const [{ data: supplierData }, { data: expenseData }] = await Promise.all([
+  const results = await Promise.all([
     supabase
       .from("suppliers")
       .select("*")
@@ -88,6 +89,9 @@ export default async function SuppliersPage({
       .select("supplier_id, amount_cents, vat_cents, paid_on")
       .is("deleted_at", null)),
   ]);
+  // What is owed is summed from these: a failed read is the error screen, not R0 owed.
+  mustAll(results, "suppliers:list");
+  const [{ data: supplierData }, { data: expenseData }] = results;
 
   const suppliers = (supplierData ?? []) as Supplier[];
   const expenses = (expenseData ?? []) as {

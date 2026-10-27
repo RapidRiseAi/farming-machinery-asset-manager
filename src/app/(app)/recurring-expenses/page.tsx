@@ -21,6 +21,7 @@ import { Flash } from "@/components/ui/flash";
 import { GetStarted } from "@/components/ui/empty-state";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ExpenseScheduleForm } from "@/components/recurring-expenses/schedule-form";
+import { must } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -64,11 +65,16 @@ export default async function RecurringExpensesPage({
   }
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("recurring_expenses")
-    .select("*")
-    .is("deleted_at", null)
-    .order("next_due_date");
+  // The due list and the committed total come from this: a failed read is the error screen,
+  // not "nothing about to go out".
+  const data = must(
+    await supabase
+      .from("recurring_expenses")
+      .select("*")
+      .is("deleted_at", null)
+      .order("next_due_date"),
+    "recurring-expenses:list",
+  );
 
   const schedules = (data ?? []) as ExpenseSchedule[];
   const due = schedules.filter((s) => isDue(s));

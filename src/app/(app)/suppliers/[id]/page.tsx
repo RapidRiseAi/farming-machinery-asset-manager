@@ -28,6 +28,7 @@ import { cn } from "@/components/ui/cn";
 import { DownloadIcon } from "@/components/ui/icons";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
+import { must, mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -113,12 +114,15 @@ export default async function SupplierAccountPage({
   }
 
   const supabase = await createClient();
-  const { data: supplierData } = await supabase
-    .from("suppliers")
-    .select("id, name, contact_person, phone, email, address, vat_number, account_number, payment_terms_days, active")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const supplierData = must(
+    await supabase
+      .from("suppliers")
+      .select("id, name, contact_person, phone, email, address, vat_number, account_number, payment_terms_days, active")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    "suppliers:account",
+  );
 
   // A guessed id, another workshop's supplier and a retracted one all land here, RLS
   // returns no row, so there is nothing to distinguish and nothing that should be.
@@ -131,12 +135,14 @@ export default async function SupplierAccountPage({
   const to = isoDateOrNull(sp.to) ?? fallback.to;
   const activeKey = periods.find((p) => p.from === from && p.to === to)?.key ?? null;
 
-  const [{ data: stmtData }, { data: agedData }] = await Promise.all([
+  const statementResults = await Promise.all([
     readSupplierStatement(supabase, {
       p_workshop: workshop.id, p_supplier: supplier.id, p_from: from, p_to: to,
     }),
     supabase.rpc("supplier_ageing", { p_workshop: workshop.id, p_supplier: supplier.id }),
   ]);
+  mustAll(statementResults, "suppliers:statement");
+  const [{ data: stmtData }, { data: agedData }] = statementResults;
 
   const rows = (stmtData ?? []) as SupplierStatementRow[];
   const ageing = ((agedData ?? []) as SupplierAgeing[])[0] ?? EMPTY_SUPPLIER_AGEING;
@@ -152,9 +158,12 @@ export default async function SupplierAccountPage({
 
   let remittance: RemittanceRow[] = [];
   if (chosenPaid) {
-    const { data } = await supabase.rpc("supplier_remittance", {
-      p_workshop: workshop.id, p_supplier: supplier.id, p_paid_on: chosenPaid,
-    });
+    const data = must(
+      await supabase.rpc("supplier_remittance", {
+        p_workshop: workshop.id, p_supplier: supplier.id, p_paid_on: chosenPaid,
+      }),
+      "suppliers:remittance",
+    );
     remittance = (data ?? []) as RemittanceRow[];
   }
   const remit = remittanceTotals(remittance);
