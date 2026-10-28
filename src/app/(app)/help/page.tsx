@@ -194,7 +194,8 @@ export default async function HelpPage({
         infoKey="help"
         locale={locale}
         back={back}
-        actions={atLimit ? undefined : askDialog}
+        // Rapid Rise opens cases for a customer from the client page, not from this form.
+        actions={atLimit || profile.role === "rr_admin" ? undefined : askDialog}
       />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />

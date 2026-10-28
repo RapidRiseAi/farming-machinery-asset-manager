@@ -358,9 +358,10 @@ because the same webhook arrives in all three cases and says nothing about which
 subscription, the invoice, every payment on it (refunds included, so *"have we already
 given some back?"* is answered before it is asked), the card, the attempt history and the
 vehicle count, gathered at open time and frozen, so the ticket read next month shows what
-was true when the complaint arrived. Cases are worked in the **RapidRise OS support
-dashboard**; `20260912170000` posts them there, and `/admin/support` lists them here so a
-case is never invisible when that connection is down.
+was true when the complaint arrived. Cases are worked on the **Fleet Wise support desk**
+(`/admin/support`, founder default 2026-10-28: the Fleet Wise admin is the system of record);
+`20260912170000` can post an optional copy elsewhere when `SUPPORT_WEBHOOK_URL` is set, and it
+is left unset.
 
 **The card is labelled rather than asserted.** `evidence.card.source` is `charged` only when
 the attempt genuinely used that card, and `farm_default` when it is merely the card on

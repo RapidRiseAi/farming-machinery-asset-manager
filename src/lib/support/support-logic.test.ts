@@ -68,3 +68,25 @@ test("a farm is quiet after fourteen days without activity", () => {
   assert.equal(isQuiet(null, now, "2026-09-01T00:00:00Z"), true);
   assert.equal(isQuiet(null, now, null), false);
 });
+
+test("the support alerts read as sentences and open the right page, in both languages", async () => {
+  const { formatNotification, notificationTitle, notificationUrl } = await import("@/lib/notifications/format");
+  const id = "5d000000-0000-4000-8000-000000000001";
+  for (const locale of ["en", "af"] as const) {
+    for (const template of ["support_request_new", "support_customer_reply", "support_request_due", "support_reply"]) {
+      const body = formatNotification(template, { ticket_id: id, hours_left: 3 }, locale);
+      assert.notEqual(body, template, `${template} has no sentence in ${locale}`);
+      assert.ok(!body.includes("support."), `${template} printed a raw key in ${locale}`);
+      assert.ok(!notificationTitle(template, locale).startsWith("pushTitle."), `${template} has no title in ${locale}`);
+    }
+  }
+  // The customer opens their conversation; Rapid Rise opens the case.
+  assert.equal(notificationUrl("support_reply", { ticket_id: id }), `/help/${id}`);
+  assert.equal(notificationUrl("support_request_new", { ticket_id: id }), `/admin/support/${id}`);
+  assert.equal(notificationUrl("support_customer_reply", { ticket_id: id }), `/admin/support/${id}`);
+  // Past due reads as past due, not "within 0 hours".
+  assert.equal(
+    formatNotification("support_request_due", { ticket_id: id, hours_left: -2 }, "en"),
+    formatNotification("support_request_due", { ticket_id: id, hours_left: 0 }, "en"),
+  );
+});

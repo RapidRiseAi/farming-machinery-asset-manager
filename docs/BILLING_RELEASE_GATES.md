@@ -115,6 +115,10 @@ currently enforces eight characters and nothing else, so this is free strength.
 weeks. Card disputes therefore never leave FleetWise, and their roughly 48 business hours
 depend on somebody opening `/admin/support`. RapidRise OS is not in this workspace; the
 contract is one POST per case, upsert on `id`, in `.env.example`.
+Superseded 2026-10-28: the Fleet Wise admin is the system of record. Cases are worked on
+`/admin/support` (queue, reply, assign, resolve), a new customer request alerts Rapid Rise
+in the app at once (and by email when `OPS_ALERT_EMAIL` is set), and `SUPPORT_WEBHOOK_URL`
+stays unset by design.
 
 **D3. Confirm `NEXT_PUBLIC_SITE_URL` in Vercel Production.** Every checkout callback is
 built from it and it cannot be read from outside. Never presence-check it from a pulled env
