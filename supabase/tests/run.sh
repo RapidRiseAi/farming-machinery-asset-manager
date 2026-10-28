@@ -204,5 +204,7 @@ echo "==> running fuel tank balance tests"
 pg "$DB" < "$ROOT/supabase/tests/fuel_tank_balances.sql"
 echo "==> running team invite tests (inviting an address that already has a login)"
 pg "$DB" < "$ROOT/supabase/tests/team_invites.sql"
+echo "==> running activity log redaction tests (no reader sees more than the table shows)"
+pg "$DB" < "$ROOT/supabase/tests/audit_redaction.sql"
 
 echo "==> OK"

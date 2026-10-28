@@ -86,6 +86,15 @@ if (REMOVE) {
       console.log(`  (skipped ${t}: ${e.message.split("\n")[0]})`);
     }
   }
+  // Audit rows of tables narrower than a farm's log (billing, notifications) are filed for
+  // Rapid Rise with the farm in about_farm_id since 20261028091500.
+  const { rows: about } = await client.query(
+    "select exists(select 1 from information_schema.columns where table_schema = 'public'" +
+      " and table_name = 'audit_log' and column_name = 'about_farm_id') as present"
+  );
+  if (about[0]?.present) {
+    await client.query("delete from public.audit_log where about_farm_id = $1", [IDS.farm]);
+  }
   await client.query("delete from public.users where id = $1", [IDS.owner]);
   await client.query("delete from public.farms where id = $1", [IDS.farm]);
   await client.query("delete from auth.users where id = $1", [IDS.owner]);
