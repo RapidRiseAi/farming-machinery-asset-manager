@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isFinanceRole } from "@/lib/asset-finance";
 import { requireProfile, currentWorkshop, checkWorkshopEntitlement } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
@@ -51,7 +52,8 @@ export default async function CashflowPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const profile = await requireProfile();
-  if (profile.role !== "workshop") redirect("/dashboard");
+  // A farm's own cash flow (finance instalments and contracts) is on /finance.
+  if (profile.role !== "workshop") redirect(isFinanceRole(profile.role) ? "/finance#cashflow" : "/dashboard");
   const locale = profile.lang;
   const sp = await searchParams;
 

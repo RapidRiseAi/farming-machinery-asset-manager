@@ -46,6 +46,42 @@ const FALLBACK = "errors.generic";
  * action is converted to emit a slug.
  */
 const CODE_KEYS: Record<string, string> = {
+  // Machinery finance and lease tracking (20261028110000 onwards): the slugs the finance
+  // functions raise and the finance actions send.
+  "finance-balloon-too-large": "assetFinance.errBalloonTooLarge",
+  "finance-dates": "assetFinance.errDates",
+  "finance-instalment-below-interest": "assetFinance.errBelowInterest",
+  "finance-instalment-mismatch": "assetFinance.errMismatch",
+  "finance-instalment-too-high": "assetFinance.errTooHigh",
+  "finance-instalment-too-low": "assetFinance.errTooLow",
+  "finance-lender-required": "assetFinance.errLenderRequired",
+  "finance-machine-invalid": "assetFinance.errMachineInvalid",
+  "finance-not-active": "assetFinance.errNotActive",
+  "finance-not-found": "assetFinance.errNotFound",
+  "finance-payment-amount": "assetFinance.errPaymentAmount",
+  "finance-payment-future": "assetFinance.errPaymentFuture",
+  "finance-payment-too-much": "assetFinance.errPaymentTooMuch",
+  "finance-principal-below-paid": "assetFinance.errPrincipalBelowPaid",
+  "finance-principal-required": "assetFinance.errPrincipalRequired",
+  "finance-rate-or-instalment": "assetFinance.errRateOrInstalment",
+  "finance-schedule-invalid": "assetFinance.errScheduleInvalid",
+  "finance-settle-date": "assetFinance.errSettleDate",
+  "finance-statement-incomplete": "assetFinance.errStatementIncomplete",
+  "finance-term-below-paid": "assetFinance.errTermBelowPaid",
+  "finance-term-frequency": "assetFinance.errTermFrequency",
+  "finance-term-required": "assetFinance.errTermRequired",
+  "finance-rate-invalid": "assetFinance.errRateInvalid",
+  "finance-lead-invalid": "assetFinance.errLeadInvalid",
+  "finance-amount-invalid": "assetFinance.errAmountInvalid",
+  "finance-doc-missing": "assetFinance.errDocMissing",
+  "finance-doc-too-big": "assetFinance.errDocTooBig",
+  "finance-doc-type": "assetFinance.errDocType",
+  "finance-doc-failed": "assetFinance.errDocFailed",
+  "contract-dates": "assetFinance.errContractDates",
+  "contract-party-required": "assetFinance.errPartyRequired",
+  "contract-renew-date": "assetFinance.errRenewDate",
+  "contract-renewal-needs-end": "assetFinance.errRenewalNeedsEnd",
+
   "driving-invalid": "driving.error",
 
   // A failure that was ours (errorCode in lib/action-errors): reported, and said plainly.

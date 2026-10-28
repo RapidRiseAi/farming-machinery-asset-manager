@@ -9,6 +9,9 @@ import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
 import { must, mustAll, soft } from "@/lib/supabase/must";
 import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
+import { canViewFarmFinance } from "@/lib/asset-finance-read";
+import { financeSavedKey } from "@/lib/asset-finance";
+import { MachineFinanceSection } from "@/components/asset-finance/machine-finance-section";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
 import {
@@ -186,6 +189,10 @@ export default async function MachineDetailPage({
   const canJob = resourceRole != null && ["owner", "manager", "mechanic", "workshop", "rr_admin"].includes(resourceRole);
   const costsVisible = await canViewFarmCosts(supabase, machineBase.farm_id);
   const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
+  // Finance agreements, leases and contracts: owners and managers only (founder default,
+  // `app.can_view_farm_finance`), narrower than costs. Interest and lease payments still
+  // reach the cost entries below, so whoever sees costs sees them inside TCO.
+  const financeVisible = costsVisible && (await canViewFarmFinance(supabase, machineBase.farm_id));
   const machine: Machine = {
     ...machineBase,
     purchase_price_cents: financials?.purchase_price_cents ?? null,
@@ -354,12 +361,6 @@ export default async function MachineDetailPage({
   const budgets = (budgetRes.data as Budget[] | null) ?? [];
   const budgetRows = budgets.map((b) => budgetProgress(costRows, b));
   const canBudget = resourceRole === "owner" || resourceRole === "manager";
-  const hasFinance =
-    machine.finance_provider != null ||
-    machine.finance_total_cents != null ||
-    machine.finance_monthly_cents != null ||
-    machine.finance_term_months != null ||
-    machine.finance_interest_bps != null;
   const openFaultCount = faults.filter((f) => f.status !== "resolved").length;
 
   // Vehicle checklists (F11): completed/draft inspections + sign-offs for this machine.
@@ -626,6 +627,7 @@ export default async function MachineDetailPage({
         </Field>
         <MachineFields
           machine={machine}
+          financialsLoaded={financials != null}
           operators={operators}
           locale={locale}
           costCentres={distinctValues(dims.map((d) => d.cost_centre))}
@@ -895,7 +897,7 @@ export default async function MachineDetailPage({
       </section>
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
-      <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? "ui.saved", locale) : undefined} />
+      <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? financeSavedKey(sp.saved) ?? "ui.saved", locale) : undefined} />
 
       {/*
         Twenty cards on one scroll, all the same size, all always open, in schema order.
@@ -1700,28 +1702,10 @@ export default async function MachineDetailPage({
                 ) : null}
               </Card>
 
-              {/* Finance */}
-              {hasFinance ? (
-                <Card>
-                  <CardHeader><CardTitle>{t("machine.finance", locale)}</CardTitle></CardHeader>
-                  <FactList>
-                    {machine.finance_provider ? (
-                      <Fact label={t("machines.financeProvider", locale)} value={machine.finance_provider} />
-                    ) : null}
-                    {machine.finance_total_cents != null ? (
-                      <Fact label={t("machines.financeTotal", locale)} value={rands(machine.finance_total_cents)} />
-                    ) : null}
-                    {machine.finance_monthly_cents != null ? (
-                      <Fact label={t("machines.financeMonthly", locale)} value={rands(machine.finance_monthly_cents)} />
-                    ) : null}
-                    {machine.finance_term_months != null ? (
-                      <Fact label={t("machines.financeTerm", locale)} value={num(machine.finance_term_months)} />
-                    ) : null}
-                    {machine.finance_interest_bps != null ? (
-                      <Fact label={t("machines.financeInterest", locale)} value={`${num(machine.finance_interest_bps / 100, 2)}%`} />
-                    ) : null}
-                  </FactList>
-                </Card>
+              {/* Finance agreements, leases and contracts (20261028110000 onwards). They
+                  replaced the five finance fields the machine record carried. */}
+              {financeVisible ? (
+                <MachineFinanceSection machineId={machine.id} farmId={machine.farm_id} locale={locale} today={todayYmd} />
               ) : null}
 
               {/* Budgets & budget-vs-actual (FR-10.4) */}

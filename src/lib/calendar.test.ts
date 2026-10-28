@@ -141,6 +141,10 @@ test("each kind links to the thing a planner would act on", () => {
   );
   assert.equal(itemHref(item({ kind: "service_due", machine_id: "m9" })), "/machines/m9");
   assert.equal(itemHref(item({ kind: "licence", machine_id: null })), "/machines");
+  // Finance: an instalment is paid from its machine's Costs tab; contract dates live on /finance.
+  assert.equal(itemHref(item({ kind: "finance_instalment", machine_id: "m9" })), "/machines/m9?tab=costs");
+  assert.equal(itemHref(item({ kind: "contract_notice", machine_id: null })), "/finance");
+  assert.equal(itemHref(item({ kind: "contract_end", machine_id: "m9" })), "/finance");
 });
 
 test("the month tiles count what is loud, not what is there", () => {

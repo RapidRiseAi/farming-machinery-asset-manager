@@ -32,6 +32,9 @@ import {
  *  10. cron_generate_recurring_expenses   , costs that repeat (idempotent, G19)
  *  11. cron_enqueue_low_stock            , parts at or below their reorder point (0451)
  *  12. cron_enqueue_stock_shortfall      , parts the next N days of services need (0503)
+ *  12b. cron_asset_finance_nightly       , debit orders paid, contracts rolled on or ended,
+ *                                         interest and lease costs booked (idempotent)
+ *  12c. cron_enqueue_asset_finance_reminders, instalments and contract dates coming up
  *  13. cron_enqueue_weekly_digest        , Mondays only (Africa/Johannesburg)
  *  14. scheduled report delivery         , emailed report schedules now due (0506)
  *  15. push delivery                     , Web Push for the freshly-queued rows (F6)
@@ -121,6 +124,13 @@ export async function GET(request: Request) {
 
   // What the schedule has already spoken for (0503). Weekly per item, quiet hours honoured.
   await run("stock_shortfall", "cron_enqueue_stock_shortfall");
+
+  // Finance agreements and contracts (20261028110800). The engine first (debit orders
+  // marked paid, contracts past their end rolled on or ended, costs booked as they fall
+  // due; idempotent, so a double-fired night books nothing twice), then the reminders, so
+  // a debit order paid tonight is not also chased as overdue.
+  await run("asset_finance", "cron_asset_finance_nightly");
+  await run("asset_finance_reminders", "cron_enqueue_asset_finance_reminders");
 
   // AI and voice usage (docs/AI_USAGE.md). Close voice sessions the browser never finished
   // and holds the server never settled; then the day's rate, prices, Gateway credit and

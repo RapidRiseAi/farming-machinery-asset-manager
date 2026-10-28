@@ -287,6 +287,9 @@ export default async function AppLayout({
   // Everything with a date on it, in one month. Beside the work screens rather than the
   // reports, because it is a planning tool and not a look back.
   const calendar: NavItemData = { href: "/calendar", label: t("nav.calendar", locale), icon: "calendar" };
+  // Finance agreements, leases and contracts (2026-10-28). Owners and managers only, the
+  // founder default `app.can_view_farm_finance` enforces; the page re-checks it.
+  const finance: NavItemData = { href: "/finance", label: t("assetFinance.nav", locale), icon: "cash" };
   // A question straight to us, with the context already attached. Beside settings, which
   // is where somebody goes when they are looking for a way out of a problem.
   const help: NavItemData = { href: "/help", label: t("nav.help", locale), icon: "info" };
@@ -358,7 +361,7 @@ export default async function AppLayout({
         ...(assistantNavVisible ? [assistant] : []),
         ...(isAdmin ? [] : [driverActivity]),
         work,
-        ...(isManagerPlus ? [documents] : []),
+        ...(isManagerPlus ? [documents, finance] : []),
         ...(fuelAllowed ? [fuel] : []),
         ...(canParts ? [parts] : []),
         tyres,
@@ -419,7 +422,7 @@ export default async function AppLayout({
         {
           key: "farm",
           label: t("nav.groupFarm", locale),
-          items: isManagerPlus ? [documents, corrections, team] : [],
+          items: isManagerPlus ? [documents, corrections, finance, team] : [],
         },
       ]
   ).filter((g) => g.items.length > 0);

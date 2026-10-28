@@ -48,7 +48,10 @@ const FINANCIAL_TEMPLATES = new Set([
 // where the current resource-farm permission is checked again by RLS.
 function pushBody(n: NotifRow, locale: Lang, machineName?: string): string {
   const payload = n.payload ?? {};
+  // A finance or contract reminder names the lender and the machine: who the farm owes is
+  // nobody's business on a lock screen, so push says only "Finance and contracts".
   const financial = FINANCIAL_TEMPLATES.has(n.template) || n.template.startsWith("billing_") ||
+    n.template.startsWith("finance_") || n.template.startsWith("contract_") ||
     Object.keys(payload).some((key) => key.endsWith("_cents") || ["amount", "cost", "total"].includes(key));
   return financial
     ? notificationTitle(n.template, locale)

@@ -5,7 +5,11 @@
 
 export const COST_TYPES = [
   "purchase",
+  // Interest and fees only, per instalment as it falls due (20261028110400). Capital is
+  // never a cost: the machine's price is already its "purchase" entry.
   "finance",
+  // Lease, rental and hire payments as they fall due (20261028110000).
+  "lease",
   "fuel",
   "parts",
   "labour",
@@ -17,7 +21,7 @@ export type CostType = (typeof COST_TYPES)[number];
 export type CostBreakdown = Record<CostType, number>;
 
 export function emptyBreakdown(): CostBreakdown {
-  return { purchase: 0, finance: 0, fuel: 0, parts: 0, labour: 0, invoice: 0, other: 0 };
+  return { purchase: 0, finance: 0, lease: 0, fuel: 0, parts: 0, labour: 0, invoice: 0, other: 0 };
 }
 
 /** Sum `{type, amount_cents}` rows into a per-type breakdown + total (cents). */

@@ -20,6 +20,10 @@ export const CALENDAR_KINDS = [
   "licence",
   "driver_document",
   "work_request",
+  // Finance (20261028110900): owners and managers only, by RLS on their sources; no amounts.
+  "finance_instalment",
+  "contract_notice",
+  "contract_end",
 ] as const;
 
 export type CalendarKind = (typeof CALENDAR_KINDS)[number];
@@ -156,6 +160,13 @@ export function itemHref(item: CalendarItem): string {
       return `/work/${item.item_id}`;
     case "driver_document":
       return "/team/licences";
+    // An instalment opens its machine's Costs tab, where it is paid; a contract date opens
+    // the Finance page, which lists farm-wide contracts too.
+    case "finance_instalment":
+      return item.machine_id ? `/machines/${item.machine_id}?tab=costs` : "/finance";
+    case "contract_notice":
+    case "contract_end":
+      return "/finance";
     default:
       return item.machine_id ? `/machines/${item.machine_id}` : "/machines";
   }

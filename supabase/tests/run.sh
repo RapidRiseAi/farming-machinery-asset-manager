@@ -208,5 +208,7 @@ echo "==> running activity log redaction tests (no reader sees more than the tab
 pg "$DB" < "$ROOT/supabase/tests/audit_redaction.sql"
 echo "==> running support desk tests (who sees which request, staff gates, answer-by times)"
 pg "$DB" < "$ROOT/supabase/tests/support_desk.sql"
+echo "==> running machinery finance and lease tests (owners and managers only, schedule, costs)"
+pg "$DB" < "$ROOT/supabase/tests/asset_finance.sql"
 
 echo "==> OK"

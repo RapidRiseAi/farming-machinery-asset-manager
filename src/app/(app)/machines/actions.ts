@@ -48,22 +48,6 @@ function priceToCents(fd: FormData, k: string): number | null {
   return Number.isFinite(cents) ? cents : null;
 }
 
-/**
- * An interest rate typed in percent ("11.75") to whole basis points (1175).
- *
- * The form asks in percent, as a bank quotes it, while the column keeps basis points so
- * the finance-interest trigger and the read view are untouched. The posted field keeps
- * its old name, `finance_interest_bps`. A decimal comma is accepted; anything that is
- * not a rate between 0 and 100 percent is stored as no rate rather than as nonsense.
- */
-function pctToBps(fd: FormData, k: string): number | null {
-  const v = str(fd, k);
-  if (v == null) return null;
-  const pct = Number(v.replace(",", "."));
-  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null;
-  return Math.round(pct * 100);
-}
-
 /** Validate that a chosen assigned-operator id is an active user of this farm.
  *  Returns the id when valid, or null (unassigns), never lets a cross-farm id through. */
 async function validOperatorId(
@@ -114,12 +98,25 @@ async function machineFarmId(
   return (data as { farm_id: string } | null)?.farm_id ?? null;
 }
 
-/** Extra optional machine fields shared by create + update. */
-function extraFields(fd: FormData) {
+/**
+ * Extra optional machine fields shared by create + update.
+ *
+ * The purchase price and supplier are withheld from table reads (20260903074350) and the
+ * form shows them only when `machine_financials` answered. An edit whose read failed
+ * showed blanks, and saving it wrote null over the price and withdrew its purchase cost
+ * entry. So an update writes them only when the form says it rendered them
+ * (`financials_loaded`); a create always does.
+ *
+ * The five finance_* columns are no longer written: finance agreements replaced them
+ * (20261028110700 moved their data, src/app/(app)/finance/actions.ts writes agreements).
+ */
+function extraFields(fd: FormData, mode: "create" | "update") {
+  const financials = mode === "create" || fd.get("financials_loaded") === "1"
+    ? { purchase_price_cents: priceToCents(fd, "purchase_price"), supplier: str(fd, "supplier") }
+    : {};
   return {
     purchase_date: str(fd, "purchase_date"),
-    purchase_price_cents: priceToCents(fd, "purchase_price"),
-    supplier: str(fd, "supplier"),
+    ...financials,
     warranty_expiry_date: str(fd, "warranty_expiry_date"),
     warranty_expiry_hours: numOrNull(fd, "warranty_expiry_hours"),
     location: str(fd, "location"),
@@ -127,13 +124,6 @@ function extraFields(fd: FormData) {
     cost_centre: str(fd, "cost_centre"),
     department: str(fd, "department"),
     notes: str(fd, "notes"),
-    // Finance details (FR-3.2). Money in ex-VAT cents; the DB trigger derives a
-    // finance-interest cost entry from these (see migration 0211).
-    finance_provider: str(fd, "finance_provider"),
-    finance_total_cents: priceToCents(fd, "finance_total"),
-    finance_monthly_cents: priceToCents(fd, "finance_monthly"),
-    finance_term_months: intOrNull(fd, "finance_term_months"),
-    finance_interest_bps: pctToBps(fd, "finance_interest_bps"),
   };
 }
 
@@ -189,7 +179,7 @@ export async function createMachine(formData: FormData) {
           current_reading_date: current_reading != null ? todayLocal() : null,
           status: "active",
           assigned_operator_id,
-          ...extraFields(formData),
+          ...extraFields(formData, "create"),
         })
         .select("id")
         .single();
@@ -264,7 +254,7 @@ export async function updateMachine(formData: FormData) {
       meter_type,
       status,
       assigned_operator_id,
-      ...extraFields(formData),
+      ...extraFields(formData, "update"),
     })
     .eq("id", id)
     .eq("farm_id", farmId);

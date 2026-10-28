@@ -75,6 +75,8 @@ export const CHART: Account[] = [
   { code: "5000", key: "exp_other", kind: "expense" },
   { code: "6100", key: "badDebt", kind: "expense" },
   { code: "6200", key: "cost_finance", kind: "expense" },
+  // Lease and rental payments (20261028111000, app.cost_account_code).
+  { code: "6250", key: "cost_lease", kind: "expense" },
   { code: "6300", key: "cost_fuel", kind: "expense" },
   { code: "6400", key: "cost_parts", kind: "expense" },
   { code: "6500", key: "cost_labour", kind: "expense" },

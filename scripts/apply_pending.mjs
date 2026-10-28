@@ -80,6 +80,35 @@ const PROBES = {
   "20261028101100": "select to_regprocedure('public.admin_client(uuid)') is not null",
   "20261028101200": "select to_regprocedure('app.team_invite_actor_role(uuid,uuid)') is not null",
   "20261028101300": "select to_regprocedure('public.admin_set_user_active(uuid,uuid,boolean)') is not null",
+  // Machinery finance and lease tracking (work package C, 2026-10-28): one object each.
+  "20261028111100": "select to_regprocedure('public.farm_finance_commitments(uuid,date,date)') is not null",
+  "20261028111000": "select to_regprocedure('app.cost_account_code(public.cost_entry_type)') is not null",
+  "20261028110900": "select to_regprocedure('app.finance_calendar_items(uuid,date,date)') is not null",
+  "20261028110800":
+    "select to_regprocedure('public.cron_asset_finance_nightly()') is not null" +
+    " and to_regprocedure('public.cron_enqueue_asset_finance_reminders()') is not null",
+  "20261028110700":
+    "select exists(select 1 from information_schema.columns where table_schema='public'" +
+    " and table_name='finance_agreements' and column_name='migrated_from_machine')",
+  "20261028110600": "select to_regprocedure('public.asset_contract_save(uuid,uuid,jsonb)') is not null",
+  "20261028110500": "select to_regprocedure('public.finance_save_agreement(uuid,uuid,jsonb,date)') is not null",
+  "20261028110400": "select to_regprocedure('app.sync_asset_finance_costs(uuid,date)') is not null",
+  "20261028110300":
+    "select to_regprocedure('app.finance_schedule(bigint,integer,integer,integer,date,bigint,bigint,bigint,integer)') is not null",
+  "20261028110200":
+    "select to_regprocedure('app.finance_parent_ok(text,uuid,uuid)') is not null" +
+    " and exists(select 1 from pg_policies where schemaname='public' and tablename='attachments'" +
+    " and policyname='attachments_finance_sel')",
+  "20261028110100":
+    "select to_regclass('public.finance_agreements') is not null" +
+    " and to_regclass('public.finance_instalments') is not null" +
+    " and to_regclass('public.asset_contracts') is not null" +
+    " and to_regprocedure('app.can_view_farm_finance(uuid)') is not null",
+  "20261028110000":
+    "select exists(select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid" +
+    " where t.typname = 'cost_entry_type' and e.enumlabel = 'lease')" +
+    " and exists(select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid" +
+    " where t.typname = 'calendar_item_kind' and e.enumlabel = 'contract_end')",
   "20261026100000": "select to_regprocedure('app.audit_readable_farm_ids()') is not null",
   // An in-place rewrite leaves nothing but the text to check; the migration itself returns
   // early when applied and stops loudly if the text it rewrites has moved.
