@@ -68,6 +68,11 @@ comment on function app.audit_vehicle_reader_farm_ids() is
 revoke all on function app.audit_vehicle_reader_farm_ids() from public, anon;
 grant execute on function app.audit_vehicle_reader_farm_ids() to authenticated;
 
+-- The vehicle subquery names its farms as `= any (array(...))`, not `in (select ...)`, on
+-- purpose. machines' policy is a security barrier, so a farm filter written as a join is
+-- applied only AFTER the policy has run on every vehicle in the database; as an array it is
+-- an index condition, and the policy runs on the reader's farms' vehicles alone. Measured on
+-- PGlite with 4,000 vehicles: 378 ms as a join, 5 ms as an array, same rows.
 drop policy if exists audit_sel on public.audit_log;
 create policy audit_sel on public.audit_log for select to authenticated
   using (
@@ -75,11 +80,11 @@ create policy audit_sel on public.audit_log for select to authenticated
     or farm_id in (select app.audit_readable_farm_ids())
     or (
       entity = 'machines'
-      and farm_id in (select app.audit_vehicle_reader_farm_ids())
+      and farm_id = any (array(select app.audit_vehicle_reader_farm_ids()))
       -- Runs under machines' own policy, as the caller: the vehicles they can see.
       and entity_id in (
         select m.id from public.machines m
-         where m.farm_id in (select app.audit_vehicle_reader_farm_ids())
+         where m.farm_id = any (array(select app.audit_vehicle_reader_farm_ids()))
       )
     )
   );

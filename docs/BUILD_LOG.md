@@ -5715,3 +5715,58 @@ so the reports this release makes honest still reach only Vercel's log stream.
   assistant_farm_data, assistant_fuel_proposal, fuel_tank_balances, team_invites).
 
 686 unit tests; on a production build eight roles and every spam check.
+
+## 2026-10-28 - The activity log shows no reader more than the table does
+
+- **What was wrong, read from a migrated database rather than from grep.** 82 tables write
+  `audit_log` (78 through `app_audit()`, four through a redacting trigger of their own).
+  `app_audit()` copied the whole row and filed it under the row's farm, and the log's read
+  policy let every owner, manager and mechanic, every operator on a farm that shows costs
+  to operators, and every linked contractor (whatever its link allowed) read the farm's
+  whole log. So the log handed out what the tables refuse: a card's Paystack
+  authorization code and email (withheld from every signed-in role by the column grant),
+  dispute evidence with the owner's phone and email and the card's details (Rapid Rise
+  only), every notification (its addressee only), every billing row (the owner only),
+  memberships and permission grants, driving sessions, and to a contractor with a bare
+  link the farm's costs and budgets, every vehicle, the team's phone numbers and other
+  contractors' quotes. The per-table comparison (who may select the row, which columns are
+  withheld, the rule chosen) is the header of `20261028090000`.
+- **The fix, five migrations, none applied to production yet.** `20261028090000` puts a
+  rule for every audited table in `app.audit_table_rules`: `farm` (40 tables, each fully
+  visible to the farm's owners, managers and mechanics) or `rapid_rise` (billing, support
+  tickets, notifications, push subscriptions, report schedules and recipients, API tokens,
+  memberships, grants, sync log, driving, driver credentials, the contractor's documents
+  and books, voice and AI records, and the tables with no farm). `20261028091000`:
+  `app_audit()` copies only columns `authenticated` may select; an update that changed a
+  withheld column names it under `withheld`, never its value. `20261028091500`: a BEFORE
+  INSERT trigger on `audit_log` applies the same stripping and the rule to every writer,
+  files narrower rows with `farm_id` null and the farm in the new `about_farm_id`, and
+  files an unclassified table for Rapid Rise until someone decides (fail closed). It never
+  stops a write: a failure keeps the event for Rapid Rise as `{"redaction_failed": true}`.
+  `20261028092000`: a farm's log is read by its owners, managers and mechanics; an operator
+  who may see costs and a linked contractor keep only the history of vehicles machines' own
+  policy shows them (the machine page and downtime use it). `20261028092500`:
+  `app.audit_redact_existing()` strips and refiles the stored rows, records each run in
+  `app.audit_redaction_runs`, and can be run again after a later grant change.
+- **Measured.** The vehicle branch names its farms as an array so machines' policy runs on
+  the reader's farms only: on PGlite with 4,000 vehicles a contractor's machine-page read
+  took 378 ms written as a join and 5 ms as an array. An owner's read never reaches it.
+- **What it costs, on purpose.** Operators and contractors no longer read audit rows of
+  anything but the vehicles they can see. The values of withheld columns (vehicle finance,
+  job card totals, fuel prices) are no longer kept in the log, for Rapid Rise either; the
+  tables keep their own history. The machine page counts a `withheld` change as an edit
+  (`src/lib/audit-context.ts`, with tests), so a finance-only edit still shows.
+  `scripts/seed_test_farm.mjs --remove` also deletes audit rows by `about_farm_id`.
+- **Left open.** `app.assert_local_person_scope` still looks for cross-farm audit history
+  by `farm_id` only, so a person whose only trace on another farm is now a Rapid Rise row
+  no longer trips it (one line: `coalesce(x.farm_id, x.about_farm_id)`); left alone because
+  that function is redefined whole and other work touches it. Apply with
+  `node scripts/apply_pending.mjs --dry` then `--apply`, and read
+  `app.audit_redaction_runs` for what the backfill changed. The support delivery work may
+  replace the support ticket trigger; the rule here already files it for Rapid Rise.
+
+Suite `audit_redaction.sql` (owner, mechanic, cost-visible operator, bare-link contractor,
+another farm and Rapid Rise; the door for hand-written rows; fail closed; the backfill and
+its second run; a broken helper not stopping a write), mutation-tested against seven
+regressions. All 47 SQL suites pass on PGlite, with types, lint, unit tests, dashes,
+translations, error coverage and design.

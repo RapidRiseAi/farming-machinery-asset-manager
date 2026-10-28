@@ -38,6 +38,21 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The activity log shows no reader more than the source table would (work package A).
+  "20261028092500":
+    "select to_regprocedure('app.audit_redact_existing()') is not null" +
+    " and to_regclass('app.audit_redaction_runs') is not null",
+  "20261028092000": "select to_regprocedure('app.audit_vehicle_reader_farm_ids()') is not null",
+  "20261028091500":
+    "select to_regprocedure('app.audit_log_file()') is not null" +
+    " and exists(select 1 from information_schema.columns where table_schema='public'" +
+    " and table_name='audit_log' and column_name='about_farm_id')" +
+    " and exists(select 1 from pg_trigger where tgname='audit_log_file'" +
+    " and tgrelid='public.audit_log'::regclass)",
+  "20261028091000":
+    "select to_regprocedure('app.audit_withhold(jsonb,text[])') is not null" +
+    " and to_regprocedure('app.audit_hidden_columns(regclass)') is not null",
+  "20261028090000": "select to_regclass('app.audit_table_rules') is not null",
   "20261026100000": "select to_regprocedure('app.audit_readable_farm_ids()') is not null",
   // An in-place rewrite leaves nothing but the text to check; the migration itself returns
   // early when applied and stops loudly if the text it rewrites has moved.

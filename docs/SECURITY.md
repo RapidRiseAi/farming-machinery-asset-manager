@@ -114,6 +114,10 @@ Paystack secret key it can take money from a customer's card. Handling:
 - **One reader.** `paymentMethodCredential()` in `src/lib/billing/service.ts` is the only
   code that reads it; what it returns goes straight into an adapter call and never into a
   log, an error, a Sentry extra or a response body.
+- **Not in the activity log.** Until 2026-10-28 the generic audit trigger copied the whole
+  row, credential included, into `audit_log` under the farm, where owners, mechanics and
+  linked contractors could read it. The trigger now copies only columns the grant shows,
+  card rows are filed for Rapid Rise only, and `20261028092500` stripped the stored copies.
 - **`billing_webhook_events` is service-role only**, no policy and no grant for
   `authenticated`. A payload carries the customer's email and the full authorization
   object; the admin screens read attempts and payments instead, which is the same story
@@ -280,6 +284,18 @@ not by installing the SDK. Security-relevant properties:
 - **Append-only `audit_log`** (trigger `app_audit`, `0008`) records `insert/update/delete`
   with a before/after `diff`, actor (`auth.uid()`), and `farm_id`, on every business
   table. Clients can read it (farm-scoped) but never write it.
+- **The log never shows a reader more than the source table would** (2026-10-28,
+  `20261028090000` to `20261028092500`, suite `audit_redaction.sql`). A diff holds only
+  the columns `authenticated` may select (a withheld column that changed is named under
+  `withheld`, never valued). Each audited table has a rule in `app.audit_table_rules`:
+  `farm` tables are filed under the farm and read by its owners, managers and mechanics;
+  tables narrower than that (billing, support tickets, notifications, memberships and
+  grants, driving, report schedules, API tokens, the contractor's books) are filed for
+  Rapid Rise only (`farm_id` null, the farm kept in `about_farm_id`). Operators and
+  contractors read only the history of vehicles they can see. A BEFORE INSERT trigger on
+  `audit_log` applies this to every writer; an unclassified table is filed for Rapid Rise
+  until it is decided. The per-table comparison is the header of `20261028090000`. A
+  farm-wide purge or export matches `farm_id = X or about_farm_id = X`.
 - **Job cards lock after approval**, a trigger blocks any edit/delete of a locked card
   or its lines; later changes are expressed as new records + audit diffs.
 - **Soft delete** (`deleted_at`/`deleted_by`) everywhere; reads hide soft-deleted rows.

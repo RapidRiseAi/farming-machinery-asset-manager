@@ -144,7 +144,12 @@ export type AuditRow = AuditLocation & {
   user_id: string | null;
   action: string;
   at: string;
-  diff: { old?: Record<string, unknown>; new?: Record<string, unknown> } | null;
+  /**
+   * `withheld` (20261028091000): columns the grant hides from signed-in readers (a vehicle's
+   * price and finance terms) are never copied into the log; an update that changed one
+   * names it here, without its value, so the edit is still an event.
+   */
+  diff: { old?: Record<string, unknown>; new?: Record<string, unknown>; withheld?: unknown } | null;
 };
 
 /**
@@ -169,14 +174,22 @@ export const AUTOMATIC_MACHINE_COLUMNS = new Set([
   "updated_at",
 ]);
 
-/** The column names an update actually changed, from the audit trigger's before/after. */
+/**
+ * The column names an update actually changed, from the audit trigger's before/after, plus
+ * the withheld ones it names (changed, value not kept), so a finance-only edit still counts.
+ */
 export function changedColumns(row: AuditRow): string[] {
   const before = row.diff?.old;
   const after = row.diff?.new;
   if (!before || !after) return [];
-  return Object.keys(after).filter(
+  const visible = Object.keys(after).filter(
     (k) => JSON.stringify(after[k]) !== JSON.stringify((before as Record<string, unknown>)[k])
   );
+  const named: unknown = row.diff?.withheld;
+  const withheld = Array.isArray(named)
+    ? named.filter((k): k is string => typeof k === "string" && !visible.includes(k))
+    : [];
+  return [...visible, ...withheld];
 }
 
 /**

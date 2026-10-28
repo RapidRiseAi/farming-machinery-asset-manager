@@ -118,6 +118,15 @@ Facts below were read from the accounts on 2026-10-14.
 
 Order: correctness and security first, then load, then product.
 
+- [x] **Activity log leak** (found 2026-10-28, not in the original review): the audit log
+      showed every reader the whole row, filed under the farm, so card authorization codes,
+      dispute dossiers, notifications, billing rows and (to contractors) costs and the team
+      were readable by people the tables refuse.
+      2026-10-28: migrations 20261028090000 to 20261028092500 (a rule per audited table,
+      readable columns only, narrower tables for Rapid Rise only, operators and contractors
+      limited to vehicles they can see, stored rows backfilled); `audit_redaction.sql`.
+      **Not yet applied to production:** apply with `scripts/apply_pending.mjs` and read
+      `app.audit_redaction_runs` for what the backfill changed.
 - [x] **B8** Patch Next.js to 15.5.27 or later, the AI SDK packages (undici), sharp; full test run.
       2026-10-13: next 15.5.27, ai 7.0.138, @ai-sdk/openai 4.0.92, overrides sharp 0.35.5,
       undici 7.30.0, source-map-js 1.2.2; `pnpm audit --prod` clean, 579 tests, build.
