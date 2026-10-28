@@ -85,7 +85,7 @@ const HOME_LABEL: Record<string, string> = {
   "/dashboard": "nav.dashboard",
   "/driver": "nav.driverHome",
   "/contractor": "nav.contractor",
-  "/admin/farms": "nav.admin",
+  "/admin": "nav.admin",
 };
 
 type AccountRow = {

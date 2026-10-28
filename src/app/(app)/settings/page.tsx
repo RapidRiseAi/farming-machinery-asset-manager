@@ -22,6 +22,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { VatRateField } from "@/components/vat-rate-field";
+import { SupportVisits } from "@/components/support/support-visits";
 import { OWNED_FIELD } from "@/lib/settings";
 
 type Settings = Record<string, unknown>;
@@ -446,6 +447,9 @@ export default async function SettingsPage({
           ),
         })}
       </section>
+
+      {/* Rapid Rise's support visits to this farm, with the reason given: the owner's. */}
+      {profile.role === "owner" && profile.farm_id ? <SupportVisits farmId={profile.farm_id} locale={locale} /> : null}
     </PageContainer>
   );
 }

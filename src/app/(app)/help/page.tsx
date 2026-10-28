@@ -1,6 +1,8 @@
-import { requireProfile } from "@/lib/auth";
+import Link from "next/link";
+
+import { accessibleFarms, currentFarmId, effectiveFarmRole, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { must } from "@/lib/supabase/must";
+import { must, soft } from "@/lib/supabase/must";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { dateTime } from "@/lib/format";
@@ -9,15 +11,18 @@ import { COMPANY } from "@/lib/legal";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 import { backHref } from "@/components/ui/back-href";
 import { ChatIcon } from "@/components/ui/icons";
+import { ContactCard, CustomerStatusBadge, type SupportContact } from "@/components/support/support-parts";
 
 import { askForHelp } from "./actions";
 
@@ -26,17 +31,18 @@ export const dynamic = "force-dynamic";
 type HelpRequest = {
   id: string;
   subject: string;
+  kind: string;
   status: "open" | "waiting" | "resolved" | "closed";
   created_at: string;
   resolved_at: string | null;
+  mine: boolean;
+  asked_by_name: string | null;
+  farm_id: string | null;
+  farm_name: string | null;
+  answered: boolean;
 };
 
-const STATUS_LOOK: Record<HelpRequest["status"], { tone: BadgeTone; key: string }> = {
-  open: { tone: "brand", key: "help.statusOpen" },
-  waiting: { tone: "warning", key: "help.statusWaiting" },
-  resolved: { tone: "ok", key: "help.statusResolved" },
-  closed: { tone: "neutral", key: "help.statusClosed" },
-};
+type FarmChoice = { id: string; name: string };
 
 /**
  * The quick answers, per role, built from the "What is this?" copy the screens already
@@ -49,34 +55,28 @@ const QUICK_ANSWERS: Record<"operator" | "other", readonly string[]> = {
 };
 
 /**
- * Asking us for help without leaving the product.
- *
- * == What it replaces =========================================================
- * An email address printed on `/billing`. A farmer with a problem had to leave FleetWise,
- * open a mail client, and describe from memory which screen they were on and what plan
- * they are on. Most will not bother, and the ones who do describe it wrongly, so the first
- * reply is always a request for context the product already had.
+ * Asking Rapid Rise for help without leaving the product, and reading the answer here.
  *
  * == Answers first, the form behind a button ================================
- * The ask form used to fill a phone's first screen, so the page opened on two empty boxes
- * for a question most people can answer from the screen's own "What is this?". The quick
- * answers come first; asking us is the header's one button, and its form opens in a
- * dialog with the same fields and the same hidden path.
+ * The quick answers come first; asking us is the header's one button, and its form opens
+ * in a dialog. Each request opens its own page with the conversation and a reply box.
  *
  * == Anybody signed in may ask ================================================
- * Including a driver. Somebody stuck on a checklist screen is exactly who this is for, and
- * making them find the owner first is how the question never gets asked at all.
+ * Any farm member, a driver included, and contractors too (about their own business or a
+ * farm they work for). Somebody with more than one farm chooses which one it is about.
+ *
+ * == What you have asked ======================================================
+ * Your OWN requests. The owner and managers of the selected farm also see the farm's
+ * other requests (not an employee's privacy request), marked with who asked; nobody sees
+ * another farm's (`my_help_requests`, 20261028100900).
+ *
+ * == How to reach a person ====================================================
+ * The hours and the same-day promise come from the support settings row, as do the phone
+ * and WhatsApp numbers, which stay hidden until Rapid Rise has confirmed and entered them.
  *
  * == What is attached =========================================================
- * The farm, its plan, who asked, and the screen they came from. NOT the billing dossier
- * that `app.support_ticket_evidence` builds for disputes: attaching a card's last four and
- * an attempt history to "the QR code will not scan" would put them in a support queue for
- * no reason.
- *
- * == Their own list, from a function ==========================================
- * `support_tickets` also holds disputes, so the farm reads its questions through
- * `my_help_requests()`, which returns four columns and no evidence at all rather than a
- * widened policy on a table full of billing cases.
+ * The farm, its plan, who asked and the screen they came from. Never card or billing
+ * details: the billing dossier built for disputes is not attached to a question.
  */
 export default async function HelpPage({
   searchParams,
@@ -86,15 +86,41 @@ export default async function HelpPage({
   const profile = await requireProfile();
   const locale = profile.lang;
   const sp = await searchParams;
+  const isWorkshop = profile.role === "workshop";
 
   const supabase = await createClient();
-  // must: a failed read showed "no requests" to somebody waiting on an answer.
-  const data = must(await supabase.rpc("my_help_requests"), "help:my-requests");
-  const requests = (data as HelpRequest[] | null) ?? [];
-  const openCount = requests.filter((r) => r.status === "open" || r.status === "waiting").length;
+  const selectedFarm = isWorkshop ? null : await currentFarmId(profile);
+  const role = selectedFarm ? await effectiveFarmRole(selectedFarm, profile) : null;
+  const canSeeFarm = role === "owner" || role === "manager";
 
-  // Back to wherever they came from, when that is a real same-origin path. The old
-  // "Back to settings" assumed Settings, a page a driver cannot even open.
+  // must: a failed read showed "no requests" to somebody waiting on an answer.
+  const data = must(await supabase.rpc("my_help_requests", { p_farm: canSeeFarm ? selectedFarm : null }), "help:my-requests");
+  const requests = (data as HelpRequest[] | null) ?? [];
+  // soft: only the hours and the channels; the founder's defaults stand in for them.
+  const contactRows = soft(await supabase.rpc("support_contact"), "help:contact");
+  const contact = ((contactRows as SupportContact[] | null) ?? [])[0] ?? null;
+
+  // Which farm it is about. A contractor may ask about a linked farm or their own
+  // business (the empty choice); a member of several farms picks one, the selected one first.
+  let farms: FarmChoice[] = [];
+  if (isWorkshop) {
+    const links = must(
+      await supabase.from("workshop_links").select("farm_id, farms(id, name)").eq("status", "active").is("deleted_at", null),
+      "help:linked-farms",
+    );
+    farms = ((links as { farm_id: string; farms: { id: string; name: string } | { id: string; name: string }[] | null }[] | null) ?? [])
+      .flatMap((l) => (Array.isArray(l.farms) ? l.farms : l.farms ? [l.farms] : []))
+      .map((f) => ({ id: f.id, name: f.name }));
+  } else {
+    farms = await accessibleFarms(profile);
+  }
+  const farmChoices = isWorkshop ? farms : farms.length > 1 ? farms : [];
+  const multiFarm = new Set(requests.map((r) => r.farm_id ?? "")).size > 1;
+
+  const openCount = requests.filter((r) => r.mine && (r.status === "open" || r.status === "waiting")).length;
+  const atLimit = openCount >= 5;
+
+  // Back to wherever they came from, when that is a real same-origin path.
   const from = backHref(sp.from, "");
   const back = from && !from.startsWith("/help") ? { href: from, label: t("help.backWhereYouWere", locale) } : undefined;
   const answers = QUICK_ANSWERS[profile.role === "operator" ? "operator" : "other"];
@@ -109,11 +135,33 @@ export default async function HelpPage({
       size="md"
     >
       <form action={askForHelp}>
+        <RequestIdInput action="help:ask" />
         {/* Where they came from, so the first reply is not "which screen were you on".
             Validated as a relative path in the action, and the database keeps only three
             named keys whatever this posts. */}
         <input type="hidden" name="path" value={sp.from ?? "/help"} />
         <DialogFields columns={1}>
+          <Field label={t("support.askKind", locale)} htmlFor="help-kind">
+            <Select id="help-kind" name="kind" defaultValue="help_request">
+              <option value="help_request">{t("support.askKindQuestion", locale)}</option>
+              <option value="privacy_request">{t("support.askKindPrivacy", locale)}</option>
+              {!isWorkshop && canSeeFarm ? (
+                <option value="export_request">{t("support.askKindExport", locale)}</option>
+              ) : null}
+            </Select>
+          </Field>
+          {farmChoices.length > 0 ? (
+            <Field label={t("support.askFarm", locale)} htmlFor="help-farm">
+              <Select id="help-farm" name="farm_id" defaultValue={isWorkshop ? "" : selectedFarm ?? ""}>
+                {isWorkshop ? <option value="">{t("support.askFarmOwnBusiness", locale)}</option> : null}
+                {farmChoices.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </Select>
+            </Field>
+          ) : selectedFarm ? (
+            <input type="hidden" name="farm_id" value={selectedFarm} />
+          ) : null}
           <Field
             label={t("help.subject", locale)}
             htmlFor="help-subject"
@@ -131,7 +179,7 @@ export default async function HelpPage({
             <Textarea id="help-message" name="message" required rows={5} maxLength={4000} />
           </Field>
         </DialogFields>
-        <DialogActions cancelLabel={t("common.cancel", locale)} note={t("help.attachNote", locale)}>
+        <DialogActions cancelLabel={t("common.cancel", locale)} note={t("support.attachNote", locale)}>
           <SubmitButton variant="primary">{t("help.send", locale)}</SubmitButton>
         </DialogActions>
       </form>
@@ -146,7 +194,7 @@ export default async function HelpPage({
         infoKey="help"
         locale={locale}
         back={back}
-        actions={openCount >= 5 ? undefined : askDialog}
+        actions={atLimit ? undefined : askDialog}
       />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
@@ -167,25 +215,35 @@ export default async function HelpPage({
       {requests.length > 0 ? (
         <Card flush>
           <div className="p-4 pb-0 sm:p-5 sm:pb-0">
-            <CardTitle>{t("help.yoursTitle", locale)}</CardTitle>
+            <CardTitle>{t(canSeeFarm ? "support.yoursAndFarmTitle" : "help.yoursTitle", locale)}</CardTitle>
           </div>
           <ul className="divide-y divide-sand-200">
-            {requests.map((r) => {
-              const look = STATUS_LOOK[r.status];
-              return (
-                <li key={r.id} className="flex flex-wrap items-start justify-between gap-2 p-4 sm:p-5">
+            {requests.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/help/${r.id}`}
+                  className="focus-ring flex flex-wrap items-start justify-between gap-2 p-4 hover:bg-surface-hover sm:p-5"
+                >
                   <div className="min-w-0">
                     <p className="break-words font-medium text-ink">{r.subject}</p>
-                    <p className="mt-0.5 text-xs text-sand-500">
+                    <p className="mt-0.5 text-xs text-sand-600">
                       {t("help.askedOn", locale).replace("{when}", dateTime(r.created_at, locale))}
+                      {!r.mine && r.asked_by_name ? ` · ${t("support.askedBy", locale).replace("{name}", r.asked_by_name)}` : ""}
+                      {multiFarm && r.farm_name ? ` · ${r.farm_name}` : ""}
                     </p>
                   </div>
-                  <Badge tone={look.tone}>{t(look.key, locale)}</Badge>
-                </li>
-              );
-            })}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {r.kind !== "help_request" ? <Badge tone="info">{t(`support.kind.${r.kind}`, locale)}</Badge> : null}
+                    {r.answered && (r.status === "open" || r.status === "waiting") ? (
+                      <Badge tone="ok">{t("support.newAnswer", locale)}</Badge>
+                    ) : null}
+                    <CustomerStatusBadge status={r.status} locale={locale} />
+                  </div>
+                </Link>
+              </li>
+            ))}
           </ul>
-          {openCount >= 5 ? (
+          {atLimit ? (
             <p className="border-t border-sand-200 p-4 text-sm text-sand-600 sm:p-5">
               {t("help.atLimit", locale)}
             </p>
@@ -194,14 +252,8 @@ export default async function HelpPage({
       ) : null}
 
       {/* Email stays, for anybody who would rather, and for anybody who cannot sign in at
-          all. Taking it away would make a locked-out customer worse off, which is the one
-          group a support form cannot serve. */}
-      <p className="text-sm text-sand-600">
-        {t("help.orEmail", locale)}{" "}
-        <a href={`mailto:${COMPANY.email}`} className="break-all font-medium text-brand-ink underline">
-          {COMPANY.email}
-        </a>
-      </p>
+          all. Taking it away would make a locked-out customer worse off. */}
+      <ContactCard contact={contact} fallbackEmail={COMPANY.email} locale={locale} />
     </PageContainer>
   );
 }

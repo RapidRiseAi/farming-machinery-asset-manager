@@ -1,226 +1,231 @@
+import Link from "next/link";
+
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
+import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
-import { rands } from "@/lib/money";
 import { dateTime } from "@/lib/format";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { dueState } from "@/lib/support/sla";
+import { supportAlertAddress } from "@/lib/support/emails";
+import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
-import { StatusBadge } from "@/components/ui/badge";
-import { AllClear } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { Flash } from "@/components/ui/flash";
+import { AllClear, FilteredEmpty } from "@/components/ui/empty-state";
+import { Disclosure } from "@/components/ui/disclosure";
+import { FilterBar } from "@/components/ui/filter-bar";
+import { filterState, type FilterGroup } from "@/components/ui/filter-state";
+import { buttonVariants } from "@/components/ui/button";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { StaffStatusBadge } from "@/components/support/support-parts";
 
 /**
- * Support cases, as Rapid Rise sees them.
+ * The support queue: every case Rapid Rise has, worked here.
  *
- * == What this screen is and is not ===========================================
- * Tickets are WORKED in the RapidRise OS support dashboard, which is where the
- * conversation, the replies and the resolution live. `20260912170000` posts every case
- * there as it opens.
+ * Founder default (2026-10-28): the Fleet Wise admin is the system of record. A customer's
+ * question, a privacy or export request, a case logged from a phone call, and the card
+ * disputes and refunds the billing engine opens all land in one list, ordered by what is
+ * due first. Opening one shows the conversation and the client, with reply, note, assign
+ * and resolve (`/admin/support/[id]`).
  *
- * This page is deliberately READ-ONLY and deliberately exists anyway, for one reason: the
- * outbound post can fail, the endpoint can be unset, and the dispute that arrived while
- * the integration was down is precisely the one that matters. A record nobody can see is
- * the same as no record, so the cases are visible here whatever the integration is doing.
+ * Real clients only unless the test switch is on: the click-through opens a test case on
+ * every run, and a test case never alerts anyone.
  *
- * == Why the deadline is the first column that matters ========================
- * A card dispute gives roughly 48 BUSINESS HOURS before Paystack settles it on our behalf
- * and takes the money out of a payout. Everything else on a ticket can wait; that cannot.
- * Overdue and due-soon are therefore states with their own words, not a date somebody has
- * to compare against today.
- *
- * Rapid Rise only, a case carries another farm's billing detail and, for a dispute, a
- * bank's claim about a person. `support_tickets_sel` enforces that in RLS; `requireRole`
- * here only spares a farm owner a screen that would be empty anyway.
+ * Read through `public.support_queue` with the admin's own session: SECURITY DEFINER
+ * behind `app.is_rr_support()` (two-step, never a test account).
  */
 export const dynamic = "force-dynamic";
 
-type TicketRow = {
+type QueueRow = {
   id: string;
   kind: string;
   status: string;
   subject: string;
   farm_id: string | null;
-  external_ref: string | null;
-  due_at: string | null;
-  escalated_at: string | null;
+  farm_name: string | null;
+  workshop_name: string | null;
+  asked_by_name: string | null;
+  channel: string;
+  assigned_name: string | null;
   opened_at: string;
-  resolved_at: string | null;
-  evidence: Record<string, unknown> | null;
+  next_due: string | null;
+  first_response_at: string | null;
+  needs_reply: boolean;
+  is_test: boolean;
 };
 
-/** The three facts a person wants before opening the case itself. */
-function summarise(evidence: Record<string, unknown> | null): {
-  farm: string | null;
-  owner: string | null;
-  amount: string | null;
-} {
-  const e = evidence ?? {};
-  const farm = (e.farm ?? null) as { name?: string } | null;
-  const owner = (e.owner ?? null) as { name?: string; email?: string } | null;
-  const invoice = (e.invoice ?? null) as { total_incl_cents?: number; ref?: string } | null;
-  return {
-    farm: farm?.name ?? null,
-    owner: owner?.email ?? owner?.name ?? null,
-    amount:
-      invoice?.total_incl_cents != null
-        ? `${rands(invoice.total_incl_cents)}${invoice.ref ? ` · ${invoice.ref}` : ""}`
-        : null,
-  };
-}
+const STATUS_FILTERS = ["unanswered", "overdue", "waiting", "resolved", "all"] as const;
+const KINDS = ["help_request", "privacy_request", "export_request", "dispute", "refund_request", "billing_anomaly", "manual"] as const;
 
-export default async function AdminSupportPage() {
+export default async function AdminSupportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; status?: string; kind?: string; who?: string; test?: string }>;
+}) {
   const profile = await requireRole(["rr_admin"]);
   const locale = profile.lang;
+  const sp = await searchParams;
+
+  const status = (STATUS_FILTERS as readonly string[]).includes(sp.status ?? "") ? sp.status! : "";
+  const kind = (KINDS as readonly string[]).includes(sp.kind ?? "") ? sp.kind! : "";
+  const who = sp.who === "me" || sp.who === "none" ? sp.who : "";
+  const showTest = sp.test === "1";
 
   const supabase = await createClient();
-  // must: a failed read rendered "all clear" on the one screen that exists so a dispute
-  // with a 48-hour clock is never invisible.
   const data = must(
-    await supabase
-      .from("support_tickets")
-      .select(
-        "id, kind, status, subject, farm_id, external_ref, due_at, escalated_at, opened_at, resolved_at, evidence",
-      )
-      // Open cases first, then by deadline, a case with a clock outranks one without.
-      .order("resolved_at", { ascending: true, nullsFirst: true })
-      .order("due_at", { ascending: true, nullsFirst: false })
-      .order("opened_at", { ascending: false })
-      .limit(100),
-    "admin-support:tickets",
+    await supabase.rpc("support_queue", {
+      p_status: status || "active",
+      p_kind: kind || null,
+      p_assignee: who || null,
+      p_include_test: showTest,
+    }),
+    "admin-support:queue",
   );
+  const rows = (data as QueueRow[] | null) ?? [];
+  const now = new Date();
 
-  const tickets = (data as TicketRow[] | null) ?? [];
-  const open = tickets.filter((x) => x.status === "open" || x.status === "waiting");
-  const now = Date.now();
+  const search = new URLSearchParams(
+    Object.entries({ status, kind, who, test: showTest ? "1" : "" }).filter((e): e is [string, string] => !!e[1]),
+  ).toString();
+  const groups: FilterGroup[] = [
+    {
+      paramName: "status",
+      label: t("support.filterStatus", locale),
+      current: status,
+      options: [
+        { value: "", label: t("support.filter.active", locale) },
+        ...STATUS_FILTERS.map((s) => ({ value: s, label: t(`support.filter.${s}`, locale) })),
+      ],
+    },
+    {
+      paramName: "kind",
+      label: t("support.filterKind", locale),
+      current: kind,
+      options: [{ value: "", label: t("filters.all", locale) }, ...KINDS.map((k) => ({ value: k, label: t(`support.kind.${k}`, locale) }))],
+    },
+    {
+      paramName: "who",
+      label: t("support.filterAssignee", locale),
+      current: who,
+      options: [
+        { value: "", label: t("filters.all", locale) },
+        { value: "me", label: t("support.assigneeMe", locale) },
+        { value: "none", label: t("support.assigneeNone", locale) },
+      ],
+    },
+    {
+      paramName: "test",
+      label: t("adminHome.testFilter", locale),
+      current: showTest ? "1" : "",
+      options: [
+        { value: "", label: t("adminHome.realOnly", locale) },
+        { value: "1", label: t("adminHome.withTest", locale) },
+      ],
+    },
+  ];
+  const filtered = filterState("/admin/support", search, groups);
+  const alertEmail = supportAlertAddress();
 
   return (
     <PageContainer size="wide">
       <PageHeader
-        title={t("adminSupport.title", locale)}
-        lead={t("adminSupport.lead", locale)}
+        title={t("support.queueTitle", locale)}
+        lead={t("support.queueLead", locale)}
         infoKey="adminSupport"
         locale={locale}
+        actions={
+          <Link href="/admin/support/settings" className={buttonVariants({ variant: "secondary" })}>
+            {t("support.settingsLink", locale)}
+          </Link>
+        }
+      />
+      <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      {alertEmail ? null : <Flash tone="info" clearParams={false} message={t("adminHome.alertEmailOff", locale)} />}
+
+      <FilterBar
+        path="/admin/support"
+        search={search}
+        groups={groups}
+        filtersLabel={t("filters.filters", locale)}
+        clearLabel={t("filters.clear", locale)}
+        rememberKey="admin-support"
       />
 
-      <Card flush>
-        <div className="p-4 pb-0 sm:p-5 sm:pb-0">
-          <CardHeader>
-            <CardTitle>{t("adminSupport.openTitle", locale)}</CardTitle>
-          </CardHeader>
-          <p className="text-sm text-sand-600">{t("adminSupport.whereWorked", locale)}</p>
-        </div>
-
-        {tickets.length === 0 ? (
-          <div className="p-4 sm:p-5">
-            <AllClear
-              title={t("adminSupport.emptyTitle", locale)}
-              hint={t("adminSupport.emptyBody", locale)}
-            />
-          </div>
-        ) : (
-          <div className="mt-3">
-            <Table>
-              <Thead>
-                <Tr>
-                  <Th>{t("adminSupport.colCase", locale)}</Th>
-                  <Th>{t("adminSupport.colFarm", locale)}</Th>
-                  <Th>{t("adminSupport.colOpened", locale)}</Th>
-                  <Th>{t("adminSupport.colDue", locale)}</Th>
-                  <Th>{t("adminSupport.colState", locale)}</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {tickets.map((ticket) => {
-                  const s = summarise(ticket.evidence);
-                  const settled = ticket.status === "resolved" || ticket.status === "closed";
-                  const hoursLeft =
-                    ticket.due_at != null
-                      ? (new Date(ticket.due_at).getTime() - now) / 3_600_000
-                      : null;
-                  const overdue = !settled && hoursLeft != null && hoursLeft < 0;
-                  const soon = !settled && hoursLeft != null && hoursLeft >= 0 && hoursLeft <= 12;
-
-                  return (
-                    <Tr key={ticket.id}>
-                      <Td>
-                        <span className="block font-medium text-sand-900">{ticket.subject}</span>
-                        <span className="block text-xs text-sand-500">
-                          {t(`adminSupport.kind.${ticket.kind}`, locale)}
-                          {ticket.external_ref ? ` · ${ticket.external_ref}` : ""}
+      {rows.length === 0 ? (
+        <FilteredEmpty
+          filtered={filtered.active}
+          clearHref={filtered.clearHref}
+          title={t("empty.noMatchTitle", locale)}
+          hint={t("empty.noMatchHint", locale)}
+          clearLabel={t("empty.clearFilters", locale)}
+        >
+          <AllClear title={t("support.queueEmptyTitle", locale)} hint={t("support.queueEmptyHint", locale)} />
+        </FilteredEmpty>
+      ) : (
+        <Card flush>
+          <Table stacked>
+            <Thead>
+              <Tr>
+                <Th>{t("support.colCase", locale)}</Th>
+                <Th>{t("support.colWho", locale)}</Th>
+                <Th>{t("support.colDue", locale)}</Th>
+                <Th>{t("support.colAssignee", locale)}</Th>
+                <Th>{t("support.colStatus", locale)}</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {rows.map((r) => {
+                const due = dueState(r.next_due, now);
+                return (
+                  <Tr key={r.id}>
+                    <Td label={t("support.colCase", locale)}>
+                      <Link href={`/admin/support/${r.id}`} className="focus-ring rounded font-medium text-brand-ink hover:underline">
+                        {r.subject}
+                      </Link>
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        <Badge tone="neutral">{t(`support.kind.${r.kind}`, locale)}</Badge>
+                        {r.channel !== "in_app" && r.channel !== "system" ? (
+                          <Badge tone="info">{t(`support.channel.${r.channel}`, locale)}</Badge>
+                        ) : null}
+                        {r.is_test ? <Badge tone="warning">{t("adminHome.testBadge", locale)}</Badge> : null}
+                      </span>
+                    </Td>
+                    <Td label={t("support.colWho", locale)}>
+                      <span className="block">{r.farm_name ?? r.workshop_name ?? "-"}</span>
+                      {r.asked_by_name ? <span className="block text-xs text-sand-600">{r.asked_by_name}</span> : null}
+                    </Td>
+                    <Td label={t("support.colDue", locale)}>
+                      {due === "none" ? (
+                        <span className="text-sand-600">{t("support.dueNothing", locale)}</span>
+                      ) : (
+                        <span className={due === "overdue" ? "font-medium text-status-overdue" : due === "today" ? "font-medium text-status-due" : ""}>
+                          {t(`support.due.${due}`, locale)}
+                          <span className="block text-xs font-normal text-sand-600">{dateTime(r.next_due, locale)}</span>
                         </span>
-                      </Td>
-                      <Td>
-                        <span className="block text-sand-900">{s.farm ?? "-"}</span>
-                        {s.owner ? (
-                          <span className="block text-xs text-sand-500">{s.owner}</span>
-                        ) : null}
-                        {s.amount ? (
-                          <span className="block text-xs tabular-nums text-sand-600">{s.amount}</span>
-                        ) : null}
-                      </Td>
-                      <Td className="whitespace-nowrap text-sand-600">
-                        {dateTime(ticket.opened_at, locale)}
-                      </Td>
-                      <Td className="whitespace-nowrap">
-                        {ticket.due_at ? (
-                          <>
-                            <span className="block text-sand-700">
-                              {dateTime(ticket.due_at, locale)}
-                            </span>
-                            {overdue ? (
-                              <span className="block text-xs font-medium text-status-bad">
-                                {t("adminSupport.overdue", locale)}
-                              </span>
-                            ) : soon ? (
-                              <span className="block text-xs font-medium text-status-warn">
-                                {t("adminSupport.dueSoon", locale).replace(
-                                  "{hours}",
-                                  String(Math.max(0, Math.round(hoursLeft as number))),
-                                )}
-                              </span>
-                            ) : null}
-                          </>
-                        ) : (
-                          <span className="text-sm text-sand-500">-</span>
-                        )}
-                      </Td>
-                      <Td>
-                        <StatusBadge
-                          label={t(`adminSupport.status.${ticket.status}`, locale)}
-                          tone={settled ? "ok" : overdue ? "danger" : soon ? "warning" : "info"}
-                          shape={settled ? "check" : overdue ? "square" : soon ? "triangle" : "clock"}
-                        />
-                      </Td>
-                    </Tr>
-                  );
-                })}
-              </Tbody>
-            </Table>
-          </div>
-        )}
-      </Card>
+                      )}
+                    </Td>
+                    <Td label={t("support.colAssignee", locale)}>{r.assigned_name ?? <span className="text-sand-600">{t("support.assigneeNone", locale)}</span>}</Td>
+                    <Td label={t("support.colStatus", locale)}>
+                      <StaffStatusBadge status={r.status} locale={locale} />
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </Tbody>
+          </Table>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("adminSupport.policyTitle", locale)}</CardTitle>
-        </CardHeader>
-        {/* The policy in words, on the screen where somebody is about to act on it. The
-            two ordinary ways a farm pays less are already automatic and involve no refund;
-            what reaches this page is the genuinely individual case. */}
+      {/* The answers disputes and refunds usually get, kept from the read-only page. */}
+      <Disclosure summary={t("adminSupport.policyTitle", locale)}>
         <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-sand-700">
           <li>{t("adminSupport.policyDowngrade", locale)}</li>
           <li>{t("adminSupport.policyCancel", locale)}</li>
           <li>{t("adminSupport.policyRefund", locale)}</li>
           <li>{t("adminSupport.policyDispute", locale)}</li>
         </ul>
-      </Card>
-
-      {open.length > 0 ? (
-        <p className="text-sm text-sand-600">
-          {t("adminSupport.openCount", locale).replace("{n}", String(open.length))}
-        </p>
-      ) : null}
+      </Disclosure>
     </PageContainer>
   );
 }
