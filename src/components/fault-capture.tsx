@@ -19,6 +19,12 @@ import { Photo } from "@/components/ui/photo";
 import { cn } from "@/components/ui/cn";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
+/** Longest voice note, decided 2026-10-27: two minutes, then the recorder stops itself. */
+const VOICE_MAX_MS = 120_000;
+const VOICE_BITS_PER_SECOND = 32_000;
+/** m:ss for the recording timer. */
+const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
 const COMMON = ["wont_start", "leak", "noise", "tyre", "hydraulic", "electrical", "other"] as const;
 const URGENCIES = ["can_work", "limping", "stopped"] as const;
 type Urgency = (typeof URGENCIES)[number];
@@ -133,6 +139,9 @@ export function FaultCapture({
   const [geoDenied, setGeoDenied] = useState(false);
   const [done, setDone] = useState<null | { kind: "sent" | "queued"; machine: string }>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  // Seconds recorded so far, shown on the stop button; the cap stops the recorder by itself.
+  const [elapsed, setElapsed] = useState(0);
+  const recTimersRef = useRef<{ tick?: ReturnType<typeof setInterval>; cap?: ReturnType<typeof setTimeout> }>({});
   const chunksRef = useRef<BlobPart[]>([]);
   const pendingRef = useRef<QueuedMutation | null>(null);
   const qrAttempt = useRef<{key:string;id:string}|null>(null);
@@ -177,7 +186,15 @@ export function FaultCapture({
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
+      // About 0.25 MB a minute: a full two-minute note and a photo stay well under the
+      // request limit of the server functions (4.5 MB), where the browser's default bitrate
+      // could pass it in a few minutes. A browser that ignores the hint is still capped.
+      let rec: MediaRecorder;
+      try {
+        rec = new MediaRecorder(stream, { audioBitsPerSecond: VOICE_BITS_PER_SECOND });
+      } catch {
+        rec = new MediaRecorder(stream);
+      }
       chunksRef.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
       rec.onstop = () => {
@@ -187,14 +204,33 @@ export function FaultCapture({
       rec.start();
       recorderRef.current = rec;
       setRecording(true);
+      setElapsed(0);
+      const started = Date.now();
+      recTimersRef.current.tick = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 250);
+      recTimersRef.current.cap = setTimeout(stopRec, VOICE_MAX_MS);
     } catch {
       setError(t("faults.micDenied", locale));
     }
   };
-  const stopRec = () => {
-    if (recorderRef.current?.state !== "inactive") recorderRef.current?.stop();
+  function stopRec() {
+    clearInterval(recTimersRef.current.tick);
+    clearTimeout(recTimersRef.current.cap);
+    recTimersRef.current = {};
+    if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
     setRecording(false);
-  };
+  }
+
+  // Leaving the screen mid-recording must not keep the microphone open.
+  useEffect(() => () => {
+    clearInterval(recTimersRef.current.tick);
+    clearTimeout(recTimersRef.current.cap);
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      rec.onstop = null;
+      rec.stop();
+      rec.stream.getTracks().forEach((tr) => tr.stop());
+    }
+  }, []);
 
   const removePhoto = () => {
     setPhoto(null);
@@ -498,7 +534,11 @@ export function FaultCapture({
           ) : (
             <button type="button" onClick={stopRec} className={cn(extraButton, "border-status-overdue bg-callout-danger-bg text-status-overdue")}>
               <span className="text-xl" aria-hidden><StopIcon /></span>
-              <span className="min-w-0 break-words">{t("faults.recording", locale)}</span>
+              <span className="min-w-0 break-words">
+                {t("faults.recordingElapsed", locale)
+                  .replace("{time}", clock(elapsed))
+                  .replace("{max}", clock(VOICE_MAX_MS / 1000))}
+              </span>
             </button>
           )}
           <button
@@ -515,6 +555,9 @@ export function FaultCapture({
             <span className="min-w-0 break-words">{coords ? t("faults.locationAdded", locale) : t("faults.addLocation", locale)}</span>
           </button>
         </div>
+
+        {/* Said before anyone records: the recording is kept, and the farm hears it. */}
+        <p className="mt-2 text-xs text-sand-500">{t("faults.voiceNotice", locale).replace("{max}", clock(VOICE_MAX_MS / 1000))}</p>
 
         {photoUrl || (voice && !recording) || geoDenied ? (
           <div className="mt-3 flex flex-col gap-2">

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireProfile, effectiveFarmRole } from "@/lib/auth";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { createClient } from "@/lib/supabase/server";
+import { soft } from "@/lib/supabase/must";
 import { canEditJobWork, canReviewJob, canReturnJob, needsJobMeter } from "@/lib/jobcard-workflow";
 import { rands } from "@/lib/money";
 import { meterReading, shortDate } from "@/lib/format";
@@ -46,6 +47,7 @@ type JobCard = {
   reported_problem: string | null; diagnosis: string | null; work_performed: string | null; recommendations: string | null;
   parts_total_cents: number; labour_total_cents: number; other_total_cents: number; total_cents: number;
   vat_rate_bps: number; locked: boolean; approved_at: string | null;
+  created_from_fault_id: string | null;
 };
 type Line = {
   id: string; updated_at: string; kind: string; description: string | null; part_no: string | null;
@@ -135,6 +137,23 @@ export default async function JobCardDetail({ params, searchParams }: {
       const signed = a.storage_path ? await supabase.storage.from("jobcard-photos").createSignedUrl(a.storage_path, 3600) : null;
       return { ...a, url: signed?.data?.signedUrl ?? null };
     }));
+  // The fault this card was opened from: its photo and voice note, so the mechanic hears
+  // the driver where the work is done rather than only on the faults list. Soft: a missing
+  // file or an unread list leaves this out, never the job card itself.
+  const faultMediaRes = jc.created_from_fault_id
+    ? await supabase.from("attachments").select("id, kind, storage_path")
+        .eq("parent_type", "fault").eq("parent_id", jc.created_from_fault_id)
+        .in("kind", ["photo", "voice"]).is("deleted_at", null).order("created_at")
+    : { data: [], error: null };
+  const faultMedia = (await Promise.all(
+    ((soft(faultMediaRes, "jobcards:fault-media") as { id: string; kind: string; storage_path: string | null }[] | null) ?? [])
+      .map(async (a) => {
+        if (!a.storage_path) return null;
+        const bucket = a.kind === "voice" ? "fault-voice" : "fault-photos";
+        const signed = soft(await supabase.storage.from(bucket).createSignedUrl(a.storage_path, 3600), "jobcards:fault-media-url");
+        return signed?.signedUrl ? { id: a.id, kind: a.kind, url: signed.signedUrl } : null;
+      }),
+  )).filter((m): m is { id: string; kind: string; url: string } => m !== null);
   const loadError = [lineRes, planRes, coverRes, attachRes, invoiceRes, catalogueRes, kitRes, workRes, providerRes, teamRes, membershipRes].find((result) => result.error)?.error;
   const membershipRoles = new Map((membershipRes.data ?? []).map((m) => [m.user_id, m.role]));
   const team = (teamRes.data ?? []).filter((person) => person.role !== "workshop" && ["owner", "manager", "mechanic"].includes(membershipRoles.get(person.id) ?? (person.farm_id === jc.farm_id ? person.role : "")));
@@ -398,7 +417,21 @@ export default async function JobCardDetail({ params, searchParams }: {
             ) : null)}
           </div>
         ) : null}
-        {docCount === 0 ? <p className="mb-3 text-sm text-sand-500">{t("jobcards.noMedia", locale)}</p> : null}
+        {faultMedia.length > 0 ? (
+          <div className="mb-3">
+            <p className="mb-2 text-sm font-medium text-sand-700">{t("jobcards.fromFault", locale)}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {faultMedia.map((m) => m.kind === "voice" ? (
+                <audio key={m.id} controls preload="none" src={m.url} className="h-10 min-w-0 max-w-[260px]" aria-label={t("faults.playVoiceNote", locale)} />
+              ) : (
+                <a key={m.id} href={m.url} target="_blank" rel="noreferrer" className="focus-ring block h-20 w-20 overflow-hidden rounded-lg border border-sand-200">
+                  <Photo src={m.url} alt={t("jobcards.attachment", locale)} size="thumb" className="h-20 w-20" />
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {docCount === 0 && faultMedia.length === 0 ? <p className="mb-3 text-sm text-sand-500">{t("jobcards.noMedia", locale)}</p> : null}
         {canMedia ? (
           <DialogForm trigger={t("jobcards.workflow.addDocument", locale)} title={t("jobcards.workflow.addDocument", locale)} description={machine?.name} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
             <JobCardMedia actorId={profile.id} jobCardId={id} locale={locale} allowedKinds={canInvoice ? ["invoice"] : external && canWork ? ["photo", "quote"] : ["photo"]} canRecordAmount={canRecordAmount} />
