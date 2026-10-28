@@ -250,7 +250,11 @@ grant execute on function public.my_help_requests(uuid) to authenticated, servic
 
 -- == One request and its answers ================================================
 create or replace function public.my_help_request(p_ticket uuid) returns jsonb
-language sql stable security definer set search_path = public, pg_temp as $$
+-- plpgsql, not sql: it calls app.support_next_due, which 20261028100950 creates, and a
+-- `language sql` body is checked at CREATE (CLAUDE.md, "A language sql function is parsed").
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  return (
   select case when app.support_customer_can_see(p_ticket) then (
     select jsonb_build_object(
       'id', t.id,
@@ -262,6 +266,12 @@ language sql stable security definer set search_path = public, pg_temp as $$
       'mine', t.asked_by is not distinct from auth.uid(),
       'asked_by_name', u.name,
       'farm_name', f.name,
+      -- When the answer is promised: the same-day deadline until the first answer, then
+      -- the one their latest reply set. Null when nothing is waiting on Rapid Rise.
+      'answer_by', app.support_next_due(t.kind, t.status, t.due_at, t.first_response_due_at,
+                                        t.first_response_at, t.last_customer_at, t.last_staff_at),
+      -- A test farm's or test account's case: the app sends Rapid Rise no email for it.
+      'is_test', t.is_test,
       'messages', coalesce((
         select jsonb_agg(jsonb_build_object(
                  'id', m.id,
@@ -278,8 +288,8 @@ language sql stable security definer set search_path = public, pg_temp as $$
       left join public.users u on u.id = t.asked_by
       left join public.farms f on f.id = t.farm_id
      where t.id = p_ticket)
-  end;
-$$;
+  end);
+end $$;
 
 comment on function public.my_help_request(uuid) is
   'One support request and its public messages, for someone who may see it (else null). '

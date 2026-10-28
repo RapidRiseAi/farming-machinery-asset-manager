@@ -1,4 +1,4 @@
--- The support desk (20261028100000 to 20261028101200).
+-- The support desk (20261028100000 to 20261028101300).
 --
 -- What must hold:
 --   (a) answer-by times follow the support calendar: hours, the 16:00 cutoff, weekends and
@@ -14,7 +14,8 @@
 --   (f) resolving needs words, assigning needs a real admin;
 --   (g) support visits need a reason and only the farm's owner sees them;
 --   (h) Rapid Rise can invite an owner; nobody else can;
---   (i) grants: anon executes none of it, and the engines are reachable only through it.
+--   (i) grants: anon executes none of it, and the engines are reachable only through it;
+--   (j) Rapid Rise switches a person off on a client farm (account or membership), nobody else.
 
 \set ON_ERROR_STOP on
 set client_min_messages to warning;
@@ -562,6 +563,72 @@ begin
   exception when invalid_parameter_value then null; end;
 end $$;
 
+-- == (j) Rapid Rise switches a person off on a client farm; nobody else does ========
+-- And (e) once more: the customer is told when the answer is due, and nothing is due
+-- while the case waits on them.
+set local role authenticated;
+do $$
+declare v_t uuid; v jsonb; r text;
+begin
+  perform public._sd_as('5d100000-0000-4000-8000-000000000003');
+  select public.open_help_request('Due time check', 'When will you answer?', '{}'::jsonb) into v_t;
+  v := public.my_help_request(v_t);
+  if v->>'answer_by' is null then raise exception 'DESK FAIL [e]: a new request does not say when it will be answered'; end if;
+  if (v->>'is_test')::boolean then raise exception 'DESK FAIL [e]: a real request reads as a test one'; end if;
+  perform public._sd_as('5d100000-0000-4000-8000-000000000007', 'aal2');
+  perform public.support_reply(v_t, 'Today still.', 'waiting');
+  perform public._sd_as('5d100000-0000-4000-8000-000000000003');
+  if (public.my_help_request(v_t))->>'answer_by' is not null then
+    raise exception 'DESK FAIL [e]: a case waiting on the customer still shows an answer-by time';
+  end if;
+
+  -- Refused for everybody but the real admin with two-step.
+  perform public._sd_as('5d100000-0000-4000-8000-000000000001');
+  begin
+    perform public.admin_set_user_active('5d000000-0000-4000-8000-00000000000a', '5d100000-0000-4000-8000-000000000004', false);
+    raise exception 'DESK FAIL [j]: a farm owner used the admin switch';
+  exception when insufficient_privilege then null; end;
+  perform public._sd_as('5d100000-0000-4000-8000-000000000008', 'aal2');
+  begin
+    perform public.admin_set_user_active('5d000000-0000-4000-8000-00000000000a', '5d100000-0000-4000-8000-000000000004', false);
+    raise exception 'DESK FAIL [j]: a test admin used the admin switch';
+  exception when insufficient_privilege then null; end;
+  perform public._sd_as('5d100000-0000-4000-8000-000000000007', 'aal1');
+  begin
+    perform public.admin_set_user_active('5d000000-0000-4000-8000-00000000000a', '5d100000-0000-4000-8000-000000000004', false);
+    raise exception 'DESK FAIL [j]: the admin without two-step used the admin switch';
+  exception when insufficient_privilege then null; end;
+
+  perform public._sd_as('5d100000-0000-4000-8000-000000000007', 'aal2');
+  r := public.admin_set_user_active('5d000000-0000-4000-8000-00000000000a', '5d100000-0000-4000-8000-000000000004', false);
+  if r <> 'account' then raise exception 'DESK FAIL [j]: a home-farm person was switched by %', r; end if;
+  -- A member from elsewhere: only that membership, never their own farm's account.
+  r := public.admin_set_user_active('5d000000-0000-4000-8000-00000000000c', '5d100000-0000-4000-8000-000000000003', false);
+  if r <> 'membership' then raise exception 'DESK FAIL [j]: a member from elsewhere was switched by %', r; end if;
+  begin
+    perform public.admin_set_user_active('5d000000-0000-4000-8000-00000000000b', '5d100000-0000-4000-8000-000000000004', false);
+    raise exception 'DESK FAIL [j]: a person was switched off on a farm they are not on';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.admin_set_user_active('5d000000-0000-4000-8000-00000000000a', '5d100000-0000-4000-8000-000000000007', false);
+    raise exception 'DESK FAIL [j]: the admin switched themself off';
+  exception when invalid_parameter_value then null; end;
+  perform public._sd_as('');
+end $$;
+reset role;
+do $$ begin
+  if (select active from public.users where id = '5d100000-0000-4000-8000-000000000004') then
+    raise exception 'DESK FAIL [j]: the mechanic is still active';
+  end if;
+  if not (select active from public.users where id = '5d100000-0000-4000-8000-000000000003') then
+    raise exception 'DESK FAIL [j]: switching a membership off switched the whole account off';
+  end if;
+  if (select active from public.user_farm_memberships
+       where user_id = '5d100000-0000-4000-8000-000000000003' and farm_id = '5d000000-0000-4000-8000-00000000000c') then
+    raise exception 'DESK FAIL [j]: the membership is still active';
+  end if;
+end $$;
+
 -- == (i) Grants ===================================================================
 do $$
 declare f text; v text;
@@ -580,7 +647,8 @@ begin
     'public.support_assign(uuid,uuid)',
     'public.support_open_for_customer(uuid,uuid,text,text,text,text)',
     'public.support_badge()', 'public.support_overview(boolean)',
-    'public.support_mark_emailed(uuid,text)', 'public.admin_client(uuid)'] loop
+    'public.support_mark_emailed(uuid,text)', 'public.admin_client(uuid)',
+    'public.admin_set_user_active(uuid,uuid,boolean)'] loop
     if has_function_privilege('anon', f, 'execute') then
       raise exception 'DESK FAIL [i]: anon may execute %', f;
     end if;
