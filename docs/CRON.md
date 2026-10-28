@@ -38,6 +38,11 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
     the shelf does not have (0503). This engine and the one above are **order-independent**:
     0503 replaced 0451's so that an item which is both low and short raises the shortfall
     line only, whichever runs first, one shelf, one sentence a week.
+12b. `cron_asset_finance_nightly` → finance agreements and contracts (20261028110800):
+    debit-order instalments marked paid, contracts past their end rolled on (auto-renewing)
+    or ended, interest and lease costs booked as they fall due. Idempotent.
+12c. `cron_enqueue_asset_finance_reminders` → instalments coming due or overdue, contract
+    notice days and end dates, to owners and managers, once per date, no amounts.
 13. `cron_enqueue_weekly_digest` → **Mondays only** (Africa/Johannesburg). One
     `weekly_digest` per active farm (Scope §4.7 msg 5). The route decides it is Monday; the
     SQL just enqueues.

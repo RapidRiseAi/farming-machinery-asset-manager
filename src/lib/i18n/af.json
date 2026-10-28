@@ -6580,6 +6580,9 @@
     "errDocMissing": "Kies 'n lêer om aan te heg.",
     "errDocTooBig": "Daardie lêer is groter as 8 MB.",
     "errDocType": "Heg 'n PDF of 'n foto aan.",
-    "errDocFailed": "Die lêer kon nie gestoor word nie. Probeer weer."
+    "errDocFailed": "Die lêer kon nie gestoor word nie. Probeer weer.",
+    "previewTitle": "Wat dit op uitwerk",
+    "previewEmpty": "Vul die bedrag, die termyn, die eerste paaiement en die koers of die paaiement in.",
+    "previewValue": "{instalment} per paaiement · {interest} rente en fooie oor die termyn · {rate}% · laaste betaalbaar {last}"
   }
 }

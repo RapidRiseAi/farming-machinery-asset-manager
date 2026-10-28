@@ -6580,6 +6580,9 @@
     "errDocMissing": "Choose a file to attach.",
     "errDocTooBig": "That file is larger than 8 MB.",
     "errDocType": "Attach a PDF or a photo.",
-    "errDocFailed": "The file could not be stored. Try again."
+    "errDocFailed": "The file could not be stored. Try again.",
+    "previewTitle": "What it works out to",
+    "previewEmpty": "Fill in the amount, the term, the first instalment and the rate or the instalment.",
+    "previewValue": "{instalment} an instalment · {interest} interest and fees over the term · {rate}% · last due {last}"
   }
 }

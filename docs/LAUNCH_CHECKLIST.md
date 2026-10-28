@@ -234,6 +234,15 @@ Order: correctness and security first, then load, then product.
       badged where listed. Also fixed: the click-through run marked EVERY farm's open help
       requests resolved (only the test farm had any). Follow-up: Rapid Rise's all-farms
       dashboard still sums test farms (needs a database total, not an id list).
+- [x] **Machinery finance and lease tracking** (founder: planned for launch, 2026-10-28
+      decision record). 2026-10-28, work package C: finance agreements with a generated,
+      editable instalment schedule, payments, statement balance and early settlement; leases,
+      rentals and service contracts with end, renew and notice dates; documents in a private
+      bucket; reminders through the nightly route; calendar, /finance page with a 12-month
+      cash flow, CSV and workbook export (advanced_reports). Owners and managers only
+      (`app.can_view_farm_finance`, founder default), every plan. Migrations 20261028110000
+      to 20261028111100, NOT yet applied; `asset_finance.sql`. Still to do: apply and probe,
+      `ui:check` on /finance and the machine Costs tab at 360 and 1024px with real data.
 
 ### Founder decisions (2026-10-13)
 

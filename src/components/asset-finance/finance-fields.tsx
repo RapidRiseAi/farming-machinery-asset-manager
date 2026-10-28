@@ -18,6 +18,7 @@ import {
 } from "@/lib/asset-finance";
 import type { AgreementRow, ContractRow } from "@/lib/asset-finance-read";
 import { agreementKindLabel, contractKindLabel, frequencyLabel } from "./labels";
+import { SchedulePreview } from "./schedule-preview";
 
 export type MachineOption = { id: string; name: string };
 
@@ -103,6 +104,7 @@ export function AgreementFields({
       <Field label={L("fieldFirstInstalment")} htmlFor={fid("first")} required>
         <Input id={fid("first")} name="first_instalment_date" type="date" required defaultValue={a?.first_instalment_date ?? ""} />
       </Field>
+      <SchedulePreview locale={locale} />
       {isNew ? (
         <div className="sm:col-span-2">
           <Checkbox

@@ -91,6 +91,8 @@ const ROUTES = [
   { path: "/parts", maxControls: 2, minTriggers: 1 },
   { path: "/team", maxControls: 2, minTriggers: 1 },
   { path: "/team/licences", maxControls: 2, minTriggers: 1 },
+  // Finance and contracts (2026-10-28): every capture and row action is a dialog.
+  { path: "/finance", maxControls: 2, minTriggers: 1 },
   { path: "/partners", maxControls: 2, minTriggers: 1 },
   /*
    * == Converted screens this gate CANNOT reach, and why =======================
@@ -262,7 +264,7 @@ const MOBILE_ROUTES = [
   `/machines/${TEST_MACHINE}/checklists/new`,
   "/jobcards", `/jobcards/${TEST_JOBCARD}`, "/faults", "/tyres", "/incidents",
   "/settings", "/settings/api", "/settings/ai", "/driver/activity", "/fuel", "/fines", "/parts", "/team",
-  "/team/licences", "/partners", "/suppliers", "/money", "/orders",
+  "/team/licences", "/finance", "/partners", "/suppliers", "/money", "/orders",
   "/expenses", "/recurring-expenses", "/recurring", "/vat", "/accounting",
   "/statements", "/banking", "/banking/import", "/cashflow", "/reports",
   "/reports/assets", "/reports/schedules", "/calendar", "/checklists",

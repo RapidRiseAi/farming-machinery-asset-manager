@@ -5715,3 +5715,63 @@ so the reports this release makes honest still reach only Vercel's log stream.
   assistant_farm_data, assistant_fuel_proposal, fuel_tank_balances, team_invites).
 
 686 unit tests; on a production build eight roles and every spam check.
+
+## 2026-10-28 - Machinery finance and lease tracking (work package C)
+
+The founder lists finance and payment tracking, and contract and lease tracking, as planned
+for launch. Until now finance was five fields on the machine, turned by 0211 into one
+interest cost dated on the purchase day; the rate was never used and nothing had a
+schedule, a payment, a balance, a reminder or a document. Built with the two open founder
+questions on their defaults: owners and managers only, and on every plan with only the
+cash-flow export under `advanced_reports`. Both are one place to change: the database check
+`app.can_view_farm_finance` (with `FINANCE_ROLES` in `src/lib/asset-finance.ts` for what the
+screens offer) and `FINANCE_EXPORT_FEATURE`.
+
+- Data (20261028110000 to 20261028111100): `finance_agreements`, `finance_instalments` and
+  `asset_contracts`, farm-scoped, readable only through the new check (mechanics, operators,
+  contractors with every grant and other farms read nothing, through the tables, the
+  activity log, the attachments, the calendar or the cash flow). Browser roles hold SELECT
+  only; every write is a SECURITY DEFINER function that checks the same rule, rebuilds the
+  schedule and reconciles the cost ledger in one transaction. `app_audit` on all three.
+  Documents attach through `attachments` (two new parent types, rebuilt from the constraint
+  as it stands) into a private `finance-docs` bucket with the same rule on its objects.
+- The schedule is an annuity in exact integer cents, half up, the last instalment absorbing
+  every rounding cent so capital sums to the principal; a balloon is its own row; the
+  lender's own instalment is accepted and, with no rate, implies one. A rate change rebuilds
+  only the unpaid rows. Payments go to interest, then fees, then capital; the balance is the
+  schedule's estimate unless the lender's statement is at least as new as the last payment.
+  `src/lib/asset-finance.ts` mirrors the SQL and both suites assert the same worked examples.
+- Money: only what the credit costs is an expense. Interest and fees are booked per
+  instalment on its due date (`finance`), a settlement's charge above the capital still owed
+  once, lease and rental payments as they fall due (new `lease` type, journal account 6250,
+  standard-rated when VAT is charged; interest stays 6200 and VAT-exempt). Capital, deposits
+  and balloons never become cost entries, because the machine's price is already its
+  purchase entry; the cash-flow view counts them, because that is money leaving the bank.
+  The old purchase-day lump is withdrawn for any machine with an agreement, and the machine
+  trigger no longer books it beside one. TCO, cost per hour, reports, budgets and the
+  assistant pick the new entries up from `cost_entries` (the assistant counts lease under
+  other, keeping its pinned result shape).
+- The five machine fields were moved into agreements (instalments already due marked paid,
+  the rate implied where only the monthly figure was kept) and cleared; the edit form no
+  longer has them. The edit form also stopped writing the purchase price unless it was read:
+  a failed financials read used to save blanks over it.
+- Screens: a Finance section on the machine's Costs tab and a `/finance` page (owed, due in
+  30 days, overdue, contract dates; the next 90 days; a 12-month cash flow with CSV and
+  workbook export). Every capture is a dialog; per-agreement actions (record a payment,
+  correct or undo one, statement balance, rebuild, settle, attach, remove) keep a 60-month
+  schedule from carrying 180 dialogs. Farms reaching `/cashflow` land on it.
+- Reminders: the nightly route runs `cron_asset_finance_nightly` (debit orders marked paid,
+  contracts past their end rolled on or ended, costs booked; idempotent) and then
+  `cron_enqueue_asset_finance_reminders` (instalment due within its lead, overdue within 14
+  days, notice day and end date), through `notify_farm` to owners and managers, once per
+  date, quiet hours honoured, no amounts in any payload; push shows only the title. The
+  calendar shows instalments and contract dates to those who may see them.
+
+Gates in the worktree: `asset_finance.sql` and all 47 SQL suites on PGlite, 705 unit tests,
+types, lint, dashes, i18n parity and keys, error coverage, design lint. Every migration has
+a probe naming an object it creates, checked false before and true after on PGlite.
+
+Not done: nothing is applied to any database; no browser pass (`ui:check` should get
+/finance and the Costs tab at 360 and 1024px with real data, in Afrikaans too); the live
+schedule preview in the agreement form; the farm data export does not yet include the new
+tables; the assistant has no "what do I owe" tool.
