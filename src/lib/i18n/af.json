@@ -6387,6 +6387,7 @@
     "dueUnknown": "nie uitgewerk nie",
     "alertEmailSubject": "[Fleet Wise-ondersteuning] {who}: {subject}",
     "alertEmailBody": "'n Nuwe {kind} van {who}. Lees en beantwoord dit op die ondersteuningslessenaar.",
+    "alertReplyBody": "{who} het op hul {kind} geantwoord. Lees dit en antwoord op die ondersteuningslessenaar.",
     "alertEmailDue": "Eerste antwoord teen: {due}",
     "replyEmailSubject": "Fleet Wise-ondersteuning het geantwoord: {subject}",
     "replyEmailGreeting": "Hallo {name},",

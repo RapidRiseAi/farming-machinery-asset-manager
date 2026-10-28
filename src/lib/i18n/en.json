@@ -6387,6 +6387,7 @@
     "dueUnknown": "not worked out",
     "alertEmailSubject": "[Fleet Wise support] {who}: {subject}",
     "alertEmailBody": "A new {kind} from {who}. Read it and answer on the support desk.",
+    "alertReplyBody": "{who} answered on their {kind}. Read it and reply on the support desk.",
     "alertEmailDue": "First answer due: {due}",
     "replyEmailSubject": "Fleet Wise support answered: {subject}",
     "replyEmailGreeting": "Hello {name},",

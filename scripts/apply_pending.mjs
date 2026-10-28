@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Hosted only (pg_cron): the hourly support chase job exists.
+  "20261028130000": "select exists(select 1 from cron.job where jobname = 'fleetwise-support-chase')",
   // Finance history read by finance readers (integrates the audit rules with asset finance).
   "20261028120000":
     "select exists(select 1 from pg_constraint where conname = 'audit_table_rules_scope_check'" +
