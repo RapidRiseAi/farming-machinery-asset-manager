@@ -78,15 +78,25 @@ begin
   if s.subject <> 'The QR sticker will not scan' then
     raise exception 'HELP FAIL [a]: the subject was stored as "%"', s.subject;
   end if;
-  if s.evidence->>'message' not like '%worked last week%' then
+  -- The question is the first message of the conversation (20261028100900), not a key in
+  -- the evidence, which the activity log copies under the farm.
+  if not exists (select 1 from public.support_ticket_messages m
+                  where m.ticket_id = s.id and m.author_kind = 'customer'
+                    and m.body like '%worked last week%') then
     raise exception 'HELP FAIL [a]: the message did not reach the case';
+  end if;
+  if s.evidence ? 'message' then
+    raise exception 'HELP FAIL [a]: the message was copied into the evidence';
   end if;
   -- The farm comes from auth.uid(), never from the caller.
   if s.farm_id <> 'be000000-0000-4000-8000-000000000001' then
     raise exception 'HELP FAIL [a]: the case was filed against farm %', s.farm_id;
   end if;
-  if s.evidence->'asked_by'->>'email' <> 'help-owner@example.test' then
+  if s.asked_by is distinct from 'be100000-0000-4000-8000-000000000001'::uuid then
     raise exception 'HELP FAIL [a]: the case does not say who asked';
+  end if;
+  if s.evidence->'asked_by' ? 'email' then
+    raise exception 'HELP FAIL [a]: the asker''s email was copied into the evidence';
   end if;
   if s.evidence->'farm'->>'plan' <> 'complete' then
     raise exception 'HELP FAIL [a]: the plan is missing, so support has to go and look it up';
@@ -231,11 +241,12 @@ reset role;
 -- == (f) Grants ==============================================================
 do $$
 begin
-  if has_function_privilege('anon', 'public.open_help_request(text,text,jsonb)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.my_help_requests()', 'EXECUTE') then
+  -- The signatures grew a defaulted farm and kind (20261028100900); calls by name are unchanged.
+  if has_function_privilege('anon', 'public.open_help_request(text,text,jsonb,uuid,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.my_help_requests(uuid)', 'EXECUTE') then
     raise exception 'HELP FAIL [f]: anon may open or read help requests';
   end if;
-  if not has_function_privilege('authenticated', 'public.open_help_request(text,text,jsonb)', 'EXECUTE') then
+  if not has_function_privilege('authenticated', 'public.open_help_request(text,text,jsonb,uuid,text)', 'EXECUTE') then
     raise exception 'HELP FAIL [f]: a signed-in farmer cannot ask for help';
   end if;
 end $$;
