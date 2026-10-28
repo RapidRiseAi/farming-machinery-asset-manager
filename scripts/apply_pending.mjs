@@ -155,7 +155,11 @@ const PROBES = {
   "20260921130000": "select to_regprocedure('public.farm_calendar(uuid,date,date)') is not null",
   "20260921140000":
     "select exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'support_ticket_kind' and e.enumlabel = 'help_request')",
-  "20260921141000": "select to_regprocedure('public.open_help_request(text,text,jsonb)') is not null",
+  // Help requests exist; 20261028100900 replaced the three-argument form with one that also
+  // takes the farm and the kind (defaults keep the old call working), so either answers.
+  "20260921141000":
+    "select to_regprocedure('public.open_help_request(text,text,jsonb)') is not null" +
+    " or to_regprocedure('public.open_help_request(text,text,jsonb,uuid,text)') is not null",
   "20260921150000": "select to_regclass('public.tyre_fitments') is not null",
   // Not an object this one creates: it REVOKES. The probe is the invariant itself.
   // The four restored checks live inside a function body, so the probe asks the function
