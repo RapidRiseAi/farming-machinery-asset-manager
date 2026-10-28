@@ -38,6 +38,10 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Finance history read by finance readers (integrates the audit rules with asset finance).
+  "20261028120000":
+    "select exists(select 1 from pg_constraint where conname = 'audit_table_rules_scope_check'" +
+    " and pg_get_constraintdef(oid) like '%finance%')",
   // The activity log shows no reader more than the source table would (work package A).
   "20261028093000": "select to_regprocedure('app.person_audit_elsewhere(uuid,uuid)') is not null",
   "20261028092500":
