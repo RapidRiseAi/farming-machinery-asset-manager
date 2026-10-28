@@ -6399,7 +6399,7 @@
     "fieldPostCosts": "Book the payments as costs",
     "fieldPostCostsHint": "Untick when a contractor already invoices you for these payments, so they are not counted twice.",
     "fieldFile": "File",
-    "fieldFileHint": "A PDF or a photo, up to 10 MB.",
+    "fieldFileHint": "A PDF or a photo, up to 8 MB.",
     "fieldInstalmentRow": "Instalment",
     "fieldPaidAmount": "Amount paid (R)",
     "fieldPaidAmountHint": "Blank: what is left on this instalment.",
@@ -6578,7 +6578,7 @@
     "errLeadInvalid": "Enter whole days and months only.",
     "errAmountInvalid": "One of the amounts is not a valid Rand amount.",
     "errDocMissing": "Choose a file to attach.",
-    "errDocTooBig": "That file is larger than 10 MB.",
+    "errDocTooBig": "That file is larger than 8 MB.",
     "errDocType": "Attach a PDF or a photo.",
     "errDocFailed": "The file could not be stored. Try again."
   }

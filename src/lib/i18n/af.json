@@ -6399,7 +6399,7 @@
     "fieldPostCosts": "Boek die betalings as koste",
     "fieldPostCostsHint": "Merk af wanneer 'n kontrakteur jou reeds vir hierdie betalings faktureer, sodat hulle nie twee keer getel word nie.",
     "fieldFile": "Lêer",
-    "fieldFileHint": "'n PDF of 'n foto, tot 10 MB.",
+    "fieldFileHint": "'n PDF of 'n foto, tot 8 MB.",
     "fieldInstalmentRow": "Paaiement",
     "fieldPaidAmount": "Bedrag betaal (R)",
     "fieldPaidAmountHint": "Leeg: wat op hierdie paaiement oor is.",
@@ -6578,7 +6578,7 @@
     "errLeadInvalid": "Vul slegs heel dae en maande in.",
     "errAmountInvalid": "Een van die bedrae is nie 'n geldige randbedrag nie.",
     "errDocMissing": "Kies 'n lêer om aan te heg.",
-    "errDocTooBig": "Daardie lêer is groter as 10 MB.",
+    "errDocTooBig": "Daardie lêer is groter as 8 MB.",
     "errDocType": "Heg 'n PDF of 'n foto aan.",
     "errDocFailed": "Die lêer kon nie gestoor word nie. Probeer weer."
   }

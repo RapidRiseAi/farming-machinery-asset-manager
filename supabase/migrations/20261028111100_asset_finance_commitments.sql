@@ -33,7 +33,7 @@ security invoker
 set search_path = public, app, pg_temp
 as $$
   select case i.kind when 'balloon' then 'balloon' else 'instalment' end,
-         a.id, i.id, a.machine_id, m.name, a.lender, a.agreement_number, i.due_date,
+         a.id, i.id, a.machine_id, m.name, nullif(a.lender, '-'), a.agreement_number, i.due_date,
          (i.amount_cents - i.paid_cents)::bigint, 0::bigint
     from public.finance_instalments i
     join public.finance_agreements a on a.id = i.agreement_id

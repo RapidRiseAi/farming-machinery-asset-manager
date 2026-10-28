@@ -32,7 +32,9 @@ as $$
   -- reminder lead (seven days when it has none), overdue once the day has passed unpaid.
   select
     'finance_instalment'::calendar_item_kind,
-    i.id, a.machine_id, m.name, a.lender, a.agreement_number, i.due_date,
+    -- A lender moved from the old machine fields with none recorded is '-' (110700):
+    -- no title, so the screen names the kind instead.
+    i.id, a.machine_id, m.name, nullif(a.lender, '-'), a.agreement_number, i.due_date,
     case when i.due_date < (now() at time zone 'Africa/Johannesburg')::date then 'overdue'
          when i.due_date <= (now() at time zone 'Africa/Johannesburg')::date + coalesce(a.reminder_lead_days, 7)
            then 'due_soon'

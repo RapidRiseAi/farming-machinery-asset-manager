@@ -414,7 +414,9 @@ export async function deleteContract(formData: FormData) {
 
 // == Documents =================================================================
 
-const MAX_DOC_BYTES = 10 * 1024 * 1024;
+// Below the 10 MB server-action body limit (next.config.mjs) with room for the form around
+// it, so an oversized file gets OUR sentence rather than dying inside the framework.
+const MAX_DOC_BYTES = 8 * 1024 * 1024;
 const DOC_TYPES = /^(image\/(png|jpe?g|webp|heic|heif)|application\/pdf)$/i;
 
 /**
