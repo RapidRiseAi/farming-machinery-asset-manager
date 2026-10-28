@@ -7,7 +7,7 @@
 --   * a request received 09:00 to 16:00 on a working day is due 17:00 that day; anything
 --     later, or outside hours, is due 12:00 the next working day;
 --   * the human phone and WhatsApp numbers stay HIDDEN until Rapid Rise types them in here
---     (081 881 3819 was only tentatively accepted and must be confirmed before it is shown);
+--     (the number in the decision record was only tentatively accepted and must be confirmed before it is shown);
 --   * email (team@rapidriseai.com, the company's own role address), in-app and the hours
 --     are shown now.
 --

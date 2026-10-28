@@ -109,7 +109,7 @@ Facts below were read from the accounts on 2026-10-14.
       the team in the app at once (and by email once `OPS_ALERT_EMAIL` is set), the queue,
       reply, notes, assignment and resolution live on `/admin/support`, the customer reads
       the answer on `/help` and by email, and `/admin` is the one owner overview.
-- [ ] **You:** confirm 081 881 3819 is the human support phone and WhatsApp line, then type it
+- [ ] **You:** confirm the number from the decision record is the human support phone and WhatsApp line, then type it
       on `/admin/support/settings`; until then `/help` shows email, in-app and the hours only.
 - [ ] **You:** add the 2026/27 local government election day on `/admin/support/settings`
       once it is proclaimed (2026 and 2027 public holidays are already there).
