@@ -39,6 +39,7 @@ function readEnv(name) {
  */
 const PROBES = {
   // The activity log shows no reader more than the source table would (work package A).
+  "20261028093000": "select to_regprocedure('app.person_audit_elsewhere(uuid,uuid)') is not null",
   "20261028092500":
     "select to_regprocedure('app.audit_redact_existing()') is not null" +
     " and to_regclass('app.audit_redaction_runs') is not null",

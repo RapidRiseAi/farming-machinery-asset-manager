@@ -25,7 +25,8 @@
 --                   every 'farm' table below is complete), plus, for vehicle rows only,
 --                   anyone who can see that vehicle;
 --   20261028092500  existing rows: hidden keys stripped and narrower rows refiled, by a
---                   function that can be run again.
+--                   function that can be run again;
+--   20261028093000  (follow-up) the cross-farm data-subject guard reads about_farm_id too.
 --
 -- == The enumeration ========================================================================
 -- Every table whose trigger writes audit_log, read from a migrated database (pg_trigger),

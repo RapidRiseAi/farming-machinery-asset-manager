@@ -5731,7 +5731,7 @@ so the reports this release makes honest still reach only Vercel's log stream.
   link the farm's costs and budgets, every vehicle, the team's phone numbers and other
   contractors' quotes. The per-table comparison (who may select the row, which columns are
   withheld, the rule chosen) is the header of `20261028090000`.
-- **The fix, five migrations, none applied to production yet.** `20261028090000` puts a
+- **The fix, five migrations and a follow-up, none applied to production yet.** `20261028090000` puts a
   rule for every audited table in `app.audit_table_rules`: `farm` (40 tables, each fully
   visible to the farm's owners, managers and mechanics) or `rapid_rise` (billing, support
   tickets, notifications, push subscriptions, report schedules and recipients, API tokens,
@@ -5757,16 +5757,18 @@ so the reports this release makes honest still reach only Vercel's log stream.
   tables keep their own history. The machine page counts a `withheld` change as an edit
   (`src/lib/audit-context.ts`, with tests), so a finance-only edit still shows.
   `scripts/seed_test_farm.mjs --remove` also deletes audit rows by `about_farm_id`.
-- **Left open.** `app.assert_local_person_scope` still looks for cross-farm audit history
-  by `farm_id` only, so a person whose only trace on another farm is now a Rapid Rise row
-  no longer trips it (one line: `coalesce(x.farm_id, x.about_farm_id)`); left alone because
-  that function is redefined whole and other work touches it. Apply with
-  `node scripts/apply_pending.mjs --dry` then `--apply`, and read
+- **The data-subject guard follows the refiling.** `app.assert_local_person_scope` looked
+  for a person's audit history on another farm by `farm_id` only, so a person whose only
+  trace elsewhere is now a Rapid Rise row would have been exported or erased by one farm's
+  owner. `20261028093000` moves that test into `app.person_audit_elsewhere()`, which
+  compares `farm_id` or else `about_farm_id`, and rewrites the guard in place from its live
+  definition (stopping if the text has moved), so other work on the guard is not undone.
+- **Left open.** Apply with `node scripts/apply_pending.mjs --dry` then `--apply`, and read
   `app.audit_redaction_runs` for what the backfill changed. The support delivery work may
   replace the support ticket trigger; the rule here already files it for Rapid Rise.
 
 Suite `audit_redaction.sql` (owner, mechanic, cost-visible operator, bare-link contractor,
 another farm and Rapid Rise; the door for hand-written rows; fail closed; the backfill and
-its second run; a broken helper not stopping a write), mutation-tested against seven
-regressions. All 47 SQL suites pass on PGlite, with types, lint, unit tests, dashes,
+its second run; a broken helper not stopping a write; the data-subject guard seeing
+refiled history), mutation-tested against eight regressions. All 47 SQL suites pass on PGlite, with types, lint, unit tests, dashes,
 translations, error coverage and design.

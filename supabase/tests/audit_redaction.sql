@@ -21,7 +21,9 @@
 --   (h) the backfill strips and refiles legacy rows, links older Rapid Rise rows to their
 --       farm, records what it did, and changes nothing on a second run;
 --   (i) the new helpers are not executable by anon or signed-in users;
---   (j) a failing redaction never stops the write it audits (last: it breaks a helper).
+--   (j) a failing redaction never stops the write it audits (last: it breaks a helper);
+--   (k) the cross-farm data-subject guard still sees a person's refiled history (run before
+--       (j), which breaks a helper).
 
 \set ON_ERROR_STOP on
 set client_min_messages to warning;
@@ -614,7 +616,8 @@ declare f text;
 begin
   foreach f in array array[
     'app.audit_hidden_columns(regclass)', 'app.audit_withhold(jsonb,text[])',
-    'app.audit_about_farm(text,uuid,jsonb)', 'app.audit_log_file()', 'app.audit_redact_existing()'
+    'app.audit_about_farm(text,uuid,jsonb)', 'app.audit_log_file()', 'app.audit_redact_existing()',
+    'app.person_audit_elsewhere(uuid,uuid)'
   ] loop
     if has_function_privilege('anon', f, 'execute') or has_function_privilege('authenticated', f, 'execute') then
       raise exception 'AUDIT FAIL [i]: % is executable by a client role', f;
@@ -625,6 +628,57 @@ begin
     raise exception 'AUDIT FAIL [i]: a client role can read the audit rules or the run log';
   end if;
 end $$;
+
+-- == (k) The cross-farm data-subject guard still sees refiled history (20261028093000) =======
+-- A person of Farm A whose only trace on Farm B is a row now filed for Rapid Rise (farm_id
+-- null, about_farm_id B) must still be handed to Rapid Rise, not exported by A's owner.
+insert into auth.users (id, email) values
+  ('ad100000-0000-4000-8000-000000000008', 'audit-subject@example.test');
+insert into public.users (id, farm_id, role, name, email) values
+  ('ad100000-0000-4000-8000-000000000008', 'ad000000-0000-4000-8000-000000000001',
+   'operator', 'Audit Subject', 'audit-subject@example.test');
+
+set role authenticated;
+do $$
+begin
+  perform _ar_login('ad100000-0000-4000-8000-000000000001');
+  -- Control: with no trace elsewhere, the farm's owner may export the person.
+  perform public.export_personal_data('ad100000-0000-4000-8000-000000000008');
+end $$;
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
+
+insert into public.audit_log (farm_id, user_id, entity, entity_id, action, diff) values
+  ('ad000000-0000-4000-8000-000000000002', 'ad100000-0000-4000-8000-000000000008',
+   'notifications', 'ad700000-0000-4000-8000-000000000009', 'update',
+   '{"old": {"read_at": null}, "new": {"read_at": "2026-10-28T08:00:00Z"}}'::jsonb);
+
+do $$
+begin
+  if not exists (select 1 from audit_log
+                  where user_id = 'ad100000-0000-4000-8000-000000000008'
+                    and farm_id is null
+                    and about_farm_id = 'ad000000-0000-4000-8000-000000000002') then
+    raise exception 'AUDIT SETUP [k]: the subject''s Farm B row was not refiled for Rapid Rise';
+  end if;
+end $$;
+
+set role authenticated;
+do $$
+declare v_blocked boolean := false;
+begin
+  perform _ar_login('ad100000-0000-4000-8000-000000000001');
+  begin
+    perform public.export_personal_data('ad100000-0000-4000-8000-000000000008');
+  exception when insufficient_privilege then
+    v_blocked := true;
+  end;
+  if not v_blocked then
+    raise exception 'AUDIT FAIL [k]: a farm owner exported a person with refiled history on another farm';
+  end if;
+end $$;
+reset role;
+select pg_catalog.set_config('request.jwt.claims', '', false);
 
 -- == (j) A failing redaction never stops the write ===========================================
 -- Break the helper both doors use, then write to a table with withheld columns.

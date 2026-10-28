@@ -295,7 +295,8 @@ not by installing the SDK. Security-relevant properties:
   contractors read only the history of vehicles they can see. A BEFORE INSERT trigger on
   `audit_log` applies this to every writer; an unclassified table is filed for Rapid Rise
   until it is decided. The per-table comparison is the header of `20261028090000`. A
-  farm-wide purge or export matches `farm_id = X or about_farm_id = X`.
+  farm-wide purge or export matches `farm_id = X or about_farm_id = X`, and so does the
+  cross-farm data-subject guard (`app.person_audit_elsewhere`, `20261028093000`).
 - **Job cards lock after approval**, a trigger blocks any edit/delete of a locked card
   or its lines; later changes are expressed as new records + audit diffs.
 - **Soft delete** (`deleted_at`/`deleted_by`) everywhere; reads hide soft-deleted rows.
