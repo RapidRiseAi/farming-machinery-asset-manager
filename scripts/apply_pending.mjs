@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Payments made outside the app, recorded by Rapid Rise with proof.
+  "20261029100000": "select to_regprocedure('public.billing_record_manual_payment(uuid,bigint,text,text,date,text,text,uuid)') is not null",
   // Suspension for non-payment (seven days, then pay or download only).
   "20261029090000":
     "select exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid" +

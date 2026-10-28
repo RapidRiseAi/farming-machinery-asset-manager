@@ -17,16 +17,20 @@ import { reconcileAttemptById, retryInvoiceCharge } from "@/lib/billing/worker";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isIsoDate, isUuid } from "@/lib/ids";
 import { errorCode } from "@/lib/action-errors";
+import { captureError } from "@/lib/observability";
 
 /**
  * Rapid Rise's own billing controls.
  *
- * == What is deliberately NOT here ============================================
- * There is no "mark this invoice paid", no "write a payment", no "clear this attempt".
- * Every one of those would be a second path to a `billing_payments` row, and the whole
- * ledger's integrity rests on there being exactly one: `app.settle_billing_attempt`,
- * reached only from a VERIFIED provider answer. An admin who could type a payment in
- * could also type one in by accident, and no evidence would say which had happened.
+ * == Two ways money comes in, each with its evidence ==========================
+ * A card payment is written only by `app.settle_billing_attempt`, reached only from a
+ * VERIFIED provider answer. Since 20261029100000 a payment made outside the app (EFT,
+ * cash) can be recorded by hand (`adminRecordPayment`), because the founder decided such
+ * payments are allowed, and a farm that paid by EFT could otherwise never be activated.
+ * It carries its own evidence instead: the proof of payment is stored, the admin who
+ * recorded it is named, the bank reference cannot be recorded twice, it cannot exceed what
+ * is owed or overlap a card payment in flight, and a reversal names who and why. There is
+ * still no "clear this attempt": a card attempt is only ever settled by asking Paystack.
  *
  * What Rapid Rise can do instead is ASK: reconcile an attempt against Paystack, retry a
  * charge through the same locked sequence the worker uses, change what a farm has bought,
@@ -326,6 +330,89 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
   revalidatePath("/admin/billing");
   revalidatePath("/billing");
   redirect(`/admin/billing?saved=${percentBps == null && fixedCents == null ? "discount-cleared" : "discount"}`);
+}
+
+/** Proof files: a bank confirmation or a slip, small enough for one request (4.5 MB). */
+const PROOF_MAX_BYTES = 4 * 1024 * 1024;
+const PROOF_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+
+/**
+ * Record a payment made outside the app: an EFT, cash, or other (20261029100000).
+ *
+ * The proof is stored first (service-only bucket billing-proofs) and the payment recorded
+ * second; if recording is refused, the stored proof is removed again, so no orphan file
+ * outlives a payment that never was. The database refuses everything a person could get
+ * wrong (more than is owed, the same bank reference twice, a card payment in flight, a
+ * date in the future) and, once the invoice is paid in full, activates a sign-up or
+ * resumes a suspended farm exactly as a card payment does.
+ */
+export async function adminRecordPayment(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  if (profile.role !== "rr_admin") bounce("forbidden");
+
+  const farmId = String(formData.get("farm_id") ?? "").trim();
+  const invoiceId = String(formData.get("invoice_id") ?? "").trim();
+  const method = String(formData.get("method") ?? "").trim();
+  const reference = String(formData.get("reference") ?? "").trim();
+  const received = String(formData.get("received_on") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const randsRaw = String(formData.get("amount") ?? "").trim().replace(",", ".");
+  const proof = formData.get("proof");
+  if (!isUuid(farmId) || !isUuid(invoiceId)) bounce("missing-id");
+  if (!isIsoDate(received)) bounce("billing-manual-bad");
+  const amount = Number(randsRaw);
+  if (!Number.isFinite(amount) || amount <= 0) bounce("billing-manual-bad");
+  const amountCents = Math.round(amount * 100);
+  if (!(proof instanceof File) || proof.size === 0) bounce("billing-manual-proof");
+  if (proof.size > PROOF_MAX_BYTES) bounce("billing-manual-proof-big");
+  const ext = PROOF_TYPES[proof.type];
+  if (!ext) bounce("billing-manual-proof-type");
+
+  const supabase = createServiceClient();
+  const path = `${farmId}/${invoiceId}/${crypto.randomUUID()}.${ext}`;
+  const stored = await supabase.storage.from("billing-proofs").upload(path, proof, { contentType: proof.type });
+  if (stored.error) bounce(errorCode(stored.error, "admin-billing:manual-proof"));
+
+  const { error } = await supabase.rpc(BILLING_RPC.recordManualPayment, {
+    p_invoice: invoiceId,
+    p_amount_cents: amountCents,
+    p_method: method,
+    p_bank_reference: reference,
+    p_received_on: received,
+    p_note: note || null,
+    p_proof_path: path,
+    p_by: profile.id,
+  });
+  if (error) {
+    const removed = await supabase.storage.from("billing-proofs").remove([path]);
+    if (removed.error) captureError(removed.error, { where: "admin-billing:manual-proof-cleanup", farmId });
+    bounce(errorCode(error, "admin-billing:manual-payment", "billing-save-failed"));
+  }
+
+  revalidatePath("/admin/billing");
+  redirect(`/admin/billing?farm=${farmId}&saved=payment-recorded`);
+}
+
+/** Take back a payment recorded by hand (a bounced EFT, a typing mistake), with a reason. */
+export async function adminReversePayment(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  if (profile.role !== "rr_admin") bounce("forbidden");
+  const farmId = String(formData.get("farm_id") ?? "").trim();
+  const paymentId = String(formData.get("payment_id") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!isUuid(farmId) || !isUuid(paymentId)) bounce("missing-id");
+  if (!reason) bounce("billing-manual-reason");
+
+  const supabase = createServiceClient();
+  const { error } = await supabase.rpc(BILLING_RPC.reverseManualPayment, {
+    p_payment: paymentId,
+    p_reason: reason,
+    p_by: profile.id,
+  });
+  if (error) bounce(errorCode(error, "admin-billing:manual-reverse", "billing-save-failed"));
+
+  revalidatePath("/admin/billing");
+  redirect(`/admin/billing?farm=${farmId}&saved=payment-reversed`);
 }
 
 /**

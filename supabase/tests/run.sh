@@ -212,5 +212,7 @@ echo "==> running machinery finance and lease tests (owners and managers only, s
 pg "$DB" < "$ROOT/supabase/tests/asset_finance.sql"
 echo "==> running suspension tests (seven days, then pay or download only)"
 pg "$DB" < "$ROOT/supabase/tests/billing_suspension.sql"
+echo "==> running payments-outside-the-app tests (recorded with proof, never twice)"
+pg "$DB" < "$ROOT/supabase/tests/billing_manual_payments.sql"
 
 echo "==> OK"

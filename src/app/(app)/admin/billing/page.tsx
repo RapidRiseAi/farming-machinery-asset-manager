@@ -79,6 +79,8 @@ import {
   adminReconcileAttempt,
   adminRetryCharge,
   adminExtendAccess,
+  adminRecordPayment,
+  adminReversePayment,
   adminSetDiscount,
   adminSetPlan,
   adminStartSubscription,
@@ -1152,8 +1154,62 @@ export default async function AdminBillingPage({
 
           {/* == Money received ================================================ */}
           <Card flush>
-            <div className="p-4 pb-0 sm:p-5 sm:pb-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 p-4 pb-0 sm:p-5 sm:pb-0">
               <CardTitle>{t("adminBilling.paymentsTitle", locale)}</CardTitle>
+              {/* Payments made outside the app (20261029100000): an EFT, cash, other.
+                  Offered only for invoices still open, with what is outstanding. */}
+              {invoices.some((inv) => inv.status === "open" && inv.total_incl_cents > inv.amount_paid_cents) ? (
+                <DialogForm
+                  trigger={t("adminBilling.recordOpen", locale)}
+                  triggerVariant="secondary"
+                  triggerSize="sm"
+                  title={t("adminBilling.recordTitle", locale).replace("{farm}", farmName)}
+                  description={t("adminBilling.recordLead", locale)}
+                  closeLabel={t("ui.close", locale)}
+                >
+                  <form action={adminRecordPayment}>
+                    <input type="hidden" name="farm_id" value={selected.sub.farm_id} />
+                    <DialogFields>
+                      <Field label={t("adminBilling.recordInvoice", locale)} htmlFor="record-invoice">
+                        <Select id="record-invoice" name="invoice_id" required>
+                          {invoices
+                            .filter((inv) => inv.status === "open" && inv.total_incl_cents > inv.amount_paid_cents)
+                            .map((inv) => (
+                              <option key={inv.id} value={inv.id}>
+                                {`${inv.invoice_ref}: ${rands(inv.total_incl_cents - inv.amount_paid_cents)}`}
+                              </option>
+                            ))}
+                        </Select>
+                      </Field>
+                      <Field label={t("adminBilling.recordAmount", locale)} htmlFor="record-amount">
+                        <Input id="record-amount" name="amount" inputMode="decimal" required placeholder="0.00" />
+                      </Field>
+                      <Field label={t("adminBilling.recordReceived", locale)} htmlFor="record-received">
+                        <Input id="record-received" name="received_on" type="date" required />
+                      </Field>
+                      <Field label={t("adminBilling.recordMethod", locale)} htmlFor="record-method">
+                        <Select id="record-method" name="method" defaultValue="eft">
+                          <option value="eft">{t("adminBilling.methodEft", locale)}</option>
+                          <option value="cash">{t("adminBilling.methodCash", locale)}</option>
+                          <option value="other">{t("adminBilling.methodOther", locale)}</option>
+                        </Select>
+                      </Field>
+                      <Field label={t("adminBilling.recordReference", locale)} htmlFor="record-reference">
+                        <Input id="record-reference" name="reference" required maxLength={80} />
+                      </Field>
+                      <Field label={t("adminBilling.recordProof", locale)} htmlFor="record-proof">
+                        <Input id="record-proof" name="proof" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required />
+                      </Field>
+                      <Field label={t("adminBilling.recordNote", locale)} htmlFor="record-note">
+                        <Input id="record-note" name="note" maxLength={500} />
+                      </Field>
+                    </DialogFields>
+                    <DialogActions cancelLabel={t("common.cancel", locale)}>
+                      <SubmitButton>{t("adminBilling.recordSave", locale)}</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+              ) : null}
             </div>
             {payments.length === 0 ? (
               <p className="p-4 text-sm text-sand-500 sm:p-5">{t("adminBilling.noPayments", locale)}</p>
@@ -1166,6 +1222,7 @@ export default async function AdminBillingPage({
                       <Th className="text-right">{t("adminBilling.colAmount", locale)}</Th>
                       <Th>{t("adminBilling.colChannel", locale)}</Th>
                       <Th>{t("adminBilling.colReference", locale)}</Th>
+                      <Th className="sr-only">{t("adminBilling.colActions", locale)}</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -1177,6 +1234,31 @@ export default async function AdminBillingPage({
                         <Td className="text-right tabular-nums">{rands(p.amount_incl_cents)}</Td>
                         <Td className="text-sand-600">{p.channel ?? "-"}</Td>
                         <Td className="text-sand-600">{p.provider_reference ?? "-"}</Td>
+                        <Td>
+                          {p.provider === "manual" && p.amount_incl_cents > 0 ? (
+                            <DialogForm
+                              trigger={t("adminBilling.reverseOpen", locale)}
+                              triggerVariant="ghost"
+                              triggerSize="sm"
+                              title={t("adminBilling.reverseTitle", locale)}
+                              description={t("adminBilling.reverseLead", locale)}
+                              closeLabel={t("ui.close", locale)}
+                            >
+                              <form action={adminReversePayment}>
+                                <input type="hidden" name="farm_id" value={selected.sub.farm_id} />
+                                <input type="hidden" name="payment_id" value={p.id} />
+                                <DialogFields columns={1}>
+                                  <Field label={t("adminBilling.reverseReason", locale)} htmlFor={`reverse-${p.id}`}>
+                                    <Input id={`reverse-${p.id}`} name="reason" required maxLength={500} />
+                                  </Field>
+                                </DialogFields>
+                                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                                  <SubmitButton variant="danger">{t("adminBilling.reverseSave", locale)}</SubmitButton>
+                                </DialogActions>
+                              </form>
+                            </DialogForm>
+                          ) : null}
+                        </Td>
                       </Tr>
                     ))}
                   </Tbody>

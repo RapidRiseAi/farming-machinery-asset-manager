@@ -5936,3 +5936,30 @@ flight, refunded, extended, Rapid Rise hold; the engine once; no invoice while p
 weekly retry; one of two invoices paid; the re-anchored period; the extension's guard),
 mutation-tested against the refund exclusion and the re-anchor. All 50 SQL suites and 728
 unit tests pass.
+
+## 2026-10-29 - Payments made outside the app
+
+Founder decision 4 of 26 October: payments outside the app are allowed, and access starts
+only once payment is received. Until now the ledger's only writer of money in was the
+verified card settlement, so a farm that paid by EFT could not be recorded as paid, could
+not be activated, and with the seven days' grace would be paused while its money sat in
+the bank.
+
+- **Record a payment** (admin billing, per farm): invoice, amount, date received, method
+  (EFT, cash, other), bank reference, proof of payment (PDF or photo, up to 4 MB, stored in
+  the service-only `billing-proofs` bucket) and a note. `app.billing_record_manual_payment`
+  refuses anyone but a named Rapid Rise admin, more than is outstanding, a date in the
+  future or over a year ago, a missing proof, a card payment in flight on the invoice, and
+  the same bank reference twice (provider `manual`, reference `MAN-<normalised>`, through
+  the existing unique index). Once the invoice is paid in full it runs the same restore a
+  card payment does: a pending sign-up becomes active, a paused farm resumes. A refused
+  recording removes the proof it had stored.
+- **Reverse** (a bounced EFT, a mistake) withdraws the row with who and why, rather than
+  writing a negative one: a negative row is how a refund is written, and the pause test
+  ignores refunded invoices, so a bounced EFT written that way would never pause the farm
+  again. Withdrawn, the invoice reopens and the grace counts from its due date as before.
+
+Suite `billing_manual_payments.sql` (every refusal, a part payment not activating, the
+duplicate reference, a paused farm resuming, the reversal reopening and counting again).
+Still to come in this work: once-off service invoices, staff onboarding that opens access
+only after payment, payment links and an invoice email with EFT details.

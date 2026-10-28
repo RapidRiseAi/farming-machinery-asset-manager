@@ -1247,6 +1247,11 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
     // Stays put: it changes when a farm is stopped, and the admin should read what they did.
     case "access-extended":
       return { key: "adminBilling.savedAccessExtended", tone: "info" };
+    // Money recorded or taken back by hand: stays put, so the admin can check the row.
+    case "payment-recorded":
+      return { key: "adminBilling.savedPaymentRecorded", tone: "info" };
+    case "payment-reversed":
+      return { key: "adminBilling.savedPaymentReversed", tone: "info" };
 
     default:
       return { key: "ui.savedChanges", tone: "success" };

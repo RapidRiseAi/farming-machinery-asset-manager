@@ -314,6 +314,8 @@ test("every outcome a billing action can report has its own sentence", () => {
     "reconciled-closed",
     "reconciled-open",
     "access-extended",
+    "payment-recorded",
+    "payment-reversed",
   ];
   const keys = new Set<string>();
   for (const code of codes) {

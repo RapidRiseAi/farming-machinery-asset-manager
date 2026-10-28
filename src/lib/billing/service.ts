@@ -83,6 +83,9 @@ export const BILLING_RPC = {
   // step in the nightly run; the downgrade wrapper stays for the history it explains.
   applySuspensions: "cron_apply_billing_suspensions",
   extendAccess: "admin_extend_billing_access",
+  // Payments made outside the app (20261029100000), service role only.
+  recordManualPayment: "billing_record_manual_payment",
+  reverseManualPayment: "billing_reverse_manual_payment",
   closeCancellations: "cron_close_billing_cancellations",
   enqueueReminders: "cron_enqueue_billing_reminders",
   // Telling a farm BEFORE the money comes off (20260918140000). Every other billing

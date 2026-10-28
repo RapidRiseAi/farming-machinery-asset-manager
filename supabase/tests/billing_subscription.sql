@@ -1327,7 +1327,10 @@ declare
     -- Suspension for non-payment (20261029090100). The overdue test reads invoices, payments
     -- and attempts; the engine writes subscriptions and farms. Reached only through
     -- app.farm_billing_gate, the restore after a payment and the cron wrapper.
-    'farm_overdue_since','billing_apply_suspensions'];
+    'farm_overdue_since','billing_apply_suspensions',
+    -- Payments made outside the app (20261029100000). They write money into the ledger, so
+    -- they are reached only through their service-role wrappers, with the actor checked.
+    'billing_record_manual_payment','billing_reverse_manual_payment'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1362,7 +1365,9 @@ declare
     'team_invite_existing',
     -- Rapid Rise keeps a farm open past the grace (20261029090100). Service role only, the
     -- discount setter's reasoning: the rr_admin check lives in the action, the actor is passed.
-    'admin_extend_billing_access'];
+    'admin_extend_billing_access',
+    -- Recording or reversing a payment made outside the app (20261029100000).
+    'billing_record_manual_payment','billing_reverse_manual_payment'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
