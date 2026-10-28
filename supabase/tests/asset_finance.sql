@@ -73,13 +73,13 @@ insert into public.machines (id, farm_id, name, type, meter_type, status, assign
 -- == (a) The arithmetic ==========================================================
 do $$
 declare
-  n bigint; c bigint; r record;
+  n bigint; c bigint; s bigint; r record;
 begin
   -- A: R500 000 at 11.75% over 60 months from 31 January.
   if app.finance_annuity_payment(50000000, 1175, 60, 1, 0) <> 1105916 then
     raise exception 'FINANCE FAIL [a]: annuity is %, expected 1105916', app.finance_annuity_payment(50000000, 1175, 60, 1, 0);
   end if;
-  select count(*), sum(capital_cents), sum(interest_cents) into n, c, r
+  select count(*), sum(capital_cents), sum(interest_cents) into n, c, s
     from app.finance_schedule(50000000, 1175, 60, 1, date '2026-01-31');
   if n <> 60 or c <> 50000000 then
     raise exception 'FINANCE FAIL [a]: A has % rows and capital %', n, c;
@@ -864,7 +864,7 @@ begin
   select sum(debit_cents) as dr, sum(credit_cents) as cr,
          count(*) filter (where account_code = '6250' and account_key = 'cost_lease' and vat_code = 'STD') as lease_lines,
          count(*) filter (where account_code = '6200' and vat_code = 'NONE' and line_no = 1) as interest_lines,
-         count(*) filter (where account_code = '6250' and vat_code <> 'STD') as lease_wrong
+         count(*) filter (where account_code = '6250' and (vat_rate_bps > 0) <> (vat_code = 'STD')) as lease_wrong
     into r
     from public.farm_journal('af000000-0000-4000-8000-000000000001', v_today - 400, v_today);
   if r.dr <> r.cr then raise exception 'FINANCE FAIL [k]: the journal does not balance'; end if;
