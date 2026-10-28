@@ -32,6 +32,9 @@ create table if not exists auth.users (
 -- login is never invited onto a farm.
 alter table auth.users add column if not exists banned_until timestamptz;
 alter table auth.users add column if not exists deleted_at timestamptz;
+-- Read by public.admin_client (20261028101100): when each person last signed in, and
+-- whether an invited person ever has.
+alter table auth.users add column if not exists last_sign_in_at timestamptz;
 grant usage on schema auth to anon, authenticated, service_role;
 grant select on auth.users to authenticated, service_role;
 

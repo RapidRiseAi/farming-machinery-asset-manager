@@ -68,7 +68,8 @@ Facts below were read from the accounts on 2026-10-14.
       Paris hosting, AI and voice processing abroad, the POPIA section 72 basis, lapsed farms
       read-only for 90 days then closed, and that farms can download all their data.
 - [ ] **Phones:** one iPhone and one Android for the real-device pass (engineering gives a
-      30-minute script). Optional: `SUPPORT_WEBHOOK_URL` for support cases into RapidRise OS.
+      30-minute script). Support cases are worked on `/admin/support` (2026-10-28);
+      `SUPPORT_WEBHOOK_URL` stays unset. Set `OPS_ALERT_EMAIL` so new requests also arrive by email.
 
 ### Launch week (spend, a few days before, never on the morning)
 
@@ -102,7 +103,16 @@ Facts below were read from the accounts on 2026-10-14.
 - [ ] Uptime monitor and alert inbox open; any alert goes to engineering at once.
 - [ ] Follow the first sign-up end to end with engineering watching the server side.
 - [ ] Support address: farms see `team@rapidriseai.com` as support and billing address today.
-      To change it to one on the domain, tell engineering (there is no admin field for it yet).
+      The support email, hours and closed days are now an admin field on
+      `/admin/support/settings` (2026-10-28); the billing address is still engineering's.
+- [x] In-app support reaches Rapid Rise and is answered there (2026-10-28): a request alerts
+      the team in the app at once (and by email once `OPS_ALERT_EMAIL` is set), the queue,
+      reply, notes, assignment and resolution live on `/admin/support`, the customer reads
+      the answer on `/help` and by email, and `/admin` is the one owner overview.
+- [ ] **You:** confirm 081 881 3819 is the human support phone and WhatsApp line, then type it
+      on `/admin/support/settings`; until then `/help` shows email, in-app and the hours only.
+- [ ] **You:** add the 2026/27 local government election day on `/admin/support/settings`
+      once it is proclaimed (2026 and 2027 public holidays are already there).
 
 ### After launch
 

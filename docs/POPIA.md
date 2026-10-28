@@ -11,8 +11,10 @@ implement. Companion docs: [`SECURITY.md`](SECURITY.md) (security posture) and
 > farm's data; each **farm is the responsible party** (controller) for the personal
 > information of its team and drivers. Farm owners/managers exercise data-subject
 > requests on behalf of their people through the in-app tools described below; FleetWise
-> staff (rr_admin) act only in a support capacity, and every cross-tenant access is
-> logged.
+> staff (rr_admin) act only in a support capacity. Entering a farm in support mode needs a
+> reason and is recorded with who, when and for how long (`support_visits`, 2026-10-28),
+> which the farm's owner sees in Settings; changes made inside are attributed to the named
+> admin. Individual page views and reads on the /admin screens are not logged one by one.
 
 ---
 

@@ -202,8 +202,8 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
 - A refund or dispute **opens a support case and moves nothing in the ledger.** Money goes
   back only when a person decides, case by case (`docs/BILLING.md` §11b). A mid-cycle
   downgrade and a cancellation are not refunds and already work unaided.
-- **RapidRise OS is not in this workspace**, so the support-case receiver is not built. The
-  contract is in `.env.example`: one POST per case, upsert on `id`.
+- **Support cases are worked in the Fleet Wise admin** (`/admin/support`, 2026-10-28), the
+  system of record by founder default. `SUPPORT_WEBHOOK_URL` is an optional copy and stays unset.
 - **Paystack has no collections cap for this account.** Rapid Rise AI is a Registered
   Business, approved, live, ZAR payouts to a Capitec Business account. Every cap figure in
   the build log (R80 000, ZAR 1 000 000) is wrong for this account.

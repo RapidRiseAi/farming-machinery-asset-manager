@@ -152,6 +152,14 @@ export async function deliverNotificationEmail(
     const address = user?.email?.trim();
     // Terminal: this row has nothing to send to and never will have. Retrying it every
     // five minutes for ever would be its own kind of failure.
+    // The support reply is emailed by the desk itself, with the answer in it, to the person
+    // who asked whatever their alert settings (lib/support/emails.ts). A second, emptier
+    // email about the same answer would only be noise: done with, not sent.
+    if (n.template === "support_reply") {
+      result.skippedRows++;
+      await finish(n, true);
+      continue;
+    }
     if (!user || !user.notify_email || !address) {
       result.skippedRows++;
       await finish(n, true);

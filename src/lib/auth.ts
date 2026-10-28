@@ -229,7 +229,8 @@ export function homePathFor(role: Role): string {
     case "operator":
       return "/driver";
     case "rr_admin":
-      return "/admin/farms";
+      // The Rapid Rise overview: support, clients and health on one screen (2026-10-28).
+      return "/admin";
     default:
       return "/dashboard";
   }

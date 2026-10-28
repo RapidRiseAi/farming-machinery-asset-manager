@@ -6,7 +6,11 @@ import { must, ReadFailed } from "@/lib/supabase/must";
 import { captureError } from "@/lib/observability";
 
 /**
- * Posting a support case to the RapidRise OS support dashboard.
+ * Posting a copy of a support case to an outside receiver, if one is ever configured.
+ *
+ * Founder default (2026-10-28): the Fleet Wise admin (/admin/support) is the system of
+ * record and cases are worked there. SUPPORT_WEBHOOK_URL stays unset; this is kept only
+ * as an optional mirror, and with it unset the billing cron reports the step as skipped.
  *
  * == The contract, so the other side is a small job ===========================
  * One POST per case, `content-type: application/json`, to `SUPPORT_WEBHOOK_URL`:

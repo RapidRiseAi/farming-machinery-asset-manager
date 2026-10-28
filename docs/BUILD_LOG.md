@@ -5772,3 +5772,68 @@ another farm and Rapid Rise; the door for hand-written rows; fail closed; the ba
 its second run; a broken helper not stopping a write; the data-subject guard seeing
 refiled history), mutation-tested against eight regressions. All 47 SQL suites pass on PGlite, with types, lint, unit tests, dashes,
 translations, error coverage and design.
+
+## 2026-10-28 - The support desk and the Rapid Rise overview (package B)
+
+- **What was wrong.** A help request was a row in `support_tickets` that nobody was told
+  about. The team's page did not show the question or who asked, there was no way to answer,
+  the deadline was two calendar days, contractors could not ask, every farm member saw the
+  whole farm's requests under "What you have asked", and the form promised "Nothing about
+  your card is sent" while the request was opened through the billing dossier builder.
+  Rapid Rise's information was spread over eight /admin pages with no home, and the client
+  page's Invite and Deactivate buttons refused Rapid Rise every time.
+- **Data (20261028100000 to 20261028101300, fourteen files, not applied anywhere).** Two
+  request kinds (privacy, export) in a file of their own; `app.is_rr_support()`, equal to
+  `app.is_rr_admin()` today, which every staff function asks, so support-only staff can be
+  added by changing one function; a one-row `support_settings` (email, phone and WhatsApp
+  hidden until typed in, hours, the 16:00 cutoff, the 12:00 next-day time, working days) and
+  `support_holidays` (2026 and 2027 SA public holidays seeded) read by `app.support_due_at`:
+  09:00 to 16:00 on a working day is due 17:00 that day, otherwise 12:00 the next working
+  day, in Africa/Johannesburg whatever the server clock. `support_tickets` gained who asked,
+  a contractor's business, channel, assignee, first response due/at, last customer and staff
+  activity and a trigger-kept `is_test`; `support_ticket_messages` holds the conversation
+  (customer, staff, internal notes); `support_visits` records each support-mode entry with
+  its required reason. The customer functions (`open_help_request` with a checked farm and a
+  kind, `my_help_requests`, `my_help_request`, `reply_to_help_request`) carry no billing
+  evidence and are rate limited per person; the staff functions (queue, case, reply, note,
+  status with a required resolution, assign, open for a customer, overview, badge,
+  `admin_client`, `admin_set_user_active`) are SECURITY DEFINER behind the two-step gate and
+  granted to `authenticated`, called with the admin's own session. `team_invite_existing`
+  accepts a real Rapid Rise admin as the inviter and lets only Rapid Rise invite an owner.
+  None of the new tables is attached to `app_audit` (another package owns it); Rapid Rise's
+  alerts are filed with no farm and carry only the case id.
+- **Customer side.** `/help` shows the hours, the same-day promise, email and in-app (phone
+  and WhatsApp appear once configured), lets any member or contractor ask about a farm of
+  theirs, lists their own requests (and the farm's for owners and managers), and each opens
+  `/help/[id]` with the answer and a reply box. The reply is emailed to them in their
+  language, with Reply-To the support address; the notification email worker skips the
+  duplicate. The card promise now reads "No card or billing details are attached", which is
+  true.
+- **Rapid Rise side.** `/admin` is the Overview (rr_admin's home): support tiles, clients by
+  where they stand with paying, sign-ups that never paid, failing scheduled jobs, open AI
+  health events, quiet farms and a needs-attention list, real farms by default. `/admin/support`
+  is the queue with filters, `/admin/support/[id]` the case (reply, note or logged call,
+  status, assign, look inside the farm for this case), `/admin/support/settings` the hours,
+  channels and closed days. `/admin/farms/[id]` was rebuilt: contacts with call, WhatsApp and
+  mail links, people with last sign-in and never-signed-in, invite (owners too), resend and
+  switch off that work for Rapid Rise, a billing summary linked to `/admin/billing`, the
+  client's cases and "New ticket for this client", use, alert delivery failures and support
+  visits with reasons. The nav's Rapid Rise group is Overview, Support (badge: real cases
+  waiting on us), Clients, Billing, AI, Partners, Templates, Driver integrations.
+- **Support mode.** Entering needs a reason or a case, lasts an hour, and the owner sees each
+  visit in Settings. The banner and docs/POPIA.md, docs/SECURITY.md no longer claim that
+  everything opened is logged.
+- **Billing left alone, with a hook.** The client page no longer offers Trial or switching a
+  farm to Active; it says activation comes from a recorded payment (HOOK(billing-payments) in
+  `admin/farms/[id]/actions.ts`). "Cases are worked in RapidRise OS" is gone from the code
+  copy, .env.example and docs; `SUPPORT_WEBHOOK_URL` stays an optional, unset mirror.
+- **Defaults taken, each easy to change.** Founder questions still open, so the stated
+  defaults: Fleet Wise admin is the system of record; hours, cutoff and holidays are rows on
+  `/admin/support/settings`; phone and WhatsApp hidden until typed in; team@ only, through
+  `app.is_rr_support()`; a reason to enter support mode, changes allowed and attributed.
+- **Gates.** `support_desk.sql` (new, in run.sh) and `help_requests.sql` pass with every
+  other suite on PGlite (47); unit tests 699; types, lint, translations (parity and keys),
+  error coverage, dashes and design lint clean. Not run: a build, the click-through, the UI
+  check, or any real database. Left undone: the hourly support chase still rides the nightly
+  billing cron (the deadline is chased once a day), a customer reply alerts Rapid Rise in the
+  app only, and the rr_admin `/dashboard` outside support mode still sums every farm.

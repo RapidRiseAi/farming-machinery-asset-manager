@@ -183,9 +183,14 @@ export default async function AppLayout({
   // must use that same context rather than the profile's primary-farm role and ID.
   const canUseInbox = currentRole === "owner" || currentRole === "manager";
   const countsClient = await createClient();
-  const [alertsUnread, inboxDecisions] = await Promise.all([
+  const [alertsUnread, inboxDecisions, supportWaiting] = await Promise.all([
     countInboxUnread(countsClient, profile.id),
     canUseInbox ? countInboxDecisions(countsClient, currentFarm) : Promise.resolve(0),
+    // Real support cases waiting on Rapid Rise, for the Support row's badge. Zero for
+    // anyone else, and zero rather than a broken shell if the count cannot be read.
+    isAdmin
+      ? countsClient.rpc("support_badge").then(({ data }) => Number(data ?? 0), () => 0)
+      : Promise.resolve(0),
   ]);
   const permissionState = await farmPermissionState(profile, currentFarm || null);
   // A named stock keeper must be able to reach the screen containing the controls the
@@ -315,9 +320,15 @@ export default async function AppLayout({
   const driverActivity: NavItemData = { href: "/driver/activity", label: t("nav.driverActivity", locale), icon: "pin" };
   // The Rapid Rise console's own sections. They used to be one "Admin" row filed under
   // Account plus an English-only text subnav inside the page; now they are one group.
-  const admin: NavItemData = { href: "/admin/farms", label: t("nav.adminFarms", locale), icon: "admin" };
+  // Rapid Rise's own dashboard (/admin, 2026-10-28): the overview first, then the support
+  // queue with what is waiting on Rapid Rise as its badge, then the clients.
+  const adminOverview: NavItemData = { href: "/admin", label: t("adminHome.navOverview", locale), icon: "dashboard" };
+  const adminSupport: NavItemData = { href: "/admin/support", label: t("adminHome.navSupport", locale), icon: "inbox", badge: supportWaiting || undefined };
+  const admin: NavItemData = { href: "/admin/farms", label: t("adminHome.navClients", locale), icon: "admin" };
+  const adminDriverIntegrations: NavItemData = { href: "/admin/driver-integrations", label: t("adminHome.navDriverIntegrations", locale), icon: "pin" };
   const adminPartners: NavItemData = { href: "/admin/partners", label: t("nav.adminPartners", locale), icon: "partners" };
   const adminTemplates: NavItemData = { href: "/admin/templates", label: t("nav.adminTemplates", locale), icon: "documents" };
+  const rapidRiseItems: NavItemData[] = [adminOverview, adminSupport, admin, adminBilling, adminAi, adminPartners, adminTemplates, adminDriverIntegrations];
   // Reached from the account menu and the palette, not listed in the sidebar: the menu
   // on the row that names you is where people look for their own account.
   const yourAccount: NavItemData = { href: "/account", label: t("nav.account", locale), icon: "settings" };
@@ -362,7 +373,7 @@ export default async function AppLayout({
         ...(apiTokensAllowed ? [apiTokens] : []),
         ...(isManagerPlus ? [team, settings] : []),
         ...(isOwner || isAdmin ? [aiUsage] : []),
-        ...(isAdmin ? [admin, adminPartners, adminTemplates, adminBilling, adminAi] : []),
+        ...(isAdmin ? rapidRiseItems : []),
         help,
         install,
       ];
@@ -397,7 +408,7 @@ export default async function AppLayout({
       ]
     : [
         ...(isAdmin
-          ? [{ key: "rapidrise", label: t("nav.groupRapidRise", locale), items: [admin, adminPartners, adminTemplates, adminBilling, adminAi] }]
+          ? [{ key: "rapidrise", label: t("nav.groupRapidRise", locale), items: rapidRiseItems }]
           : []),
         ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
         {
@@ -452,9 +463,8 @@ export default async function AppLayout({
         incidents,
         calendar,
       ];
-  // Not /help for contractors yet: `open_help_request` refuses a profile without a farm
-  // ("Only a farm member can ask for help here"), so the row would lead to a form that fails.
-  const tailHelp: NavItemData[] = isWorkshop ? [install] : [help, install];
+  // Contractors too since 20261028100900: they ask about their own business or a linked farm.
+  const tailHelp: NavItemData[] = [help, install];
 
   /**
    * One definition of the tail, spread by all four consumers (sidebar, "More" sheet,

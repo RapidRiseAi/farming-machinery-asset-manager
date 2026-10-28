@@ -300,8 +300,10 @@ not by installing the SDK. Security-relevant properties:
 - **Job cards lock after approval**, a trigger blocks any edit/delete of a locked card
   or its lines; later changes are expressed as new records + audit diffs.
 - **Soft delete** (`deleted_at`/`deleted_by`) everywhere; reads hide soft-deleted rows.
-- **rr_admin cross-tenant access is logged** (`log_admin_farm_access`, and the F8
-  data-subject RPCs write `data_subject_export` / `data_subject_erasure` rows).
+- **rr_admin support-mode visits are logged** (`log_admin_farm_access` plus, since
+  2026-10-28, `support_visits` with a required reason, shown to the farm's owner), and the F8
+  data-subject RPCs write `data_subject_export` / `data_subject_erasure` rows. Page views and
+  /admin reads are not logged individually.
 
 ## 7. Application-layer hardening
 

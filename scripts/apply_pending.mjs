@@ -54,6 +54,32 @@ const PROBES = {
     "select to_regprocedure('app.audit_withhold(jsonb,text[])') is not null" +
     " and to_regprocedure('app.audit_hidden_columns(regclass)') is not null",
   "20261028090000": "select to_regclass('app.audit_table_rules') is not null",
+  // The support desk and the owner's dashboard (2026-10-28), one object each.
+  "20261028100000":
+    "select exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid" +
+    " where t.typname = 'support_ticket_kind' and e.enumlabel = 'export_request')",
+  "20261028100100": "select to_regprocedure('app.is_rr_support()') is not null",
+  "20261028100200":
+    "select to_regclass('public.support_settings') is not null" +
+    " and to_regprocedure('public.support_contact()') is not null",
+  "20261028100300": "select to_regclass('public.support_holidays') is not null",
+  "20261028100400": "select to_regprocedure('app.support_due_at(timestamptz)') is not null",
+  "20261028100500":
+    "select exists (select 1 from information_schema.columns where table_schema='public'" +
+    " and table_name='support_tickets' and column_name='first_response_due_at')",
+  "20261028100600": "select to_regclass('public.support_ticket_messages') is not null",
+  "20261028100700":
+    "select to_regclass('public.support_visits') is not null" +
+    " and to_regprocedure('public.support_visit_start(uuid,text,uuid)') is not null",
+  "20261028100800": "select to_regprocedure('app.notify_rr_support(uuid,text,jsonb)') is not null",
+  "20261028100900": "select to_regprocedure('public.reply_to_help_request(uuid,text)') is not null",
+  "20261028100950":
+    "select to_regprocedure('app.support_next_due(support_ticket_kind,support_ticket_status,timestamptz," +
+    "timestamptz,timestamptz,timestamptz,timestamptz)') is not null",
+  "20261028101000": "select to_regprocedure('public.support_queue(text,text,text,boolean,uuid)') is not null",
+  "20261028101100": "select to_regprocedure('public.admin_client(uuid)') is not null",
+  "20261028101200": "select to_regprocedure('app.team_invite_actor_role(uuid,uuid)') is not null",
+  "20261028101300": "select to_regprocedure('public.admin_set_user_active(uuid,uuid,boolean)') is not null",
   "20261026100000": "select to_regprocedure('app.audit_readable_farm_ids()') is not null",
   // An in-place rewrite leaves nothing but the text to check; the migration itself returns
   // early when applied and stops loudly if the text it rewrites has moved.

@@ -282,6 +282,21 @@ export function formatNotification(
         subject: String(p.subject ?? ""),
         hours: String(Math.max(0, Math.round(Number(p.hours_left ?? 0)))),
       });
+    // The support desk (20261028100800): Rapid Rise hears of a new question, a customer's
+    // reply and a case nearing its answer-by time; the customer hears that we answered.
+    // The payload is only the case id, so the sentence never carries the question itself.
+    case "support_request_new":
+      return t("support.notify.requestNew", locale);
+    case "support_customer_reply":
+      return t("support.notify.customerReply", locale);
+    case "support_request_due": {
+      const hours = Math.round(Number(p.hours_left ?? 0));
+      return hours > 0
+        ? fill("support.notify.requestDue", locale, { hours: String(hours) })
+        : t("support.notify.requestOverdue", locale);
+    }
+    case "support_reply":
+      return t("support.notify.reply", locale);
     // AI and voice usage (docs/AI_USAGE.md), to the farm's owners: 80% of the monthly
     // limit, the limit reached (voice and AI now paused), and a linked OpenAI key failing.
     case "ai_limit_80":
@@ -307,8 +322,13 @@ export function formatNotification(
   }
 }
 
+/** The support desk's alerts (20261028100800). */
+const SUPPORT_TEMPLATES = new Set(["support_request_new", "support_customer_reply", "support_request_due", "support_reply"]);
+
 /** Short category title for a push notification. */
 export function notificationTitle(template: string, locale: Lang): string {
+  // The support desk's own alerts (not the older dispute chase, support_ticket_due).
+  if (SUPPORT_TEMPLATES.has(template)) return t("support.pushTitle", locale);
   const family = template.startsWith("service_")
     ? "service"
     : template.startsWith("warranty_")
@@ -385,6 +405,10 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // one, sending an rr_admin to a farm's own /billing page would show them nothing they
   // can act on.
   if (template === "billing_dispute" || template === "billing_refund") return "/admin/billing";
+  // The support desk: Rapid Rise opens the case, the customer opens their conversation.
+  if (template === "support_reply" && typeof p.ticket_id === "string") return `/help/${p.ticket_id}`;
+  if (SUPPORT_TEMPLATES.has(template) && typeof p.ticket_id === "string") return `/admin/support/${p.ticket_id}`;
+  if (template === "support_ticket_due" && typeof p.ticket_id === "string") return `/admin/support/${p.ticket_id}`;
   // A ticket chase goes to the list of cases, not to a farm's billing page.
   if (template === "support_ticket_due") return "/admin/support";
   // Every other billing alert is about the same one page, and it is not a machine.
