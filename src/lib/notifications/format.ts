@@ -302,13 +302,49 @@ export function formatNotification(
           locale,
         ),
       });
+    // Finance agreements and contracts (20261028110800), to owners and managers. The
+    // payloads carry no amounts on purpose: these also travel by email and push.
+    case "finance_instalment_due":
+      return fill(p.kind === "balloon" ? "assetFinance.tplBalloonDue" : "assetFinance.tplInstalmentDue", locale, {
+        lender: financeParty(p.lender, locale),
+        machine: m,
+        date: day(p.due_date, locale),
+        n: String(p.seq ?? ""),
+        count: String(p.count ?? ""),
+      });
+    case "finance_instalment_overdue":
+      return fill("assetFinance.tplInstalmentOverdue", locale, {
+        lender: financeParty(p.lender, locale),
+        machine: m,
+        date: day(p.due_date, locale),
+      });
+    case "contract_notice_due":
+      return fill(p.auto_renews ? "assetFinance.tplNoticeDueRenews" : "assetFinance.tplNoticeDue", locale, {
+        party: String(p.party ?? ""),
+        date: day(p.notice_date, locale),
+        end: day(p.end_date, locale),
+      });
+    case "contract_ending":
+      return fill(p.auto_renews ? "assetFinance.tplContractRenewing" : "assetFinance.tplContractEnding", locale, {
+        party: String(p.party ?? ""),
+        date: day(p.end_date, locale),
+      });
     default:
       return template;
   }
 }
 
+/** A lender moved from the old machine fields with none recorded was saved as "-". */
+function financeParty(value: unknown, locale: Lang): string {
+  const v = String(value ?? "").trim();
+  return v === "" || v === "-" ? t("assetFinance.lenderNotRecorded", locale) : v;
+}
+
 /** Short category title for a push notification. */
 export function notificationTitle(template: string, locale: Lang): string {
+  // Finance and contract reminders have a title of their own. Their templates never start
+  // with payment_, which routes to the documents family below.
+  if (template.startsWith("finance_") || template.startsWith("contract_")) return t("assetFinance.pushTitle", locale);
   const family = template.startsWith("service_")
     ? "service"
     : template.startsWith("warranty_")
@@ -391,6 +427,9 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   if (template.startsWith("billing_")) return "/billing";
   // The limit, the usage by person and the linked key all live on one owner page.
   if (template.startsWith("ai_")) return "/settings/ai";
+  // An instalment opens its machine's Costs tab, where it is paid; a contract the Finance page.
+  if (template.startsWith("finance_") && p.machine_id) return `/machines/${p.machine_id}?tab=costs`;
+  if (template.startsWith("finance_") || template.startsWith("contract_")) return "/finance";
   if (p.machine_id) return `/machines/${p.machine_id}`;
   return "/notifications";
 }

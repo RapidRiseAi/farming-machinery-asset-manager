@@ -572,3 +572,129 @@ export function upcomingPayments(commitments: readonly Commitment[]): Commitment
 export function lenderKnown(lender: string | null | undefined): boolean {
   return Boolean(lender && lender.trim() !== "" && lender.trim() !== "-");
 }
+
+// == Reading what a person typed ================================================
+
+/**
+ * A rate typed in percent, as a bank quotes it ("11,75" or "11.75"), to whole basis
+ * points (1175). Blank is null (no rate: the lender's instalment implies one); anything
+ * that is not a rate from 0 to 100 percent is `false`, so the caller can say so instead
+ * of saving nonsense.
+ */
+export function percentToBps(raw: string | null | undefined): number | null | false {
+  const v = String(raw ?? "").trim().replace(/%$/, "").trim();
+  if (v === "") return null;
+  if (!/^\d{1,3}([.,]\d{1,4})?$/.test(v)) return false;
+  const pct = Number(v.replace(",", "."));
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return false;
+  return Math.round(pct * 100);
+}
+
+/** Basis points as the form shows them again: 1175 is "11.75". */
+export function bpsToPercentInput(bps: number | null | undefined): string {
+  if (bps == null) return "";
+  const whole = Math.trunc(bps / 100);
+  const frac = String(Math.abs(bps % 100)).padStart(2, "0").replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : String(whole);
+}
+
+/** Cents as an amount input shows them: 1105916 is "11059.16". */
+export function centsToInput(cents: number | null | undefined): string {
+  if (cents == null) return "";
+  const negative = cents < 0;
+  const abs = Math.abs(Math.round(cents));
+  return `${negative ? "-" : ""}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
+}
+
+/** A whole number of days or months in a range, or null for blank, or false when wrong. */
+export function wholeNumberIn(raw: string | null | undefined, min: number, max: number): number | null | false {
+  const v = String(raw ?? "").trim();
+  if (v === "") return null;
+  if (!/^\d+$/.test(v)) return false;
+  const n = Number(v);
+  return n >= min && n <= max ? n : false;
+}
+
+// == How a row reads on the screen ==============================================
+
+export type Tone = "neutral" | "brand" | "ok" | "warning" | "danger" | "info";
+
+/** An agreement's status in a badge: what it is, and how loud. */
+export function agreementTone(status: string, overdueCount: number): Tone {
+  if (status === "settled") return "ok";
+  if (status === "cancelled") return "neutral";
+  return overdueCount > 0 ? "danger" : "brand";
+}
+
+/** A contract's status in a badge. Ending inside its reminder lead is a warning. */
+export function contractTone(
+  contract: { status: string; end_date: string | null; notice_date: string | null; reminder_lead_days: number | null },
+  today: string,
+): Tone {
+  if (contract.status !== "active") return "neutral";
+  const lead = contract.reminder_lead_days ?? DEFAULT_CONTRACT_LEAD_DAYS;
+  const soon = addDays(today, lead);
+  if (contract.notice_date && contract.notice_date >= today && contract.notice_date <= soon) return "warning";
+  if (contract.end_date && contract.end_date <= soon) return "warning";
+  return "ok";
+}
+
+/** `YYYY-MM-DD` plus days (negative goes back), without a Date. */
+export function addDays(ymd: string, days: number): string {
+  return days >= 0 ? plusDays(ymd, days) : minusDays(ymd, -days);
+}
+
+function plusDays(ymd: string, days: number): string {
+  let [y, m, d] = ymd.split("-").map(Number);
+  d += days;
+  while (d > daysIn(y, m)) {
+    d -= daysIn(y, m);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** What one contract payment takes out of the bank, VAT included. */
+export function contractGrossCents(amountCents: number, vatRateBps: number): number {
+  return amountCents + vatCents(amountCents, vatRateBps);
+}
+
+/**
+ * Where a person is sent back to after a finance action: the Finance page, or the Costs
+ * tab of the machine the form was on. Anything else (a tampered field) is the Finance
+ * page, never an arbitrary address.
+ */
+export function financeReturnPath(raw: string | null | undefined): string {
+  const v = String(raw ?? "").trim();
+  if (/^\/machines\/[0-9a-f-]{36}$/i.test(v)) return `${v}?tab=costs`;
+  return "/finance";
+}
+
+/** The path with a result added: `?saved=` or `?error=`, keeping a `?tab=` already there. */
+export function withResult(path: string, key: "saved" | "error", value: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}${key}=${value}`;
+}
+
+/** The success sentence's key for a `?saved=` code a finance action sent, on either screen. */
+export const FINANCE_SAVED_KEYS: Readonly<Record<string, string>> = {
+  "finance-agreement": "assetFinance.savedAgreement",
+  "finance-statement": "assetFinance.savedStatement",
+  "finance-payment": "assetFinance.savedPayment",
+  "finance-payment-cleared": "assetFinance.savedPaymentCleared",
+  "finance-schedule": "assetFinance.savedSchedule",
+  "finance-settled": "assetFinance.savedSettled",
+  "finance-removed": "assetFinance.savedRemoved",
+  "finance-contract": "assetFinance.savedContract",
+  "finance-contract-ended": "assetFinance.savedContractEnded",
+  "finance-contract-renewed": "assetFinance.savedContractRenewed",
+  "finance-document": "assetFinance.savedDocument",
+  "finance-document-removed": "assetFinance.savedDocumentRemoved",
+};
+
+export function financeSavedKey(code: string | null | undefined): string | undefined {
+  return code ? FINANCE_SAVED_KEYS[code] : undefined;
+}

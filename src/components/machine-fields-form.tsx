@@ -31,11 +31,6 @@ export type MachineFieldDefaults = {
   cost_centre?: string | null;
   department?: string | null;
   notes?: string | null;
-  finance_provider?: string | null;
-  finance_total_cents?: number | null;
-  finance_monthly_cents?: number | null;
-  finance_term_months?: number | null;
-  finance_interest_bps?: number | null;
 };
 
 export type MachineFieldOperator = { id: string; name: string };
@@ -91,7 +86,6 @@ export function MachineFieldsForm({
   // stays visible, so saving the Edit dialog can never blank it out unseen.
   const showMeterWarranty = meter !== "none" || m.warranty_expiry_hours != null;
   const warrantyMeterLabel = meter === "km" ? t("machines.warrantyKm", locale) : t("machines.warrantyHours", locale);
-  const interestPct = m.finance_interest_bps != null ? String(m.finance_interest_bps / 100) : "";
 
   return (
     <div className="flex flex-col gap-4">
@@ -222,33 +216,9 @@ export function MachineFieldsForm({
           ) : null}
         </DialogSection>
 
-        <DialogSection
-          title={t("machines.sections.finance", locale)}
-          defaultOpen={
-            !isNew &&
-            has(m.finance_provider, m.finance_total_cents, m.finance_monthly_cents, m.finance_term_months, m.finance_interest_bps)
-          }
-        >
-          <div className="sm:col-span-2">
-            <Field label={t("machines.financeProvider", locale)} htmlFor="finance_provider">
-              <Input id="finance_provider" name="finance_provider" defaultValue={m.finance_provider ?? ""} />
-            </Field>
-          </div>
-          <Field label={t("machines.financeTotal", locale)} htmlFor="finance_total">
-            <Input id="finance_total" name="finance_total" type="number" inputMode="decimal" step="0.01" min={0} defaultValue={randsInput(m.finance_total_cents)} />
-          </Field>
-          <Field label={t("machines.financeMonthly", locale)} htmlFor="finance_monthly">
-            <Input id="finance_monthly" name="finance_monthly" type="number" inputMode="decimal" step="0.01" min={0} defaultValue={randsInput(m.finance_monthly_cents)} />
-          </Field>
-          <Field label={t("machines.financeTerm", locale)} htmlFor="finance_term_months">
-            <Input id="finance_term_months" name="finance_term_months" type="number" inputMode="numeric" min={0} defaultValue={m.finance_term_months ?? ""} />
-          </Field>
-          {/* Asked in percent, as the bank quotes it. The field keeps its posted name and
-              the action stores basis points, so the column and the read view are unchanged. */}
-          <Field label={t("machines.financeInterestPct", locale)} htmlFor="finance_interest_bps">
-            <Input id="finance_interest_bps" name="finance_interest_bps" type="number" inputMode="decimal" step="0.01" min={0} max={100} defaultValue={interestPct} />
-          </Field>
-        </DialogSection>
+        {/* Finance moved out of this form on 2026-10-28: a machine's finance agreements,
+            leases and contracts live in the Finance section of its Costs tab, with a real
+            schedule, payments and reminders (20261028110000 onwards). */}
 
         <DialogSection title={t("machines.sections.notes", locale)} defaultOpen={!isNew && has(m.notes)}>
           <div className="sm:col-span-2">

@@ -25,6 +25,7 @@ export function MachineFields({
   costCentres,
   departments,
   locations,
+  financialsLoaded = false,
 }: {
   machine?: MachineFieldDefaults;
   operators?: OperatorOption[];
@@ -32,6 +33,12 @@ export function MachineFields({
   costCentres?: string[];
   departments?: string[];
   locations?: string[];
+  /**
+   * The purchase price and supplier were read for this form (`machine_financials`). Only
+   * then does saving write them back: a failed read showed blanks, and saving those used
+   * to wipe the price and withdraw its cost entry.
+   */
+  financialsLoaded?: boolean;
 }) {
   const picked: MachineFieldDefaults | undefined = machine
     ? {
@@ -54,14 +61,11 @@ export function MachineFields({
         cost_centre: machine.cost_centre,
         department: machine.department,
         notes: machine.notes,
-        finance_provider: machine.finance_provider,
-        finance_total_cents: machine.finance_total_cents,
-        finance_monthly_cents: machine.finance_monthly_cents,
-        finance_term_months: machine.finance_term_months,
-        finance_interest_bps: machine.finance_interest_bps,
       }
     : undefined;
   return (
+    <>
+    {machine && financialsLoaded ? <input type="hidden" name="financials_loaded" value="1" /> : null}
     <MachineFieldsForm
       machine={picked}
       operators={operators?.map((o) => ({ id: o.id, name: o.name }))}
@@ -70,5 +74,6 @@ export function MachineFields({
       departments={departments}
       locations={locations}
     />
+    </>
   );
 }
