@@ -156,7 +156,7 @@ lives in [`docs/FLEETWISE_STATUS_CHECKLIST.md`](docs/FLEETWISE_STATUS_CHECKLIST.
   capture. Hardware tracking is a quoted, staff-activated service; no provider is connected.
 - **The Azure Speech resource refuses parallel recognitions**, so two people talking at
   once collide (seen as "number of parallel requests exceeded"). Move it to S0.
-- **`lapsed_grace_days` is live at 30 and it will close accounts.** Needs a decision, not a default.
+- **Decided 2026-10-26, built 2026-10-29:** seven days' grace after a missed payment, then the farm is suspended (pay and download only) until paid (`access_grace_days`, docs/BILLING.md §11). `lapsed_grace_days` is no longer read by the gate (a cancelled subscription closes when its paid period ends).
 - **`src/lib/legal.ts` needs a lawyer's read**, then bump `TERMS_VERSION`.
 - **Confirm `NEXT_PUBLIC_SITE_URL` is set in Vercel Production.** Every checkout callback is
   built from it and it cannot be read from outside. (`RESEND_API_KEY`/`EMAIL_FROM` are

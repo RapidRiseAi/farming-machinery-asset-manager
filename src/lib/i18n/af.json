@@ -1169,8 +1169,8 @@
     "tplStockShort": "Die volgende {days} dae het {committed} {unit} van {part} nodig en jy het {on_hand}, {short} kort.",
     "tplBillingPaymentFailed": "Jou FleetWise-intekeningbetaling het nie deurgegaan nie. Ons sal weer op {date} probeer.",
     "tplBillingPaymentFailedFinal": "Jou FleetWise-intekeningbetaling het nie deurgegaan nie en ons het opgehou probeer. Dateer jou kaart op om voort te gaan.",
-    "tplBillingGraceEnding": "Jou FleetWise-intekening is onbetaald. As dit nie teen {date} vereffen is nie, sal jou pakket verminder word. Niks sal uitgevee word nie.",
-    "tplBillingGraceEndingSoon": "Jou FleetWise-intekening is onbetaald en jou pakket sal binnekort verminder word. Niks sal uitgevee word nie.",
+    "tplBillingGraceEnding": "Jou Fleet Wise-intekening is onbetaald. As dit nie teen {date} betaal is nie, word die toep onderbreek totdat dit betaal is. Niks sal uitgevee word nie.",
+    "tplBillingGraceEndingSoon": "Jou Fleet Wise-intekening is onbetaald, en die toep word binnekort onderbreek as dit nie betaal word nie. Niks sal uitgevee word nie.",
     "tplBillingDowngraded": "Jou pakket is na {plan} verminder omdat die intekening onbetaald is. Niks is uitgevee nie. Betaal om dit terug te kry.",
     "tplBillingCardExpiring": "Die kaart op jou FleetWise-intekening ({card}) verval op {date}. Vervang dit voor die volgende betaling.",
     "tplBillingDispute": "'n Kliënt het 'n betaling van {amount} betwis ({event}). Reageer deur Paystack binne 48 besigheidsure, anders word dit outomaties aanvaar en van 'n uitbetaling afgetrek.",
@@ -1195,7 +1195,9 @@
     "aiKeyReasonQuota": "geen krediet meer nie",
     "aiKeyReasonRefused": "geweier",
     "aiKeyReasonUnreadable": "dit kan nie meer gelees word nie en moet weer gekoppel word",
-    "tplJobAssigned": "’n Werk is aan jou toegewys. Maak dit oop om die besonderhede te sien."
+    "tplJobAssigned": "’n Werk is aan jou toegewys. Maak dit oop om die besonderhede te sien.",
+    "tplBillingSuspended": "Fleet Wise is vir jou plaas onderbreek omdat 'n betaling meer as sewe dae agterstallig is. Betaal dit om voort te gaan; niks is uitgevee nie.",
+    "tplBillingResumed": "Dankie, jou betaling is ontvang en Fleet Wise is weer vir jou plaas oop."
   },
   "settings": {
     "notSet": "Nie gestel nie",
@@ -5272,7 +5274,10 @@
     "emailTestOnly": "Dit is 'n toetsplaas of toetsrekening, dus kan dit net e-pos na toetsadresse stuur.",
     "stillSaving": "Jou vorige verandering word nog gestoor. Kyk oor ’n oomblik na die bladsy voordat jy weer probeer.",
     "recurringLineFailed": "Die skedule is gestoor, maar sy eerste reël nie. Voeg die reël hier by.",
-    "documentLinesFailed": "Die dokument is gestoor, maar sy reëls is nie oorgedra nie. Voeg hulle hier by voordat jy dit stuur."
+    "documentLinesFailed": "Die dokument is gestoor, maar sy reëls is nie oorgedra nie. Voeg hulle hier by voordat jy dit stuur.",
+    "farmNotActive": "Daardie plaas se Fleet Wise is onderbreek of gesluit, so dit kan eers gedoen word wanneer dit weer aktief is.",
+    "billingExtendBad": "Kies 'n datum van vandag tot 60 dae vorentoe.",
+    "billingExtendReason": "Sê hoekom toegang oopgehou word."
   },
   "billing": {
     "title": "Rekening",
@@ -5627,7 +5632,15 @@
     "startDialogTitle": "Begin 'n intekening",
     "billedForTitle": "Waarvoor hulle gefaktureer word",
     "changeOpen": "Verander",
-    "discountOpen": "Stel hul prys"
+    "discountOpen": "Stel hul prys",
+    "accessTitle": "Toegang na die grasietyd",
+    "extendOpen": "Hou oop",
+    "extendTitle": "Hou {farm} oop na die grasietyd",
+    "extendLead": "'n Plaas word sewe dae nadat 'n faktuur betaalbaar word, onderbreek. Hou dit oop tot 'n datum wanneer jy weet die betaling kom. Dit word ná daardie datum weer onderbreek as dit nog onbetaald is.",
+    "extendUntil": "Hou oop tot",
+    "extendReason": "Hoekom (bewaar by die plaas se rekeninge)",
+    "extendSave": "Hou oop",
+    "savedAccessExtended": "Toegang is oopgehou tot die datum wat jy gekies het. As dit daarna nog onbetaald is, word die plaas oornag weer onderbreek."
   },
   "billingReceipt": {
     "title": "Kwitansie",
@@ -6959,5 +6972,16 @@
     "previewTitle": "Wat dit op uitwerk",
     "previewEmpty": "Vul die bedrag, die termyn, die eerste paaiement en die koers of die paaiement in.",
     "previewValue": "{instalment} per paaiement · {interest} rente en fooie oor die termyn · {rate}% · laaste betaalbaar {last}"
+  },
+  "suspended": {
+    "title": "Fleet Wise is vir hierdie plaas onderbreek",
+    "lead": "'n Betaling is meer as sewe dae agterstallig, so die toep is onderbreek totdat dit betaal is. Alles is terug sodra dit betaal is.",
+    "owed": "{amount} is onbetaald, betaalbaar sedert {date}.",
+    "pay": "Betaal nou",
+    "askOwner": "Vra die plaas se eienaar of bestuurder om te betaal, dan maak dit weer vir almal oop.",
+    "eft": "Betaal jy per EFT? E-pos {email} en ons stuur ons bankbesonderhede; toegang maak oop sodra die betaling bevestig is.",
+    "dataSafe": "Niks is uitgevee nie. Elke voertuig, diens, werkkaart, fout en koste is nog hier, en dit is steeds joune.",
+    "download": "Laai my rekords af",
+    "help": "Vrae hieroor, e-pos {email} en 'n persoon sal help."
   }
 }

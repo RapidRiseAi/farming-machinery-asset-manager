@@ -148,7 +148,7 @@ With test keys, in Preview only. Paystack's test cards are in their docs.
 - [ ] A **declined** card is recorded as a failure and starts the retry ladder
 - [ ] A **duplicate** webhook delivery changes nothing the second time
 - [ ] A payment recorded by webhook and by verify does not double-credit
-- [ ] A farm in grace is downgraded, keeps all its data, and is restored on payment
+- [ ] A farm whose invoice is more than seven days overdue is suspended (pay and download only), keeps all its data, and is resumed on payment with a fresh period (docs/BILLING.md §11, 2026-10-29)
 
 ## 7. Going live (you, deliberately)
 
@@ -200,6 +200,8 @@ Five things that did not exist before this date now do, and three of them need a
 from you rather than a deployment.
 
 ### 9.1 Decide how long a lapsed farm stays open, `lapsed_grace_days`
+
+> Decided on 2026-10-26 and built on 2026-10-29: seven days' grace, then suspended until paid (`access_grace_days`). The gate no longer reads `lapsed_grace_days`; this section is history.
 
 **This is live and it will close accounts.** Until today nothing ever took access away: a
 farm that stopped paying kept the product on the Essential plan for ever, and a farm that

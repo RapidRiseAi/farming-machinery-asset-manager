@@ -419,6 +419,10 @@ const CODE_KEYS: Record<string, string> = {
   "receipt": "errors.receipt",
   // The expense saved but its photo did not link (expenses/actions.ts).
   "receipt-failed": "errors.receipt",
+  // A contractor or an API call aimed at a farm that is suspended, closed or not paid yet.
+  "farm-not-active": "errors.farmNotActive",
+  "billing-extend-bad": "errors.billingExtendBad",
+  "billing-extend-reason": "errors.billingExtendReason",
   "no-csv-provided": "errors.noCsv",
   "invalid-csv-header": "errors.badCsvHeader",
   "no-valid-rows": "errors.noValidRows",

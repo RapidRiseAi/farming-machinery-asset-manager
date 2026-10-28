@@ -287,6 +287,19 @@ the role first. Two locks: the grant is absent *and* no permissive write policy 
 
 ## 11. Dunning, grace and cancellation
 
+> **Superseded on 2026-10-29 (20261029090100), by the founder's decision of 26 October
+> 2026.** A missed payment has seven days' grace (`billing_settings.access_grace_days`),
+> counted from the invoice's due date and read from INVOICES, so EFT and invoice customers
+> are covered as well as cards. From day 8 the farm is SUSPENDED: the subscription status
+> `suspended`, `farms.status` `suspended` with `suspended_for = 'billing'` (which stops
+> API tokens, WhatsApp, capture and the notification engines), and its people may only pay
+> and download their records (`/suspended`). Nothing is deleted. Paying what is overdue
+> resumes it with a fresh period from the payment date (`app.billing_restore_after_payment`);
+> nothing is invoiced while suspended; the card is retried weekly for four weeks. Rapid
+> Rise can keep a farm open until a date, with a recorded reason (`admin_extend_billing_access`).
+> Test farms are `billing_exempt`. The plan is no longer reduced: the downgrade step is
+> out of the nightly run. What follows describes the earlier design and is kept for history.
+
 All nine values live in the single audited `billing_settings` row, so changing one is a
 decision somebody makes and the audit log records, not a deploy nobody reviews.
 

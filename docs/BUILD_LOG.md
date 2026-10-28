@@ -5897,3 +5897,42 @@ Not done: nothing is applied to any database; no browser pass (`ui:check` should
 /finance and the Costs tab at 360 and 1024px with real data, in Afrikaans too); the live
 schedule preview in the agreement form; the farm data export does not yet include the new
 tables; the assistant has no "what do I owe" tool.
+
+## 2026-10-29 - Seven days' grace, then paused until paid
+
+Decided by the founder on 26 October and answered on 27 October: a missed payment has seven
+days' grace; after that the farm is paused until it pays, and its people may only pay and
+download their records; paying starts a fresh period from the payment date; nothing is
+billed while paused and nothing is deleted.
+
+- **Before:** dunning began only when a stored card failed, so a farm paying by EFT or
+  invoice never lost access; a card farm kept full access for about five weeks, was then
+  reduced to Essential rather than stopped, and closed about thirty days later.
+- **The gate reads invoices** (`app.farm_overdue_since`): the oldest unpaid subscription,
+  plan-change, slot or AI invoice, leaving out one with a payment in flight (so an
+  unsettled webhook cannot lock out a farm that paid) and one that was refunded. From day 8
+  the gate answers `suspended`; `billing_settings.access_grace_days` holds the 7.
+- **One lever stops every channel.** The nightly run (`app.billing_apply_suspensions`, in
+  place of the downgrades) marks the subscription and sets `farms.status = 'suspended'`
+  with `suspended_for = 'billing'`. About thirty database checks already stop a farm that
+  is not trial or active, so API tokens, WhatsApp, capture and the notification and
+  report engines stop without each being rewritten. A Rapid Rise hold (no reason) stays
+  `closed`. Only Rapid Rise can update a farm row, so no farm lifts its own pause.
+- **The app:** the layout checks the farm being viewed as well as the home farm, and
+  `requireRole`, `requireFarmRole` and `requireApiRole` ask the gate once per request
+  (failing open), so the server actions and API routes stop too; contractors cannot work
+  on a paused farm. `/suspended` shows the overdue amount to owners and managers, Pay now
+  (the proven hosted checkout), an EFT note, Download my records and sign out.
+- **Coming back:** `app.billing_restore_after_payment` resumes a suspended farm once nothing
+  overdue is left, re-anchors the period to the payment date and tells the farm. The card
+  is retried weekly for four weeks. Rapid Rise can keep a farm open until a date, with a
+  recorded reason, from the admin billing page (service role, actor passed in).
+- Test farms are `billing_exempt`. The terms' "If a payment fails" clause says the new rule
+  (TERMS_VERSION 2026-10-29). BILLING.md section 11, the founder decisions, the go-live and
+  release-gate docs and the checklist say it too.
+
+Suite `billing_suspension.sql` (card and EFT farms, test farm, inside the grace, payment in
+flight, refunded, extended, Rapid Rise hold; the engine once; no invoice while paused; the
+weekly retry; one of two invoices paid; the re-anchored period; the extension's guard),
+mutation-tested against the refund exclusion and the re-anchor. All 50 SQL suites and 728
+unit tests pass.

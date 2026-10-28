@@ -79,6 +79,10 @@ export const BILLING_RPC = {
   // reach this month. A no-op until billing_settings.ai_billing_starts_on is set.
   cronGenerateAiUsageInvoices: "cron_generate_ai_usage_invoices",
   applyDowngrades: "cron_apply_billing_downgrades",
+  // Seven days' grace, then suspended until paid (20261029090100). Replaces the downgrade
+  // step in the nightly run; the downgrade wrapper stays for the history it explains.
+  applySuspensions: "cron_apply_billing_suspensions",
+  extendAccess: "admin_extend_billing_access",
   closeCancellations: "cron_close_billing_cancellations",
   enqueueReminders: "cron_enqueue_billing_reminders",
   // Telling a farm BEFORE the money comes off (20260918140000). Every other billing
@@ -1211,7 +1215,7 @@ export async function resumeSubscription(
  * query failed is a far worse outcome than letting an unpaid one through for one page
  * load, and the unpaid case has no data to reach anyway.
  */
-export type BillingGate = "ok" | "pending" | "closed";
+export type BillingGate = "ok" | "pending" | "suspended" | "closed";
 
 export async function farmBillingGate(
   supabase: SupabaseClient,
@@ -1228,6 +1232,7 @@ export async function farmBillingGate(
     return "ok";
   }
   if (data === "pending") return "pending";
+  if (data === "suspended") return "suspended";
   if (data === "closed") return "closed";
   return "ok";
 }

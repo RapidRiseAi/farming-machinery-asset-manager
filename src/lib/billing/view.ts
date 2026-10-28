@@ -1244,6 +1244,9 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "adminBilling.savedDiscount", tone: "info" };
     case "discount-cleared":
       return { key: "adminBilling.savedDiscountCleared", tone: "info" };
+    // Stays put: it changes when a farm is stopped, and the admin should read what they did.
+    case "access-extended":
+      return { key: "adminBilling.savedAccessExtended", tone: "info" };
 
     default:
       return { key: "ui.savedChanges", tone: "success" };

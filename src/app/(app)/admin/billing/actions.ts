@@ -15,6 +15,8 @@ import {
 } from "@/lib/billing/service";
 import { reconcileAttemptById, retryInvoiceCharge } from "@/lib/billing/worker";
 import { createServiceClient } from "@/lib/supabase/service";
+import { isIsoDate, isUuid } from "@/lib/ids";
+import { errorCode } from "@/lib/action-errors";
 
 /**
  * Rapid Rise's own billing controls.
@@ -324,6 +326,36 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
   revalidatePath("/admin/billing");
   revalidatePath("/billing");
   redirect(`/admin/billing?saved=${percentBps == null && fixedCents == null ? "discount-cleared" : "discount"}`);
+}
+
+/**
+ * Keep a farm open past the seven days' grace, until a date and for a reason (an EFT the
+ * bank has confirmed, a farmer in hospital). Lifts a suspension at once; the farm is
+ * suspended again by the nightly run if it is still unpaid after the date. Up to 60 days.
+ * Service role, with the acting admin passed in (20261029090100), like the discount setter.
+ */
+export async function adminExtendAccess(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  if (profile.role !== "rr_admin") bounce("forbidden");
+
+  const farmId = String(formData.get("farm_id") ?? "").trim();
+  const until = String(formData.get("until") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!isUuid(farmId)) bounce("missing-id");
+  if (!isIsoDate(until)) bounce("billing-extend-bad");
+  if (!reason) bounce("billing-extend-reason");
+
+  const supabase = createServiceClient();
+  const { error } = await supabase.rpc(BILLING_RPC.extendAccess, {
+    p_farm: farmId,
+    p_until: until,
+    p_reason: reason,
+    p_by: profile.id,
+  });
+  if (error) bounce(error.code === "22023" ? "billing-extend-bad" : errorCode(error, "admin-billing:extend-access"));
+
+  revalidatePath("/admin/billing");
+  redirect("/admin/billing?saved=access-extended");
 }
 
 /**

@@ -1169,8 +1169,8 @@
     "tplStockShort": "The next {days} days need {committed} {unit} of {part} and you have {on_hand}, {short} short.",
     "tplBillingPaymentFailed": "Your FleetWise subscription payment did not go through. We will try again on {date}.",
     "tplBillingPaymentFailedFinal": "Your FleetWise subscription payment did not go through and we have stopped retrying. Update your card to carry on.",
-    "tplBillingGraceEnding": "Your FleetWise subscription is unpaid. If it is not settled by {date} your plan will be reduced. Nothing will be deleted.",
-    "tplBillingGraceEndingSoon": "Your FleetWise subscription is unpaid and your plan will be reduced soon. Nothing will be deleted.",
+    "tplBillingGraceEnding": "Your Fleet Wise subscription is unpaid. If it is not paid by {date}, the app will pause until it is. Nothing will be deleted.",
+    "tplBillingGraceEndingSoon": "Your Fleet Wise subscription is unpaid, and the app will pause soon if it is not paid. Nothing will be deleted.",
     "tplBillingDowngraded": "Your plan has been reduced to {plan} because the subscription is unpaid. Nothing has been deleted. Pay to get it back.",
     "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment.",
     "tplBillingDispute": "A customer has disputed a payment of {amount} ({event}). Respond through Paystack within 48 business hours or it is accepted automatically and taken from a payout.",
@@ -1195,7 +1195,9 @@
     "aiKeyReasonQuota": "out of credit",
     "aiKeyReasonRefused": "refused",
     "aiKeyReasonUnreadable": "it can no longer be read and must be linked again",
-    "tplJobAssigned": "A work item has been assigned to you. Open it to view the details."
+    "tplJobAssigned": "A work item has been assigned to you. Open it to view the details.",
+    "tplBillingSuspended": "Fleet Wise is paused for your farm because a payment is more than seven days overdue. Pay it to carry on; nothing has been deleted.",
+    "tplBillingResumed": "Thank you, your payment is in and Fleet Wise is open again for your farm."
   },
   "settings": {
     "notSet": "Not set",
@@ -5272,7 +5274,10 @@
     "emailTestOnly": "This is a test farm or test account, so it can only send email to test addresses.",
     "stillSaving": "Your last change is still being saved. Check the page in a moment before you try again.",
     "recurringLineFailed": "The schedule is saved, but its first line was not. Add the line here.",
-    "documentLinesFailed": "The document was saved, but its lines were not copied. Add them here before you send it."
+    "documentLinesFailed": "The document was saved, but its lines were not copied. Add them here before you send it.",
+    "farmNotActive": "That farm's Fleet Wise is paused or closed, so this cannot be done until it is active again.",
+    "billingExtendBad": "Choose a date from today up to 60 days ahead.",
+    "billingExtendReason": "Say why access is kept open."
   },
   "billing": {
     "title": "Billing",
@@ -5627,7 +5632,15 @@
     "startDialogTitle": "Start a subscription",
     "billedForTitle": "What they are billed for",
     "changeOpen": "Change",
-    "discountOpen": "Set their price"
+    "discountOpen": "Set their price",
+    "accessTitle": "Access past the grace",
+    "extendOpen": "Keep open",
+    "extendTitle": "Keep {farm} open past the grace",
+    "extendLead": "A farm is paused seven days after an invoice falls due. Keep it open until a date when you know the payment is coming. It is paused again after that date if still unpaid.",
+    "extendUntil": "Keep open until",
+    "extendReason": "Why (kept with the farm's billing)",
+    "extendSave": "Keep open",
+    "savedAccessExtended": "Access kept open until the date you chose. If it is still unpaid after that, the farm is paused again overnight."
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -6959,5 +6972,16 @@
     "previewTitle": "What it works out to",
     "previewEmpty": "Fill in the amount, the term, the first instalment and the rate or the instalment.",
     "previewValue": "{instalment} an instalment · {interest} interest and fees over the term · {rate}% · last due {last}"
+  },
+  "suspended": {
+    "title": "Fleet Wise is paused for this farm",
+    "lead": "A payment is more than seven days overdue, so the app is paused until it is paid. Everything comes back the moment it is.",
+    "owed": "{amount} is unpaid, due since {date}.",
+    "pay": "Pay now",
+    "askOwner": "Ask the farm's owner or manager to pay, and it will open again for everyone.",
+    "eft": "Paying by EFT? Email {email} and we will send our banking details; access opens as soon as the payment is confirmed.",
+    "dataSafe": "Nothing has been deleted. Every vehicle, service, job card, fault and cost is still here, and it is still yours.",
+    "download": "Download my records",
+    "help": "Questions about this, email {email} and a person will help."
   }
 }

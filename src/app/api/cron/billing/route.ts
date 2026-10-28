@@ -221,8 +221,10 @@ export async function GET(request: Request) {
     captureError(err, { where: "cron:billing:charges" });
   }
 
-  // 5 == Grace has run out for somebody. Reduce the effective plan; delete nothing.
-  await run("apply_downgrades", BILLING_RPC.applyDowngrades);
+  // 5 == An invoice is more than the grace (7 days) overdue: the farm is suspended until it
+  // pays, and its people may only pay and download their records (decision of 26 October
+  // 2026). This replaced reducing the plan. Nothing is deleted.
+  await run("apply_suspensions", BILLING_RPC.applySuspensions);
 
   // 6 == Cancellations that have reached their period end.
   await run("close_cancellations", BILLING_RPC.closeCancellations);

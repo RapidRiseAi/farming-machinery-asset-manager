@@ -1323,14 +1323,18 @@ declare
     -- AI and voice use on the invoice (20261010090000). They stamp ledger rows and write
     -- invoices, so they are reached only through the generator and the cron wrapper.
     'ai_billing_from','ai_unbilled_cents','billing_attach_ai_usage','generate_ai_usage_invoices',
-    'ai_billing_cutoff'];
+    'ai_billing_cutoff',
+    -- Suspension for non-payment (20261029090100). The overdue test reads invoices, payments
+    -- and attempts; the engine writes subscriptions and farms. Reached only through
+    -- app.farm_billing_gate, the restore after a payment and the cron wrapper.
+    'farm_overdue_since','billing_apply_suspensions'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
     'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
     'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices',
-    'cron_generate_ai_usage_invoices'];
+    'cron_generate_ai_usage_invoices','cron_apply_billing_suspensions'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1355,7 +1359,10 @@ declare
     -- Team invites (20261005120000). Reads billing_payments, never writes billing, to tell
     -- a sign-up that never paid (whose people move to the inviting farm) from a farm that
     -- has. Service role only: it writes profiles and memberships for the team action.
-    'team_invite_existing'];
+    'team_invite_existing',
+    -- Rapid Rise keeps a farm open past the grace (20261029090100). Service role only, the
+    -- discount setter's reasoning: the rr_admin check lives in the action, the actor is passed.
+    'admin_extend_billing_access'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.

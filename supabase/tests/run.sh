@@ -210,5 +210,7 @@ echo "==> running support desk tests (who sees which request, staff gates, answe
 pg "$DB" < "$ROOT/supabase/tests/support_desk.sql"
 echo "==> running machinery finance and lease tests (owners and managers only, schedule, costs)"
 pg "$DB" < "$ROOT/supabase/tests/asset_finance.sql"
+echo "==> running suspension tests (seven days, then pay or download only)"
+pg "$DB" < "$ROOT/supabase/tests/billing_suspension.sql"
 
 echo "==> OK"

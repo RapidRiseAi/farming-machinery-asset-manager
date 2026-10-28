@@ -112,11 +112,22 @@ export default async function AppLayout({
   // Rapid Rise suspended. Until that migration the gate had no such state and NOTHING ever
   // took access away, a farm that stopped paying kept the product on the downgrade plan
   // for ever, and a farm that cancelled kept all of it.
+  //
+  // 'suspended' (20261029090100): an invoice more than seven days overdue. Only the farm's
+  // own pay-and-download page. The farm being LOOKED AT is checked as well as the home
+  // farm: a member who switches to another site must not use it while it is suspended.
   if (profile.farm_id && profile.role !== "rr_admin" && profile.role !== "workshop") {
     const gateClient = await createClient();
     const gate = await farmBillingGate(gateClient, profile.farm_id);
     if (gate === "pending") redirect("/activate");
+    if (gate === "suspended") redirect("/suspended");
     if (gate === "closed") redirect("/closed");
+    const viewing = await currentFarmId(profile);
+    if (viewing && viewing !== profile.farm_id) {
+      const other = await farmBillingGate(gateClient, viewing);
+      if (other === "suspended") redirect("/suspended?farm=" + viewing);
+      if (other === "closed" || other === "pending") redirect("/closed");
+    }
   }
 
   const locale = profile.lang;
