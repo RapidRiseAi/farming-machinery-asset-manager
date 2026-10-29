@@ -39,9 +39,9 @@ function readEnv(name) {
  */
 const PROBES = {
   // Second review fixes: the reversal decides by paid invoices (a new branch in it).
-  "20261029130000": "select pg_get_functiondef('app.billing_reverse_manual_payment(uuid,text,uuid)'::regprocedure) like '%bi.status = ''paid''%'",
+  "20261029130000": "select coalesce(pg_get_functiondef(to_regprocedure('app.billing_reverse_manual_payment(uuid,text,uuid)')) like '%bi.status = ''paid''%', false)",
   // Review fixes: the reversal puts a bounced sign-up back to pending (a new branch in it).
-  "20261029120000": "select pg_get_functiondef('app.billing_reverse_manual_payment(uuid,text,uuid)'::regprocedure) like '%v_sub uuid%'",
+  "20261029120000": "select coalesce(pg_get_functiondef(to_regprocedure('app.billing_reverse_manual_payment(uuid,text,uuid)')) like '%v_sub uuid%', false)",
   // Once-off service invoices and their catalogue.
   "20261029110000": "select to_regclass('public.billing_service_catalogue') is not null and to_regprocedure('public.billing_raise_service_invoice(uuid,jsonb,date,uuid)') is not null",
   // Payments made outside the app, recorded by Rapid Rise with proof.
