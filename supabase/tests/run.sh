@@ -216,5 +216,7 @@ echo "==> running payments-outside-the-app tests (recorded with proof, never twi
 pg "$DB" < "$ROOT/supabase/tests/billing_manual_payments.sql"
 echo "==> running service invoice tests (never charged to a card, never a pause)"
 pg "$DB" < "$ROOT/supabase/tests/billing_service_invoices.sql"
+echo "==> running fourth billing review tests (cancellations close, reopening, the sweep, exempt farms)"
+pg "$DB" < "$ROOT/supabase/tests/billing_review_4.sql"
 
 echo "==> OK"
