@@ -26,13 +26,14 @@ export async function beginCheckoutAction(formData: FormData): Promise<void> {
   const asked = String(formData.get("farm") ?? "");
   const farmId = isUuid(asked) ? asked : profile.farm_id;
   if (!farmId) redirect("/home");
+  const which = farmId !== profile.farm_id ? `&farm=${farmId}` : "";
 
   // Only somebody who can commit the farm to a subscription may start the payment. An
   // operator on a pending farm sees this page (they are gated to it like everyone else)
   // and must not be able to put their employer on a paid plan.
   const farmRole = await effectiveFarmRole(farmId, profile);
   if (farmRole !== "owner" && farmRole !== "manager") {
-    redirect("/activate?error=forbidden");
+    redirect(`/activate?error=forbidden${which}`);
   }
 
   // Re-checked here and not merely on the page. A server action is an endpoint: the page's
@@ -48,6 +49,6 @@ export async function beginCheckoutAction(formData: FormData): Promise<void> {
     email,
     userId: profile.id,
   });
-  if (!started.ok) redirect(`/activate?error=${started.code}`);
+  if (!started.ok) redirect(`/activate?error=${started.code}${which}`);
   redirect(started.url);
 }

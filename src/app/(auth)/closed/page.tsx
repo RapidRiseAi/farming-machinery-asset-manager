@@ -120,7 +120,7 @@ export default async function ClosedPage({
 
         {canReopen && reason !== "suspended" ? (
           <form action={reopenFarm} className="mt-6">
-            {farmId !== farmId ? <input type="hidden" name="farm" value={farmId} /> : null}
+            {farmId !== profile.farm_id ? <input type="hidden" name="farm" value={farmId} /> : null}
             <SubmitButton className="w-full">
               {t("closed.reopen", locale)}
             </SubmitButton>

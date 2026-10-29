@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Second review fixes: the reversal decides by paid invoices (a new branch in it).
+  "20261029130000": "select pg_get_functiondef('app.billing_reverse_manual_payment(uuid,text,uuid)'::regprocedure) like '%bi.status = ''paid''%'",
   // Review fixes: the reversal puts a bounced sign-up back to pending (a new branch in it).
   "20261029120000": "select pg_get_functiondef('app.billing_reverse_manual_payment(uuid,text,uuid)'::regprocedure) like '%v_sub uuid%'",
   // Once-off service invoices and their catalogue.

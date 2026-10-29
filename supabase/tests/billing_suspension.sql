@@ -250,9 +250,9 @@ end $$;
 insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
   ('c5000000-0000-0000-0000-000000000009', 'Suspend Annual', 'complete', 'active', 'annual', 's9@billing.invalid', false);
 insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
-  current_period_start, current_period_end, next_billing_on) values
+  current_period_start, current_period_end, next_billing_on, anchor_day) values
   ('c5600000-0000-0000-0000-000000000009', 'c5000000-0000-0000-0000-000000000009', 'complete', 'annual', 'active',
-   current_date - 300, current_date + 64, current_date + 65);
+   current_date - 300, current_date + 64, current_date + 65, extract(day from current_date + 65)::int);
 insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status, kind,
   period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
   unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
@@ -279,7 +279,7 @@ begin
   select * into r from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000009';
   if r.status <> 'active' then raise exception 'SUSPEND FAIL [h]: paid the AI invoice but still %', r.status; end if;
   if r.current_period_start <> current_date - 300 or r.current_period_end <> current_date + 74
-     or r.next_billing_on <> current_date + 75 then
+     or r.next_billing_on <> current_date + 75 or r.anchor_day <> extract(day from current_date + 75)::int then
     raise exception 'SUSPEND FAIL [h]: the paid year was moved (% to %, next %), expected only ten days on',
       r.current_period_start, r.current_period_end, r.next_billing_on;
   end if;
@@ -322,9 +322,9 @@ end $$;
 insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
   ('c5000000-0000-0000-0000-000000000011', 'Suspend Hospital', 'complete', 'active', 'monthly', 's11@billing.invalid', false);
 insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
-  current_period_start, current_period_end, next_billing_on) values
+  current_period_start, current_period_end, next_billing_on, anchor_day) values
   ('c5600000-0000-0000-0000-000000000011', 'c5000000-0000-0000-0000-000000000011', 'complete', 'monthly', 'active',
-   current_date - 70, current_date - 41, current_date - 40);
+   current_date - 70, current_date - 41, current_date - 40, extract(day from current_date - 40)::int);
 insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status, kind,
   period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
   unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
@@ -352,6 +352,17 @@ begin
   perform app.generate_billing_invoices(null);
   select count(*) into after_n from billing_invoices where farm_id = 'c5000000-0000-0000-0000-000000000011';
   if after_n <> before_n then raise exception 'SUSPEND FAIL [j]: the suspended weeks were invoiced after the extension'; end if;
+  if r.anchor_day <> extract(day from current_date + 15)::int then
+    raise exception 'SUSPEND FAIL [j]: the anchor did not move with the period (%)', r.anchor_day;
+  end if;
+  -- The generator ends a period at billing_advance_period(start, period, anchor_day) - 1.
+  -- With the anchor moved, the period starting on the moved billing date is a FULL month;
+  -- with the old anchor it was cut short and the compensation vanished.
+  if app.billing_advance_period(r.next_billing_on, 'monthly', r.anchor_day)
+     <> (r.next_billing_on + interval '1 month')::date then
+    raise exception 'SUSPEND FAIL [j]: the period from the moved date ends % (anchor %), not a full month later',
+      app.billing_advance_period(r.next_billing_on, 'monthly', r.anchor_day), r.anchor_day;
+  end if;
 end $$;
 
 rollback;

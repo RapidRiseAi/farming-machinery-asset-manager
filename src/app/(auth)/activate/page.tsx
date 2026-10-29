@@ -8,7 +8,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { must } from "@/lib/supabase/must";
-import { farmBillingGate } from "@/lib/billing/service";
+import { farmBillingGate, openInvoiceForFarm } from "@/lib/billing/service";
 import { STALE_PENDING_MINUTES } from "@/lib/billing/worker";
 import { buttonVariants } from "@/components/ui/button";
 import { signOut } from "@/app/(app)/actions";
@@ -18,6 +18,7 @@ import { MachinesIcon } from "@/components/ui/icons";
 import { beginCheckoutAction } from "./actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { isUuid } from "@/lib/ids";
+import { SwitchFarm } from "@/components/billing/switch-farm";
 
 /**
  * The screen a farm sees between signing up and paying.
@@ -69,19 +70,11 @@ export default async function ActivatePage({
     | { plan: string; billing_period: string; asset_quota: number | null }
     | null;
 
-  const invData = must(
-    await supabase
-      .from("billing_invoices")
-      .select("invoice_ref, total_incl_cents")
-      .eq("farm_id", farmId)
-      .eq("status", "open")
-      .is("deleted_at", null)
-      .order("issued_on", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    "activate:invoice",
-  );
-  const invoice = invData as { invoice_ref: string; total_incl_cents: number } | null;
+  // The invoice the Pay button will charge, chosen exactly as the checkout chooses it
+  // (openInvoiceForFarm: not a once-off service invoice, not a refunded one). Reading "the
+  // latest open invoice" showed an onboarding fee's amount over a checkout that charged the
+  // plan.
+  const invoice = await openInvoiceForFarm(supabase, farmId);
 
   // == Has this person ALREADY paid, seconds ago? ==============================
   //
@@ -204,7 +197,7 @@ export default async function ActivatePage({
         ) : (
           <>
             <form action={beginCheckoutAction} className="mt-6">
-              {farmId !== farmId ? <input type="hidden" name="farm" value={farmId} /> : null}
+              {farmId !== profile.farm_id ? <input type="hidden" name="farm" value={farmId} /> : null}
               <SubmitButton className="w-full">
                 {invoice
                   ? t("activate.payAmount", locale).replace(
@@ -224,6 +217,8 @@ export default async function ActivatePage({
           somebody signed in to the wrong account, or on a shared farm-office machine, had
           one button and no exit. Saying WHO they are signed in as is half of it: "this is
           not me" cannot be acted on if the page never says who "me" is. */}
+      <SwitchFarm profile={profile} current={farmId} locale={locale} />
+
       <form action={signOut} className="text-center">
         <p className="text-xs text-sand-600">
           {t("gate.signedInAs", locale).replace("{email}", profile.email ?? "-")}

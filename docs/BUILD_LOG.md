@@ -6018,3 +6018,15 @@ release (money, access, runtime) and ran their scenarios on PGlite. Fixed:
 
 Each money fix has a test that fails without it (suspension h, i, j; manual payments e;
 service invoices e). 52 SQL suites, 732 unit tests.
+
+Verifying those fixes found three more, fixed in `20261029130000` and the app: a sign-up
+put back to pending by a reversal was then swept by the dormant sign-up cleaner after seven
+days (its debt voided, its farm deleted), so reversed payments now count as money recorded;
+the day-shift left `anchor_day`, so the next period snapped back to the old date and the
+compensation vanished, so the anchor moves with it; and a sign-up that paid in two transfers
+kept access when one bounced, so pending is now decided by whether any invoice is still
+paid. On the app side my own replacement had broken the stopped pages' hidden farm field
+(Reopen and Pay acted on the home farm); the farm now travels through every redirect,
+`/activate` offers the other farms and shows the invoice the checkout will actually charge,
+and the voice meter's usage reports are accepted from a stopped farm (refusing them billed
+an open session at its maximum). Each has a test that fails without it. 52 suites.

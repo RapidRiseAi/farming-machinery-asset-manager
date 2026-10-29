@@ -183,6 +183,26 @@ begin
      or app.farm_billing_gate('d6000000-0000-0000-0000-000000000004') <> 'pending' then
     raise exception 'MANUAL FAIL [e]: a sign-up whose only payment bounced kept its access';
   end if;
+  -- Swept? A sign-up whose payment bounced is a conversation, not a dormant row: even
+  -- older than the sweep's seven days it keeps its farm, its people and its debt.
+  update billing_subscriptions set created_at = now() - interval '10 days' where id = 'd6600000-0000-0000-0000-000000000004';
+  perform app.sweep_dormant_signups(7);
+  if (select deleted_at from farms where id = 'd6000000-0000-0000-0000-000000000004') is not null
+     or (select status from billing_invoices where id = 'd6800000-0000-0000-0000-000000000004') <> 'open' then
+    raise exception 'MANUAL FAIL [e]: the dormant sweep deleted a farm whose payment had bounced';
+  end if;
+  -- Paid in two transfers, one bounces: no invoice is paid any more, so back to pending.
+  perform public.billing_record_manual_payment('d6800000-0000-0000-0000-000000000004', 1000, 'eft', 'TWO-A',
+    current_date, null, 'p/g.pdf', 'd6a00000-0000-0000-0000-000000000009');
+  v_pay := public.billing_record_manual_payment('d6800000-0000-0000-0000-000000000004', 1000, 'eft', 'TWO-B',
+    current_date, null, 'p/h.pdf', 'd6a00000-0000-0000-0000-000000000009');
+  if (select status from billing_subscriptions where id = 'd6600000-0000-0000-0000-000000000004') <> 'active' then
+    raise exception 'MANUAL FAIL [e]: paid in full in two transfers but not active';
+  end if;
+  perform public.billing_reverse_manual_payment(v_pay, 'second transfer bounced', 'd6a00000-0000-0000-0000-000000000009');
+  if (select status from billing_subscriptions where id = 'd6600000-0000-0000-0000-000000000004') <> 'pending' then
+    raise exception 'MANUAL FAIL [e]: half paid after a bounced transfer, but still active';
+  end if;
   -- A farm with other money in keeps its state when one payment is reversed.
   if (select status from billing_subscriptions where id = 'd6600000-0000-0000-0000-000000000001') <> 'active' then
     raise exception 'MANUAL FAIL [e]: an earlier farm changed state';

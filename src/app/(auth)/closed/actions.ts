@@ -22,8 +22,9 @@ import { isUuid } from "@/lib/ids";
  * production. Writing a second payment route for this case would double the number of
  * things that have to stay correct, for no gain.
  */
-function bounce(code: string): never {
-  redirect(`/closed?error=${encodeURIComponent(code)}`);
+/** Back to the closed page with the reason, and with the farm when it is not the home one. */
+function bounce(code: string, which = ""): never {
+  redirect(`/closed?error=${encodeURIComponent(code)}${which ? `&${which}` : ""}`);
 }
 
 export async function reopenFarm(formData: FormData): Promise<void> {
@@ -31,6 +32,7 @@ export async function reopenFarm(formData: FormData): Promise<void> {
   const asked = String(formData.get("farm") ?? "");
   const farmId = isUuid(asked) ? asked : profile.farm_id;
   if (!farmId) redirect("/home");
+  const which = farmId !== profile.farm_id ? `farm=${farmId}` : "";
 
   // Only somebody who can commit the farm to a subscription may restart one. An operator
   // on a closed farm sees this screen, they are gated to it like everyone else, and must
@@ -38,7 +40,7 @@ export async function reopenFarm(formData: FormData): Promise<void> {
   // line for exactly this reason.
   const farmRole = await effectiveFarmRole(farmId, profile);
   if (farmRole !== "owner" && farmRole !== "manager") {
-    bounce("forbidden");
+    bounce("forbidden", which);
   }
 
   // Re-checked here and not merely on the page: a server action is an endpoint, and the
@@ -48,8 +50,8 @@ export async function reopenFarm(formData: FormData): Promise<void> {
 
   const service = createServiceClient();
   const done = await reopenFarmSubscription(service, farmId, profile.id);
-  if (!done.ok) bounce("billing-save-failed");
+  if (!done.ok) bounce("billing-save-failed", which);
 
   // The gate now answers 'pending', so /activate is reachable and carries the invoice.
-  redirect("/activate");
+  redirect(`/activate${which ? `?${which}` : ""}`);
 }
