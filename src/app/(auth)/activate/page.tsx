@@ -75,6 +75,10 @@ export default async function ActivatePage({
   // latest open invoice" showed an onboarding fee's amount over a checkout that charged the
   // plan.
   const invoice = await openInvoiceForFarm(supabase, farmId);
+  // What the checkout will charge: what is still owed on it, not its total. A sign-up that
+  // paid in two transfers, one of which bounced, owes half (beginCheckout charges total
+  // less paid).
+  const owedCents = invoice ? Math.max(0, invoice.total_incl_cents - invoice.amount_paid_cents) : 0;
 
   // == Has this person ALREADY paid, seconds ago? ==============================
   //
@@ -144,7 +148,7 @@ export default async function ActivatePage({
             {invoice ? (
               <div className="flex justify-between gap-4">
                 <dt className="text-sand-700">{t("activate.amount", locale)}</dt>
-                <dd className="font-semibold">{rands(invoice.total_incl_cents)}</dd>
+                <dd className="font-semibold">{rands(owedCents)}</dd>
               </div>
             ) : null}
           </dl>
@@ -188,7 +192,7 @@ export default async function ActivatePage({
                 anything, and it gives somebody watching a spinner something to press
                 other than the browser's back button. */}
             <Link
-              href="/activate"
+              href={farmId !== profile.farm_id ? `/activate?farm=${farmId}` : "/activate"}
               className={`${buttonVariants({ variant: "secondary" })} mt-3 w-full`}
             >
               {t("activate.settlingRefresh", locale)}
@@ -202,7 +206,7 @@ export default async function ActivatePage({
                 {invoice
                   ? t("activate.payAmount", locale).replace(
                       "{amount}",
-                      rands(invoice.total_incl_cents),
+                      rands(owedCents),
                     )
                   : t("activate.pay", locale)}
               </SubmitButton>

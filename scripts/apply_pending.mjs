@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Third review fixes: the generator raises a reopened farm an invoice (its new pending rule).
+  "20261029140000": "select coalesce(pg_get_functiondef(to_regprocedure('app.generate_billing_invoices(uuid)')) like '%i.status in (''draft'', ''open'')%', false)",
   // Second review fixes: the reversal decides by paid invoices (a new branch in it).
   "20261029130000": "select coalesce(pg_get_functiondef(to_regprocedure('app.billing_reverse_manual_payment(uuid,text,uuid)')) like '%bi.status = ''paid''%', false)",
   // Review fixes: the reversal puts a bounced sign-up back to pending (a new branch in it).

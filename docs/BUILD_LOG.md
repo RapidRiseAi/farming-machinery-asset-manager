@@ -6030,3 +6030,20 @@ paid. On the app side my own replacement had broken the stopped pages' hidden fa
 `/activate` offers the other farms and shows the invoice the checkout will actually charge,
 and the voice meter's usage reports are accepted from a stopped farm (refusing them billed
 an open session at its maximum). Each has a test that fails without it. 52 suites.
+
+A third verification pass found four more, fixed in `20261029140000`. An extension granted
+on the day of the pause moved `anchor_day` although no day had been lost, so a month-end
+anchor (31) dropped to the 28th and every later month was cut short; the anchor now moves
+only when days were actually spent paused. The extension also set a farm that had
+cancelled back to active, so it was never closed and was invoiced again; it returns to
+non-renewing, as the restore does. The invoice run only invoiced a pending subscription
+that had never had an invoice, so a farm that had paid for years, cancelled and reopened
+had nothing to pay and could not come back; the rule is now "no unpaid invoice open".
+And the team invite's "never paid" test ignored reversed payments while the dormant sweep
+counts them. On `/activate` the amount and the Pay button show what is still owed (total
+less paid) and the refresh link keeps the farm. Suspension tests k and l fail without the
+fix. 52 suites, 732 unit tests.
+
+Known and left: a reopened farm with older paid invoices whose new EFT bounces keeps access
+until its seven days' grace run out (the reversal cannot tell it from a farm that paid this
+period). The gate still closes it then.

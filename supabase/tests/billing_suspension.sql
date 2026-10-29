@@ -365,4 +365,71 @@ begin
   end if;
 end $$;
 
+
+-- == (k) a same-day extension keeps a month-end anchor; a cancelled farm stays non_renewing
+insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
+  ('c5000000-0000-0000-0000-000000000012', 'Suspend MonthEnd', 'complete', 'active', 'monthly', 's12@billing.invalid', false),
+  ('c5000000-0000-0000-0000-000000000013', 'Suspend Cancelled', 'complete', 'active', 'monthly', 's13@billing.invalid', false);
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on, anchor_day, suspended_at, cancel_at_period_end) values
+  ('c5600000-0000-0000-0000-000000000012', 'c5000000-0000-0000-0000-000000000012', 'complete', 'monthly', 'suspended',
+   date '2027-01-31', date '2027-02-27', date '2027-02-28', 31, now(), false),
+  ('c5600000-0000-0000-0000-000000000013', 'c5000000-0000-0000-0000-000000000013', 'complete', 'monthly', 'suspended',
+   current_date - 10, current_date + 19, current_date + 20, extract(day from current_date + 20)::int, now(), true);
+update farms set status = 'suspended', suspended_for = 'billing'
+ where id in ('c5000000-0000-0000-0000-000000000012', 'c5000000-0000-0000-0000-000000000013');
+do $$
+begin
+  perform public.admin_extend_billing_access('c5000000-0000-0000-0000-000000000012', current_date + 3, 'bank confirmed', 'c5a00000-0000-0000-0000-000000000009');
+  if (select anchor_day from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000012') <> 31 then
+    raise exception 'SUSPEND FAIL [k]: a same-day extension moved a month-end anchor to %',
+      (select anchor_day from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000012');
+  end if;
+  perform public.admin_extend_billing_access('c5000000-0000-0000-0000-000000000013', current_date + 3, 'bank confirmed', 'c5a00000-0000-0000-0000-000000000009');
+  if (select status from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000013') <> 'non_renewing' then
+    raise exception 'SUSPEND FAIL [k]: an extended farm that had cancelled became %',
+      (select status from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000013');
+  end if;
+end $$;
+
+-- == (l) a pending subscription with only PAID invoices behind it (a reopened farm) is
+--        raised an invoice to pay; one with an open invoice is not raised a second ========
+insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
+  ('c5000000-0000-0000-0000-000000000014', 'Suspend Reopened', 'complete', 'active', 'monthly', 's14@billing.invalid', false);
+insert into machines (farm_id, name, type, status)
+values ('c5000000-0000-0000-0000-000000000014', 'Reopened bakkie', 'bakkie', 'active');
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on, anchor_day, asset_quota) values
+  ('c5600000-0000-0000-0000-000000000014', 'c5000000-0000-0000-0000-000000000014', 'complete', 'monthly', 'pending',
+   null, null, current_date, extract(day from current_date)::int, 1);
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status, kind,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('c5800000-0000-0000-0000-000000000014', 'c5000000-0000-0000-0000-000000000014', 'c5600000-0000-0000-0000-000000000014',
+  'C5-OLD-14', 'draft', 'period', current_date - 400, current_date - 371, current_date - 400, current_date - 393,
+  'complete', 'monthly', 1, 1111, 1, 'c5500000-0000-0000-0000-000000000001', 'c5-synthetic', 0);
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+values ('c5800000-0000-0000-0000-000000000014', 'c5000000-0000-0000-0000-000000000014', 0, 'line', 1, 1, 1111, 1111, 1111, 0);
+update billing_invoices set status = 'open' where id = 'c5800000-0000-0000-0000-000000000014';
+insert into billing_payments (farm_id, invoice_id, amount_incl_cents, provider, provider_reference, provider_transaction_id, channel)
+values ('c5000000-0000-0000-0000-000000000014', 'c5800000-0000-0000-0000-000000000014', 1111, 'paystack', 'C5-OLD-PAY-14', 955000014, 'card');
+do $$
+declare n int;
+begin
+  perform app.generate_billing_invoices('c5600000-0000-0000-0000-000000000014');
+  select count(*) into n from billing_invoices
+   where subscription_id = 'c5600000-0000-0000-0000-000000000014' and status = 'open' and deleted_at is null;
+  if n <> 1 then
+    raise exception 'SUSPEND FAIL [l]: a reopened farm with only paid invoices was raised % invoice(s) to pay, expected 1', n;
+  end if;
+  update billing_subscriptions set next_billing_on = current_date where id = 'c5600000-0000-0000-0000-000000000014';
+  perform app.generate_billing_invoices('c5600000-0000-0000-0000-000000000014');
+  select count(*) into n from billing_invoices
+   where subscription_id = 'c5600000-0000-0000-0000-000000000014' and status = 'open' and deleted_at is null;
+  if n <> 1 then
+    raise exception 'SUSPEND FAIL [l]: a pending subscription with an open invoice was invoiced again (% open)', n;
+  end if;
+end $$;
+
 rollback;
