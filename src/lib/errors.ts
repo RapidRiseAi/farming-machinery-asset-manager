@@ -484,6 +484,29 @@ const CODE_KEYS: Record<string, string> = {
   "1": FALLBACK,
 
   unknown: FALLBACK,
+
+  // == Rapid Rise's billing console, the rest of its refusals (app-2) ===========
+  // Every refusal the four admin RPCs can raise, by their words, in their latest
+  // definitions: billing_record_manual_payment (20261029100000), billing_reverse_manual_payment
+  // (20261029130000), billing_raise_service_invoice (20261029120000) and
+  // admin_extend_billing_access (20261029140000, plus its paused-or-overdue rule). "Rapid
+  // Rise only" is 42501 and reads as `forbidden`; "BILLING: no subscription" folds onto
+  // `billing-no-subscription` above. `billing-amount-unclear` (app-5),
+  // `billing-manual-proof-failed` and `billing-service-qty` are the actions' own codes.
+  "billing-amount-unclear": "errors.billingAmountUnclear",
+  "billing-manual-proof-failed": "errors.billingManualProofFailed",
+  "billing-attach-the-proof-of-payment": "errors.billingManualProof",
+  "billing-no-such-invoice": "errors.billingNoSuchInvoice",
+  "billing-say-why-the-payment-is-reversed": "errors.billingManualReason",
+  "billing-no-such-farm": "errors.billingNoSuchFarm",
+  "billing-add-between-one-and-twenty-lines": "errors.billingServiceLines",
+  "billing-every-line-needs-a-description": "errors.billingServiceDescription",
+  "billing-a-quantity-must-be-from-1-to-10000": "errors.billingServiceQty",
+  "billing-service-qty": "errors.billingServiceQty",
+  "billing-a-price-must-be-from-r0-to-r1-000-000": "errors.billingServicePrice",
+  "billing-extend-access-by-up-to-60-days": "errors.billingExtendBad",
+  "billing-say-why-access-is-extended": "errors.billingExtendReason",
+  "billing-only-a-paused-or-overdue-farm-can-be-kept-open": "errors.billingExtendNotOverdue",
 };
 
 /**

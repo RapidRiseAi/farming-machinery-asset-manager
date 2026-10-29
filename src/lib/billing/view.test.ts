@@ -21,6 +21,8 @@
  */
 
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
 import { t } from "@/lib/i18n";
@@ -29,6 +31,9 @@ import {
   CARD_EXPIRY_WINDOW_DAYS,
   INVOICE_LOOK,
   SUBSCRIPTION_LOOK,
+  adminBillingRows,
+  adminRank,
+  adminTotals,
   billedUnits,
   billsOnQuota,
   cardExpiryOn,
@@ -39,6 +44,7 @@ import {
   fleetSummary,
   invoiceDocuments,
   nextChargeState,
+  offersKeepOpen,
   outstandingCents,
   payableInvoice,
   quoteReasonKey,
@@ -47,6 +53,7 @@ import {
   savedNotice,
   subscriptionDiscountCents,
   type AttemptRow,
+  type FarmBillingRow,
   type InvoiceRow,
   type PaymentMethodRow,
   type PriceRow,
@@ -650,10 +657,38 @@ test("the bill is offered for anything issued, and never for a draft or a void",
 //, the Postgres enum values, to every reader, including an Afrikaans farmer checking
 // whether October went through. The lists are the enums in
 // 20260903160000_saas_billing_core.sql, plus `pending` from 20260910220000.
+//
+// The subscription statuses are READ from the migrations rather than from
+// SUBSCRIPTION_LOOK (release-2): `suspended` (20261029090000) was in neither the look nor
+// the dictionaries, and a list taken from the look cannot notice what the look is missing.
+// The admin farm page labels them from its own group, `adminHome.subStatus`, so that is
+// held to the same enum.
+
+/** Every value of billing_subscription_status, as the migrations create and extend it. */
+function subscriptionStatuses(): string[] {
+  const dir = join(process.cwd(), "supabase", "migrations");
+  const sql = readdirSync(dir).sort().map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+  // Up to the closing line, not the first ";": the values carry comments that contain one.
+  const created = sql.match(/create type billing_subscription_status as enum \(([\s\S]*?)\n\);/);
+  assert.ok(created, "the billing_subscription_status enum was not found in the migrations");
+  const values = [...created[1].replace(/--[^\n]*/g, "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  for (const m of sql.matchAll(/alter type billing_subscription_status add value if not exists '([a-z_]+)'/g)) {
+    values.push(m[1]);
+  }
+  return values;
+}
+
+test("the subscription statuses are read from the migrations, suspended included", () => {
+  const statuses = subscriptionStatuses();
+  for (const s of ["trialing", "active", "past_due", "grace", "downgraded", "non_renewing", "cancelled", "pending", "suspended"]) {
+    assert.ok(statuses.includes(s), `${s} is missing from the enum read`);
+  }
+});
 
 test("every billing status and attempt kind has a label in both languages", () => {
   const groups: Record<string, string[]> = {
-    billingSubStatus: [...Object.keys(SUBSCRIPTION_LOOK), "pending"],
+    billingSubStatus: subscriptionStatuses(),
+    adminHome: subscriptionStatuses().map((s) => `subStatus.${s}`),
     billingInvoiceStatus: Object.keys(INVOICE_LOOK),
     billingAttemptStatus: Object.keys(ATTEMPT_LOOK),
     billingAttemptKind: ["initial_checkout", "charge_authorization", "manual_retry"],
@@ -813,4 +848,64 @@ test("a once-off service invoice is never what the pay buttons offer", () => {
   // The service invoice is older, and used to be offered; the button then paid the period.
   assert.equal(payableInvoice([service, period])?.id, "per");
   assert.equal(payableInvoice([service]), null);
+});
+
+// == A paused farm on Rapid Rise's console (release-2) ========================
+//
+// `suspended` (20261029090000) reached the console with no look, no rank and no count: the
+// badge was the neutral fallback, the farm sorted below `cancelled` at the bottom of a list
+// meant to show the worst first, and no headline figure included it.
+
+function farmRow(id: string, isTest = false): FarmBillingRow {
+  return { id, name: id, plan: "professional", billing_period: "monthly", status: "active", asset_count: 3, billing_address: null, is_test: isTest };
+}
+
+test("a paused farm wears the danger look, not the neutral fallback", () => {
+  assert.deepEqual(SUBSCRIPTION_LOOK.suspended, { tone: "danger", shape: "square" });
+});
+
+test("a paused farm ranks first, worse than every other state", () => {
+  for (const status of subscriptionStatuses().filter((s) => s !== "suspended")) {
+    assert.ok(adminRank("suspended") < adminRank(status), `suspended should rank before ${status}`);
+  }
+  const rows = adminBillingRows(
+    [
+      sub({ id: "s-cancelled", farm_id: "a-cancelled", status: "cancelled" }),
+      sub({ id: "s-downgraded", farm_id: "b-downgraded", status: "downgraded" }),
+      sub({ id: "s-suspended", farm_id: "z-suspended", status: "suspended" }),
+    ],
+    [farmRow("a-cancelled"), farmRow("b-downgraded"), farmRow("z-suspended")],
+  );
+  assert.deepEqual(rows.map((r) => r.sub.status), ["suspended", "downgraded", "cancelled"]);
+});
+
+test("paused farms have their own headline figure, and a paused test farm is not in it", () => {
+  const rows = adminBillingRows(
+    [
+      sub({ id: "s1", farm_id: "f1", status: "suspended" }),
+      sub({ id: "s2", farm_id: "f2", status: "suspended" }),
+      sub({ id: "s3", farm_id: "f3", status: "suspended" }),
+      sub({ id: "s4", farm_id: "f4", status: "past_due" }),
+    ],
+    [farmRow("f1"), farmRow("f2"), farmRow("f3", true), farmRow("f4")],
+  );
+  const totals = adminTotals(rows);
+  assert.equal(totals.suspended, 2);
+  assert.equal(totals.failing, 1);
+  assert.equal(totals.all, 3);
+});
+
+// == Keep open, only where the gate reads it (app-8) ==========================
+//
+// `app.farm_billing_gate` answers `pending` and `closed` before it reads
+// `access_extended_until`, so keeping such a farm open saved "access extended" and
+// changed nothing. The console does not offer it there.
+
+test("Keep open is offered for a paused or overdue farm, never for a sign-up, a closed farm or a downgrade", () => {
+  for (const status of ["suspended", "past_due", "grace", "active", "non_renewing", "trialing"]) {
+    assert.equal(offersKeepOpen(status), true, `${status} should offer Keep open`);
+  }
+  for (const status of ["pending", "cancelled", "downgraded"]) {
+    assert.equal(offersKeepOpen(status), false, `${status} should not offer Keep open`);
+  }
 });

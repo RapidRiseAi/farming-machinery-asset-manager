@@ -5295,7 +5295,16 @@
     "billingServiceBad": "Every line you include needs a description, a whole quantity of at least 1 and a price.",
     "billingServiceEmpty": "Fill in at least one line.",
     "billingServiceNothing": "That invoice adds up to nothing, so it was not raised.",
-    "billingServiceDue": "The due date must be within the next 120 days."
+    "billingServiceDue": "The due date must be within the next 120 days.",
+    "billingAmountUnclear": "That amount can be read more than one way. Type it like 1500 or 1 500,00.",
+    "billingManualProofFailed": "The proof of payment could not be stored, so nothing was recorded. Try again in a moment.",
+    "billingNoSuchInvoice": "That invoice no longer exists. Refresh the page and choose it again.",
+    "billingNoSuchFarm": "That farm no longer exists, so no invoice was raised.",
+    "billingServiceLines": "An invoice has between one and twenty lines.",
+    "billingServiceDescription": "Every line needs a description of up to 200 characters.",
+    "billingServiceQty": "A quantity must be a whole number from 1 to 10 000.",
+    "billingServicePrice": "A price must be from R0 to R1 000 000 each.",
+    "billingExtendNotOverdue": "Only a paused or overdue farm can be kept open. A farm still waiting for its first payment needs that payment recorded instead."
   },
   "billing": {
     "title": "Billing",
@@ -5691,7 +5700,8 @@
     "serviceDue": "Due by (optional)",
     "serviceNote": "A service invoice is never charged to the farm's card automatically and never pauses the farm. It is paid by EFT, recorded here, or by its link.",
     "serviceSave": "Raise invoice",
-    "savedServiceInvoice": "Service invoice raised. It is in the farm's invoices below."
+    "savedServiceInvoice": "Service invoice raised. It is in the farm's invoices below.",
+    "statSuspended": "Paused"
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -6055,7 +6065,8 @@
     "downgraded": "Plan reduced",
     "non_renewing": "Not renewing",
     "cancelled": "Cancelled",
-    "pending": "Awaiting payment"
+    "pending": "Awaiting payment",
+    "suspended": "Paused until paid"
   },
   "billingInvoiceStatus": {
     "draft": "Draft",
@@ -6666,7 +6677,8 @@
       "grace": "In grace",
       "downgraded": "Downgraded for not paying",
       "non_renewing": "Ends at the period end",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "suspended": "Paused until paid"
     },
     "noSubscription": "None (onboarded before billing)",
     "nextCharge": "Next charge",

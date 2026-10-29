@@ -31,6 +31,7 @@ import {
   adminTotals,
   anyActivePrice,
   billingLook,
+  offersKeepOpen,
   payableInvoice,
   reconcileQueue,
   retryOffer,
@@ -608,8 +609,14 @@ export default async function AdminBillingPage({
       </Card>
 
       {/* == Headline counts =================================================== */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat label={t("adminBilling.statAll", locale)} value={totals.all} />
+        {/* Paused until paid (20261029090000), worst first like the list below (release-2). */}
+        <Stat
+          label={t("adminBilling.statSuspended", locale)}
+          value={totals.suspended}
+          tone={totals.suspended > 0 ? "overdue" : "default"}
+        />
         <Stat
           label={t("adminBilling.statFailing", locale)}
           value={totals.failing}
@@ -777,38 +784,42 @@ export default async function AdminBillingPage({
           ) : null}
 
           {/* Seven days' grace, then suspended until paid (20261029090100). Rapid Rise can
-              keep a farm open past it, until a date and for a reason that is recorded. */}
-          <Card>
-            <CardHeader
-              action={
-                <DialogForm
-                  trigger={t("adminBilling.extendOpen", locale)}
-                  triggerVariant="secondary"
-                  triggerSize="sm"
-                  title={t("adminBilling.extendTitle", locale).replace("{farm}", farmName)}
-                  description={t("adminBilling.extendLead", locale)}
-                  closeLabel={t("ui.close", locale)}
-                >
-                  <form action={adminExtendAccess}>
-                    <input type="hidden" name="farm_id" value={selected.sub.farm_id} />
-                    <DialogFields>
-                      <Field label={t("adminBilling.extendUntil", locale)} htmlFor="extend-until">
-                        <Input id="extend-until" name="until" type="date" required />
-                      </Field>
-                      <Field label={t("adminBilling.extendReason", locale)} htmlFor="extend-reason">
-                        <Input id="extend-reason" name="reason" required maxLength={500} />
-                      </Field>
-                    </DialogFields>
-                    <DialogActions cancelLabel={t("common.cancel", locale)}>
-                      <SubmitButton>{t("adminBilling.extendSave", locale)}</SubmitButton>
-                    </DialogActions>
-                  </form>
-                </DialogForm>
-              }
-            >
-              <CardTitle>{t("adminBilling.accessTitle", locale)}</CardTitle>
-            </CardHeader>
-          </Card>
+              keep a farm open past it, until a date and for a reason that is recorded. Not
+              offered where the gate never reads it (app-8): a sign-up still to pay, a
+              cancelled farm, the old downgrade. */}
+          {offersKeepOpen(selected.sub.status) ? (
+            <Card>
+              <CardHeader
+                action={
+                  <DialogForm
+                    trigger={t("adminBilling.extendOpen", locale)}
+                    triggerVariant="secondary"
+                    triggerSize="sm"
+                    title={t("adminBilling.extendTitle", locale).replace("{farm}", farmName)}
+                    description={t("adminBilling.extendLead", locale)}
+                    closeLabel={t("ui.close", locale)}
+                  >
+                    <form action={adminExtendAccess}>
+                      <input type="hidden" name="farm_id" value={selected.sub.farm_id} />
+                      <DialogFields>
+                        <Field label={t("adminBilling.extendUntil", locale)} htmlFor="extend-until">
+                          <Input id="extend-until" name="until" type="date" required />
+                        </Field>
+                        <Field label={t("adminBilling.extendReason", locale)} htmlFor="extend-reason">
+                          <Input id="extend-reason" name="reason" required maxLength={500} />
+                        </Field>
+                      </DialogFields>
+                      <DialogActions cancelLabel={t("common.cancel", locale)}>
+                        <SubmitButton>{t("adminBilling.extendSave", locale)}</SubmitButton>
+                      </DialogActions>
+                    </form>
+                  </DialogForm>
+                }
+              >
+                <CardTitle>{t("adminBilling.accessTitle", locale)}</CardTitle>
+              </CardHeader>
+            </Card>
+          ) : null}
 
           {/* == Change what they are billed for =============================== */}
           <Card>

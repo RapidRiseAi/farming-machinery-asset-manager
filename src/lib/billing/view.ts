@@ -257,6 +257,10 @@ export const SUBSCRIPTION_LOOK: Record<string, StatusLook> = {
   downgraded: { tone: "danger", shape: "square" },
   non_renewing: { tone: "neutral", shape: "half" },
   cancelled: { tone: "neutral", shape: "dash" },
+  // Paused until paid (20261029090000), the shape every other domain uses for "stopped"
+  // (a machine out of service). Without it the badge fell back to a neutral ring, the
+  // quietest look on the screen for the worst state on it (release-2).
+  suspended: { tone: "danger", shape: "square" },
 };
 
 /** Invoice lifecycle. Mirrors the partner-side `DOC_LOOK` where the states coincide. */
@@ -901,19 +905,34 @@ export function payableInvoice(invoices: InvoiceRow[] | null | undefined): Invoi
   return owed[0] ?? null;
 }
 
-/** Subscriptions an administrator should look at first. Worst first, as the app does. */
+/** Subscriptions an administrator should look at first. Worst first, as the app does.
+ *  `suspended` (20261029090000) is the worst of all, a farm that can only pay and
+ *  download; unranked it fell to 9 and sorted below `cancelled` (release-2). */
 const ADMIN_ORDER: Record<string, number> = {
-  downgraded: 0,
-  grace: 1,
-  past_due: 2,
-  trialing: 3,
-  active: 4,
-  non_renewing: 5,
-  cancelled: 6,
+  suspended: 0,
+  downgraded: 1,
+  grace: 2,
+  past_due: 3,
+  trialing: 4,
+  active: 5,
+  non_renewing: 6,
+  cancelled: 7,
 };
 
 export function adminRank(status: string): number {
   return ADMIN_ORDER[status] ?? 9;
+}
+
+/**
+ * Whether "Keep open" means anything for a subscription in this state (app-8).
+ *
+ * `app.farm_billing_gate` answers `pending` for a sign-up that has not paid and `closed`
+ * for a cancelled one BEFORE it reads `access_extended_until`, so keeping either open saved
+ * "access extended" and changed nothing. A downgrade is the old non-payment state, which
+ * the gate does not stop either. The database refuses them too; the dialog is not offered.
+ */
+export function offersKeepOpen(status: string): boolean {
+  return status !== "pending" && status !== "cancelled" && status !== "downgraded";
 }
 
 /** True when the commercial plan and the effective plan have parted company. */
@@ -1108,9 +1127,12 @@ export function adminBillingRows(
 }
 
 /** How many of the listed subscriptions are in each state worth a headline. Test farms
- * stay listed, so they can be opened, but are not counted. */
+ * stay listed, so they can be opened, but are not counted. A paused farm has its own
+ * figure (release-2): it was in none, so the farms Rapid Rise most needs to chase were
+ * the ones the headline never mentioned. */
 export function adminTotals(rows: AdminBillingRow[]): {
   all: number;
+  suspended: number;
   failing: number;
   downgraded: number;
   trialing: number;
@@ -1118,6 +1140,7 @@ export function adminTotals(rows: AdminBillingRow[]): {
   const counted = rows.filter((r) => !r.farm?.is_test);
   return {
     all: counted.length,
+    suspended: counted.filter((r) => r.sub.status === "suspended").length,
     failing: counted.filter((r) => r.sub.status === "past_due" || r.sub.status === "grace").length,
     downgraded: counted.filter((r) => r.sub.status === "downgraded").length,
     trialing: counted.filter((r) => r.sub.status === "trialing").length,
