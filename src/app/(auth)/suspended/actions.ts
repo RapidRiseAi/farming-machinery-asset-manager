@@ -13,7 +13,8 @@ import { isUuid } from "@/lib/ids";
  *
  * The same hosted checkout `/activate` uses (`beginCheckout`, proven in production): it
  * pays the oldest open invoice, and the settlement runs app.billing_restore_after_payment,
- * which brings the farm back once nothing overdue is left, with a fresh period from today.
+ * which brings the farm back once nothing overdue is left, without charging for the paused
+ * days (a fresh period from today, or a longer one, 20261029120000).
  * No second payment route to drift from the first.
  */
 export async function payOverdueAction(formData: FormData): Promise<void> {

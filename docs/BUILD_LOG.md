@@ -6047,3 +6047,57 @@ fix. 52 suites, 732 unit tests.
 Known and left: a reopened farm with older paid invoices whose new EFT bounces keeps access
 until its seven days' grace run out (the reversal cannot tell it from a farm that paid this
 period). The gate still closes it then.
+
+## 2026-10-29 - Fourth review of the billing batch: cancellations, the sweep, reopening, the stop gate
+
+A fourth independent pass (three reviewers: the subscription state machine, the app
+surface, release readiness) proved 26 findings with failing tests. Fixed in
+`20261029150000`, the app and the docs:
+
+- **A period-end cancellation never closed** (blocker, older than this batch, made worse by
+  it). The nightly run raises invoices before it closes cancellations, and the invoice run
+  included `non_renewing`, so on the night the period ended the farm was invoiced for the
+  next month and the close never matched; with suspension it was then paused and its card
+  charged for a month after it left. The invoice run never renews an ending subscription.
+- **The dormant sweep deleted a sign-up that had paid a service invoice** (onboarding has
+  no subscription). It asks by farm now, and never sweeps an exempt farm or one with a card
+  payment in flight.
+- **Exempt farms were still invoiced and charged**: the invoice run, the charge list and
+  the AI-usage invoices skip them. `billing_exempt` is a deliberate flag, not the test flag;
+  a farm moved to the test side later is marked by hand.
+- **AI-only invoices were raised while paused**, and fell overdue in turn; the use now
+  waits for the first invoice after the farm resumes.
+- **Reopening**: a reopened farm that paid late was raised every month it sat locked out
+  (the first payment of a pending subscription now starts its period); the reopen kept the
+  old anchor (a full month charged for a short period); reopening inside a paid month
+  billed those days again (it is active until that month ends); and an old refunded or a
+  service invoice blocked or replaced the month to pay.
+- **The checkout could charge more than was owed** when an EFT was recorded between the
+  read and the claim: the claim refuses, the checkout reads again once, and the nightly
+  worker skips that invoice until the next run.
+- **Keep open** is refused for a sign-up or a closed farm (the gate never reads it there).
+- **A paused farm cannot be cancelled** until what it owes is paid (it stayed paused for
+  ever and could not reopen).
+- **The stop gate on server actions**: fourteen action files authorised with
+  `requireProfile` alone, so a tab opened before a pause could still invite people, record
+  finance and change settings. `requireUsableFarm` is called from every such guard and from
+  `requireFarmPermission`; `stop-gate.test.ts` fails on a new action that skips it.
+- **The stopped pages**: `/activate` no longer shows "payment received" to a reopened farm
+  that once paid by card (the settling read is scoped to the invoice being paid);
+  `/suspended` shows what Pay now charges and says when more remains; managers see the
+  amount; `/suspended` shows a payment that is settling instead of a second Pay button.
+- **Rapid Rise's billing console**: refusals were URL-encoded twice and all read "try
+  again"; every refusal now has its sentence and keeps the farm open. "1,500" was recorded
+  as R1.50 (amounts go through `parseRandsToCents`). A lost answer after a recorded payment
+  deleted its proof (only a definite refusal removes it now). Paused farms are labelled,
+  counted and listed first.
+- The terms and docs said paying "starts the next period from the day you pay"; that holds
+  only when the paused period's own invoice was the debt, otherwise the period is made
+  longer by the paused days. They say both now.
+
+Accepted and left: voiding a sign-up's invoice by hand leaves it nothing to pay until its
+next billing date (no screen voids one); a lost answer before the payment committed could
+still remove its proof (the far likelier committed-then-lost case keeps it).
+
+Suite `billing_review_4.sql` fails without the migration (30 assertions across every
+finding) and passes with it. 53 SQL suites, 817 unit tests.

@@ -181,7 +181,9 @@ export async function adminRetryCharge(formData: FormData): Promise<void> {
               ? "billing-in-flight"
               : outcome.reason === "below-minimum"
                 ? "billing-below-minimum"
-                : "billing-nothing-due",
+                : outcome.reason === "amount-changed"
+                  ? "billing-amount-changed"
+                  : "billing-nothing-due",
       );
     default:
       bounce("billing-checkout-failed");

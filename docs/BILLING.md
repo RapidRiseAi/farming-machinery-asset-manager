@@ -298,8 +298,8 @@ the role first. Two locks: the grant is absent *and* no permissive write policy 
 > when the debt was the current period's own invoice, paid after the pause began, the
 > period starts again on the payment date; otherwise the period end and the next billing
 > date move on by the days suspended (20261029120000). Nothing is invoiced while suspended,
-> AI use from before the pause included (it rides on the first period invoice after the
-> farm resumes, 20261029150000); the card is retried weekly for four weeks. A suspended
+> AI use from before the pause included (it is billed on the first invoice after the farm
+> resumes, normally its next period invoice, 20261029150000); the card is retried weekly for four weeks. A suspended
 > subscription cannot be cancelled until what is owed is paid. Rapid Rise can keep a farm
 > open until a date, with a recorded reason (`admin_extend_billing_access`; only for a
 > paused or overdue farm, since the gate never reads it for a pending or closed one).

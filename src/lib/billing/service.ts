@@ -845,7 +845,7 @@ export function isPaystackCheckoutUrl(raw: string): boolean {
  * Postgres's general "invalid parameter value" and another refusal must not be retried as
  * if it were this one.
  */
-function amountOwedChanged(error: ServiceError | null): boolean {
+export function amountOwedChanged(error: ServiceError | null): boolean {
   return error?.code === "22023" && /amount owed has changed/i.test(error.message);
 }
 
