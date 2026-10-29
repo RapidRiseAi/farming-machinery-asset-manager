@@ -21,11 +21,15 @@ export async function payOverdueAction(formData: FormData): Promise<void> {
   const asked = String(formData.get("farm") ?? "");
   const farmId = isUuid(asked) ? asked : profile.farm_id;
   if (!farmId) redirect("/home");
+  // Every way back to the page names the farm, as /activate and /closed do. The refusal
+  // below used to drop it, so somebody paying for a farm other than their home farm was
+  // sent to their home farm's page (or home) and never read why (review finding app-10).
+  const which = farmId !== profile.farm_id ? `&farm=${farmId}` : "";
 
   // Only somebody who may commit the farm to paying, on THIS farm (a multi-site member may
   // be an owner on one and an operator on another).
   const role = await effectiveFarmRole(farmId, profile);
-  if (role !== "owner" && role !== "manager") redirect("/suspended?error=forbidden");
+  if (role !== "owner" && role !== "manager") redirect(`/suspended?error=forbidden${which}`);
 
   // An endpoint re-checks what the page showed.
   const gate = await farmBillingGate(await createClient(), farmId);
@@ -34,6 +38,6 @@ export async function payOverdueAction(formData: FormData): Promise<void> {
   const supabase = createServiceClient();
   const email = await billingContactEmail(supabase, farmId, profile.email);
   const started = await beginCheckout(supabase, { farmId, email, userId: profile.id });
-  if (!started.ok) redirect(`/suspended?error=${started.code}${farmId !== profile.farm_id ? `&farm=${farmId}` : ""}`);
+  if (!started.ok) redirect(`/suspended?error=${started.code}${which}`);
   redirect(started.url);
 }

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
@@ -7,8 +8,16 @@ import { shortDate } from "@/lib/format";
 import { rands } from "@/lib/money";
 import { isUuid } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
-import { soft } from "@/lib/supabase/must";
-import { farmBillingGate } from "@/lib/billing/service";
+import { createServiceClient } from "@/lib/supabase/service";
+import { must } from "@/lib/supabase/must";
+import { farmBillingGate, openInvoiceForFarm } from "@/lib/billing/service";
+import { toIsoDate } from "@/lib/billing/policy";
+import {
+  accessGraceDays,
+  overdueAfterPaying,
+  settlingOnInvoice,
+  type OpenInvoice,
+} from "@/lib/billing/stopped-farm";
 import { errorMessage } from "@/lib/errors";
 import { COMPANY } from "@/lib/legal";
 import { Flash } from "@/components/ui/flash";
@@ -19,6 +28,7 @@ import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { SwitchFarm } from "@/components/billing/switch-farm";
+import { SettlingNotice } from "@/components/billing/settling-notice";
 
 /**
  * The screen a farm sees once an invoice is more than seven days overdue (20261029090100).
@@ -47,37 +57,17 @@ export default async function SuspendedPage({
   const role = await effectiveFarmRole(farmId, profile);
   const canPay = role === "owner" || role === "manager";
 
-  // What is owed, read through the caller's own client: billing rows are the owner's and
-  // manager's to see (app.is_farm_billing_admin), so an operator reads the general sentence
-  // instead of the farm's commercial position. Soft: the page must work without it.
-  const owed = canPay
-    ? ((soft(
-        await supabase
-          .from("billing_invoices")
-          .select("id, invoice_ref, total_incl_cents, amount_paid_cents, due_on")
-          .eq("farm_id", farmId)
-          .eq("status", "open")
-          // What keeps the farm paused: not a once-off service invoice.
-          .neq("kind", "service")
-          .is("deleted_at", null)
-          .order("due_on", { ascending: true })
-          // A farm has a handful of open invoices at most; the cap is for the read guard.
-          .limit(50),
-        "suspended:invoices",
-      ) as { id: string; invoice_ref: string; total_incl_cents: number; amount_paid_cents: number; due_on: string | null }[] | null) ?? [])
-    : [];
-  // A refunded invoice reopens, and is deliberately not owed (the pause and the charge both
-  // leave it out): it is not added to what this page asks for.
-  const refunded = owed.length
-    ? new Set(((soft(
-        await supabase.from("billing_payments").select("invoice_id")
-          .in("invoice_id", owed.map((i) => i.id)).lt("amount_incl_cents", 0).is("deleted_at", null).limit(100),
-        "suspended:refunds",
-      ) as { invoice_id: string }[] | null) ?? []).map((r) => r.invoice_id))
-    : new Set<string>();
-  const counting = owed.filter((i) => !refunded.has(i.id));
-  const outstanding = counting.reduce((sum, i) => sum + Math.max(0, i.total_incl_cents - i.amount_paid_cents), 0);
-  const oldest = counting.find((i) => i.due_on)?.due_on ?? null;
+  // What is owed, read only for somebody who may pay, and then through the SERVICE client.
+  // This used to read through the caller's own client on the belief that billing rows are
+  // "the owner's and manager's to see"; app.is_farm_billing_admin is owner and Rapid Rise
+  // only (20260903160000), so a manager, whom payOverdueAction lets pay, read nothing and
+  // was offered Pay now with no amount (review finding app-9). An operator still reads none
+  // of it and gets the general sentence instead of the farm's commercial position.
+  const bill = canPay ? await payNowFor(createServiceClient(), farmId) : null;
+  // Other invoices still keep the farm paused after this payment: say so, and do not
+  // promise that everything comes back with this one (review finding app-4).
+  const more = bill !== null && bill.stillOverdueCents > 0;
+  const here = farmId !== profile.farm_id ? `/suspended?farm=${farmId}` : "/suspended";
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
@@ -88,14 +78,22 @@ export default async function SuspendedPage({
 
       <div className="rounded-2xl border border-sand-300 bg-surface p-6">
         <h1 className="text-2xl font-bold tracking-tight text-ink">{t("suspended.title", locale)}</h1>
-        <p className="mt-2 text-sand-700">{t("suspended.lead", locale)}</p>
+        <p className="mt-2 text-sand-700">{t(more ? "suspended.leadMany" : "suspended.lead", locale)}</p>
 
-        {canPay && outstanding > 0 ? (
-          <p className="mt-3 rounded-lg border border-sand-200 p-3 text-sm text-ink">
-            {t("suspended.owed", locale)
-              .replace("{amount}", rands(outstanding))
-              .replace("{date}", oldest ? shortDate(oldest, locale) : "-")}
-          </p>
+        {bill?.paying && bill.payCents > 0 ? (
+          <div className="mt-3 rounded-lg border border-sand-200 p-3 text-sm text-ink">
+            <p>
+              {t("suspended.owedInvoice", locale)
+                .replace("{amount}", rands(bill.payCents))
+                .replace("{ref}", bill.paying.invoice_ref)
+                .replace("{date}", bill.payDue ? shortDate(bill.payDue, locale) : "-")}
+            </p>
+            {more ? (
+              <p className="mt-2">
+                {t("suspended.moreOverdue", locale).replace("{amount}", rands(bill.stillOverdueCents))}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         <p className="mt-4 rounded-lg bg-brand-tint p-3 text-sm text-ink">{t("suspended.dataSafe", locale)}</p>
@@ -106,13 +104,28 @@ export default async function SuspendedPage({
           </div>
         ) : null}
 
-        {canPay ? (
+        {!canPay ? (
+          <p className="mt-6 text-sm text-sand-700">{t("suspended.askOwner", locale)}</p>
+        ) : bill?.settling ? (
+          // The payer is back from Paystack and the webhook has not settled yet: no Pay now,
+          // which could only be refused as "already in progress" (review finding app-10).
+          <SettlingNotice
+            settling={bill.settling}
+            refreshHref={here}
+            locale={locale}
+            receivedBody={more ? t("suspended.settlingReceivedMore", locale) : undefined}
+          />
+        ) : (
           <form action={payOverdueAction} className="mt-6">
             {farmId !== profile.farm_id ? <input type="hidden" name="farm" value={farmId} /> : null}
-            <SubmitButton className="w-full">{t("suspended.pay", locale)}</SubmitButton>
+            {/* The amount on the button is what the checkout charges: one invoice, for
+                what is still owed on it. */}
+            <SubmitButton className="w-full">
+              {bill?.paying && bill.payCents > 0
+                ? t("suspended.payAmount", locale).replace("{amount}", rands(bill.payCents))
+                : t("suspended.pay", locale)}
+            </SubmitButton>
           </form>
-        ) : (
-          <p className="mt-6 text-sm text-sand-700">{t("suspended.askOwner", locale)}</p>
         )}
 
         {canPay ? (
@@ -141,4 +154,61 @@ export default async function SuspendedPage({
       </form>
     </main>
   );
+}
+
+/**
+ * What Pay now charges, what else keeps the farm paused, and whether money is already
+ * moving, for somebody who may pay (service client, see the page).
+ *
+ * The invoice is chosen by the checkout's own rule (`openInvoiceForFarm`: the oldest owed,
+ * not a service invoice, not a refunded one) and its amount is what is still owed on it,
+ * exactly what `beginCheckout` charges. The page used to print the total of every open
+ * invoice over a button that charges one (review finding app-4); the checkout stays one
+ * invoice per payment, and `overdueAfterPaying` says what is left after it.
+ *
+ * Every read here is `must`. They decide what the page offers and promises, so a failed
+ * one shows the error screen and its retry, not an amount, a promise or a Pay button that
+ * may be wrong. They used to be soft, which was right while they only coloured a sentence.
+ */
+async function payNowFor(svc: SupabaseClient, farmId: string) {
+  const [paying, openRead, graceDays] = await Promise.all([
+    openInvoiceForFarm(svc, farmId),
+    svc
+      .from("billing_invoices")
+      .select("id, total_incl_cents, amount_paid_cents, due_on, issued_on")
+      .eq("farm_id", farmId)
+      .eq("status", "open")
+      // What keeps the farm paused: not a once-off service invoice.
+      .neq("kind", "service")
+      .is("deleted_at", null)
+      .order("due_on", { ascending: true })
+      // A farm has a handful of open invoices at most; the cap is for the read guard.
+      .limit(50),
+    accessGraceDays(svc),
+  ]);
+  const open = (must(openRead, "suspended:invoices") ?? []) as OpenInvoice[];
+  // A refunded invoice reopens, and is deliberately not owed (the pause and the charge both
+  // leave it out): it is not counted as keeping the farm paused.
+  const refunds = open.length
+    ? ((must(
+        await svc
+          .from("billing_payments")
+          .select("invoice_id")
+          .in("invoice_id", open.map((i) => i.id))
+          .lt("amount_incl_cents", 0)
+          .is("deleted_at", null)
+          .limit(100),
+        "suspended:refunds",
+      ) ?? []) as { invoice_id: string }[])
+    : [];
+  const refunded = new Set(refunds.map((r) => r.invoice_id));
+
+  return {
+    paying,
+    payCents: paying ? Math.max(0, paying.total_incl_cents - paying.amount_paid_cents) : 0,
+    payDue: paying ? (open.find((i) => i.id === paying.id)?.due_on ?? null) : null,
+    // The UTC date, as the gate's current_date is.
+    stillOverdueCents: overdueAfterPaying(open, refunded, paying?.id ?? null, graceDays, toIsoDate(new Date())),
+    settling: await settlingOnInvoice(svc, farmId, paying?.id ?? null, "suspended:payment-attempt"),
+  };
 }

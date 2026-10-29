@@ -484,6 +484,13 @@ const CODE_KEYS: Record<string, string> = {
   "1": FALLBACK,
 
   unknown: FALLBACK,
+
+  // == Billing: paying and cancelling a stopped farm (review round 4) ========
+  // The claim refused the amount it was given twice: an EFT landed while the person was
+  // paying (finding app-11). They look at the bill again rather than pay a stale figure.
+  "billing-amount-changed": "errors.billingAmountChanged",
+  // A suspended subscription is not cancelled; paying is the way out (finding money-4).
+  "billing-cancel-suspended": "errors.billingCancelSuspended",
 };
 
 /**

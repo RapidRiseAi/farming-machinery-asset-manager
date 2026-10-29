@@ -5295,7 +5295,9 @@
     "billingServiceBad": "Elke reël wat jy insluit, het 'n beskrywing, 'n heel hoeveelheid van minstens 1 en 'n prys nodig.",
     "billingServiceEmpty": "Vul minstens een reël in.",
     "billingServiceNothing": "Daardie faktuur tel op na niks, so dit is nie geskep nie.",
-    "billingServiceDue": "Die betaaldatum moet binne die volgende 120 dae wees."
+    "billingServiceDue": "Die betaaldatum moet binne die volgende 120 dae wees.",
+    "billingAmountChanged": "Die bedrag verskuldig het verander terwyl jy betaal het. Herlaai die bladsy om te sien wat nou verskuldig is, en betaal dan weer.",
+    "billingCancelSuspended": "'n Onderbreekte plaas kan nie gekanselleer word voordat wat dit skuld betaal is nie. Betaal eers, of kontak Rapid Rise."
   },
   "billing": {
     "title": "Rekening",
@@ -5489,7 +5491,8 @@
     "manageTitle": "Verander jou plan of voertuigplekke",
     "manageLead": "Niks verander voordat jy die prys gesien en ja gesê het nie.",
     "downloadReceiptFull": "Laai kwitansie af",
-    "quoteAdjust": "Verander die syfers"
+    "quoteAdjust": "Verander die syfers",
+    "cancelSuspended": "Hierdie plaas is onderbreek totdat wat dit skuld betaal is, en 'n onderbreekte plaas kan nie gekanselleer word nie. Betaal eers wat agterstallig is, of kontak Rapid Rise."
   },
   "adminBilling": {
     "title": "Intekeninge",
@@ -5769,7 +5772,8 @@
     "settlingReceivedBody": "Dankie. Ons skakel jou rekening nou aan. Dit neem gewoonlik 'n paar sekondes. Herlaai hierdie bladsy en jy is sommer binne.",
     "settlingInflightTitle": "Ons wag op jou bank",
     "settlingInflightBody": "Jou betaling gaan deur. Moet asseblief nie weer betaal nie, herlaai hierdie bladsy oor 'n oomblik en dit behoort klaar te wees. As dit nie binne 'n paar minute deur is nie, laat weet ons en ons kyk dit na.",
-    "settlingRefresh": "Herlaai"
+    "settlingRefresh": "Herlaai",
+    "askOwner": "Vra die plaas se eienaar of bestuurder om te betaal, dan gaan die plaas vir almal oop."
   },
   "signup": {
     "title": "Begin met FleetWise",
@@ -7030,12 +7034,16 @@
   "suspended": {
     "title": "Fleet Wise is vir hierdie plaas onderbreek",
     "lead": "'n Betaling is meer as sewe dae agterstallig, so die toep is onderbreek totdat dit betaal is. Alles is terug sodra dit betaal is.",
-    "owed": "{amount} is onbetaald, betaalbaar sedert {date}.",
     "pay": "Betaal nou",
     "askOwner": "Vra die plaas se eienaar of bestuurder om te betaal, dan maak dit weer vir almal oop.",
     "eft": "Betaal jy per EFT? E-pos {email} en ons stuur ons bankbesonderhede; toegang maak oop sodra die betaling bevestig is.",
     "dataSafe": "Niks is uitgevee nie. Elke voertuig, diens, werkkaart, fout en koste is nog hier, en dit is steeds joune.",
     "download": "Laai my rekords af",
-    "help": "Vrae hieroor, e-pos {email} en 'n persoon sal help."
+    "help": "Vrae hieroor, e-pos {email} en 'n persoon sal help.",
+    "leadMany": "Meer as een betaling is langer as sewe dae agterstallig, so die toep is onderbreek totdat almal betaal is. Alles is terug sodra die laaste een betaal is.",
+    "owedInvoice": "{amount} is onbetaald op faktuur {ref}, betaalbaar sedert {date}.",
+    "moreOverdue": "Ná hierdie betaling is {amount} nog agterstallig op ander fakture, so die plaas bly onderbreek totdat dit ook betaal is.",
+    "payAmount": "Betaal nou {amount}",
+    "settlingReceivedMore": "Dankie, daardie betaling is ontvang. Ander fakture is nog agterstallig, so herlaai hierdie bladsy om die volgende een te betaal."
   }
 }

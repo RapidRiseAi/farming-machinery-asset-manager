@@ -1,16 +1,15 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { requireProfile } from "@/lib/auth";
+import { effectiveFarmRole, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { must } from "@/lib/supabase/must";
 import { farmBillingGate, openInvoiceForFarm } from "@/lib/billing/service";
-import { STALE_PENDING_MINUTES } from "@/lib/billing/worker";
-import { buttonVariants } from "@/components/ui/button";
+import { settlingOnInvoice } from "@/lib/billing/stopped-farm";
+import { SettlingNotice } from "@/components/billing/settling-notice";
 import { signOut } from "@/app/(app)/actions";
 import { Flash } from "@/components/ui/flash";
 import { errorMessage } from "@/lib/errors";
@@ -57,8 +56,22 @@ export default async function ActivatePage({
   // reason, there is nothing to activate and the app is theirs.
   if (gate !== "pending") redirect("/home");
 
+  // Who may pay, decided as `beginCheckoutAction` decides it: owner or manager on THIS farm.
+  // Everybody else is told to ask one of them, rather than offered a button whose only
+  // answer is "you do not have permission".
+  const role = await effectiveFarmRole(farmId, profile);
+  const canPay = role === "owner" || role === "manager";
+
+  // Somebody who may pay reads the plan and the invoice through the SERVICE client. RLS on
+  // the billing tables is app.is_farm_billing_admin, owner and Rapid Rise only, so a
+  // manager, whom the action lets pay, read no plan, no vehicles and no amount, and was
+  // shown a bare "Pay" (review finding app-9). Anybody else reads through their own session
+  // and sees what RLS lets them see, which for an operator is nothing.
+  const svc = canPay ? createServiceClient() : null;
+  const reader = svc ?? supabase;
+
   const data = must(
-    await supabase
+    await reader
       .from("billing_subscriptions")
       .select("plan, billing_period, asset_quota")
       .eq("farm_id", farmId)
@@ -74,55 +87,21 @@ export default async function ActivatePage({
   // (openInvoiceForFarm: not a once-off service invoice, not a refunded one). Reading "the
   // latest open invoice" showed an onboarding fee's amount over a checkout that charged the
   // plan.
-  const invoice = await openInvoiceForFarm(supabase, farmId);
+  const invoice = await openInvoiceForFarm(reader, farmId);
   // What the checkout will charge: what is still owed on it, not its total. A sign-up that
   // paid in two transfers, one of which bounced, owes half (beginCheckout charges total
   // less paid).
   const owedCents = invoice ? Math.max(0, invoice.total_incl_cents - invoice.amount_paid_cents) : 0;
 
-  // == Has this person ALREADY paid, seconds ago? ==============================
-  //
-  // The callback sends them to `/billing?checkout=paid`, which is inside `(app)`, whose
-  // layout runs the gate, and the gate is still `pending` until the webhook settles the
-  // attempt. So it redirected here and dropped the query string, and somebody who had just
-  // handed over a card was shown "Pay to activate" with a Pay button. Pressing it was
-  // safely refused by the in-flight unique index, but the refusal reads "a payment on this
-  // bill is already in progress", which is an alarming sentence at the worst possible
-  // moment in the whole funnel.
-  //
-  // The state is read from the LEDGER rather than from a query parameter, so it is true
-  // however they arrived, back button, reopened tab, or a phone that lost signal during
-  // the redirect. Service client on purpose: `beginCheckoutAction` admits a manager, and
-  // RLS on attempts is owner-or-Rapid-Rise, so a manager would otherwise read nothing here
-  // and be shown the one screen this exists to prevent.
-  const svc = createServiceClient();
-  // must: a failed read here showed the Pay button to somebody whose money was moving.
-  const attemptData = must(
-    await svc
-      .from("billing_payment_attempts")
-      .select("status, requested_at")
-      .eq("farm_id", farmId)
-      .in("status", ["pending", "succeeded"])
-      .order("requested_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    "activate:payment-attempt",
-  );
-  const attempt = attemptData as { status: string; requested_at: string } | null;
-
-  // A `pending` attempt older than the reconciler's own staleness window is not somebody
-  // at a payment page; it is a checkout that was abandoned and will be swept. Showing
-  // "waiting for your bank" for ever would strand them with no way to try again, so the
-  // same 30 minutes the worker uses decides it here. One definition, not two.
-  const ageMinutes = attempt
-    ? (Date.now() - new Date(attempt.requested_at).getTime()) / 60000
-    : Number.POSITIVE_INFINITY;
-  const settling =
-    attempt?.status === "succeeded"
-      ? "received"
-      : attempt?.status === "pending" && ageMinutes < STALE_PENDING_MINUTES
-        ? "inflight"
-        : null;
+  // Has this person ALREADY paid, seconds ago? The callback's redirect to /billing bounces
+  // back here until the webhook settles, so the answer is read from the ledger
+  // (settlingOnInvoice says why). Only attempts on THIS invoice count: a reopened farm that
+  // once paid by card was told "payment received" over its new bill and never shown a Pay
+  // button again (review finding app-1). Read only for somebody who may pay, as nobody
+  // else is shown the button it replaces.
+  const settling = svc
+    ? await settlingOnInvoice(svc, farmId, invoice?.id ?? null, "activate:payment-attempt")
+    : null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
@@ -164,40 +143,15 @@ export default async function ActivatePage({
           </div>
         ) : null}
 
-        {settling ? (
-          // No Pay button at all in this state. It is the one control that must not be
-          // offered to somebody whose money is already moving, the database would refuse
-          // it, but being refused is not the experience to give a customer thirty seconds
-          // after they paid.
-          <div className="mt-6">
-            <div className="rounded-xl border border-callout-info-edge bg-callout-info-bg px-4 py-3.5">
-              <p className="text-base font-semibold text-sand-900">
-                {t(
-                  settling === "received"
-                    ? "activate.settlingReceivedTitle"
-                    : "activate.settlingInflightTitle",
-                  locale,
-                )}
-              </p>
-              <p className="mt-1 text-sm leading-relaxed text-sand-800">
-                {t(
-                  settling === "received"
-                    ? "activate.settlingReceivedBody"
-                    : "activate.settlingInflightBody",
-                  locale,
-                )}
-              </p>
-            </div>
-            {/* A plain link to this same page. It is a GET, so a reload cannot repeat
-                anything, and it gives somebody watching a spinner something to press
-                other than the browser's back button. */}
-            <Link
-              href={farmId !== profile.farm_id ? `/activate?farm=${farmId}` : "/activate"}
-              className={`${buttonVariants({ variant: "secondary" })} mt-3 w-full`}
-            >
-              {t("activate.settlingRefresh", locale)}
-            </Link>
-          </div>
+        {!canPay ? (
+          <p className="mt-6 text-sm text-sand-700">{t("activate.askOwner", locale)}</p>
+        ) : settling ? (
+          // No Pay button while money is already moving on this invoice (SettlingNotice).
+          <SettlingNotice
+            settling={settling}
+            refreshHref={farmId !== profile.farm_id ? `/activate?farm=${farmId}` : "/activate"}
+            locale={locale}
+          />
         ) : (
           <>
             <form action={beginCheckoutAction} className="mt-6">

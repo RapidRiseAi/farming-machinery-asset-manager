@@ -840,6 +840,16 @@ export function isPaystackCheckoutUrl(raw: string): boolean {
 }
 
 /**
+ * The claim's refusal of a stale amount: errcode 22023, 'BILLING: the amount owed has
+ * changed' (review finding app-11). Matched on the code AND the words, because 22023 is
+ * Postgres's general "invalid parameter value" and another refusal must not be retried as
+ * if it were this one.
+ */
+function amountOwedChanged(error: ServiceError | null): boolean {
+  return error?.code === "22023" && /amount owed has changed/i.test(error.message);
+}
+
+/**
  * Begin a hosted checkout for a farm's open invoice.
  *
  * The order is the whole safety property, and it is the same order the contract sets out:
@@ -852,9 +862,15 @@ export function isPaystackCheckoutUrl(raw: string): boolean {
  */
 export async function beginCheckout(
   supabase: SupabaseClient,
-  input: { farmId: string; email: string | null; userId?: string | null },
+  input: {
+    farmId: string;
+    email: string | null;
+    userId?: string | null;
+    /** Injected in tests, as the worker's is. Never resolved from the environment there. */
+    provider?: SaasBillingProvider | null;
+  },
 ): Promise<CheckoutStart> {
-  const provider = await getSaasProvider();
+  const provider = input.provider !== undefined ? input.provider : await getSaasProvider();
   if (!provider || !provider.enabled) return { ok: false, code: "billing-unavailable" };
 
   const origin = siteOrigin();
@@ -886,24 +902,55 @@ export async function beginCheckout(
   }
   if (!invoice) return { ok: false, code: "billing-nothing-due" };
 
-  const amount = invoice.total_incl_cents - invoice.amount_paid_cents;
+  let amount = invoice.total_incl_cents - invoice.amount_paid_cents;
   if (amount <= 0) return { ok: false, code: "billing-nothing-due" };
   // Paystack refuses a ZAR transaction under R1.00. Refused here, with a reason, rather
   // than at the provider, where it would arrive as a decline and be indistinguishable
   // from a card problem.
   if (amount < PAYSTACK_MIN_CHARGE_CENTS) return { ok: false, code: "billing-below-minimum" };
 
-  const reference = newAttemptReference();
-  const { attemptId, error: claimError } = await claimBillingCharge(supabase, {
+  let reference = newAttemptReference();
+  let claim = await claimBillingCharge(supabase, {
     invoiceId: invoice.id,
     reference,
     kind: "initial_checkout",
     amountCents: amount,
   });
-  if (claimError) return { ok: false, code: "billing-claim-failed" };
+
+  // == The amount moved under us (review finding app-11) ========================
+  // The outstanding above is read before the claim locks the invoice, and Rapid Rise can
+  // record an EFT in between. A claim at the old amount sent the customer to Paystack to
+  // pay more than was owed, so app.claim_billing_charge now compares the amount with what
+  // is owed under its row lock and refuses a stale one. Read once more, by the same rule,
+  // and claim what is owed now. Once, not in a loop: a second refusal means the bill is
+  // still moving, and the person is asked to look at it again rather than charged a figure
+  // nobody has seen.
+  if (amountOwedChanged(claim.error)) {
+    const fresh = await openInvoiceForFarm(supabase, input.farmId);
+    if (!fresh) return { ok: false, code: "billing-nothing-due" };
+    // The EFT paid this invoice in full and another is now the oldest owed. That is not
+    // the bill the person pressed Pay for, so they see the page again before paying it.
+    if (fresh.id !== invoice.id) return { ok: false, code: "billing-amount-changed" };
+    invoice = fresh;
+    amount = fresh.total_incl_cents - fresh.amount_paid_cents;
+    if (amount <= 0) return { ok: false, code: "billing-nothing-due" };
+    if (amount < PAYSTACK_MIN_CHARGE_CENTS) return { ok: false, code: "billing-below-minimum" };
+    // A fresh reference as well. The refused claim rolled back and stored nothing, but the
+    // reference is the only handle on a charge, and a new one cannot collide with anything.
+    reference = newAttemptReference();
+    claim = await claimBillingCharge(supabase, {
+      invoiceId: invoice.id,
+      reference,
+      kind: "initial_checkout",
+      amountCents: amount,
+    });
+    if (amountOwedChanged(claim.error)) return { ok: false, code: "billing-amount-changed" };
+  }
+  if (claim.error) return { ok: false, code: "billing-claim-failed" };
   // Null means another attempt is already in flight on this invoice, possibly an
   // `unknown` one, which must be reconciled before anything else is tried.
-  if (!attemptId) return { ok: false, code: "billing-in-flight" };
+  if (!claim.attemptId) return { ok: false, code: "billing-in-flight" };
+  const attemptId = claim.attemptId;
 
   const init: CheckoutInit = {
     farmId: input.farmId,
@@ -1164,6 +1211,13 @@ export async function finishWebhookEvent(
  * and `app.billing_close_cancellations()` closes it on the night it expires. Immediate
  * cancellation ends it now. Nothing is deleted either way, that is the promise the whole
  * downgrade path is built on.
+ *
+ * A SUSPENDED subscription is refused, for the owner and Rapid Rise alike (review finding
+ * money-4): `refused` comes back as `billing-cancel-suspended` and nothing is written. Only
+ * paying lifts a suspension (app.billing_restore_after_payment), and the gate answers
+ * `suspended` from farms.status before it looks at the subscription at all. So a paused
+ * farm that was cancelled stayed paused for good: paying no longer brought it back, the
+ * gate never said `closed`, and /closed's reopen refused it.
  */
 export async function setCancellation(
   supabase: SupabaseClient,
@@ -1173,7 +1227,7 @@ export async function setCancellation(
     immediate: boolean;
     reason?: string | null;
   },
-): Promise<{ error: ServiceError | null }> {
+): Promise<{ error: ServiceError | null; refused: "billing-cancel-suspended" | null }> {
   const nowIso = new Date().toISOString();
   const patch = input.immediate
     ? {
@@ -1192,13 +1246,33 @@ export async function setCancellation(
         updated_at: nowIso,
       };
 
-  const { error } = await supabase
+  // The status condition is on the UPDATE itself rather than on a read before it, so a
+  // suspension that lands between the page and the press is refused as well.
+  const { data, error } = await supabase
     .from("billing_subscriptions")
     .update(patch)
     .eq("id", input.subscriptionId)
-    .eq("farm_id", input.farmId);
-  if (error) return { error: { message: redactMessage(error.message), code: error.code } };
-  return { error: null };
+    .eq("farm_id", input.farmId)
+    .neq("status", "suspended")
+    .select("id");
+  if (error) return { error: { message: redactMessage(error.message), code: error.code }, refused: null };
+  if (((data ?? []) as unknown[]).length > 0) return { error: null, refused: null };
+
+  // No row changed. Say why only when it is the suspension; anything else (the row went
+  // between the caller's read and this write) is a failed save, never a silent success.
+  const { data: row, error: readError } = await supabase
+    .from("billing_subscriptions")
+    .select("status")
+    .eq("id", input.subscriptionId)
+    .eq("farm_id", input.farmId)
+    .maybeSingle();
+  if (readError) {
+    return { error: { message: redactMessage(readError.message), code: readError.code }, refused: null };
+  }
+  if ((row as { status?: string } | null)?.status === "suspended") {
+    return { error: null, refused: "billing-cancel-suspended" };
+  }
+  return { error: { message: "billing:cancel: no subscription row changed" }, refused: null };
 }
 
 /** Undo a period-end cancellation that has not yet closed. */
