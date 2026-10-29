@@ -5295,7 +5295,9 @@
     "billingServiceBad": "Every line you include needs a description, a whole quantity of at least 1 and a price.",
     "billingServiceEmpty": "Fill in at least one line.",
     "billingServiceNothing": "That invoice adds up to nothing, so it was not raised.",
-    "billingServiceDue": "The due date must be within the next 120 days."
+    "billingServiceDue": "The due date must be within the next 120 days.",
+    "billingAmountChanged": "The amount owed changed while you were paying. Refresh the page to see what is owed now, then pay again.",
+    "billingCancelSuspended": "A paused farm cannot be cancelled until what it owes is paid. Pay first, or contact Rapid Rise."
   },
   "billing": {
     "title": "Billing",
@@ -5489,7 +5491,8 @@
     "manageTitle": "Change your plan or vehicle slots",
     "manageLead": "Nothing changes until you have seen the price and said yes.",
     "downloadReceiptFull": "Download receipt",
-    "quoteAdjust": "Change the figures"
+    "quoteAdjust": "Change the figures",
+    "cancelSuspended": "This farm is paused until what it owes is paid, and a paused farm cannot be cancelled. Pay what is overdue first, or contact Rapid Rise."
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -5769,7 +5772,8 @@
     "settlingReceivedBody": "Thank you. We are switching your account on now. It usually takes a few seconds. Refresh this page and you will be straight in.",
     "settlingInflightTitle": "We are waiting on your bank",
     "settlingInflightBody": "Your payment is going through. Please do not pay again, refresh this page in a moment and it should be done. If it has not cleared in a few minutes, get in touch and we will look it up.",
-    "settlingRefresh": "Refresh"
+    "settlingRefresh": "Refresh",
+    "askOwner": "Ask the farm's owner or manager to pay, and the farm opens for everyone."
   },
   "signup": {
     "title": "Start using FleetWise",
@@ -7030,12 +7034,16 @@
   "suspended": {
     "title": "Fleet Wise is paused for this farm",
     "lead": "A payment is more than seven days overdue, so the app is paused until it is paid. Everything comes back the moment it is.",
-    "owed": "{amount} is unpaid, due since {date}.",
     "pay": "Pay now",
     "askOwner": "Ask the farm's owner or manager to pay, and it will open again for everyone.",
     "eft": "Paying by EFT? Email {email} and we will send our banking details; access opens as soon as the payment is confirmed.",
     "dataSafe": "Nothing has been deleted. Every vehicle, service, job card, fault and cost is still here, and it is still yours.",
     "download": "Download my records",
-    "help": "Questions about this, email {email} and a person will help."
+    "help": "Questions about this, email {email} and a person will help.",
+    "leadMany": "More than one payment is over seven days overdue, so the app is paused until they are all paid. Everything comes back once the last one is.",
+    "owedInvoice": "{amount} is unpaid on invoice {ref}, due since {date}.",
+    "moreOverdue": "After this payment, {amount} is still overdue on other invoices, so the farm stays paused until that is paid too.",
+    "payAmount": "Pay {amount} now",
+    "settlingReceivedMore": "Thank you, that payment is in. Other invoices are still overdue, so refresh this page to pay the next one."
   }
 }

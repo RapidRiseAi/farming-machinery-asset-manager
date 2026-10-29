@@ -1409,7 +1409,18 @@ export default async function BillingPage({
       ) : null}
 
       {/* == Stopping ========================================================= */}
-      {cancellable && sub ? (
+      {/* A paused farm is not cancelled until it has paid (review finding money-4):
+          `setCancellation` refuses it, so the reason is said here instead of offering a
+          dialog whose only answer is that refusal. A page opened before the pause still
+          gets the refusal as the error banner above, like the other cancel errors. */}
+      {cancellable && sub?.status === "suspended" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("billing.cancelTitle", locale)}</CardTitle>
+          </CardHeader>
+          <p className="text-sm text-sand-700">{t("billing.cancelSuspended", locale)}</p>
+        </Card>
+      ) : cancellable && sub ? (
         <Card>
           <CardHeader>
             <CardTitle>{t("billing.cancelTitle", locale)}</CardTitle>

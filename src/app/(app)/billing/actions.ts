@@ -233,13 +233,17 @@ export async function cancelSubscription(formData: FormData): Promise<void> {
   if (!subscription) bounce("billing-no-subscription");
   if (subscription.status === "cancelled") bounce("billing-already-cancelled");
 
-  const { error } = await setCancellation(supabase, {
+  const { error, refused } = await setCancellation(supabase, {
     subscriptionId: subscription.id,
     farmId,
     immediate,
     reason,
   });
   if (error) bounce("billing-save-failed");
+  // A paused farm cannot be cancelled until it has paid (review finding money-4). The
+  // refusal is the update's own, so it holds for Rapid Rise as well as for an owner whose
+  // page was opened before the suspension; said in words, not as a failed save.
+  if (refused) bounce(refused);
 
   revalidatePath("/billing");
   redirect(`/billing?saved=${immediate ? "cancelled" : "cancelling"}`);
