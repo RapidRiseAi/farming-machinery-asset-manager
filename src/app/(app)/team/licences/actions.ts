@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { homePathFor, requireProfile } from "@/lib/auth";
+import { homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 import { OTHER_PERSON } from "./credential-person";
@@ -39,6 +39,7 @@ async function requireTeamManager() {
   if (!state.farmId || !state.role || !["owner", "manager"].includes(state.role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(state.farmId, profile);
   return { profile, farmId: state.farmId };
 }
 

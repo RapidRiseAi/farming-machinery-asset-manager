@@ -270,7 +270,7 @@ Order: correctness and security first, then load, then product.
 |---|---|---|
 | Two-factor sign-in | Required for Rapid Rise staff; offered to owners | B9 enforces aal2 for `rr_admin`; enrolment on the account page for everyone |
 | Trial | None: pay at sign-up, as today | Nothing to build |
-| Lapsed subscriptions | Seven days' grace, then paused until paid (decided 2026-10-26, built 2026-10-29) | `access_grace_days` 7; paused means pay and download only; nothing deleted; paying restarts the period |
+| Lapsed subscriptions | Seven days' grace, then paused until paid (decided 2026-10-26, built 2026-10-29) | `access_grace_days` 7; paused means pay and download only; nothing deleted; the paused days are not charged (the period restarts on payment, or is lengthened by the days paused) |
 | Founding Farmer offer | None at launch | `billing_promo_codes` stays empty |
 | Simple operator mode | Before launch | H9 is a launch item |
 | WhatsApp | After launch | Codex's pilot stays out of the launch build |

@@ -6,6 +6,7 @@ import {
   effectiveFarmRole,
   homePathFor,
   requireProfile,
+  requireUsableFarm,
   type Profile,
   type Role,
 } from "@/lib/auth";
@@ -109,6 +110,7 @@ export async function requireFarmPermission(
   if (!state.farmId || !state.allows(permission)) {
     redirect(deniedPath ?? `${homePathFor(state.profile.role)}?denied=1`);
   }
+  await requireUsableFarm(state.farmId, state.profile);
   return state as FarmPermissionState & { farmId: string };
 }
 

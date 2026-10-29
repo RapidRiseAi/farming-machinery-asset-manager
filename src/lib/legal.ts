@@ -81,13 +81,13 @@ export const TERMS: Clause[] = [
     body: [
       "If a payment is missed, you have seven days to pay. A card on file is tried again during those days, and we let you know each time.",
       "If it is still unpaid after seven days, FleetWise is paused for your farm until it is paid: you can then only pay and download your records. Nothing is deleted while it is paused.",
-      "Paying what is overdue opens it again straight away, and your next period starts from the day you pay, so you are not charged for the time it was paused.",
+      "Paying what is overdue opens it again straight away, and you are not charged for the time it was paused: if what was overdue was the period you are in, that period starts again on the day you pay; if that period was already paid, it is made longer by the days it was paused.",
     ],
   },
   {
     heading: "Cancelling, and coming back",
     body: [
-      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling takes effect at the end of the period you have already paid for, unless you ask for it to be immediate.",
+      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling takes effect at the end of the period you have already paid for, unless you ask for it to be immediate. While FleetWise is paused for a missed payment, pay what is overdue first, or ask us to close the account.",
       "After a cancelled or unpaid account has been closed, you can reopen it yourself from the screen you land on, and pick up where you left off.",
     ],
   },

@@ -244,8 +244,9 @@ export function homePathFor(role: Role): string {
  * Whether a farm may be used now (20261029090100), asked once per request. Server actions
  * and API routes run before any layout, so the layout's billing gate alone left every one
  * of them working for a farm that was pending, suspended or closed. The role helpers below
- * ask this too, so the actions inherit it; the pages a stopped farm may still use (pay,
- * activate, closed, download records) call requireProfile, not these.
+ * ask this too, so the actions inherit it; an action with a guard of its own calls
+ * requireUsableFarm. The pages a stopped farm may still use (pay, activate, closed,
+ * download records, help) call requireProfile, not these.
  *
  * Fails OPEN, as the layout's gate does: a database hiccup must not lock a paying farm out.
  */
@@ -288,6 +289,20 @@ async function stoppedFarmPath(farmId: string | null, homeFarmId?: string | null
 export async function farmIsUsable(farmId: string, profile?: Profile | null): Promise<boolean> {
   if (profile?.role === "rr_admin") return true;
   return (await farmUsable(farmId)) === "ok";
+}
+
+/**
+ * The gate for a server action with a guard of its own (requireProfile plus a role or
+ * permission check): sends the person to the stopped page when the farm may not be used.
+ * A server action is an endpoint, so a tab opened before the pause, or a direct POST,
+ * reached it with the layout's gate never run, and a paused farm could still invite
+ * people, record payments and change settings ("pay and download only", 2026-10-27).
+ * Rapid Rise is never stopped.
+ */
+export async function requireUsableFarm(farmId: string | null, profile: Profile): Promise<void> {
+  if (profile.role === "rr_admin") return;
+  const stopped = await stoppedFarmPath(farmId, profile.farm_id);
+  if (stopped) redirect(stopped);
 }
 
 export async function requireRole(roles: Role[]): Promise<Profile> {

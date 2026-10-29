@@ -148,7 +148,7 @@ With test keys, in Preview only. Paystack's test cards are in their docs.
 - [ ] A **declined** card is recorded as a failure and starts the retry ladder
 - [ ] A **duplicate** webhook delivery changes nothing the second time
 - [ ] A payment recorded by webhook and by verify does not double-credit
-- [ ] A farm whose invoice is more than seven days overdue is suspended (pay and download only), keeps all its data, and is resumed on payment with a fresh period (docs/BILLING.md §11, 2026-10-29)
+- [ ] A farm whose invoice is more than seven days overdue is suspended (pay and download only), keeps all its data, and is resumed on payment without being charged for the paused days (docs/BILLING.md §11, 2026-10-29)
 
 ## 7. Going live (you, deliberately)
 

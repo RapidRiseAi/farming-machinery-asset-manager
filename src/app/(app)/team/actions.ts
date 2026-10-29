@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
-import { homePathFor, requireProfile, type Role } from "@/lib/auth";
+import { homePathFor, requireProfile, requireUsableFarm, type Role } from "@/lib/auth";
 import {
   farmPermissionState,
   isUserPermission,
@@ -30,6 +30,7 @@ async function requireTeamManager() {
   if (!state.farmId || !state.role || !["owner", "manager"].includes(state.role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(state.farmId, profile);
   return { profile, farmId: state.farmId };
 }
 

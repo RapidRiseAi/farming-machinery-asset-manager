@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { homePathFor, requireProfile } from "@/lib/auth";
+import { homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { setPartnerLink, clearPartnerLink } from "@/lib/partner-link";
 import { partnerMatchKey } from "@/lib/partner-match";
@@ -22,6 +22,7 @@ async function requireDirectoryManager() {
   if (!state.farmId || !state.allows("manage_partners")) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(state.farmId, profile);
   return { profile, farmId: state.farmId, isAdmin: false } as const;
 }
 
@@ -33,6 +34,7 @@ async function requireConnectionManager() {
   if (!state.farmId || !state.role || !["owner", "manager"].includes(state.role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(state.farmId, profile);
   return { farmId: state.farmId };
 }
 

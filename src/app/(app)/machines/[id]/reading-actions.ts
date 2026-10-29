@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { effectiveFarmRole, requireProfile } from "@/lib/auth";
+import { effectiveFarmRole, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { withTab } from "@/components/ui/tabs-url";
 import { backHref } from "@/components/ui/back-href";
 import {
@@ -42,6 +42,7 @@ export async function addReading(formData: FormData) {
       if (!role || !["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role)) {
         redirect(landing("error", "You cannot record a reading for that farm"));
       }
+      await requireUsableFarm(farmId, profile);
       const reading_date = dateRaw || todayInSouthAfrica();
       const driverUserId = String(formData.get("driver_user_id") ?? "").trim() || null;
 
@@ -89,6 +90,7 @@ export async function correctReading(formData: FormData) {
   if (!role || !["rr_admin", "owner", "manager"].includes(role)) {
     redirect(withTab(`${back}?error=forbidden`, "overview"));
   }
+  await requireUsableFarm(farmId, profile);
 
   const supabase = await createClient();
   try {
@@ -126,6 +128,7 @@ export async function replaceMeter(formData: FormData) {
   if (!role || !["rr_admin", "owner", "manager"].includes(role)) {
     redirect(withTab(`${back}?error=forbidden`, "overview"));
   }
+  await requireUsableFarm(farmId, profile);
 
   const supabase = await createClient();
   try {

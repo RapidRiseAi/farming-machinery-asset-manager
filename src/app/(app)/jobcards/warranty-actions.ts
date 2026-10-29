@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { currentFarmId, requireProfile } from "@/lib/auth";
+import { currentFarmId, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 import { WARRANTY_STATUSES, requiredFor, type WarrantyStatus } from "@/lib/warranty-claims";
 
@@ -38,6 +38,7 @@ async function requireFarmUser(jobCardId: string) {
   if (!farmId || !["owner", "manager", "mechanic", "rr_admin"].includes(profile.role)) {
     bounce(jobCardId, "forbidden");
   }
+  await requireUsableFarm(farmId, profile);
   return { profile, farmId };
 }
 

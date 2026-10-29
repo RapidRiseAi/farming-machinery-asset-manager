@@ -1,13 +1,17 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, requireUsableFarm } from "@/lib/auth";
+import { isUuid } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
 
 export async function recordActivity(form: FormData) {
   const profile = await requireProfile();
   const db = await createClient();
   const farm = String(form.get("farm") ?? "");
+  // record_driving_event refuses a farm whose stored status is suspended, but not one
+  // that is pending or closed; the gate answers for all three.
+  await requireUsableFarm(isUuid(farm) ? farm : null, profile);
   const raw = String(form.get("at") ?? "");
   // Explicit SAST for manager-entered times; server/device timezone never changes the date.
   const at = raw ? new Date(`${raw}:00+02:00`) : new Date();
