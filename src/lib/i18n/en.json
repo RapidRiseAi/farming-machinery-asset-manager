@@ -5291,7 +5291,11 @@
     "billingManualReference": "Enter the bank reference the payment came in with.",
     "billingManualMethod": "Choose how it was paid.",
     "billingManualNotManual": "Only a payment recorded by hand can be reversed here.",
-    "billingManualReversed": "That payment is already reversed."
+    "billingManualReversed": "That payment is already reversed.",
+    "billingServiceBad": "Every line you include needs a description, a whole quantity of at least 1 and a price.",
+    "billingServiceEmpty": "Fill in at least one line.",
+    "billingServiceNothing": "That invoice adds up to nothing, so it was not raised.",
+    "billingServiceDue": "The due date must be within the next 120 days."
   },
   "billing": {
     "title": "Billing",
@@ -5676,7 +5680,18 @@
     "reverseReason": "Why",
     "reverseSave": "Reverse payment",
     "savedPaymentRecorded": "Payment recorded. If it paid the invoice in full, the farm's access has opened or resumed.",
-    "savedPaymentReversed": "Payment reversed. The invoice is open again."
+    "savedPaymentReversed": "Payment reversed. The invoice is open again.",
+    "serviceCardTitle": "Once-off services",
+    "serviceOpen": "Invoice a service",
+    "serviceTitle": "Invoice {farm} for a service",
+    "serviceLead": "Onboarding, installation, training or QR stickers. Fill in a quantity and a price on each line to include it; leave a line empty to leave it out.",
+    "serviceOther": "Something else (describe it)",
+    "serviceQty": "Quantity",
+    "servicePrice": "Price each (R)",
+    "serviceDue": "Due by (optional)",
+    "serviceNote": "A service invoice is never charged to the farm's card automatically and never pauses the farm. It is paid by EFT, recorded here, or by its link.",
+    "serviceSave": "Raise invoice",
+    "savedServiceInvoice": "Service invoice raised. It is in the farm's invoices below."
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -5722,7 +5737,8 @@
     "howToPay": "How to pay",
     "howToPayCard": "Sign in to FleetWise, open Billing and press Pay now. It goes through on a card and takes about a minute. Your farm stays open while you sort it out.",
     "questionsAbout": "Any question about this invoice, or a different way to pay it: {email}",
-    "keepThisInvoice": "Keep this invoice for your records."
+    "keepThisInvoice": "Keep this invoice for your records.",
+    "colQty": "Quantity"
   },
   "billingReceiptEmail": {
     "subject": "Receipt {ref}, {amount} received",

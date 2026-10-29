@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Once-off service invoices and their catalogue.
+  "20261029110000": "select to_regclass('public.billing_service_catalogue') is not null and to_regprocedure('public.billing_raise_service_invoice(uuid,jsonb,date,uuid)') is not null",
   // Payments made outside the app, recorded by Rapid Rise with proof.
   "20261029100000": "select to_regprocedure('public.billing_record_manual_payment(uuid,bigint,text,text,date,text,text,uuid)') is not null",
   // Suspension for non-payment (seven days, then pay or download only).

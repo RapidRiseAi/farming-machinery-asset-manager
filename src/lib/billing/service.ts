@@ -86,6 +86,7 @@ export const BILLING_RPC = {
   // Payments made outside the app (20261029100000), service role only.
   recordManualPayment: "billing_record_manual_payment",
   reverseManualPayment: "billing_reverse_manual_payment",
+  raiseServiceInvoice: "billing_raise_service_invoice",
   closeCancellations: "cron_close_billing_cancellations",
   enqueueReminders: "cron_enqueue_billing_reminders",
   // Telling a farm BEFORE the money comes off (20260918140000). Every other billing
@@ -577,6 +578,9 @@ export async function openInvoiceForFarm(
       .select(INVOICE_COLUMNS)
       .eq("farm_id", farmId)
       .eq("status", "open")
+      // Not a once-off service invoice (20261029110000): the subscription's checkout pays
+      // what keeps the farm running; stickers and training are paid by EFT or their link.
+      .neq("kind", "service")
       .is("deleted_at", null)
       .order("due_on", { ascending: true, nullsFirst: false })
       .limit(5),

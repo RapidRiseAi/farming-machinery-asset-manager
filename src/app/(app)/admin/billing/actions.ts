@@ -393,6 +393,47 @@ export async function adminRecordPayment(formData: FormData): Promise<void> {
   redirect(`/admin/billing?farm=${farmId}&saved=payment-recorded`);
 }
 
+/**
+ * Raise a once-off service invoice: onboarding, installation, training, QR stickers, or a
+ * line of its own (20261029110000). One row per catalogue service: a quantity and a price
+ * (rands) on a row includes it; an empty row is left out. Never charged to a card by the
+ * nightly run and never a reason to pause the farm; paid by EFT or its link.
+ */
+export async function adminRaiseServiceInvoice(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  if (profile.role !== "rr_admin") bounce("forbidden");
+  const farmId = String(formData.get("farm_id") ?? "").trim();
+  if (!isUuid(farmId)) bounce("missing-id");
+  const due = String(formData.get("due_on") ?? "").trim();
+  if (due && !isIsoDate(due)) bounce("billing-service-bad");
+
+  const lines: { code: string | null; description: string; qty: number; unit_price_cents: number }[] = [];
+  for (let i = 0; i < 6; i += 1) {
+    const description = String(formData.get(`line_${i}_description`) ?? "").trim();
+    const qtyRaw = String(formData.get(`line_${i}_qty`) ?? "").trim();
+    const priceRaw = String(formData.get(`line_${i}_price`) ?? "").trim().replace(",", ".");
+    if (!qtyRaw && !priceRaw) continue;
+    const qty = Number(qtyRaw);
+    const price = Number(priceRaw);
+    if (!description || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(price) || price < 0) bounce("billing-service-bad");
+    const code = String(formData.get(`line_${i}_code`) ?? "").trim() || null;
+    lines.push({ code, description, qty, unit_price_cents: Math.round(price * 100) });
+  }
+  if (lines.length === 0) bounce("billing-service-empty");
+
+  const supabase = createServiceClient();
+  const { error } = await supabase.rpc(BILLING_RPC.raiseServiceInvoice, {
+    p_farm: farmId,
+    p_lines: lines,
+    p_due_on: due || null,
+    p_by: profile.id,
+  });
+  if (error) bounce(errorCode(error, "admin-billing:service-invoice", "billing-save-failed"));
+
+  revalidatePath("/admin/billing");
+  redirect(`/admin/billing?farm=${farmId}&saved=service-invoice`);
+}
+
 /** Take back a payment recorded by hand (a bounced EFT, a typing mistake), with a reason. */
 export async function adminReversePayment(formData: FormData): Promise<void> {
   const profile = await requireProfile();

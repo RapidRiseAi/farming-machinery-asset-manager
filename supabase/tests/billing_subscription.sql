@@ -1330,7 +1330,9 @@ declare
     'farm_overdue_since','billing_apply_suspensions',
     -- Payments made outside the app (20261029100000). They write money into the ledger, so
     -- they are reached only through their service-role wrappers, with the actor checked.
-    'billing_record_manual_payment','billing_reverse_manual_payment'];
+    'billing_record_manual_payment','billing_reverse_manual_payment',
+    -- Once-off service invoices (20261029110000): written only through the service wrapper.
+    'billing_raise_service_invoice'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1367,7 +1369,8 @@ declare
     -- discount setter's reasoning: the rr_admin check lives in the action, the actor is passed.
     'admin_extend_billing_access',
     -- Recording or reversing a payment made outside the app (20261029100000).
-    'billing_record_manual_payment','billing_reverse_manual_payment'];
+    'billing_record_manual_payment','billing_reverse_manual_payment',
+    'billing_raise_service_invoice'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.

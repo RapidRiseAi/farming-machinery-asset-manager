@@ -80,6 +80,7 @@ import {
   adminRetryCharge,
   adminExtendAccess,
   adminRecordPayment,
+  adminRaiseServiceInvoice,
   adminReversePayment,
   adminSetDiscount,
   adminSetPlan,
@@ -178,6 +179,7 @@ export default async function AdminBillingPage({
   let invoices: InvoiceRow[] = [];
   let attempts: AttemptRow[] = [];
   let payments: PaymentRow[] = [];
+  let catalogue: { code: string; name_en: string; name_af: string; unit_en: string; unit_af: string; unit_price_incl_cents: number | null }[] = [];
   if (selected) {
     const detailResults = await Promise.all([
       supabase
@@ -208,6 +210,17 @@ export default async function AdminBillingPage({
     invoices = (i as InvoiceRow[] | null) ?? [];
     attempts = (a as AttemptRow[] | null) ?? [];
     payments = (p as PaymentRow[] | null) ?? [];
+    // The once-off services Rapid Rise invoices (20261029110000). Prices may be empty
+    // (pending): they are typed on the invoice.
+    catalogue = (must(
+      await supabase
+        .from("billing_service_catalogue")
+        .select("code, name_en, name_af, unit_en, unit_af, unit_price_incl_cents")
+        .eq("active", true)
+        .order("sort")
+        .limit(20),
+      "admin-billing:catalogue",
+    ) ?? []) as typeof catalogue;
   }
 
   const payable = payableInvoice(invoices);
@@ -1150,6 +1163,62 @@ export default async function AdminBillingPage({
                 ))}
               </div>
             ) : null}
+          </Card>
+
+          {/* == Once-off services (20261029110000) =============================== */}
+          <Card>
+            <CardHeader
+              action={
+                <DialogForm
+                  trigger={t("adminBilling.serviceOpen", locale)}
+                  triggerVariant="secondary"
+                  triggerSize="sm"
+                  title={t("adminBilling.serviceTitle", locale).replace("{farm}", farmName)}
+                  description={t("adminBilling.serviceLead", locale)}
+                  closeLabel={t("ui.close", locale)}
+                  size="lg"
+                >
+                  <form action={adminRaiseServiceInvoice}>
+                    <input type="hidden" name="farm_id" value={selected.sub.farm_id} />
+                    {[...catalogue.slice(0, 5).map((c) => ({
+                      code: c.code,
+                      name: locale.startsWith("af") ? c.name_af : c.name_en,
+                      unit: locale.startsWith("af") ? c.unit_af : c.unit_en,
+                      price: c.unit_price_incl_cents,
+                    })), { code: "", name: "", unit: "", price: null as number | null }].map((row, i) => (
+                      <fieldset key={row.code || "other"} className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr_1fr]">
+                        <input type="hidden" name={`line_${i}_code`} value={row.code} />
+                        <Field label={row.code ? `${row.name} (${row.unit})` : t("adminBilling.serviceOther", locale)} htmlFor={`svc-desc-${i}`}>
+                          <Input id={`svc-desc-${i}`} name={`line_${i}_description`} defaultValue={row.name} maxLength={200} />
+                        </Field>
+                        <Field label={t("adminBilling.serviceQty", locale)} htmlFor={`svc-qty-${i}`}>
+                          <Input id={`svc-qty-${i}`} name={`line_${i}_qty`} inputMode="numeric" />
+                        </Field>
+                        <Field label={t("adminBilling.servicePrice", locale)} htmlFor={`svc-price-${i}`}>
+                          <Input
+                            id={`svc-price-${i}`}
+                            name={`line_${i}_price`}
+                            inputMode="decimal"
+                            defaultValue={row.price != null ? (row.price / 100).toFixed(2) : ""}
+                          />
+                        </Field>
+                      </fieldset>
+                    ))}
+                    <DialogFields columns={1}>
+                      <Field label={t("adminBilling.serviceDue", locale)} htmlFor="svc-due">
+                        <Input id="svc-due" name="due_on" type="date" />
+                      </Field>
+                    </DialogFields>
+                    <p className="mt-2 text-xs text-sand-500">{t("adminBilling.serviceNote", locale)}</p>
+                    <DialogActions cancelLabel={t("common.cancel", locale)}>
+                      <SubmitButton>{t("adminBilling.serviceSave", locale)}</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+              }
+            >
+              <CardTitle>{t("adminBilling.serviceCardTitle", locale)}</CardTitle>
+            </CardHeader>
           </Card>
 
           {/* == Money received ================================================ */}

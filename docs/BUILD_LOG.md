@@ -5963,3 +5963,26 @@ Suite `billing_manual_payments.sql` (every refusal, a part payment not activatin
 duplicate reference, a paused farm resuming, the reversal reopening and counting again).
 Still to come in this work: once-off service invoices, staff onboarding that opens access
 only after payment, payment links and an invoice email with EFT details.
+
+## 2026-10-29 - Once-off services on an invoice
+
+Founder decisions of 26 October: charge for onboarding, installations, training and QR
+stickers (QR generation stays included; the stickers are a paid add-on); prices pending.
+
+- A `service` invoice kind, built the way the AI-only invoice is: the plan-shaped columns
+  carry neutral values and the total is the sum of its lines (no subscription discount, no
+  AI use), so the invoice freeze and its NOT NULL columns are unchanged.
+- It carries no subscription, deliberately: the nightly card charge never takes it (a farm's
+  card is never charged for stickers without asking), the restore after payment never runs
+  for it, and the pause for non-payment never counts it. The subscription checkout skips it
+  too, so a paused farm's Pay now pays what keeps it running. It is paid by EFT (recorded
+  by hand) or, next, by a payment link.
+- `billing_service_catalogue` (onboarding, installation, training per hour, QR stickers per
+  sheet), readable by Rapid Rise; prices may stay empty and are typed per invoice.
+  `app.billing_raise_service_invoice` (a named Rapid Rise admin, 1 to 20 lines, whole
+  quantities, a due date within 120 days, never an invoice for nothing).
+- Admin billing gains "Invoice a service" (a row per catalogue service and one of its own);
+  the receipt PDF and email print a service invoice's lines instead of a plan row, with a
+  render test for service, plan, AI-only and Afrikaans receipts.
+
+Suite `billing_service_invoices.sql`. 52 suites, 731 unit tests.

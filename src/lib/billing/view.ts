@@ -178,7 +178,8 @@ export type InvoiceRow = {
   amount_paid_cents: number;
   currency: string;
   voided_reason: string | null;
-  /** 'period', 'proration', 'slots', or 'ai_usage' (AI and voice use billed on its own). */
+  /** 'period', 'proration', 'slots', 'ai_usage' (AI and voice use billed on its own), or
+   *  'service' (a once-off service, 20261029110000). */
   kind: string;
   /** AI and voice use on this invoice, VAT-inclusive; part of the total. */
   ai_usage_incl_cents: number;
@@ -1252,6 +1253,8 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "adminBilling.savedPaymentRecorded", tone: "info" };
     case "payment-reversed":
       return { key: "adminBilling.savedPaymentReversed", tone: "info" };
+    case "service-invoice":
+      return { key: "adminBilling.savedServiceInvoice", tone: "info" };
 
     default:
       return { key: "ui.savedChanges", tone: "success" };

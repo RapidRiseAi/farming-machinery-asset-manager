@@ -59,6 +59,11 @@ export type BillingReceiptData = {
   vatRateBps: number;
   /** An invoice for AI and voice use alone: no plan line, no vehicles. */
   aiOnly: boolean;
+  /**
+   * A once-off service invoice (20261029110000): its own lines, and no plan line. Null on
+   * every other kind.
+   */
+  serviceLines: { description: string; qty: number; totalInclCents: number }[] | null;
   /** What came off the plan, VAT-inclusive, and the deal's name. */
   discount: { cents: number; label: string | null } | null;
   /**
@@ -211,7 +216,9 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   // it, the list price, the deal and the use each need their own line to be checkable.
   const perVehicle = `${rands(d.unitPriceInclCents)} ${t("billingReceipt.perVehicleMonth", L)}`;
   const rows: string[][] = [];
-  if (!d.aiOnly) {
+  if (d.serviceLines) {
+    for (const line of d.serviceLines) rows.push([line.description, String(line.qty), "", rands(line.totalInclCents)]);
+  } else if (!d.aiOnly) {
     rows.push([
       `${d.planLabel}, ${perVehicle}`,
       String(d.assetCount),
@@ -236,8 +243,8 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   pdf.table(
     [
       t("billingReceipt.colDescription", L),
-      t("billingReceipt.colVehicles", L),
-      t("billingReceipt.colMonths", L),
+      t(d.serviceLines ? "billingReceipt.colQty" : "billingReceipt.colVehicles", L),
+      d.serviceLines ? "" : t("billingReceipt.colMonths", L),
       t("billingReceipt.colAmount", L),
     ],
     rows,

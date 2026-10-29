@@ -5291,7 +5291,11 @@
     "billingManualReference": "Vul die bankverwysing in waarmee die betaling ingekom het.",
     "billingManualMethod": "Kies hoe dit betaal is.",
     "billingManualNotManual": "Slegs 'n betaling wat met die hand aangeteken is, kan hier omgekeer word.",
-    "billingManualReversed": "Daardie betaling is reeds omgekeer."
+    "billingManualReversed": "Daardie betaling is reeds omgekeer.",
+    "billingServiceBad": "Elke reël wat jy insluit, het 'n beskrywing, 'n heel hoeveelheid van minstens 1 en 'n prys nodig.",
+    "billingServiceEmpty": "Vul minstens een reël in.",
+    "billingServiceNothing": "Daardie faktuur tel op na niks, so dit is nie geskep nie.",
+    "billingServiceDue": "Die betaaldatum moet binne die volgende 120 dae wees."
   },
   "billing": {
     "title": "Rekening",
@@ -5676,7 +5680,18 @@
     "reverseReason": "Hoekom",
     "reverseSave": "Keer betaling om",
     "savedPaymentRecorded": "Betaling aangeteken. As dit die faktuur ten volle betaal het, is die plaas se toegang oopgemaak of hervat.",
-    "savedPaymentReversed": "Betaling omgekeer. Die faktuur is weer oop."
+    "savedPaymentReversed": "Betaling omgekeer. Die faktuur is weer oop.",
+    "serviceCardTitle": "Eenmalige dienste",
+    "serviceOpen": "Faktureer 'n diens",
+    "serviceTitle": "Faktureer {farm} vir 'n diens",
+    "serviceLead": "Aanboording, installasie, opleiding of QR-plakkers. Vul 'n hoeveelheid en 'n prys op elke reël in om dit in te sluit; laat 'n reël leeg om dit uit te laat.",
+    "serviceOther": "Iets anders (beskryf dit)",
+    "serviceQty": "Hoeveelheid",
+    "servicePrice": "Prys elk (R)",
+    "serviceDue": "Betaalbaar teen (opsioneel)",
+    "serviceNote": "'n Diensfaktuur word nooit outomaties van die plaas se kaart gehef nie en onderbreek nooit die plaas nie. Dit word per EFT betaal, hier aangeteken, of met sy skakel.",
+    "serviceSave": "Stuur faktuur",
+    "savedServiceInvoice": "Diensfaktuur geskep. Dit is onder die plaas se fakture."
   },
   "billingReceipt": {
     "title": "Kwitansie",
@@ -5722,7 +5737,8 @@
     "howToPay": "Hoe om te betaal",
     "howToPayCard": "Meld by FleetWise aan, maak Rekening oop en druk Betaal nou. Dit gaan met 'n kaart deur en vat omtrent 'n minuut. Jou plaas bly oop terwyl jy dit uitsorteer.",
     "questionsAbout": "Enige navraag oor hierdie faktuur, of 'n ander manier om dit te betaal: {email}",
-    "keepThisInvoice": "Hou hierdie faktuur vir jou rekords."
+    "keepThisInvoice": "Hou hierdie faktuur vir jou rekords.",
+    "colQty": "Hoeveelheid"
   },
   "billingReceiptEmail": {
     "subject": "Kwitansie {ref}, {amount} ontvang",

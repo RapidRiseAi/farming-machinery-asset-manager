@@ -216,6 +216,20 @@ export async function loadReceipt(
     }
   }
 
+  // A service invoice prints its own lines (20261029110000); every other kind is plan-shaped.
+  const serviceLines = inv.kind === "service"
+    ? ((must(
+        await supabase
+          .from("billing_invoice_lines")
+          .select("description, qty, line_total_incl_cents, sort_order")
+          .eq("invoice_id", invoiceId)
+          .order("sort_order")
+          .limit(20),
+        "billing:receipt:lines",
+      ) ?? []) as { description: string; qty: number; line_total_incl_cents: number }[])
+        .map((l) => ({ description: l.description, qty: l.qty, totalInclCents: l.line_total_incl_cents }))
+    : null;
+
   const seller = (inv.seller_snapshot ?? {}) as Record<string, unknown>;
   const billTo = (inv.bill_to_snapshot ?? {}) as Record<string, unknown>;
 
@@ -236,6 +250,7 @@ export async function loadReceipt(
     totalInclCents: inv.total_incl_cents,
     vatRateBps: inv.vat_rate_bps,
     aiOnly: inv.kind === "ai_usage",
+    serviceLines,
     discount: Number(inv.discount_cents) > 0
       ? { cents: Number(inv.discount_cents), label: str(inv.discount_label) }
       : null,
@@ -285,7 +300,8 @@ function receiptBody(d: BillingReceiptData, farmName: string): { html: string; t
       .replace("{period}", period)
       .replace("{ref}", d.invoiceRef),
     "",
-    ...(d.aiOnly ? [] : [`${t("billingReceipt.colVehicles", L)}: ${d.assetCount}`]),
+    ...(d.aiOnly || d.serviceLines ? [] : [`${t("billingReceipt.colVehicles", L)}: ${d.assetCount}`]),
+    ...(d.serviceLines ?? []).map((l) => `${l.description} x${l.qty}: ${rands(l.totalInclCents)}`),
     ...(d.aiUsage ? [`${t("billingReceiptEmail.aiUse", L)}: ${rands(d.aiUsage.inclCents)}`] : []),
     `${t("billingReceipt.totalPaid", L)}: ${amount}`,
     "",
