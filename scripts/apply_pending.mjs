@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Fourth review fixes: a charge claim refuses more than is owed (a new refusal in it).
+  "20261029150000": "select coalesce(pg_get_functiondef(to_regprocedure('app.claim_billing_charge(uuid,text,billing_attempt_kind,bigint)')) like '%the amount owed has changed%', false)",
   // Third review fixes: the generator raises a reopened farm an invoice (its new pending rule).
   "20261029140000": "select coalesce(pg_get_functiondef(to_regprocedure('app.generate_billing_invoices(uuid)')) like '%i.status in (''draft'', ''open'')%', false)",
   // Second review fixes: the reversal decides by paid invoices (a new branch in it).

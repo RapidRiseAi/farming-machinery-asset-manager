@@ -1703,7 +1703,18 @@ begin
       -- billing detail to something a person will read and act on.
       ('open_support_ticket',
        'p_kind support_ticket_kind, p_subject text, p_farm uuid, p_invoice uuid, p_payment uuid, p_external_ref text, p_source_event uuid, p_due_at timestamp with time zone',
-       false)
+       false),
+      -- Suspension, keeping a farm open, payments made outside the app and service
+      -- invoices (20261029090100 to 20261029110000), added by 20261029150000: they were in
+      -- BILLING_RPC but not here, so a renamed parameter would have passed every suite
+      -- and failed only in production. All service-role only, the actor passed in.
+      ('cron_apply_billing_suspensions', '', false),
+      ('admin_extend_billing_access', 'p_farm uuid, p_until date, p_reason text, p_by uuid', false),
+      ('billing_record_manual_payment',
+       'p_invoice uuid, p_amount_cents bigint, p_method text, p_bank_reference text, p_received_on date, p_note text, p_proof_path text, p_by uuid',
+       false),
+      ('billing_reverse_manual_payment', 'p_payment uuid, p_reason text, p_by uuid', false),
+      ('billing_raise_service_invoice', 'p_farm uuid, p_lines jsonb, p_due_on date, p_by uuid', false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
