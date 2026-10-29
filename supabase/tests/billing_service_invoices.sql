@@ -90,4 +90,17 @@ begin
   end if;
 end $$;
 
+
+-- == (e) lines carry the invoice's own VAT rate: none while Rapid Rise is not registered ===
+do $$
+declare v_inv uuid;
+begin
+  v_inv := public.billing_raise_service_invoice('e7000000-0000-0000-0000-000000000001',
+    '[{"description":"QR stickers","qty":2,"unit_price_cents":11500}]', null, 'e7a00000-0000-0000-0000-000000000009');
+  if exists (select 1 from billing_invoice_lines l join billing_invoices i on i.id = l.invoice_id
+              where l.invoice_id = v_inv and l.line_vat_cents <> 0 and i.vat_rate_bps = 0) then
+    raise exception 'SERVICE FAIL [e]: a line states VAT its invoice does not charge';
+  end if;
+end $$;
+
 rollback;

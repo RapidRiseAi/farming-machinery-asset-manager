@@ -17,6 +17,7 @@ import { errorMessage } from "@/lib/errors";
 import { MachinesIcon } from "@/components/ui/icons";
 import { beginCheckoutAction } from "./actions";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { isUuid } from "@/lib/ids";
 
 /**
  * The screen a farm sees between signing up and paying.
@@ -35,7 +36,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 export default async function ActivatePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; farm?: string }>;
 }) {
   const sp = await searchParams;
   const profile = await requireProfile();
@@ -44,10 +45,12 @@ export default async function ActivatePage({
   // A contractor or a Rapid Rise admin has no farm subscription to activate, and an
   // operator cannot pay for one. Send everybody who does not belong here home rather than
   // showing them a payment screen about somebody else's account.
-  if (!profile.farm_id) redirect("/home");
+  // The farm being activated: the one the layout said (?farm=) or the home farm.
+  const farmId = isUuid(sp.farm) ? sp.farm : profile.farm_id;
+  if (!farmId) redirect("/home");
 
   const supabase = await createClient();
-  const gate = await farmBillingGate(supabase, profile.farm_id);
+  const gate = await farmBillingGate(supabase, farmId);
 
   // Already paid, or grandfathered, or a farm that never had a subscription. Whatever the
   // reason, there is nothing to activate and the app is theirs.
@@ -57,7 +60,7 @@ export default async function ActivatePage({
     await supabase
       .from("billing_subscriptions")
       .select("plan, billing_period, asset_quota")
-      .eq("farm_id", profile.farm_id)
+      .eq("farm_id", farmId)
       .is("deleted_at", null)
       .maybeSingle(),
     "activate:subscription",
@@ -70,7 +73,7 @@ export default async function ActivatePage({
     await supabase
       .from("billing_invoices")
       .select("invoice_ref, total_incl_cents")
-      .eq("farm_id", profile.farm_id)
+      .eq("farm_id", farmId)
       .eq("status", "open")
       .is("deleted_at", null)
       .order("issued_on", { ascending: false })
@@ -101,7 +104,7 @@ export default async function ActivatePage({
     await svc
       .from("billing_payment_attempts")
       .select("status, requested_at")
-      .eq("farm_id", profile.farm_id)
+      .eq("farm_id", farmId)
       .in("status", ["pending", "succeeded"])
       .order("requested_at", { ascending: false })
       .limit(1)
@@ -201,6 +204,7 @@ export default async function ActivatePage({
         ) : (
           <>
             <form action={beginCheckoutAction} className="mt-6">
+              {farmId !== farmId ? <input type="hidden" name="farm" value={farmId} /> : null}
               <SubmitButton className="w-full">
                 {invoice
                   ? t("activate.payAmount", locale).replace(

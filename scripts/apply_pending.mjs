@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Review fixes: the reversal puts a bounced sign-up back to pending (a new branch in it).
+  "20261029120000": "select pg_get_functiondef('app.billing_reverse_manual_payment(uuid,text,uuid)'::regprocedure) like '%v_sub uuid%'",
   // Once-off service invoices and their catalogue.
   "20261029110000": "select to_regclass('public.billing_service_catalogue') is not null and to_regprocedure('public.billing_raise_service_invoice(uuid,jsonb,date,uuid)') is not null",
   // Payments made outside the app, recorded by Rapid Rise with proof.

@@ -244,4 +244,114 @@ begin
   end if;
 end $$;
 
+
+-- == (h) suspended over a small AI invoice, the year already paid: the renewal is NOT moved
+--        to today, only on by the days suspended (review of 20261029090100) ================
+insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
+  ('c5000000-0000-0000-0000-000000000009', 'Suspend Annual', 'complete', 'active', 'annual', 's9@billing.invalid', false);
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('c5600000-0000-0000-0000-000000000009', 'c5000000-0000-0000-0000-000000000009', 'complete', 'annual', 'active',
+   current_date - 300, current_date + 64, current_date + 65);
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status, kind,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('c5800000-0000-0000-0000-000000000009', 'c5000000-0000-0000-0000-000000000009',
+  'c5600000-0000-0000-0000-000000000009', 'C5-AI-9', 'draft', 'ai_usage',
+  current_date - 40, current_date - 11, current_date - 13, current_date - 13,
+  'complete', 'annual', 0, 0, 1, null, 'AI and voice use', 0);
+update billing_invoices set ai_usage_ex_vat_cents = 5000 where id = 'c5800000-0000-0000-0000-000000000009';
+update billing_invoices set status = 'open' where id = 'c5800000-0000-0000-0000-000000000009';
+do $$
+declare r record;
+begin
+  perform app.billing_apply_suspensions();
+  if (select status from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000009') <> 'suspended' then
+    raise exception 'SUSPEND FAIL [h]: the annual farm was not suspended over its AI invoice';
+  end if;
+  -- It has been suspended for ten days when it pays.
+  update billing_subscriptions set suspended_at = now() - interval '10 days' where id = 'c5600000-0000-0000-0000-000000000009';
+  insert into billing_payments (farm_id, invoice_id, amount_incl_cents, provider, provider_reference, provider_transaction_id, channel)
+  values ('c5000000-0000-0000-0000-000000000009', 'c5800000-0000-0000-0000-000000000009',
+          (select total_incl_cents from billing_invoices where id = 'c5800000-0000-0000-0000-000000000009'),
+          'paystack', 'C5-PAY-9', 955000009, 'card');
+  perform app.billing_restore_after_payment('c5600000-0000-0000-0000-000000000009');
+  select * into r from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000009';
+  if r.status <> 'active' then raise exception 'SUSPEND FAIL [h]: paid the AI invoice but still %', r.status; end if;
+  if r.current_period_start <> current_date - 300 or r.current_period_end <> current_date + 74
+     or r.next_billing_on <> current_date + 75 then
+    raise exception 'SUSPEND FAIL [h]: the paid year was moved (% to %, next %), expected only ten days on',
+      r.current_period_start, r.current_period_end, r.next_billing_on;
+  end if;
+end $$;
+
+-- == (i) an invoice not yet past its grace does not keep a paid farm locked ===============
+insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
+  ('c5000000-0000-0000-0000-000000000010', 'Suspend Upcoming', 'complete', 'active', 'monthly', 's10@billing.invalid', false);
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('c5600000-0000-0000-0000-000000000010', 'c5000000-0000-0000-0000-000000000010', 'complete', 'monthly', 'active',
+   current_date - 2, current_date + 27, current_date + 28);
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status, kind,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values
+  ('c5800000-0000-0000-0000-000000000010', 'c5000000-0000-0000-0000-000000000010', 'c5600000-0000-0000-0000-000000000010',
+   'C5-SLOTS-10', 'draft', 'slots', current_date - 20, current_date - 20, current_date - 20, current_date - 10,
+   'complete', 'monthly', 1, 1111, 1, 'c5500000-0000-0000-0000-000000000001', 'c5-synthetic', 0),
+  ('c5800000-0000-0000-0000-000000000011', 'c5000000-0000-0000-0000-000000000010', 'c5600000-0000-0000-0000-000000000010',
+   'C5-PERIOD-10', 'draft', 'period', current_date - 2, current_date + 27, current_date - 2, current_date + 5,
+   'complete', 'monthly', 1, 1111, 1, 'c5500000-0000-0000-0000-000000000001', 'c5-synthetic', 0);
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+select id, 'c5000000-0000-0000-0000-000000000010', 0, 'line', 1, 1, 1111, 1111, 1111, 0
+  from billing_invoices where id in ('c5800000-0000-0000-0000-000000000010', 'c5800000-0000-0000-0000-000000000011');
+update billing_invoices set status = 'open' where id in ('c5800000-0000-0000-0000-000000000010', 'c5800000-0000-0000-0000-000000000011');
+do $$
+begin
+  perform app.billing_apply_suspensions();
+  insert into billing_payments (farm_id, invoice_id, amount_incl_cents, provider, provider_reference, provider_transaction_id, channel)
+  values ('c5000000-0000-0000-0000-000000000010', 'c5800000-0000-0000-0000-000000000010', 1111, 'paystack', 'C5-PAY-10', 955000010, 'card');
+  perform app.billing_restore_after_payment('c5600000-0000-0000-0000-000000000010');
+  if app.farm_billing_gate('c5000000-0000-0000-0000-000000000010') <> 'ok' then
+    raise exception 'SUSPEND FAIL [i]: a farm that paid what was overdue stays locked over an invoice due in five days';
+  end if;
+end $$;
+
+-- == (j) extending access moves the period on, so the suspended weeks are never invoiced ==
+insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
+  ('c5000000-0000-0000-0000-000000000011', 'Suspend Hospital', 'complete', 'active', 'monthly', 's11@billing.invalid', false);
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status,
+  current_period_start, current_period_end, next_billing_on) values
+  ('c5600000-0000-0000-0000-000000000011', 'c5000000-0000-0000-0000-000000000011', 'complete', 'monthly', 'active',
+   current_date - 70, current_date - 41, current_date - 40);
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status, kind,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('c5800000-0000-0000-0000-000000000013', 'c5000000-0000-0000-0000-000000000011', 'c5600000-0000-0000-0000-000000000011',
+   'C5-PERIOD-11', 'draft', 'period', current_date - 70, current_date - 41, current_date - 70, current_date - 63,
+   'complete', 'monthly', 1, 1111, 1, 'c5500000-0000-0000-0000-000000000001', 'c5-synthetic', 0);
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+values ('c5800000-0000-0000-0000-000000000013', 'c5000000-0000-0000-0000-000000000011', 0, 'line', 1, 1, 1111, 1111, 1111, 0);
+update billing_invoices set status = 'open' where id = 'c5800000-0000-0000-0000-000000000013';
+do $$
+declare before_n int; after_n int; r record;
+begin
+  perform app.billing_apply_suspensions();
+  -- Suspended since day 8 after its due date: 55 days ago.
+  update billing_subscriptions set suspended_at = now() - interval '55 days' where id = 'c5600000-0000-0000-0000-000000000011';
+  perform public.admin_extend_billing_access('c5000000-0000-0000-0000-000000000011', current_date + 14,
+    'farmer in hospital', 'c5a00000-0000-0000-0000-000000000009');
+  select * into r from billing_subscriptions where id = 'c5600000-0000-0000-0000-000000000011';
+  if r.next_billing_on <> current_date + 15 or r.current_period_end <> current_date + 14 then
+    raise exception 'SUSPEND FAIL [j]: the extension did not move the period on by 55 days (end %, next %)', r.current_period_end, r.next_billing_on;
+  end if;
+  select count(*) into before_n from billing_invoices where farm_id = 'c5000000-0000-0000-0000-000000000011';
+  perform app.generate_billing_invoices(null);
+  perform app.generate_billing_invoices(null);
+  select count(*) into after_n from billing_invoices where farm_id = 'c5000000-0000-0000-0000-000000000011';
+  if after_n <> before_n then raise exception 'SUSPEND FAIL [j]: the suspended weeks were invoiced after the extension'; end if;
+end $$;
+
 rollback;

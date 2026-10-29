@@ -18,6 +18,7 @@ import { payOverdueAction } from "./actions";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { SwitchFarm } from "@/components/billing/switch-farm";
 
 /**
  * The screen a farm sees once an invoice is more than seven days overdue (20261029090100).
@@ -53,18 +54,30 @@ export default async function SuspendedPage({
     ? ((soft(
         await supabase
           .from("billing_invoices")
-          .select("invoice_ref, total_incl_cents, amount_paid_cents, due_on")
+          .select("id, invoice_ref, total_incl_cents, amount_paid_cents, due_on")
           .eq("farm_id", farmId)
           .eq("status", "open")
+          // What keeps the farm paused: not a once-off service invoice.
+          .neq("kind", "service")
           .is("deleted_at", null)
           .order("due_on", { ascending: true })
           // A farm has a handful of open invoices at most; the cap is for the read guard.
           .limit(50),
         "suspended:invoices",
-      ) as { invoice_ref: string; total_incl_cents: number; amount_paid_cents: number; due_on: string | null }[] | null) ?? [])
+      ) as { id: string; invoice_ref: string; total_incl_cents: number; amount_paid_cents: number; due_on: string | null }[] | null) ?? [])
     : [];
-  const outstanding = owed.reduce((sum, i) => sum + Math.max(0, i.total_incl_cents - i.amount_paid_cents), 0);
-  const oldest = owed.find((i) => i.due_on)?.due_on ?? null;
+  // A refunded invoice reopens, and is deliberately not owed (the pause and the charge both
+  // leave it out): it is not added to what this page asks for.
+  const refunded = owed.length
+    ? new Set(((soft(
+        await supabase.from("billing_payments").select("invoice_id")
+          .in("invoice_id", owed.map((i) => i.id)).lt("amount_incl_cents", 0).is("deleted_at", null).limit(100),
+        "suspended:refunds",
+      ) as { invoice_id: string }[] | null) ?? []).map((r) => r.invoice_id))
+    : new Set<string>();
+  const counting = owed.filter((i) => !refunded.has(i.id));
+  const outstanding = counting.reduce((sum, i) => sum + Math.max(0, i.total_incl_cents - i.amount_paid_cents), 0);
+  const oldest = counting.find((i) => i.due_on)?.due_on ?? null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
@@ -107,7 +120,7 @@ export default async function SuspendedPage({
         ) : null}
 
         <DownloadLink
-          href="/api/farm/export"
+          href={`/api/farm/export?farm=${farmId}`}
           className="mt-4 flex min-h-12 w-full items-center justify-center rounded-lg border border-sand-300 px-4 text-sm font-medium sm:min-h-11"
           labels={downloadLabels(locale)}
         >
@@ -115,6 +128,7 @@ export default async function SuspendedPage({
         </DownloadLink>
 
         <p className="mt-4 text-xs text-sand-700">{t("suspended.help", locale).replace("{email}", COMPANY.email)}</p>
+        <SwitchFarm profile={profile} current={farmId} locale={locale} />
       </div>
 
       <form action={signOut} className="text-center">

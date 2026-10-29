@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { effectiveFarmRole, getProfile } from "@/lib/auth";
+import { effectiveFarmRole, getProfile, farmIsUsable } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadWorkRequestMedia } from "@/lib/workrequest-media";
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
   // A primary-farm owner can be an operator here; primary role is not authority.
   // Workshop access is already constrained to the linked request by RLS above.
   const role = profile.role === "workshop" ? "workshop" : await effectiveFarmRole(wr.farm_id, profile);
+  if (!(await farmIsUsable(wr.farm_id, profile))) return NextResponse.json({ error: "farm-not-active" }, { status: 402 });
   if (!role || !CREW.includes(role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

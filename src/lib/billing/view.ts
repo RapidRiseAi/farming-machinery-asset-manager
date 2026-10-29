@@ -891,8 +891,11 @@ export function blockingAttempt(
 
 /** The invoice a "pay now" / "try again" button should act on: the oldest still owed. */
 export function payableInvoice(invoices: InvoiceRow[] | null | undefined): InvoiceRow | null {
+  // Not a once-off service invoice (20261029110000): no pay button behind this offer can
+  // pay one (the checkout and the retry pay the subscription's invoices), so offering its
+  // amount sent a different invoice to the card.
   const owed = (invoices ?? []).filter(
-    (i) => (i.status === "open" || i.status === "draft") && outstandingCents(i) > 0,
+    (i) => (i.status === "open" || i.status === "draft") && outstandingCents(i) > 0 && i.kind !== "service",
   );
   owed.sort((a, b) => a.period_start.localeCompare(b.period_start));
   return owed[0] ?? null;

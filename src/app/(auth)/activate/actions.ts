@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 
-import { requireProfile } from "@/lib/auth";
+import { effectiveFarmRole, requireProfile } from "@/lib/auth";
+import { isUuid } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { beginCheckout, billingContactEmail, farmBillingGate } from "@/lib/billing/service";
@@ -20,27 +21,30 @@ import { beginCheckout, billingContactEmail, farmBillingGate } from "@/lib/billi
  * is not already open. Both of those are proven in production and neither is worth a
  * second copy that can drift.
  */
-export async function beginCheckoutAction(): Promise<void> {
+export async function beginCheckoutAction(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (!profile.farm_id) redirect("/home");
+  const asked = String(formData.get("farm") ?? "");
+  const farmId = isUuid(asked) ? asked : profile.farm_id;
+  if (!farmId) redirect("/home");
 
   // Only somebody who can commit the farm to a subscription may start the payment. An
   // operator on a pending farm sees this page (they are gated to it like everyone else)
   // and must not be able to put their employer on a paid plan.
-  if (profile.role !== "owner" && profile.role !== "manager") {
+  const farmRole = await effectiveFarmRole(farmId, profile);
+  if (farmRole !== "owner" && farmRole !== "manager") {
     redirect("/activate?error=forbidden");
   }
 
   // Re-checked here and not merely on the page. A server action is an endpoint: the page's
   // own check decides what is rendered, this decides what may happen.
   const rls = await createClient();
-  const gate = await farmBillingGate(rls, profile.farm_id);
+  const gate = await farmBillingGate(rls, farmId);
   if (gate !== "pending") redirect("/home");
 
   const supabase = createServiceClient();
-  const email = await billingContactEmail(supabase, profile.farm_id, profile.email);
+  const email = await billingContactEmail(supabase, farmId, profile.email);
   const started = await beginCheckout(supabase, {
-    farmId: profile.farm_id,
+    farmId: farmId,
     email,
     userId: profile.id,
   });

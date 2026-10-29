@@ -5964,7 +5964,9 @@
   },
   "gate": {
     "signedInAs": "Signed in as {email}",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "otherFarms": "You also belong to other farms:",
+    "useFarm": "Use {farm}"
   },
   "landing": {
     "headline": "Every machine on your farm, in one place.",

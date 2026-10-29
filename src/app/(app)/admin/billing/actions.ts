@@ -412,7 +412,9 @@ export async function adminRaiseServiceInvoice(formData: FormData): Promise<void
     const description = String(formData.get(`line_${i}_description`) ?? "").trim();
     const qtyRaw = String(formData.get(`line_${i}_qty`) ?? "").trim();
     const priceRaw = String(formData.get(`line_${i}_price`) ?? "").trim().replace(",", ".");
-    if (!qtyRaw && !priceRaw) continue;
+    // A row is included by its quantity: a catalogue price is prefilled on its row, so a
+    // price alone does not mean the service was meant.
+    if (!qtyRaw) continue;
     const qty = Number(qtyRaw);
     const price = Number(priceRaw);
     if (!description || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(price) || price < 0) bounce("billing-service-bad");

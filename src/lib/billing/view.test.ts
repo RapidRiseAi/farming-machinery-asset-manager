@@ -40,6 +40,7 @@ import {
   invoiceDocuments,
   nextChargeState,
   outstandingCents,
+  payableInvoice,
   quoteReasonKey,
   retryOffer,
   savedIsTransient,
@@ -804,4 +805,12 @@ test("VAT is worked out on what is charged, not on what it would have cost", () 
   assert.equal(e.totalInclCents, 75000);
   assert.equal(e.subtotalExVatCents + e.vatCents, e.totalInclCents);
   assert.equal(e.subtotalExVatCents, Math.round((75000 * 10000) / 11500));
+});
+
+test("a once-off service invoice is never what the pay buttons offer", () => {
+  const service = invoice({ id: "svc", kind: "service", period_start: "2026-10-28", total_incl_cents: 50000 });
+  const period = invoice({ id: "per", kind: "period", period_start: "2026-11-01", total_incl_cents: 150000 });
+  // The service invoice is older, and used to be offered; the button then paid the period.
+  assert.equal(payableInvoice([service, period])?.id, "per");
+  assert.equal(payableInvoice([service]), null);
 });

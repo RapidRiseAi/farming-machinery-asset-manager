@@ -265,14 +265,29 @@ const farmUsable = cache(async (farmId: string): Promise<"ok" | "pending" | "sus
   }
 });
 
-/** Where a person goes when the farm they act on may not be used, or null when it may. */
-async function stoppedFarmPath(farmId: string | null): Promise<string | null> {
+/**
+ * Where a person goes when the farm they act on may not be used, or null when it may. The
+ * page is told WHICH farm (?farm=) whenever it is not the home farm: the stopped pages read
+ * it, and without it they looked at the home farm, found it fine, and sent the person
+ * back, round and round.
+ */
+async function stoppedFarmPath(farmId: string | null, homeFarmId?: string | null): Promise<string | null> {
   if (!farmId) return null;
   const state = await farmUsable(farmId);
-  if (state === "suspended") return "/suspended";
-  if (state === "closed") return "/closed";
-  if (state === "pending") return "/activate";
+  const which = farmId !== homeFarmId ? `?farm=${farmId}` : "";
+  if (state === "suspended") return `/suspended${which}`;
+  if (state === "closed") return `/closed${which}`;
+  if (state === "pending") return `/activate${which}`;
   return null;
+}
+
+/**
+ * Whether a farm may be used now, for a route handler that resolves its own farm (the
+ * assistant, fault capture, uploads). Fails open like the rest. Rapid Rise is never stopped.
+ */
+export async function farmIsUsable(farmId: string, profile?: Profile | null): Promise<boolean> {
+  if (profile?.role === "rr_admin") return true;
+  return (await farmUsable(farmId)) === "ok";
 }
 
 export async function requireRole(roles: Role[]): Promise<Profile> {
@@ -293,7 +308,7 @@ export async function requireRole(roles: Role[]): Promise<Profile> {
   if (!role || !roles.includes(role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
-  const stopped = await stoppedFarmPath(farmId);
+  const stopped = await stoppedFarmPath(farmId, profile.farm_id);
   if (stopped) redirect(stopped);
   return { ...profile, farm_id: farmId, role };
 }
@@ -490,7 +505,7 @@ export async function requireFarmRole(
   }
   // A contractor too: a suspended or closed farm takes no work from anybody until it pays.
   if (profile.role !== "rr_admin") {
-    const stopped = await stoppedFarmPath(farmId);
+    const stopped = await stoppedFarmPath(farmId, profile.farm_id);
     if (stopped) redirect(profile.role === "workshop" ? `${homePathFor("workshop")}?error=farm-not-active` : stopped);
   }
   return { profile, farmId, role };

@@ -2,10 +2,11 @@
 
 import { redirect } from "next/navigation";
 
-import { requireProfile } from "@/lib/auth";
+import { effectiveFarmRole, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { farmBillingGate, reopenFarmSubscription } from "@/lib/billing/service";
+import { isUuid } from "@/lib/ids";
 
 /**
  * Reopening a farm that lapsed.
@@ -25,25 +26,28 @@ function bounce(code: string): never {
   redirect(`/closed?error=${encodeURIComponent(code)}`);
 }
 
-export async function reopenFarm(): Promise<void> {
+export async function reopenFarm(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (!profile.farm_id) redirect("/home");
+  const asked = String(formData.get("farm") ?? "");
+  const farmId = isUuid(asked) ? asked : profile.farm_id;
+  if (!farmId) redirect("/home");
 
   // Only somebody who can commit the farm to a subscription may restart one. An operator
   // on a closed farm sees this screen, they are gated to it like everyone else, and must
   // not be able to put their employer back on a paid plan. `/activate` draws exactly this
   // line for exactly this reason.
-  if (profile.role !== "owner" && profile.role !== "manager") {
+  const farmRole = await effectiveFarmRole(farmId, profile);
+  if (farmRole !== "owner" && farmRole !== "manager") {
     bounce("forbidden");
   }
 
   // Re-checked here and not merely on the page: a server action is an endpoint, and the
   // page's own check only decides what was rendered.
   const rls = await createClient();
-  if ((await farmBillingGate(rls, profile.farm_id)) !== "closed") redirect("/home");
+  if ((await farmBillingGate(rls, farmId)) !== "closed") redirect("/home");
 
   const service = createServiceClient();
-  const done = await reopenFarmSubscription(service, profile.farm_id, profile.id);
+  const done = await reopenFarmSubscription(service, farmId, profile.id);
   if (!done.ok) bounce("billing-save-failed");
 
   // The gate now answers 'pending', so /activate is reachable and carries the invoice.

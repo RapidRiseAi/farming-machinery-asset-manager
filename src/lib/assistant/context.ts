@@ -5,6 +5,7 @@ import {
   currentFarmId,
   effectiveFarmRole,
   getFarmPlan,
+  farmIsUsable,
   type Profile,
   type Role,
 } from "@/lib/auth";
@@ -27,6 +28,9 @@ export async function getAssistantContext(): Promise<AssistantContext | null> {
   if (!farmId) return null;
   const role = await effectiveFarmRole(farmId, profile);
   if (!role) return null;
+  // A paused, closed or unpaid farm uses no AI or voice (20261029090100): every assistant
+  // route returns its "not available" answer, so no model runs on Rapid Rise's keys.
+  if (!(await farmIsUsable(farmId, profile))) return null;
 
   if (profile.role !== "rr_admin") {
     const plan = await getFarmPlan(farmId);

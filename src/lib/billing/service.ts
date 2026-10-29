@@ -586,8 +586,23 @@ export async function openInvoiceForFarm(
       .limit(5),
     "billing:open-invoice",
   );
-  const rows = (data ?? []) as InvoiceRow[];
-  return rows.find((r) => r.total_incl_cents > r.amount_paid_cents) ?? null;
+  const rows = ((data ?? []) as InvoiceRow[]).filter((r) => r.total_incl_cents > r.amount_paid_cents);
+  if (rows.length === 0) return null;
+  // A refunded invoice reopens, and is deliberately not owed: the pause and the nightly
+  // charge both leave it out, so the checkout does too, or a paused farm would be sent to
+  // pay back its refund while the invoice that paused it stayed open.
+  const refunds = must(
+    await supabase
+      .from("billing_payments")
+      .select("invoice_id")
+      .in("invoice_id", rows.map((r) => r.id))
+      .lt("amount_incl_cents", 0)
+      .is("deleted_at", null)
+      .limit(100),
+    "billing:open-invoice:refunds",
+  );
+  const refunded = new Set(((refunds ?? []) as { invoice_id: string }[]).map((r) => r.invoice_id));
+  return rows.find((r) => !refunded.has(r.id)) ?? null;
 }
 
 export async function getInvoiceById(

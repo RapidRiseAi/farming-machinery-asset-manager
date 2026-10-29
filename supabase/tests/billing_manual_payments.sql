@@ -154,4 +154,39 @@ begin
   perform public.billing_record_manual_payment('d6800000-0000-0000-0000-000000000002', 2000, 'eft', 'M2-EFT', current_date, 'cleared now', 'p/e.pdf', 'd6a00000-0000-0000-0000-000000000009');
 end $$;
 
+
+-- == (e) a sign-up whose only payment bounced goes back to pending (review fix) ============
+insert into farms (id, name, plan, status, billing_period, billing_email, is_test) values
+  ('d6000000-0000-0000-0000-000000000004', 'Manual Bounce', 'complete', 'active', 'monthly', 'm4@billing.invalid', false);
+insert into billing_subscriptions (id, farm_id, plan, billing_period, status) values
+  ('d6600000-0000-0000-0000-000000000004', 'd6000000-0000-0000-0000-000000000004', 'complete', 'monthly', 'pending');
+insert into billing_invoices (id, farm_id, subscription_id, invoice_ref, status,
+  period_start, period_end, issued_on, due_on, plan, billing_period, asset_count,
+  unit_price_incl_cents, months_charged, price_version_id, price_version_label, vat_rate_bps)
+values ('d6800000-0000-0000-0000-000000000004', 'd6000000-0000-0000-0000-000000000004', 'd6600000-0000-0000-0000-000000000004',
+  'D6-INV-4', 'draft', current_date, current_date + 29, current_date, current_date + 4,
+  'complete', 'monthly', 1, 2000, 1, 'd6500000-0000-0000-0000-000000000001', 'd6-synthetic', 0);
+insert into billing_invoice_lines (invoice_id, farm_id, sort_order, description, qty,
+  months_charged, unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents)
+values ('d6800000-0000-0000-0000-000000000004', 'd6000000-0000-0000-0000-000000000004', 0, 'line', 1, 1, 2000, 2000, 2000, 0);
+update billing_invoices set status = 'open' where id = 'd6800000-0000-0000-0000-000000000004';
+do $$
+declare v_pay uuid;
+begin
+  v_pay := public.billing_record_manual_payment('d6800000-0000-0000-0000-000000000004', 2000, 'eft', 'BOUNCE-1',
+    current_date, null, 'p/f.pdf', 'd6a00000-0000-0000-0000-000000000009');
+  if app.farm_billing_gate('d6000000-0000-0000-0000-000000000004') <> 'ok' then
+    raise exception 'MANUAL FAIL [e]: the recorded EFT did not activate the sign-up';
+  end if;
+  perform public.billing_reverse_manual_payment(v_pay, 'bounced', 'd6a00000-0000-0000-0000-000000000009');
+  if (select status from billing_subscriptions where id = 'd6600000-0000-0000-0000-000000000004') <> 'pending'
+     or app.farm_billing_gate('d6000000-0000-0000-0000-000000000004') <> 'pending' then
+    raise exception 'MANUAL FAIL [e]: a sign-up whose only payment bounced kept its access';
+  end if;
+  -- A farm with other money in keeps its state when one payment is reversed.
+  if (select status from billing_subscriptions where id = 'd6600000-0000-0000-0000-000000000001') <> 'active' then
+    raise exception 'MANUAL FAIL [e]: an earlier farm changed state';
+  end if;
+end $$;
+
 rollback;

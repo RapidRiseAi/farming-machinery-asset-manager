@@ -5986,3 +5986,35 @@ stickers (QR generation stays included; the stickers are a paid add-on); prices 
   render test for service, plan, AI-only and Afrikaans receipts.
 
 Suite `billing_service_invoices.sql`. 52 suites, 731 unit tests.
+
+## 2026-10-29 - Review of the billing batch, and its fixes
+
+Three reviewers read the suspension, outside-payment and service-invoice work before
+release (money, access, runtime) and ran their scenarios on PGlite. Fixed:
+
+- **Coming back moved the period wrongly** (blocker). Resuming always started a fresh period
+  on the payment date, so an annual farm suspended over a R50 AI invoice was handed most of
+  a year free. `20261029120000`: a fresh period only when the current period's own invoice
+  was the debt (paid since the suspension, by payment-row time, so a backdated EFT cannot
+  fool it); otherwise the period end and next billing date move on by the days suspended.
+  Staying suspended now uses the gate's own test (past the grace), so a farm that paid what
+  was overdue is not kept out by an invoice due next week.
+- **Extending access billed the suspended weeks**: it now moves the period on the same way.
+- **A bounced EFT left a new sign-up active**: reversing its only payment puts it back to
+  pending.
+- **Service invoice lines carried 15% VAT** inside an invoice charging none: they read the
+  invoice's own rate.
+- **A redirect loop** (blocker) for a member of several farms whose chosen farm was closed or
+  unpaid: the stopped pages looked at the home farm, found it fine and sent them back. The
+  layout now checks the farm in use and tells the stopped page which farm (`?farm=`);
+  `/closed`, `/activate` and `/suspended` read it, check the role on that farm, and offer the
+  person's other farms. A paused home farm no longer blocks a paid-up second farm.
+- **AI, voice and uploads skipped the gate**: the assistant context, the speech token, fault
+  capture and the document, job card and work media uploads refuse a paused, closed or
+  unpaid farm (402), so no model runs on Rapid Rise's keys for a farm that is not paying.
+- The records download exports the farm the page is about; the pay buttons never offer a
+  service invoice (the button then paid another); the checkout never asks a paused farm to
+  pay back a refund; a catalogue price alone no longer counts as a service line.
+
+Each money fix has a test that fails without it (suspension h, i, j; manual payments e;
+service invoices e). 52 SQL suites, 732 unit tests.

@@ -5964,7 +5964,9 @@
   },
   "gate": {
     "signedInAs": "Aangemeld as {email}",
-    "signOut": "Meld af"
+    "signOut": "Meld af",
+    "otherFarms": "Jy behoort ook aan ander plase:",
+    "useFarm": "Gebruik {farm}"
   },
   "landing": {
     "headline": "Elke masjien op jou plaas, op een plek.",

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
-import { requireProfile } from "@/lib/auth";
+import { effectiveFarmRole, requireProfile } from "@/lib/auth";
 import { shortDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
@@ -15,6 +15,8 @@ import { reopenFarm } from "./actions";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { SwitchFarm } from "@/components/billing/switch-farm";
+import { isUuid } from "@/lib/ids";
 
 /**
  * The screen a farm sees once it has lapsed.
@@ -40,16 +42,19 @@ import { SubmitButton } from "@/components/ui/submit-button";
 export default async function ClosedPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; farm?: string }>;
 }) {
   const sp = await searchParams;
   const profile = await requireProfile();
   const locale = profile.lang;
 
-  if (!profile.farm_id) redirect("/home");
+  // The farm this is about: the one the layout said (?farm=, checked by the gate's own
+  // access test) or the home farm.
+  const farmId = isUuid(sp.farm) ? sp.farm : profile.farm_id;
+  if (!farmId) redirect("/home");
 
   const supabase = await createClient();
-  const gate = await farmBillingGate(supabase, profile.farm_id);
+  const gate = await farmBillingGate(supabase, farmId);
   // Open again, paid, reopened, or un-suspended. Nothing to see here.
   if (gate !== "closed") redirect("/home");
 
@@ -63,7 +68,7 @@ export default async function ClosedPage({
     await supabase
       .from("billing_subscriptions")
       .select("status, ended_on, downgraded_at, plan")
-      .eq("farm_id", profile.farm_id)
+      .eq("farm_id", farmId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -74,7 +79,8 @@ export default async function ClosedPage({
     | { status: string; ended_on: string | null; downgraded_at: string | null; plan: string }
     | null;
 
-  const canReopen = profile.role === "owner" || profile.role === "manager";
+  const farmRole = await effectiveFarmRole(farmId, profile);
+  const canReopen = farmRole === "owner" || farmRole === "manager";
   // Three ways to be closed and they are not the same conversation. A farm Rapid Rise
   // suspended must not be told "your payments stopped", and a farm that cancelled on
   // purpose should not be told it lapsed.
@@ -114,6 +120,7 @@ export default async function ClosedPage({
 
         {canReopen && reason !== "suspended" ? (
           <form action={reopenFarm} className="mt-6">
+            {farmId !== farmId ? <input type="hidden" name="farm" value={farmId} /> : null}
             <SubmitButton className="w-full">
               {t("closed.reopen", locale)}
             </SubmitButton>
@@ -126,7 +133,7 @@ export default async function ClosedPage({
             streams a file and nothing is being changed; DownloadLink keeps a second
             tap from starting a second export. */}
         <DownloadLink
-          href="/api/farm/export"
+          href={`/api/farm/export?farm=${farmId}`}
           className="mt-3 flex min-h-12 w-full items-center justify-center rounded-lg border border-sand-300 px-4 text-sm font-medium sm:min-h-11"
           labels={downloadLabels(locale)}
         >
@@ -136,6 +143,7 @@ export default async function ClosedPage({
         <p className="mt-4 text-xs text-sand-700">
           {t("closed.help", locale).replace("{email}", "team@rapidriseai.com")}
         </p>
+        <SwitchFarm profile={profile} current={farmId} locale={locale} />
       </div>
 
       {/* The same dead end /activate had: this screen catches every app route, so without

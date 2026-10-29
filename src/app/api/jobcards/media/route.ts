@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { effectiveFarmRole, getProfile } from "@/lib/auth";
+import { effectiveFarmRole, getProfile, farmIsUsable } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   if (lookupError) return reject("save-failed", 500);
   if (!job) return reject("not_found", 404);
   const role = profile.role === "workshop" ? "workshop" : await effectiveFarmRole(job.farm_id, profile);
+  if (!(await farmIsUsable(job.farm_id, profile))) return NextResponse.json({ error: "farm-not-active" }, { status: 402 });
   const isProvider = role === "workshop" && profile.workshop_id === job.workshop_id;
   const isReceiver = canReviewJob(role);
   const invoice = kind === "invoice";
