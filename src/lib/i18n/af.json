@@ -5297,7 +5297,16 @@
     "billingServiceNothing": "Daardie faktuur tel op na niks, so dit is nie geskep nie.",
     "billingServiceDue": "Die betaaldatum moet binne die volgende 120 dae wees.",
     "billingAmountChanged": "Die bedrag verskuldig het verander terwyl jy betaal het. Herlaai die bladsy om te sien wat nou verskuldig is, en betaal dan weer.",
-    "billingCancelSuspended": "'n Onderbreekte plaas kan nie gekanselleer word voordat wat dit skuld betaal is nie. Betaal eers, of kontak Rapid Rise."
+    "billingCancelSuspended": "'n Onderbreekte plaas kan nie gekanselleer word voordat wat dit skuld betaal is nie. Betaal eers, of kontak Rapid Rise.",
+    "billingAmountUnclear": "Daardie bedrag kan op meer as een manier gelees word. Tik dit soos 1500 of 1 500,00.",
+    "billingManualProofFailed": "Die bewys van betaling kon nie gestoor word nie, so niks is aangeteken nie. Probeer oor 'n oomblik weer.",
+    "billingNoSuchInvoice": "Daardie faktuur bestaan nie meer nie. Herlaai die bladsy en kies dit weer.",
+    "billingNoSuchFarm": "Daardie plaas bestaan nie meer nie, so geen faktuur is geskep nie.",
+    "billingServiceLines": "'n Faktuur het tussen een en twintig reëls.",
+    "billingServiceDescription": "Elke reël het 'n beskrywing van hoogstens 200 karakters nodig.",
+    "billingServiceQty": "'n Hoeveelheid moet 'n heelgetal van 1 tot 10 000 wees.",
+    "billingServicePrice": "'n Prys moet van R0 tot R1 000 000 elk wees.",
+    "billingExtendNotOverdue": "Net 'n onderbreekte of agterstallige plaas kan oopgehou word. Vir 'n plaas wat nog op sy eerste betaling wag, teken eerder daardie betaling aan."
   },
   "billing": {
     "title": "Rekening",
@@ -5694,7 +5703,8 @@
     "serviceDue": "Betaalbaar teen (opsioneel)",
     "serviceNote": "'n Diensfaktuur word nooit outomaties van die plaas se kaart gehef nie en onderbreek nooit die plaas nie. Dit word per EFT betaal, hier aangeteken, of met sy skakel.",
     "serviceSave": "Stuur faktuur",
-    "savedServiceInvoice": "Diensfaktuur geskep. Dit is onder die plaas se fakture."
+    "savedServiceInvoice": "Diensfaktuur geskep. Dit is onder die plaas se fakture.",
+    "statSuspended": "Onderbreek"
   },
   "billingReceipt": {
     "title": "Kwitansie",
@@ -6059,7 +6069,8 @@
     "downgraded": "Plan verminder",
     "non_renewing": "Hernu nie",
     "cancelled": "Gekanselleer",
-    "pending": "Wag op betaling"
+    "pending": "Wag op betaling",
+    "suspended": "Onderbreek tot betaal"
   },
   "billingInvoiceStatus": {
     "draft": "Konsep",
@@ -6670,7 +6681,8 @@
       "grace": "In genadetydperk",
       "downgraded": "Afgegradeer weens nie-betaling",
       "non_renewing": "Eindig aan die einde van die tydperk",
-      "cancelled": "Gekanselleer"
+      "cancelled": "Gekanselleer",
+      "suspended": "Onderbreek tot betaal"
     },
     "noSubscription": "Geen (voor fakturering aangesluit)",
     "nextCharge": "Volgende heffing",

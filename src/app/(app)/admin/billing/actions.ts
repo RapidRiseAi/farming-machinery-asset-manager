@@ -16,7 +16,8 @@ import {
 import { reconcileAttemptById, retryInvoiceCharge } from "@/lib/billing/worker";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isIsoDate, isUuid } from "@/lib/ids";
-import { errorCode } from "@/lib/action-errors";
+import { classifyFailure, errorCode, type DbFailure } from "@/lib/action-errors";
+import { parseRandsToCents } from "@/lib/money";
 import { captureError } from "@/lib/observability";
 
 /**
@@ -42,8 +43,50 @@ import { captureError } from "@/lib/observability";
  * its id, and it is authorized on its own or it is not authorized at all.
  */
 
-function bounce(code: string): never {
-  redirect(`/admin/billing?error=${encodeURIComponent(code)}`);
+/**
+ * Back to the console with an error code, and to the farm the admin was on when it is known.
+ *
+ * `code` is the code itself, and it is URL-encoded HERE, exactly once. `errorCode()` already
+ * returns its code encoded for a template string, and bouncing that encoded it a second
+ * time (app-2): Next decodes the query once, so `errorMessage()` was handed
+ * `BILLING%3A%20that%20bank...`, matched nothing, and every refusal the database explained
+ * (a duplicate bank reference, more than is owed) read "Something did not work. Please try
+ * again", which no retry could fix. A database failure therefore goes through `failure()`,
+ * which hands back the plain code.
+ *
+ * The farm (app-7): the farm panel and its dialogs exist only while `?farm=` is set, so a
+ * refusal without it left the admin on the list, to find the farm again and retype the
+ * amount, the reference, the date and the proof. Only a well-formed id is carried.
+ */
+function bounce(code: string, farmId?: string | null): never {
+  redirect(`/admin/billing?error=${encodeURIComponent(code)}${isUuid(farmId) ? `&farm=${farmId}` : ""}`);
+}
+
+/**
+ * The code for a failed database call, NOT URL-encoded (`bounce` encodes it). A refusal our
+ * SQL raises keeps its words for `errorMessage()` to map; anything else is reported by
+ * `errorCode()` and becomes "try again".
+ */
+function failure(error: DbFailure, where: string): string {
+  return decodeURIComponent(errorCode(error, where, "billing-save-failed"));
+}
+
+/**
+ * A typed amount in rands, as cents, or null when it cannot be read one way only (app-5).
+ *
+ * This was `Number(raw.replace(",", "."))`, which read "1,500", a common way to write one
+ * thousand five hundred, as R1,50: the database then recorded that EFT, or raised that
+ * training line, 1 000 times smaller than typed, under a success banner. The shared reading
+ * in `parseRandsToCents` takes "1,500" and "1 500,00" as R1 500 and "250,50" as R250,50, and
+ * refuses "1,2345". It reads a lone dot as the decimal point and keeps two places, so
+ * "1.500" would still be R1,50: more than two digits after a dot is refused here as well,
+ * since no amount of money is written that way and a thousands dot is the likelier meaning.
+ */
+function randsToCents(raw: string): number | null {
+  const cents = parseRandsToCents(raw);
+  if (cents == null || !Number.isSafeInteger(cents)) return null;
+  if (/\.\d{3,}$/.test(raw.replace(/[\s']/g, ""))) return null;
+  return cents;
 }
 
 /** Rapid Rise only. Not exported, a `"use server"` file exports only actions. */
@@ -301,12 +344,13 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
     if (percentBps < 1) bounce("billing-discount-bad");
   }
 
+  // Read as the payment and service amounts are (app-5): "1,500" off is R1 500 off, never R1,50.
   let fixedCents: number | null = null;
   if (randsRaw !== "") {
-    const n = Number(randsRaw.replace(",", "."));
-    if (!Number.isFinite(n) || n <= 0) bounce("billing-discount-bad");
-    fixedCents = Math.round(n * 100);
-    if (fixedCents < 1) bounce("billing-discount-bad");
+    const cents = randsToCents(randsRaw);
+    if (cents == null) bounce("billing-amount-unclear");
+    if (cents < 1) bounce("billing-discount-bad");
+    fixedCents = cents;
   }
 
   // Null is not "no end date I forgot to set", it is the Founding Farmer default, and it
@@ -337,6 +381,28 @@ const PROOF_MAX_BYTES = 4 * 1024 * 1024;
 const PROOF_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 /**
+ * Does a payment row name this proof (app-3)? "unknown" when the question fails too,
+ * whether it answers with an error or throws, so the caller keeps the file.
+ */
+async function proofRecorded(
+  supabase: ReturnType<typeof createServiceClient>,
+  path: string,
+  farmId: string,
+): Promise<"yes" | "no" | "unknown"> {
+  try {
+    const { data, error } = await supabase.from("billing_payments").select("id").eq("proof_path", path).limit(1);
+    if (error) {
+      captureError(error, { where: "admin-billing:manual-payment-lookup", farmId });
+      return "unknown";
+    }
+    return (data ?? []).length > 0 ? "yes" : "no";
+  } catch (thrown) {
+    captureError(thrown, { where: "admin-billing:manual-payment-lookup", farmId });
+    return "unknown";
+  }
+}
+
+/**
  * Record a payment made outside the app: an EFT, cash, or other (20261029100000).
  *
  * The proof is stored first (service-only bucket billing-proofs) and the payment recorded
@@ -345,33 +411,50 @@ const PROOF_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/j
  * wrong (more than is owed, the same bank reference twice, a card payment in flight, a
  * date in the future) and, once the invoice is paid in full, activates a sign-up or
  * resumes a suspended farm exactly as a card payment does.
+ *
+ * == Only a refusal proves nothing was recorded (app-3) =======================
+ * The proof used to be removed on ANY error. When the connection drops after Postgres has
+ * committed, supabase-js answers `{ message: "TypeError: fetch failed", code: "" }`: the
+ * payment row exists, its `proof_path` names the file, and deleting the file then left the
+ * payment that activated or resumed a farm with no evidence. A refusal (the database said
+ * no, the classification `errorCode` already uses, or 42501 from the role check) rolled
+ * everything back, so its file goes. Anything else is ASKED: the path is unique to this
+ * request, so a payment row naming it is the payment, recorded, and the admin is told so;
+ * no row and the file goes; a lookup that fails too keeps the file, as an orphan file
+ * costs nothing and a payment without its proof cannot be put right. Each such case is
+ * reported, a lost answer is ours to know about.
  */
 export async function adminRecordPayment(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (profile.role !== "rr_admin") bounce("forbidden");
-
   const farmId = String(formData.get("farm_id") ?? "").trim();
+  if (profile.role !== "rr_admin") bounce("forbidden", farmId);
+
   const invoiceId = String(formData.get("invoice_id") ?? "").trim();
   const method = String(formData.get("method") ?? "").trim();
   const reference = String(formData.get("reference") ?? "").trim();
   const received = String(formData.get("received_on") ?? "").trim();
   const note = String(formData.get("note") ?? "").trim();
-  const randsRaw = String(formData.get("amount") ?? "").trim().replace(",", ".");
+  const randsRaw = String(formData.get("amount") ?? "").trim();
   const proof = formData.get("proof");
-  if (!isUuid(farmId) || !isUuid(invoiceId)) bounce("missing-id");
-  if (!isIsoDate(received)) bounce("billing-manual-bad");
-  const amount = Number(randsRaw);
-  if (!Number.isFinite(amount) || amount <= 0) bounce("billing-manual-bad");
-  const amountCents = Math.round(amount * 100);
-  if (!(proof instanceof File) || proof.size === 0) bounce("billing-manual-proof");
-  if (proof.size > PROOF_MAX_BYTES) bounce("billing-manual-proof-big");
+  if (!isUuid(farmId) || !isUuid(invoiceId)) bounce("missing-id", farmId);
+  if (!isIsoDate(received) || !randsRaw) bounce("billing-manual-bad", farmId);
+  const amountCents = randsToCents(randsRaw);
+  if (amountCents == null) bounce("billing-amount-unclear", farmId);
+  if (amountCents <= 0) bounce("billing-manual-bad", farmId);
+  if (!(proof instanceof File) || proof.size === 0) bounce("billing-manual-proof", farmId);
+  if (proof.size > PROOF_MAX_BYTES) bounce("billing-manual-proof-big", farmId);
   const ext = PROOF_TYPES[proof.type];
-  if (!ext) bounce("billing-manual-proof-type");
+  if (!ext) bounce("billing-manual-proof-type", farmId);
 
   const supabase = createServiceClient();
   const path = `${farmId}/${invoiceId}/${crypto.randomUUID()}.${ext}`;
   const stored = await supabase.storage.from("billing-proofs").upload(path, proof, { contentType: proof.type });
-  if (stored.error) bounce(errorCode(stored.error, "admin-billing:manual-proof"));
+  if (stored.error) {
+    // Type and size are checked above, so a storage refusal here is ours (a bucket or a
+    // limit out of step), and reported; the admin is told nothing was recorded.
+    captureError(stored.error, { where: "admin-billing:manual-proof", farmId });
+    bounce("billing-manual-proof-failed", farmId);
+  }
 
   const { error } = await supabase.rpc(BILLING_RPC.recordManualPayment, {
     p_invoice: invoiceId,
@@ -384,9 +467,20 @@ export async function adminRecordPayment(formData: FormData): Promise<void> {
     p_by: profile.id,
   });
   if (error) {
+    const refused = !classifyFailure(error).report || error.code === "42501";
+    if (!refused) {
+      const recorded = await proofRecorded(supabase, path, farmId);
+      captureError(error, { where: "admin-billing:manual-payment", farmId, extra: { code: error.code || null, recorded } });
+      if (recorded === "unknown") bounce("try-again", farmId);
+      if (recorded === "yes") {
+        revalidatePath("/admin/billing");
+        redirect(`/admin/billing?farm=${farmId}&saved=payment-recorded`);
+      }
+    }
     const removed = await supabase.storage.from("billing-proofs").remove([path]);
     if (removed.error) captureError(removed.error, { where: "admin-billing:manual-proof-cleanup", farmId });
-    bounce(errorCode(error, "admin-billing:manual-payment", "billing-save-failed"));
+    // The ambiguous case is already reported above, so it is not reported a second time.
+    bounce(refused ? failure(error, "admin-billing:manual-payment") : "try-again", farmId);
   }
 
   revalidatePath("/admin/billing");
@@ -401,27 +495,33 @@ export async function adminRecordPayment(formData: FormData): Promise<void> {
  */
 export async function adminRaiseServiceInvoice(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (profile.role !== "rr_admin") bounce("forbidden");
   const farmId = String(formData.get("farm_id") ?? "").trim();
+  if (profile.role !== "rr_admin") bounce("forbidden", farmId);
   if (!isUuid(farmId)) bounce("missing-id");
   const due = String(formData.get("due_on") ?? "").trim();
-  if (due && !isIsoDate(due)) bounce("billing-service-bad");
+  if (due && !isIsoDate(due)) bounce("billing-service-bad", farmId);
 
   const lines: { code: string | null; description: string; qty: number; unit_price_cents: number }[] = [];
   for (let i = 0; i < 6; i += 1) {
     const description = String(formData.get(`line_${i}_description`) ?? "").trim();
     const qtyRaw = String(formData.get(`line_${i}_qty`) ?? "").trim();
-    const priceRaw = String(formData.get(`line_${i}_price`) ?? "").trim().replace(",", ".");
+    const priceRaw = String(formData.get(`line_${i}_price`) ?? "").trim();
     // A row is included by its quantity: a catalogue price is prefilled on its row, so a
     // price alone does not mean the service was meant.
     if (!qtyRaw) continue;
     const qty = Number(qtyRaw);
-    const price = Number(priceRaw);
-    if (!description || !Number.isInteger(qty) || qty < 1 || !Number.isFinite(price) || price < 0) bounce("billing-service-bad");
+    // A blank price was `Number("")`, which is 0, so a line without one went out free.
+    if (!description || !priceRaw || !Number.isInteger(qty) || qty < 1) bounce("billing-service-bad", farmId);
+    // The database's own ceiling (20261029110000), checked here first only because a bigger
+    // number does not fit its integer cast and came back as a failure, not as its sentence.
+    if (qty > 10000) bounce("billing-service-qty", farmId);
+    const priceCents = randsToCents(priceRaw);
+    if (priceCents == null) bounce("billing-amount-unclear", farmId);
+    if (priceCents < 0) bounce("billing-service-bad", farmId);
     const code = String(formData.get(`line_${i}_code`) ?? "").trim() || null;
-    lines.push({ code, description, qty, unit_price_cents: Math.round(price * 100) });
+    lines.push({ code, description, qty, unit_price_cents: priceCents });
   }
-  if (lines.length === 0) bounce("billing-service-empty");
+  if (lines.length === 0) bounce("billing-service-empty", farmId);
 
   const supabase = createServiceClient();
   const { error } = await supabase.rpc(BILLING_RPC.raiseServiceInvoice, {
@@ -430,7 +530,7 @@ export async function adminRaiseServiceInvoice(formData: FormData): Promise<void
     p_due_on: due || null,
     p_by: profile.id,
   });
-  if (error) bounce(errorCode(error, "admin-billing:service-invoice", "billing-save-failed"));
+  if (error) bounce(failure(error, "admin-billing:service-invoice"), farmId);
 
   revalidatePath("/admin/billing");
   redirect(`/admin/billing?farm=${farmId}&saved=service-invoice`);
@@ -439,12 +539,12 @@ export async function adminRaiseServiceInvoice(formData: FormData): Promise<void
 /** Take back a payment recorded by hand (a bounced EFT, a typing mistake), with a reason. */
 export async function adminReversePayment(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (profile.role !== "rr_admin") bounce("forbidden");
   const farmId = String(formData.get("farm_id") ?? "").trim();
+  if (profile.role !== "rr_admin") bounce("forbidden", farmId);
   const paymentId = String(formData.get("payment_id") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
-  if (!isUuid(farmId) || !isUuid(paymentId)) bounce("missing-id");
-  if (!reason) bounce("billing-manual-reason");
+  if (!isUuid(farmId) || !isUuid(paymentId)) bounce("missing-id", farmId);
+  if (!reason) bounce("billing-manual-reason", farmId);
 
   const supabase = createServiceClient();
   const { error } = await supabase.rpc(BILLING_RPC.reverseManualPayment, {
@@ -452,7 +552,7 @@ export async function adminReversePayment(formData: FormData): Promise<void> {
     p_reason: reason,
     p_by: profile.id,
   });
-  if (error) bounce(errorCode(error, "admin-billing:manual-reverse", "billing-save-failed"));
+  if (error) bounce(failure(error, "admin-billing:manual-reverse"), farmId);
 
   revalidatePath("/admin/billing");
   redirect(`/admin/billing?farm=${farmId}&saved=payment-reversed`);
@@ -466,14 +566,14 @@ export async function adminReversePayment(formData: FormData): Promise<void> {
  */
 export async function adminExtendAccess(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (profile.role !== "rr_admin") bounce("forbidden");
-
   const farmId = String(formData.get("farm_id") ?? "").trim();
+  if (profile.role !== "rr_admin") bounce("forbidden", farmId);
+
   const until = String(formData.get("until") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
   if (!isUuid(farmId)) bounce("missing-id");
-  if (!isIsoDate(until)) bounce("billing-extend-bad");
-  if (!reason) bounce("billing-extend-reason");
+  if (!isIsoDate(until)) bounce("billing-extend-bad", farmId);
+  if (!reason) bounce("billing-extend-reason", farmId);
 
   const supabase = createServiceClient();
   const { error } = await supabase.rpc(BILLING_RPC.extendAccess, {
@@ -482,10 +582,14 @@ export async function adminExtendAccess(formData: FormData): Promise<void> {
     p_reason: reason,
     p_by: profile.id,
   });
-  if (error) bounce(error.code === "22023" ? "billing-extend-bad" : errorCode(error, "admin-billing:extend-access"));
+  // Every refusal by its own words. This used to turn any 22023 into the date sentence,
+  // so "say why", "no subscription" and "only a paused or overdue farm" (app-8) all read
+  // "Choose a date from today up to 60 days ahead".
+  if (error) bounce(failure(error, "admin-billing:extend-access"), farmId);
 
   revalidatePath("/admin/billing");
-  redirect("/admin/billing?saved=access-extended");
+  // Back to the farm it was done for (app-7), as the other admin actions return.
+  redirect(`/admin/billing?farm=${farmId}&saved=access-extended`);
 }
 
 /**
