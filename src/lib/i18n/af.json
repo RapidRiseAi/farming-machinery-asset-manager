@@ -5778,8 +5778,6 @@
     "pay": "Betaal en maak my plaas oop",
     "payAmount": "Betaal {amount} en maak my plaas oop",
     "note": "Jy word na Paystack geneem om met 'n kaart te betaal. Jou kaartbesonderhede bereik nooit FleetWise nie. Die plan hernu elke maand en jy kan dit enige tyd op die rekeningskerm kanselleer.",
-    "settlingReceivedTitle": "Betaling ontvang",
-    "settlingReceivedBody": "Dankie. Ons skakel jou rekening nou aan. Dit neem gewoonlik 'n paar sekondes. Herlaai hierdie bladsy en jy is sommer binne.",
     "settlingInflightTitle": "Ons wag op jou bank",
     "settlingInflightBody": "Jou betaling gaan deur. Moet asseblief nie weer betaal nie, herlaai hierdie bladsy oor 'n oomblik en dit behoort klaar te wees. As dit nie binne 'n paar minute deur is nie, laat weet ons en ons kyk dit na.",
     "settlingRefresh": "Herlaai",
@@ -7055,7 +7053,6 @@
     "leadMany": "Meer as een betaling is langer as sewe dae agterstallig, so die toep is onderbreek totdat almal betaal is. Alles is terug sodra die laaste een betaal is.",
     "owedInvoice": "{amount} is onbetaald op faktuur {ref}, betaalbaar sedert {date}.",
     "moreOverdue": "Ná hierdie betaling is {amount} nog agterstallig op ander fakture, so die plaas bly onderbreek totdat dit ook betaal is.",
-    "payAmount": "Betaal nou {amount}",
-    "settlingReceivedMore": "Dankie, daardie betaling is ontvang. Ander fakture is nog agterstallig, so herlaai hierdie bladsy om die volgende een te betaal."
+    "payAmount": "Betaal nou {amount}"
   }
 }

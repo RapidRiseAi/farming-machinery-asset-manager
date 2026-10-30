@@ -5778,8 +5778,6 @@
     "pay": "Pay and open my farm",
     "payAmount": "Pay {amount} and open my farm",
     "note": "You are taken to Paystack to pay by card. Your card details never reach FleetWise. The plan renews every month and you can cancel it at any time from the billing screen.",
-    "settlingReceivedTitle": "Payment received",
-    "settlingReceivedBody": "Thank you. We are switching your account on now. It usually takes a few seconds. Refresh this page and you will be straight in.",
     "settlingInflightTitle": "We are waiting on your bank",
     "settlingInflightBody": "Your payment is going through. Please do not pay again, refresh this page in a moment and it should be done. If it has not cleared in a few minutes, get in touch and we will look it up.",
     "settlingRefresh": "Refresh",
@@ -7055,7 +7053,6 @@
     "leadMany": "More than one payment is over seven days overdue, so the app is paused until they are all paid. Everything comes back once the last one is.",
     "owedInvoice": "{amount} is unpaid on invoice {ref}, due since {date}.",
     "moreOverdue": "After this payment, {amount} is still overdue on other invoices, so the farm stays paused until that is paid too.",
-    "payAmount": "Pay {amount} now",
-    "settlingReceivedMore": "Thank you, that payment is in. Other invoices are still overdue, so refresh this page to pay the next one."
+    "payAmount": "Pay {amount} now"
   }
 }

@@ -850,6 +850,73 @@ export function amountOwedChanged(error: ServiceError | null): boolean {
 }
 
 /**
+ * What became of the attempt that beat a checkout's claim (review round 5, finding app-2):
+ * `freed` when Paystack says no money moved under it and the invoice may be claimed again,
+ * `paid` when it says the money did move (the invoice is now paid), and `busy` for
+ * everything else, which keeps the "already in progress" answer.
+ *
+ * Only a `pending` hosted checkout at least STALE_PENDING_MINUTES old is asked about, the
+ * same window after which the stopped pages offer Pay again (`settlingFrom`) and the
+ * nightly reconcile collects it. A younger one may be somebody at Paystack's page right
+ * now. An `unknown`, or a stored-card charge, stays the reconciler's and Rapid Rise's to
+ * resolve.
+ *
+ * The asking is `reconcileAttempt` itself, with the provider this checkout was given, so a
+ * customer's press settles an attempt exactly as the nightly pass would: verified by its
+ * own reference, matched on the same five fields, never charged. The worker is reached by
+ * a dynamic import because it imports this module, and this path is rare.
+ *
+ * Every failure is `busy` and reported: the read, the verify, a transaction that does not
+ * match (`refused`), or an answer that leaves it open. Being wrong towards "in progress"
+ * costs a customer a wait; being wrong the other way could charge them twice.
+ */
+async function resolveStaleCheckout(
+  supabase: SupabaseClient,
+  provider: SaasBillingProvider,
+  farmId: string,
+  invoiceId: string,
+): Promise<"freed" | "paid" | "busy"> {
+  const { reconcileAttempt, STALE_PENDING_MINUTES } = await import("./worker");
+
+  const { data, error } = await supabase
+    .from("billing_payment_attempts")
+    .select(ATTEMPT_COLUMNS)
+    .eq("farm_id", farmId)
+    .eq("invoice_id", invoiceId)
+    .in("status", ["pending", "unknown"])
+    .order("requested_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    captureError(new ReadFailed("billing:checkout:in-flight", error), { where: "billing:checkout:in-flight", farmId });
+    return "busy";
+  }
+  // No row: it settled between the claim and this read. The next press reads what it
+  // settled as, which is the honest answer to "give it a moment".
+  const attempt = (data as AttemptRow | null) ?? null;
+  if (!attempt || attempt.status !== "pending" || attempt.kind !== "initial_checkout") return "busy";
+  const ageMinutes = (Date.now() - new Date(attempt.requested_at).getTime()) / 60_000;
+  // Written so an unreadable date is "too young", never "old enough".
+  if (!(ageMinutes >= STALE_PENDING_MINUTES)) return "busy";
+
+  let outcome: Awaited<ReturnType<typeof reconcileAttempt>>;
+  try {
+    outcome = await reconcileAttempt(supabase, provider, attempt);
+  } catch (err) {
+    outcome = { result: "error", attemptId: attempt.id, reason: redactMessage(err, 240) };
+  }
+  if (outcome.result === "succeeded") return "paid";
+  if (outcome.result === "abandoned" || outcome.result === "failed") return "freed";
+  // The outcome and its redacted reason, never the reference: the attempt id finds it.
+  captureError(new Error(`billing:checkout:reconcile: ${outcome.result}: ${outcome.reason}`), {
+    where: "billing:checkout:reconcile",
+    farmId,
+    extra: { attemptId: attempt.id },
+  });
+  return "busy";
+}
+
+/**
  * Begin a hosted checkout for a farm's open invoice.
  *
  * The order is the whole safety property, and it is the same order the contract sets out:
@@ -949,7 +1016,31 @@ export async function beginCheckout(
   if (claim.error) return { ok: false, code: "billing-claim-failed" };
   // Null means another attempt is already in flight on this invoice, possibly an
   // `unknown` one, which must be reconciled before anything else is tried.
-  if (!claim.attemptId) return { ok: false, code: "billing-in-flight" };
+  //
+  // == A checkout left at Paystack (review round 5, finding app-2) ==============
+  // Somebody who backed out of Paystack's page left a `pending` attempt that only the
+  // nightly reconcile would ever close, and the stopped pages offer Pay again after
+  // STALE_PENDING_MINUTES. Pressing it was refused as "already in progress" for up to a
+  // day. So an old enough checkout is asked about by its own reference, the reconciler's
+  // way, and only an answer that no money moved frees the invoice for one more claim. A
+  // payment that went through means the invoice is paid: nothing is charged again.
+  if (!claim.attemptId) {
+    const blocked = await resolveStaleCheckout(supabase, provider, input.farmId, invoice.id);
+    if (blocked === "paid") return { ok: false, code: "billing-nothing-due" };
+    if (blocked === "busy") return { ok: false, code: "billing-in-flight" };
+    reference = newAttemptReference();
+    claim = await claimBillingCharge(supabase, {
+      invoiceId: invoice.id,
+      reference,
+      kind: "initial_checkout",
+      amountCents: amount,
+    });
+    // Once more and no further: an EFT in the meantime is the bill moving again, said as
+    // such, and a second loss is somebody else's claim, said as in flight.
+    if (amountOwedChanged(claim.error)) return { ok: false, code: "billing-amount-changed" };
+    if (claim.error) return { ok: false, code: "billing-claim-failed" };
+    if (!claim.attemptId) return { ok: false, code: "billing-in-flight" };
+  }
   const attemptId = claim.attemptId;
 
   const init: CheckoutInit = {
@@ -1218,6 +1309,13 @@ export async function finishWebhookEvent(
  * `suspended` from farms.status before it looks at the subscription at all. So a paused
  * farm that was cancelled stayed paused for good: paying no longer brought it back, the
  * gate never said `closed`, and /closed's reopen refused it.
+ *
+ * PENDING and CANCELLED are refused the same way (review round 5, finding money-8). A
+ * sign-up that has not paid has nothing to cancel, and the period-end patch on one made it
+ * `non_renewing`, which the gate judges by what is overdue: an unpaid farm was let in for
+ * the grace, the dormant sweep (pending only) never removed it, and it then sat paused
+ * with nobody chasing it. A cancelled one is done, and patching it again would rewrite
+ * when it ended. `CANCEL_REFUSALS` names each status and its code.
  */
 export async function setCancellation(
   supabase: SupabaseClient,
@@ -1227,7 +1325,7 @@ export async function setCancellation(
     immediate: boolean;
     reason?: string | null;
   },
-): Promise<{ error: ServiceError | null; refused: "billing-cancel-suspended" | null }> {
+): Promise<{ error: ServiceError | null; refused: CancelRefusal | null }> {
   const nowIso = new Date().toISOString();
   const patch = input.immediate
     ? {
@@ -1253,13 +1351,14 @@ export async function setCancellation(
     .update(patch)
     .eq("id", input.subscriptionId)
     .eq("farm_id", input.farmId)
-    .neq("status", "suspended")
+    .not("status", "in", `(${Object.keys(CANCEL_REFUSALS).join(",")})`)
     .select("id");
   if (error) return { error: { message: redactMessage(error.message), code: error.code }, refused: null };
   if (((data ?? []) as unknown[]).length > 0) return { error: null, refused: null };
 
-  // No row changed. Say why only when it is the suspension; anything else (the row went
-  // between the caller's read and this write) is a failed save, never a silent success.
+  // No row changed. Say why only when it is one of the refused statuses; anything else
+  // (the row went between the caller's read and this write) is a failed save, never a
+  // silent success.
   const { data: row, error: readError } = await supabase
     .from("billing_subscriptions")
     .select("status")

@@ -1,0 +1,46 @@
+{
+  "base": "e97a9e5",
+  "purpose": "Unfinished local review work preserved for cloud continuation. Not a production release.",
+  "files": [
+    {
+      "file": "src/app/(auth)/activate/page.tsx",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "6d817395a1d285e551246745280942c7c3deb894ef30375faa862ad95213fafe"
+    },
+    {
+      "file": "src/app/(auth)/suspended/page.tsx",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "508415760c6c4c53661235f5986d6e17c6e4587ca12e1502cc3926f88628be89"
+    },
+    {
+      "file": "src/components/billing/settling-notice.tsx",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "618b5d187cf15de84f3f61f54984c0d4ca3b3e4a54e2c5a7a256a72b211d74ae"
+    },
+    {
+      "file": "src/lib/billing/service.ts",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "8efb54bb498848527fc2a0991c8c8b7f9f5aabe877d9a4fe5939ca078dfb55c2"
+    },
+    {
+      "file": "src/lib/billing/stopped-farm.test.ts",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "08516350b59b2494b74d4051572d0062447eebe7ed9d354a4865b0c9bf5cdd80"
+    },
+    {
+      "file": "src/lib/billing/stopped-farm.ts",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "cbae2ba7f475c1feaa81cf1ab756157b1739e6d39b78bfc06be491edef94676b"
+    },
+    {
+      "file": "src/lib/i18n/af.json",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "47d4275b5388c3f12ea81289ab9f75ee354a0d68f3ea19b3b1c7f02400e7f227"
+    },
+    {
+      "file": "src/lib/i18n/en.json",
+      "source": "wf_841a9688-a0a-2",
+      "sha256": "a1dd2c292315736c3446777a06238b472c557e1f84e345b5c17fceb2217c731f"
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { t, type Lang } from "@/lib/i18n";
-import type { Settling } from "@/lib/billing/stopped-farm";
 import { buttonVariants } from "@/components/ui/button";
 
 /**
@@ -14,34 +13,17 @@ import { buttonVariants } from "@/components/ui/button";
  * this and `/suspended` did not, so a paused farm that had just paid was shown Pay now and
  * then "already in progress" (review finding app-10); both pages render this now.
  *
- * `receivedBody` replaces the "refresh and you will be straight in" sentence where that
- * would be untrue, on `/suspended` when other invoices keep the farm paused.
+ * One state only, a checkout open at the bank. The "payment received" variant and its
+ * `/suspended` wording are gone (review round 5, finding app-1): a page never sees a
+ * success on the invoice it offers, except on one owed again, where it hid the Pay button
+ * for good.
  */
-export function SettlingNotice({
-  settling,
-  refreshHref,
-  locale,
-  receivedBody,
-}: {
-  settling: Settling;
-  refreshHref: string;
-  locale: Lang;
-  receivedBody?: string;
-}) {
+export function SettlingNotice({ refreshHref, locale }: { refreshHref: string; locale: Lang }) {
   return (
     <div className="mt-6">
       <div className="rounded-xl border border-callout-info-edge bg-callout-info-bg px-4 py-3.5">
-        <p className="text-base font-semibold text-sand-900">
-          {t(
-            settling === "received" ? "activate.settlingReceivedTitle" : "activate.settlingInflightTitle",
-            locale,
-          )}
-        </p>
-        <p className="mt-1 text-sm leading-relaxed text-sand-800">
-          {settling === "received"
-            ? (receivedBody ?? t("activate.settlingReceivedBody", locale))
-            : t("activate.settlingInflightBody", locale)}
-        </p>
+        <p className="text-base font-semibold text-sand-900">{t("activate.settlingInflightTitle", locale)}</p>
+        <p className="mt-1 text-sm leading-relaxed text-sand-800">{t("activate.settlingInflightBody", locale)}</p>
       </div>
       {/* A plain link to this same page. It is a GET, so a reload cannot repeat anything,
           and it gives somebody watching a spinner something to press other than the

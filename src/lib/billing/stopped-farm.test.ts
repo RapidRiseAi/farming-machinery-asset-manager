@@ -3,9 +3,12 @@
  * pinned without a database: the Supabase client is an in-memory fake, as in
  * `worker.test.ts`.
  *
- *  - The "already paid?" read counts attempts on THE invoice being paid only (finding
+ *  - The "money moving?" read counts attempts on THE invoice being paid only (finding
  *    app-1): a reopened farm that once paid by card was told "payment received" over its
  *    new bill and never shown a Pay button again. With no invoice nothing is read.
+ *  - And PENDING attempts only (review round 5, finding app-1): a succeeded attempt on an
+ *    invoice that is owed again (an EFT on it reversed) hid the Pay button for good behind
+ *    "payment received, refresh".
  *  - What is still overdue after this one payment (finding app-4): /suspended printed the
  *    total of every open invoice over a button that charges one, and promised everything
  *    comes back.
@@ -64,9 +67,10 @@ const minutesAgo = (m: number) => new Date(NOW - m * 60000).toISOString();
 // Settling
 // ═════════════════════════════════════════════════════════════════════════════
 
-test("a succeeded attempt is 'received', a fresh pending one 'inflight', a stale one nothing", () => {
+test("a fresh pending attempt is 'inflight'; a stale one, a succeeded one or none is nothing", () => {
   assert.equal(settlingFrom(null, NOW), null);
-  assert.equal(settlingFrom({ status: "succeeded", requested_at: minutesAgo(600) }, NOW), "received");
+  // A success is never "paid seconds ago" on the invoice a page offers (round 5, app-1).
+  assert.equal(settlingFrom({ status: "succeeded", requested_at: minutesAgo(2) }, NOW), null);
   assert.equal(settlingFrom({ status: "pending", requested_at: minutesAgo(2) }, NOW), "inflight");
   // Past the reconciler's window it is an abandoned checkout, and the person must be able
   // to try again.
@@ -90,7 +94,29 @@ test("the settling read is scoped to the invoice being paid, and the farm", asyn
   assert.equal(calls[0].table, "billing_payment_attempts");
   assert.equal(calls[0].filters.invoice_id, INVOICE, "an old period's attempt must not count");
   assert.equal(calls[0].filters.farm_id, FARM);
-  assert.deepEqual(calls[0].filters.status, ["pending", "succeeded"]);
+  assert.equal(calls[0].filters.status, "pending", "only money still moving counts");
+});
+
+test("a succeeded attempt on an invoice that is owed again offers Pay", async () => {
+  // Round 5, app-1: R20 owed, R10 recorded by EFT, the card paid the other R10 (succeeded),
+  // then the EFT bounced and was reversed. The invoice is open again owing R10, and its
+  // only attempt is that old success.
+  const attempts = [{ invoice_id: INVOICE, status: "succeeded", requested_at: minutesAgo(3 * 1440) }];
+  // Answers as the database would, honouring the status filter however it is written.
+  const { client } = fakeSupabase((ctx) => {
+    const wanted = ctx.filters.status;
+    const statusOk = (s: string) => (Array.isArray(wanted) ? wanted.includes(s) : wanted === undefined || wanted === s);
+    return {
+      data: attempts.find((a) => a.invoice_id === ctx.filters.invoice_id && statusOk(a.status)) ?? null,
+      error: null,
+    };
+  });
+
+  assert.equal(
+    await settlingOnInvoice(client, FARM, INVOICE, "test:attempt", NOW),
+    null,
+    "no 'payment received' notice in place of the Pay button",
+  );
 });
 
 test("a reopened farm whose only succeeded attempt is on an old invoice is offered Pay", async () => {
