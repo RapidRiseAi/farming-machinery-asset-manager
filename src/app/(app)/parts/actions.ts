@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { homePathFor, requireProfile } from "@/lib/auth";
+import { homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
 
@@ -16,6 +16,7 @@ async function requireCatalogueManager() {
   if (!state.farmId || !state.role || !["owner", "manager", "mechanic"].includes(state.role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(state.farmId, profile);
   return { profile, farmId: state.farmId, isAdmin: false } as const;
 }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getProfile } from "@/lib/auth";
+import { getProfile, farmIsUsable } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadFaultMedia } from "@/lib/fault-media";
@@ -63,6 +63,7 @@ export async function POST(request: Request) {
   }
   const m = machine as { id: string; farm_id: string } | null;
   if (!m) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!(await farmIsUsable(m.farm_id, profile))) return NextResponse.json({ error: "farm-not-active" }, { status: 402 });
 
   const { data: fault, error } = await supabase
     .from("faults")

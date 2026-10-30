@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentFarmId, effectiveFarmRole, getProfile } from "@/lib/auth";
+import { currentFarmId, effectiveFarmRole, farmIsUsable, getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { parseRandsToCents, exVatCents } from "@/lib/money";
@@ -50,6 +50,7 @@ export async function POST(request: Request) {
 
   const farmId = String(form.get("farm_id") ?? "").trim() || (!isPartner ? await currentFarmId(profile) : null);
   if (!farmId) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+  if (!(await farmIsUsable(farmId, profile))) return NextResponse.json({ error: "farm-not-active" }, { status: 402 });
   const resourceRole = isPartner ? "workshop" : await effectiveFarmRole(farmId, profile);
   if (resourceRole !== "workshop" && resourceRole !== "owner" && resourceRole !== "manager") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });

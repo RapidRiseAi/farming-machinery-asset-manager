@@ -122,17 +122,40 @@ export async function replyToHelp(formData: FormData): Promise<void> {
     formData,
     "help:reply",
     async () => {
-      await requireProfile();
+      const profile = await requireProfile();
       if (!isUuid(ticketId)) bounce("not-found");
       const body = String(formData.get("body") ?? "").trim();
       if (!body) bounce("support-need-message", back);
       if (body.length > 4000) bounce("support-message-long", back);
 
       const supabase = await createClient();
-      const { error } = await supabase.rpc("reply_to_help_request", { p_ticket: ticketId, p_body: body });
+      const { data: messageId, error } = await supabase.rpc("reply_to_help_request", { p_ticket: ticketId, p_body: body });
       if (error) {
         const refusal = supportRefusal(error);
         bounce(refusal ?? errorCode(error, "help:reply"), back);
+      }
+
+      // The reply exists from here on: nothing below may redirect. Rapid Rise hears of it by
+      // email as well as in the app, as for a new request, or a customer's answer waits
+      // unseen until someone opens the desk. Never the message itself in the email.
+      const read = await supabase.rpc("my_help_request", { p_ticket: ticketId });
+      if (read.error) {
+        captureError(read.error, { where: "help:reply:read-back" });
+      } else {
+        const c = (read.data as (CreatedRequest & { subject?: string | null; kind?: string | null }) | null) ?? null;
+        const outcome = await alertSupportInbox({
+          ticketId,
+          subject: c?.subject ?? "",
+          kind: c?.kind ?? "help_request",
+          who: c?.farm_name ?? profile.name,
+          due: c?.answer_by ? dateTime(c.answer_by, "en") : t("support.dueUnknown", "en"),
+          isTest: c?.is_test ?? true,
+          event: "reply",
+          messageId: typeof messageId === "string" ? messageId : undefined,
+        });
+        if (!outcome.sent && !["test-case", "no-alert-address", "email-not-configured"].includes(outcome.reason)) {
+          captureError(new Error(`support reply alert email not sent: ${outcome.reason}`), { where: "help:reply:alert-email" });
+        }
       }
       revalidatePath(back);
       revalidatePath("/help");

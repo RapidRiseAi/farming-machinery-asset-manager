@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { currentFarmId, requireProfile, requireUsableFarm } from "@/lib/auth";
 
 /**
  * Set one machine's book-value policy.
@@ -30,7 +30,8 @@ function bounce(code: string): never {
 }
 
 export async function setDepreciationPolicy(formData: FormData): Promise<void> {
-  await requireProfile();
+  const profile = await requireProfile();
+  await requireUsableFarm(await currentFarmId(profile), profile);
 
   const machineId = String(formData.get("machine_id") ?? "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(machineId)) bounce("depreciation-missing");

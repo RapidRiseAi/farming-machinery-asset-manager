@@ -33,8 +33,10 @@ test("headline totals leave test farms out", () => {
     row("trialing", true),
     row("downgraded", true),
     row("active", true),
+    row("suspended", false),
+    row("suspended", true),
   ]);
-  assert.deepEqual(totals, { all: 2, failing: 1, downgraded: 0, trialing: 1 });
+  assert.deepEqual(totals, { all: 3, suspended: 1, failing: 1, downgraded: 0, trialing: 1 });
 });
 
 test("a test farm is never listed as a farm not paying yet", () => {

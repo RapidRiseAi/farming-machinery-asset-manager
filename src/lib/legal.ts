@@ -17,8 +17,9 @@
  * == What these clauses are grounded in =======================================
  * Each one describes something the software actually does, and several were written by
  * reading the code rather than the other way round:
- *   · the lapse window and the closed state come from `app.farm_billing_gate` and
- *     `billing_settings.lapsed_grace_days`
+ *   · the seven days, the pause and coming back come from `app.farm_billing_gate`,
+ *     `billing_settings.access_grace_days` and `app.billing_restore_after_payment`
+ *     (20261029090100)
  *   · "nothing is deleted" and the export come from `/api/farm/export`
  *   · the refund position is the founder's decision of 11 September 2026, already written
  *     up in `docs/BILLING.md` §11b
@@ -29,7 +30,7 @@
  */
 
 /** The wording currently live. Recorded against every sign-up that accepts it. */
-export const TERMS_VERSION = "2026-09-11";
+export const TERMS_VERSION = "2026-10-29";
 
 export const COMPANY = {
   legalName: "Rapid Rise AI (Pty) Ltd",
@@ -78,14 +79,15 @@ export const TERMS: Clause[] = [
   {
     heading: "If a payment fails",
     body: [
-      "We try the card again a few times over the following days and email you each time. If it still has not gone through, your plan is reduced for a while rather than switched off, and paying restores it exactly as it was.",
-      "If the account stays unpaid beyond that, we close it. Closing means you can no longer use FleetWise, it does not mean your records are deleted.",
+      "If a payment is missed, you have seven days to pay. A card on file is tried again during those days, and we let you know each time.",
+      "If it is still unpaid after seven days, FleetWise is paused for your farm until it is paid: you can then only pay and download your records. Nothing is deleted while it is paused.",
+      "Paying what is overdue opens it again straight away, and you are not charged for the time it was paused: if what was overdue was the period you are in, that period starts again on the day you pay; if that period was already paid, it is made longer by the days it was paused.",
     ],
   },
   {
     heading: "Cancelling, and coming back",
     body: [
-      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling takes effect at the end of the period you have already paid for, unless you ask for it to be immediate.",
+      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling takes effect at the end of the period you have already paid for, unless you ask for it to be immediate. While FleetWise is paused for a missed payment, pay what is overdue first, or ask us to close the account.",
       "After a cancelled or unpaid account has been closed, you can reopen it yourself from the screen you land on, and pick up where you left off.",
     ],
   },

@@ -5,6 +5,7 @@ import {
   currentFarmId,
   effectiveFarmRole,
   getFarmPlan,
+  farmIsUsable,
   type Profile,
   type Role,
 } from "@/lib/auth";
@@ -20,13 +21,21 @@ export type AssistantContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
 };
 
-export async function getAssistantContext(): Promise<AssistantContext | null> {
+/**
+ * `allowStoppedFarm`: for the voice meter's usage reports only. A report closes a session
+ * already open and only lowers what the nightly sweep would bill for it, so it is accepted
+ * after the farm stops; refusing it billed the session at its maximum.
+ */
+export async function getAssistantContext(opts: { allowStoppedFarm?: boolean } = {}): Promise<AssistantContext | null> {
   const profile = await getProfile();
   if (!profile?.active || profile.role === "workshop") return null;
   const farmId = await currentFarmId(profile);
   if (!farmId) return null;
   const role = await effectiveFarmRole(farmId, profile);
   if (!role) return null;
+  // A paused, closed or unpaid farm uses no AI or voice (20261029090100): every assistant
+  // route returns its "not available" answer, so no model runs on Rapid Rise's keys.
+  if (!opts.allowStoppedFarm && !(await farmIsUsable(farmId, profile))) return null;
 
   if (profile.role !== "rr_admin") {
     const plan = await getFarmPlan(farmId);

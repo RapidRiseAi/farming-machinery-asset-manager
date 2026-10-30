@@ -1169,8 +1169,8 @@
     "tplStockShort": "The next {days} days need {committed} {unit} of {part} and you have {on_hand}, {short} short.",
     "tplBillingPaymentFailed": "Your FleetWise subscription payment did not go through. We will try again on {date}.",
     "tplBillingPaymentFailedFinal": "Your FleetWise subscription payment did not go through and we have stopped retrying. Update your card to carry on.",
-    "tplBillingGraceEnding": "Your FleetWise subscription is unpaid. If it is not settled by {date} your plan will be reduced. Nothing will be deleted.",
-    "tplBillingGraceEndingSoon": "Your FleetWise subscription is unpaid and your plan will be reduced soon. Nothing will be deleted.",
+    "tplBillingGraceEnding": "Your Fleet Wise subscription is unpaid. If it is not paid by {date}, the app will pause until it is. Nothing will be deleted.",
+    "tplBillingGraceEndingSoon": "Your Fleet Wise subscription is unpaid, and the app will pause soon if it is not paid. Nothing will be deleted.",
     "tplBillingDowngraded": "Your plan has been reduced to {plan} because the subscription is unpaid. Nothing has been deleted. Pay to get it back.",
     "tplBillingCardExpiring": "The card on your FleetWise subscription ({card}) expires on {date}. Replace it before the next payment.",
     "tplBillingDispute": "A customer has disputed a payment of {amount} ({event}). Respond through Paystack within 48 business hours or it is accepted automatically and taken from a payout.",
@@ -1195,7 +1195,9 @@
     "aiKeyReasonQuota": "out of credit",
     "aiKeyReasonRefused": "refused",
     "aiKeyReasonUnreadable": "it can no longer be read and must be linked again",
-    "tplJobAssigned": "A work item has been assigned to you. Open it to view the details."
+    "tplJobAssigned": "A work item has been assigned to you. Open it to view the details.",
+    "tplBillingSuspended": "Fleet Wise is paused for your farm because a payment is more than seven days overdue. Pay it to carry on; nothing has been deleted.",
+    "tplBillingResumed": "Thank you, your payment is in and Fleet Wise is open again for your farm."
   },
   "settings": {
     "notSet": "Not set",
@@ -1483,6 +1485,8 @@
     "voiceNote": "{name}'s voice note",
     "record": "Record",
     "recording": "Recording… tap to stop",
+    "recordingElapsed": "Recording {time} of {max}, tap to stop",
+    "voiceNotice": "A voice note is saved with this fault and the farm can play it back. Up to {max}.",
     "stop": "Stop",
     "reRecord": "Re-record",
     "remove": "Remove",
@@ -1633,6 +1637,7 @@
     "uploading": "Uploading…",
     "invoiceRecorded": "Invoice recorded",
     "noMedia": "No quotes, invoices or photos yet.",
+    "fromFault": "From the fault report",
     "attachment": "Attachment",
     "fromCatalogue": "From catalogue",
     "cataloguePick": "Pick a part…",
@@ -5269,7 +5274,39 @@
     "emailTestOnly": "This is a test farm or test account, so it can only send email to test addresses.",
     "stillSaving": "Your last change is still being saved. Check the page in a moment before you try again.",
     "recurringLineFailed": "The schedule is saved, but its first line was not. Add the line here.",
-    "documentLinesFailed": "The document was saved, but its lines were not copied. Add them here before you send it."
+    "documentLinesFailed": "The document was saved, but its lines were not copied. Add them here before you send it.",
+    "farmNotActive": "That farm's Fleet Wise is paused or closed, so this cannot be done until it is active again.",
+    "billingExtendBad": "Choose a date from today up to 60 days ahead.",
+    "billingExtendReason": "Say why access is kept open.",
+    "billingManualBad": "Enter the amount and the date the money arrived.",
+    "billingManualProof": "Attach the proof of payment.",
+    "billingManualProofBig": "That file is too large. Attach a PDF or photo of up to 4 MB.",
+    "billingManualProofType": "Attach the proof as a PDF or a photo (JPEG, PNG or WebP).",
+    "billingManualReason": "Say why the payment is reversed.",
+    "billingManualAmount": "The amount must be more than nothing and no more than is still owed on the invoice.",
+    "billingManualDuplicate": "That bank reference is already recorded. Check the payments list before recording it again.",
+    "billingManualInFlight": "A card payment is still being checked on this invoice. Reconcile it first, so the farm is not charged twice.",
+    "billingManualNotOpen": "That invoice is not open, so it cannot take a payment.",
+    "billingManualDate": "The date received must be today or within the last year.",
+    "billingManualReference": "Enter the bank reference the payment came in with.",
+    "billingManualMethod": "Choose how it was paid.",
+    "billingManualNotManual": "Only a payment recorded by hand can be reversed here.",
+    "billingManualReversed": "That payment is already reversed.",
+    "billingServiceBad": "Every line you include needs a description, a whole quantity of at least 1 and a price.",
+    "billingServiceEmpty": "Fill in at least one line.",
+    "billingServiceNothing": "That invoice adds up to nothing, so it was not raised.",
+    "billingServiceDue": "The due date must be within the next 120 days.",
+    "billingAmountChanged": "The amount owed changed while you were paying. Refresh the page to see what is owed now, then pay again.",
+    "billingCancelSuspended": "A paused farm cannot be cancelled until what it owes is paid. Pay first, or contact Rapid Rise.",
+    "billingAmountUnclear": "That amount can be read more than one way. Type it like 1500 or 1 500,00.",
+    "billingManualProofFailed": "The proof of payment could not be stored, so nothing was recorded. Try again in a moment.",
+    "billingNoSuchInvoice": "That invoice no longer exists. Refresh the page and choose it again.",
+    "billingNoSuchFarm": "That farm no longer exists, so no invoice was raised.",
+    "billingServiceLines": "An invoice has between one and twenty lines.",
+    "billingServiceDescription": "Every line needs a description of up to 200 characters.",
+    "billingServiceQty": "A quantity must be a whole number from 1 to 10 000.",
+    "billingServicePrice": "A price must be from R0 to R1 000 000 each.",
+    "billingExtendNotOverdue": "Only a paused or overdue farm can be kept open. A farm still waiting for its first payment needs that payment recorded instead."
   },
   "billing": {
     "title": "Billing",
@@ -5463,7 +5500,8 @@
     "manageTitle": "Change your plan or vehicle slots",
     "manageLead": "Nothing changes until you have seen the price and said yes.",
     "downloadReceiptFull": "Download receipt",
-    "quoteAdjust": "Change the figures"
+    "quoteAdjust": "Change the figures",
+    "cancelSuspended": "This farm is paused until what it owes is paid, and a paused farm cannot be cancelled. Pay what is overdue first, or contact Rapid Rise."
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -5624,7 +5662,49 @@
     "startDialogTitle": "Start a subscription",
     "billedForTitle": "What they are billed for",
     "changeOpen": "Change",
-    "discountOpen": "Set their price"
+    "discountOpen": "Set their price",
+    "accessTitle": "Access past the grace",
+    "extendOpen": "Keep open",
+    "extendTitle": "Keep {farm} open past the grace",
+    "extendLead": "A farm is paused seven days after an invoice falls due. Keep it open until a date when you know the payment is coming. It is paused again after that date if still unpaid.",
+    "extendUntil": "Keep open until",
+    "extendReason": "Why (kept with the farm's billing)",
+    "extendSave": "Keep open",
+    "savedAccessExtended": "Access kept open until the date you chose. If it is still unpaid after that, the farm is paused again overnight.",
+    "recordOpen": "Record a payment",
+    "recordTitle": "Record a payment from {farm}",
+    "recordLead": "An EFT, cash or other payment made outside the app. Attach the proof. Once the invoice is paid in full, the farm's access opens (a new sign-up) or resumes (a paused farm).",
+    "recordInvoice": "Invoice",
+    "recordAmount": "Amount received (R)",
+    "recordReceived": "Date received",
+    "recordMethod": "How it was paid",
+    "recordReference": "Bank reference",
+    "recordProof": "Proof of payment (PDF or photo, up to 4 MB)",
+    "recordNote": "Note (optional)",
+    "recordSave": "Record payment",
+    "methodEft": "EFT",
+    "methodCash": "Cash",
+    "methodOther": "Other",
+    "colActions": "Actions",
+    "reverseOpen": "Reverse",
+    "reverseTitle": "Reverse this payment",
+    "reverseLead": "For a bounced EFT or a mistake. The invoice opens again, and the seven days' grace counts from its due date as before.",
+    "reverseReason": "Why",
+    "reverseSave": "Reverse payment",
+    "savedPaymentRecorded": "Payment recorded. If it paid the invoice in full, the farm's access has opened or resumed.",
+    "savedPaymentReversed": "Payment reversed. The invoice is open again.",
+    "serviceCardTitle": "Once-off services",
+    "serviceOpen": "Invoice a service",
+    "serviceTitle": "Invoice {farm} for a service",
+    "serviceLead": "Onboarding, installation, training or QR stickers. Fill in a quantity and a price on each line to include it; leave a line empty to leave it out.",
+    "serviceOther": "Something else (describe it)",
+    "serviceQty": "Quantity",
+    "servicePrice": "Price each (R)",
+    "serviceDue": "Due by (optional)",
+    "serviceNote": "A service invoice is never charged to the farm's card automatically and never pauses the farm. It is paid by EFT, recorded here, or by its link.",
+    "serviceSave": "Raise invoice",
+    "savedServiceInvoice": "Service invoice raised. It is in the farm's invoices below.",
+    "statSuspended": "Paused"
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -5670,7 +5750,8 @@
     "howToPay": "How to pay",
     "howToPayCard": "Sign in to FleetWise, open Billing and press Pay now. It goes through on a card and takes about a minute. Your farm stays open while you sort it out.",
     "questionsAbout": "Any question about this invoice, or a different way to pay it: {email}",
-    "keepThisInvoice": "Keep this invoice for your records."
+    "keepThisInvoice": "Keep this invoice for your records.",
+    "colQty": "Quantity"
   },
   "billingReceiptEmail": {
     "subject": "Receipt {ref}, {amount} received",
@@ -5697,11 +5778,10 @@
     "pay": "Pay and open my farm",
     "payAmount": "Pay {amount} and open my farm",
     "note": "You are taken to Paystack to pay by card. Your card details never reach FleetWise. The plan renews every month and you can cancel it at any time from the billing screen.",
-    "settlingReceivedTitle": "Payment received",
-    "settlingReceivedBody": "Thank you. We are switching your account on now. It usually takes a few seconds. Refresh this page and you will be straight in.",
     "settlingInflightTitle": "We are waiting on your bank",
     "settlingInflightBody": "Your payment is going through. Please do not pay again, refresh this page in a moment and it should be done. If it has not cleared in a few minutes, get in touch and we will look it up.",
-    "settlingRefresh": "Refresh"
+    "settlingRefresh": "Refresh",
+    "askOwner": "Ask the farm's owner or manager to pay, and the farm opens for everyone."
   },
   "signup": {
     "title": "Start using FleetWise",
@@ -5896,7 +5976,9 @@
   },
   "gate": {
     "signedInAs": "Signed in as {email}",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "otherFarms": "You also belong to other farms:",
+    "useFarm": "Use {farm}"
   },
   "landing": {
     "headline": "Every machine on your farm, in one place.",
@@ -5985,7 +6067,8 @@
     "downgraded": "Plan reduced",
     "non_renewing": "Not renewing",
     "cancelled": "Cancelled",
-    "pending": "Awaiting payment"
+    "pending": "Awaiting payment",
+    "suspended": "Paused until paid"
   },
   "billingInvoiceStatus": {
     "draft": "Draft",
@@ -6384,6 +6467,7 @@
     "dueUnknown": "not worked out",
     "alertEmailSubject": "[Fleet Wise support] {who}: {subject}",
     "alertEmailBody": "A new {kind} from {who}. Read it and answer on the support desk.",
+    "alertReplyBody": "{who} answered on their {kind}. Read it and reply on the support desk.",
     "alertEmailDue": "First answer due: {due}",
     "replyEmailSubject": "Fleet Wise support answered: {subject}",
     "replyEmailGreeting": "Hello {name},",
@@ -6595,7 +6679,8 @@
       "grace": "In grace",
       "downgraded": "Downgraded for not paying",
       "non_renewing": "Ends at the period end",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "suspended": "Paused until paid"
     },
     "noSubscription": "None (onboarded before billing)",
     "nextCharge": "Next charge",
@@ -6955,5 +7040,19 @@
     "previewTitle": "What it works out to",
     "previewEmpty": "Fill in the amount, the term, the first instalment and the rate or the instalment.",
     "previewValue": "{instalment} an instalment · {interest} interest and fees over the term · {rate}% · last due {last}"
+  },
+  "suspended": {
+    "title": "Fleet Wise is paused for this farm",
+    "lead": "A payment is more than seven days overdue, so the app is paused until it is paid. Everything comes back the moment it is.",
+    "pay": "Pay now",
+    "askOwner": "Ask the farm's owner or manager to pay, and it will open again for everyone.",
+    "eft": "Paying by EFT? Email {email} and we will send our banking details; access opens as soon as the payment is confirmed.",
+    "dataSafe": "Nothing has been deleted. Every vehicle, service, job card, fault and cost is still here, and it is still yours.",
+    "download": "Download my records",
+    "help": "Questions about this, email {email} and a person will help.",
+    "leadMany": "More than one payment is over seven days overdue, so the app is paused until they are all paid. Everything comes back once the last one is.",
+    "owedInvoice": "{amount} is unpaid on invoice {ref}, due since {date}.",
+    "moreOverdue": "After this payment, {amount} is still overdue on other invoices, so the farm stays paused until that is paid too.",
+    "payAmount": "Pay {amount} now"
   }
 }

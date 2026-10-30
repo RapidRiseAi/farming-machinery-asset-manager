@@ -9,6 +9,7 @@ import {
   getFarmPlan,
   homePathFor,
   requireProfile,
+  requireUsableFarm,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { deliverReportRun, type ClaimedRun } from "@/lib/scheduled-reports";
@@ -58,6 +59,7 @@ async function gate() {
   if (!role || !["owner", "manager", "rr_admin"].includes(role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(farmId, profile);
 
   if (role !== "rr_admin") {
     const plan = await getFarmPlan(farmId);

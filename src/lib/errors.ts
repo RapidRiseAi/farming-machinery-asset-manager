@@ -419,6 +419,29 @@ const CODE_KEYS: Record<string, string> = {
   "receipt": "errors.receipt",
   // The expense saved but its photo did not link (expenses/actions.ts).
   "receipt-failed": "errors.receipt",
+  // A contractor or an API call aimed at a farm that is suspended, closed or not paid yet.
+  "farm-not-active": "errors.farmNotActive",
+  "billing-extend-bad": "errors.billingExtendBad",
+  "billing-extend-reason": "errors.billingExtendReason",
+  "billing-manual-bad": "errors.billingManualBad",
+  "billing-manual-proof": "errors.billingManualProof",
+  "billing-manual-proof-big": "errors.billingManualProofBig",
+  "billing-manual-proof-type": "errors.billingManualProofType",
+  "billing-manual-reason": "errors.billingManualReason",
+  // The database's own refusals for a manual payment (20261029100000), by their words.
+  "billing-the-amount-must-be-more-than-nothing-and-no-more-than-is-owed": "errors.billingManualAmount",
+  "billing-that-bank-reference-is-already-recorded": "errors.billingManualDuplicate",
+  "billing-a-card-payment-is-still-in-flight-on-this-invoice": "errors.billingManualInFlight",
+  "billing-only-an-open-invoice-can-be-paid": "errors.billingManualNotOpen",
+  "billing-the-date-received-must-be-within-the-last-year": "errors.billingManualDate",
+  "billing-the-bank-reference-is-needed": "errors.billingManualReference",
+  "billing-choose-how-it-was-paid": "errors.billingManualMethod",
+  "billing-only-a-payment-recorded-by-hand-can-be-reversed-here": "errors.billingManualNotManual",
+  "billing-that-payment-is-already-reversed": "errors.billingManualReversed",
+  "billing-service-bad": "errors.billingServiceBad",
+  "billing-service-empty": "errors.billingServiceEmpty",
+  "billing-an-invoice-for-nothing-is-not-sent": "errors.billingServiceNothing",
+  "billing-the-due-date-must-be-within-the-next-120-days": "errors.billingServiceDue",
   "no-csv-provided": "errors.noCsv",
   "invalid-csv-header": "errors.badCsvHeader",
   "no-valid-rows": "errors.noValidRows",
@@ -461,6 +484,35 @@ const CODE_KEYS: Record<string, string> = {
   "1": FALLBACK,
 
   unknown: FALLBACK,
+
+  // == Billing: paying and cancelling a stopped farm (review round 4) ========
+  // The claim refused the amount it was given twice: an EFT landed while the person was
+  // paying (finding app-11). They look at the bill again rather than pay a stale figure.
+  "billing-amount-changed": "errors.billingAmountChanged",
+  // A suspended subscription is not cancelled; paying is the way out (finding money-4).
+  "billing-cancel-suspended": "errors.billingCancelSuspended",
+  // == Rapid Rise's billing console, the rest of its refusals (app-2) ===========
+  // Every refusal the four admin RPCs can raise, by their words, in their latest
+  // definitions: billing_record_manual_payment (20261029100000), billing_reverse_manual_payment
+  // (20261029130000), billing_raise_service_invoice (20261029120000) and
+  // admin_extend_billing_access (20261029140000, plus its paused-or-overdue rule). "Rapid
+  // Rise only" is 42501 and reads as `forbidden`; "BILLING: no subscription" folds onto
+  // `billing-no-subscription` above. `billing-amount-unclear` (app-5),
+  // `billing-manual-proof-failed` and `billing-service-qty` are the actions' own codes.
+  "billing-amount-unclear": "errors.billingAmountUnclear",
+  "billing-manual-proof-failed": "errors.billingManualProofFailed",
+  "billing-attach-the-proof-of-payment": "errors.billingManualProof",
+  "billing-no-such-invoice": "errors.billingNoSuchInvoice",
+  "billing-say-why-the-payment-is-reversed": "errors.billingManualReason",
+  "billing-no-such-farm": "errors.billingNoSuchFarm",
+  "billing-add-between-one-and-twenty-lines": "errors.billingServiceLines",
+  "billing-every-line-needs-a-description": "errors.billingServiceDescription",
+  "billing-a-quantity-must-be-from-1-to-10000": "errors.billingServiceQty",
+  "billing-service-qty": "errors.billingServiceQty",
+  "billing-a-price-must-be-from-r0-to-r1-000-000": "errors.billingServicePrice",
+  "billing-extend-access-by-up-to-60-days": "errors.billingExtendBad",
+  "billing-say-why-access-is-extended": "errors.billingExtendReason",
+  "billing-only-a-paused-or-overdue-farm-can-be-kept-open": "errors.billingExtendNotOverdue",
 };
 
 /**

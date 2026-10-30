@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { getProfile, currentFarmId, effectiveFarmRole } from "@/lib/auth";
+import { getProfile, currentFarmId, effectiveFarmRole, accessibleFarms } from "@/lib/auth";
 import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
+import { isUuid } from "@/lib/ids";
 
 /**
  * Everything this farm has put into FleetWise, as one JSON file.
@@ -73,14 +74,19 @@ const TABLES: Array<{ name: string; source?: string; columns?: string; order?: s
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   // Not `requireProfile`, which redirects: a caller following that redirect would save the
   // login page as their data export. Same reasoning as the receipt route and the VAT ones.
   const profile = await getProfile();
   if (!profile || !profile.active) {
     return NextResponse.json({ error: "auth" }, { status: 401 });
   }
-  const farmId = await currentFarmId(profile);
+  // ?farm= names the farm a stopped page is about (a paused home farm, say, while another
+  // farm is in use); it must be one the person reaches, and the role is checked on it below.
+  const asked = new URL(request.url).searchParams.get("farm");
+  const farmId = isUuid(asked) && (await accessibleFarms(profile)).some((f) => f.id === asked)
+    ? asked
+    : await currentFarmId(profile);
   if (!farmId) {
     return NextResponse.json({ error: "no-farm" }, { status: 403 });
   }

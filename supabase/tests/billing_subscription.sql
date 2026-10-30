@@ -1323,14 +1323,23 @@ declare
     -- AI and voice use on the invoice (20261010090000). They stamp ledger rows and write
     -- invoices, so they are reached only through the generator and the cron wrapper.
     'ai_billing_from','ai_unbilled_cents','billing_attach_ai_usage','generate_ai_usage_invoices',
-    'ai_billing_cutoff'];
+    'ai_billing_cutoff',
+    -- Suspension for non-payment (20261029090100). The overdue test reads invoices, payments
+    -- and attempts; the engine writes subscriptions and farms. Reached only through
+    -- app.farm_billing_gate, the restore after a payment and the cron wrapper.
+    'farm_overdue_since','billing_apply_suspensions',
+    -- Payments made outside the app (20261029100000). They write money into the ledger, so
+    -- they are reached only through their service-role wrappers, with the actor checked.
+    'billing_record_manual_payment','billing_reverse_manual_payment',
+    -- Once-off service invoices (20261029110000): written only through the service wrapper.
+    'billing_raise_service_invoice'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
     'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
     'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices',
-    'cron_generate_ai_usage_invoices'];
+    'cron_generate_ai_usage_invoices','cron_apply_billing_suspensions'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1355,7 +1364,13 @@ declare
     -- Team invites (20261005120000). Reads billing_payments, never writes billing, to tell
     -- a sign-up that never paid (whose people move to the inviting farm) from a farm that
     -- has. Service role only: it writes profiles and memberships for the team action.
-    'team_invite_existing'];
+    'team_invite_existing',
+    -- Rapid Rise keeps a farm open past the grace (20261029090100). Service role only, the
+    -- discount setter's reasoning: the rr_admin check lives in the action, the actor is passed.
+    'admin_extend_billing_access',
+    -- Recording or reversing a payment made outside the app (20261029100000).
+    'billing_record_manual_payment','billing_reverse_manual_payment',
+    'billing_raise_service_invoice'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1688,7 +1703,18 @@ begin
       -- billing detail to something a person will read and act on.
       ('open_support_ticket',
        'p_kind support_ticket_kind, p_subject text, p_farm uuid, p_invoice uuid, p_payment uuid, p_external_ref text, p_source_event uuid, p_due_at timestamp with time zone',
-       false)
+       false),
+      -- Suspension, keeping a farm open, payments made outside the app and service
+      -- invoices (20261029090100 to 20261029110000), added by 20261029150000: they were in
+      -- BILLING_RPC but not here, so a renamed parameter would have passed every suite
+      -- and failed only in production. All service-role only, the actor passed in.
+      ('cron_apply_billing_suspensions', '', false),
+      ('admin_extend_billing_access', 'p_farm uuid, p_until date, p_reason text, p_by uuid', false),
+      ('billing_record_manual_payment',
+       'p_invoice uuid, p_amount_cents bigint, p_method text, p_bank_reference text, p_received_on date, p_note text, p_proof_path text, p_by uuid',
+       false),
+      ('billing_reverse_manual_payment', 'p_payment uuid, p_reason text, p_by uuid', false),
+      ('billing_raise_service_invoice', 'p_farm uuid, p_lines jsonb, p_due_on date, p_by uuid', false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid

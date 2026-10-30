@@ -132,7 +132,7 @@ file: `vercel pull` writes the literal string `[SENSITIVE]`, which is perfectly 
 
 | Decision | Why it is blocking |
 |---|---|
-| `lapsed_grace_days` is live at **30** | It will close accounts. Needs a decision, not a default. |
+| Missed payments | Decided 2026-10-26, built 2026-10-29: seven days' grace, then suspended (pay and download only) until paid. |
 | `src/lib/legal.ts` | Needs a lawyer's read, then bump `TERMS_VERSION`. |
 | Part-refund for a period already supplied | Blocks the SaaS negative-payment model. The partner side already has one at `0422`. |
 | The GitHub repository is **public** | Nothing secret is committed and push protection is on. Worth being deliberate rather than default. |

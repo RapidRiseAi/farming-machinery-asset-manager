@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requireProfile } from "@/lib/auth";
+import { currentFarmId, requireProfile, requireUsableFarm, type Profile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 import { runOnce } from "@/lib/request-claim";
@@ -127,13 +127,24 @@ function agreementFields(fd: FormData, path: string): Record<string, unknown> {
   };
 }
 
+/**
+ * requireProfile plus the stop gate on the farm in use: these actions find their farm
+ * through the record they change, so without it a paused farm went on recording finance
+ * from a tab opened before the pause.
+ */
+async function actingProfile(): Promise<Profile> {
+  const profile = await requireProfile();
+  await requireUsableFarm(await currentFarmId(profile), profile);
+  return profile;
+}
+
 // == Finance agreements =======================================================
 
 /** Capture a finance agreement on a machine; its schedule is built in the same call. */
 export async function createFinanceAgreement(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:create-agreement", async () => {
-    await requireProfile();
+    const profile = await actingProfile();
     const supabase = await createClient();
     const machineId = id(formData, "machine_id", path);
     const { data: machine, error: machineError } = await supabase
@@ -146,6 +157,7 @@ export async function createFinanceAgreement(formData: FormData) {
     const farmId = (machine as { farm_id: string } | null)?.farm_id;
     if (!farmId) bounce(path, "finance-machine-invalid");
     if (!(await canViewFarmFinance(supabase, farmId))) bounce(path, "forbidden");
+    await requireUsableFarm(farmId, profile);
 
     const fields = agreementFields(formData, path);
     // Part-way through the term: instalments due before this day are taken as paid.
@@ -163,7 +175,7 @@ export async function createFinanceAgreement(formData: FormData) {
 
 /** Edit an agreement's terms. The schedule's unpaid rows are rebuilt when a term changed. */
 export async function updateFinanceAgreement(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
   const fields = agreementFields(formData, path);
@@ -187,7 +199,7 @@ export async function updateFinanceAgreement(formData: FormData) {
 
 /** The lender's statement balance, which then wins over the schedule's estimate. */
 export async function recordStatementBalance(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
   const balance = money(formData, "statement_balance", path, "finance-amount-invalid");
@@ -216,7 +228,7 @@ export async function recordStatementBalance(formData: FormData) {
 export async function recordFinancePayment(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:record-payment", async () => {
-    await requireProfile();
+    await actingProfile();
     const instalmentId = id(formData, "instalment_id", path);
     const amount = money(formData, "amount", path, "finance-payment-amount");
     const paidOn = date(formData, "paid_on", path, "finance-dates");
@@ -234,7 +246,7 @@ export async function recordFinancePayment(formData: FormData) {
 
 /** Undo a payment recorded by mistake. */
 export async function clearFinancePayment(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const instalmentId = id(formData, "instalment_id", path);
   const supabase = await createClient();
@@ -245,7 +257,7 @@ export async function clearFinancePayment(formData: FormData) {
 
 /** Correct one row of the schedule: the lender moved a date or charged another amount. */
 export async function updateFinanceInstalment(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const instalmentId = id(formData, "instalment_id", path);
   const due = date(formData, "due_date", path, "finance-dates");
@@ -263,7 +275,7 @@ export async function updateFinanceInstalment(formData: FormData) {
 
 /** Rebuild the unpaid rows on the agreement's current terms. */
 export async function regenerateFinanceSchedule(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
   const supabase = await createClient();
@@ -276,7 +288,7 @@ export async function regenerateFinanceSchedule(formData: FormData) {
 export async function settleFinanceAgreement(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:settle", async () => {
-    await requireProfile();
+    await actingProfile();
     const agreementId = id(formData, "agreement_id", path);
     const on = date(formData, "settled_on", path, "finance-settle-date");
     const amount = money(formData, "settlement", path, "finance-payment-amount");
@@ -295,7 +307,7 @@ export async function settleFinanceAgreement(formData: FormData) {
 
 /** Remove an agreement captured by mistake (soft; the costs it booked are withdrawn). */
 export async function deleteFinanceAgreement(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
   const supabase = await createClient();
@@ -343,7 +355,7 @@ function contractFields(fd: FormData, path: string): Record<string, unknown> {
 export async function createContract(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:create-contract", async () => {
-    await requireProfile();
+    await actingProfile();
     const farmId = id(formData, "farm_id", path);
     const supabase = await createClient();
     if (!(await canViewFarmFinance(supabase, farmId))) bounce(path, "forbidden");
@@ -358,7 +370,7 @@ export async function createContract(formData: FormData) {
 }
 
 export async function updateContract(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
   const supabase = await createClient();
@@ -373,7 +385,7 @@ export async function updateContract(formData: FormData) {
 
 /** End a contract on a day: nothing falls due after it and it no longer renews. */
 export async function endContract(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
   const on = date(formData, "end_date", path, "contract-dates");
@@ -386,7 +398,7 @@ export async function endContract(formData: FormData) {
 
 /** Renew to a later end date, optionally at a new amount. */
 export async function renewContract(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
   const on = date(formData, "end_date", path, "contract-renew-date");
@@ -403,7 +415,7 @@ export async function renewContract(formData: FormData) {
 }
 
 export async function deleteContract(formData: FormData) {
-  await requireProfile();
+  await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
   const supabase = await createClient();
@@ -428,7 +440,7 @@ const DOC_TYPES = /^(image\/(png|jpe?g|webp|heic|heif)|application\/pdf)$/i;
 export async function uploadFinanceDocument(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:upload-document", async () => {
-    const profile = await requireProfile();
+    const profile = await actingProfile();
     const parentType = field(formData, "parent_type");
     if (parentType !== "finance_agreement" && parentType !== "asset_contract") bounce(path, "finance-not-found");
     const parentId = id(formData, "parent_id", path);
@@ -477,7 +489,7 @@ export async function uploadFinanceDocument(formData: FormData) {
 
 /** Remove an attached document (the row is soft-deleted; the activity log keeps it). */
 export async function removeFinanceDocument(formData: FormData) {
-  const profile = await requireProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const docId = id(formData, "document_id", path);
   const supabase = await createClient();

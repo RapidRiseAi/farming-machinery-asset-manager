@@ -38,6 +38,25 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Fourth review fixes: a charge claim refuses more than is owed (a new refusal in it).
+  "20261029150000": "select coalesce(pg_get_functiondef(to_regprocedure('app.claim_billing_charge(uuid,text,billing_attempt_kind,bigint)')) like '%the amount owed has changed%', false)",
+  // Third review fixes: the generator raises a reopened farm an invoice (its new pending rule).
+  "20261029140000": "select coalesce(pg_get_functiondef(to_regprocedure('app.generate_billing_invoices(uuid)')) like '%i.status in (''draft'', ''open'')%', false)",
+  // Second review fixes: the reversal decides by paid invoices (a new branch in it).
+  "20261029130000": "select coalesce(pg_get_functiondef(to_regprocedure('app.billing_reverse_manual_payment(uuid,text,uuid)')) like '%bi.status = ''paid''%', false)",
+  // Review fixes: the reversal puts a bounced sign-up back to pending (a new branch in it).
+  "20261029120000": "select coalesce(pg_get_functiondef(to_regprocedure('app.billing_reverse_manual_payment(uuid,text,uuid)')) like '%v_sub uuid%', false)",
+  // Once-off service invoices and their catalogue.
+  "20261029110000": "select to_regclass('public.billing_service_catalogue') is not null and to_regprocedure('public.billing_raise_service_invoice(uuid,jsonb,date,uuid)') is not null",
+  // Payments made outside the app, recorded by Rapid Rise with proof.
+  "20261029100000": "select to_regprocedure('public.billing_record_manual_payment(uuid,bigint,text,text,date,text,text,uuid)') is not null",
+  // Suspension for non-payment (seven days, then pay or download only).
+  "20261029090000":
+    "select exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid" +
+    " where t.typname = 'billing_subscription_status' and e.enumlabel = 'suspended')",
+  "20261029090100": "select to_regprocedure('app.billing_apply_suspensions()') is not null",
+  // Hosted only (pg_cron): the hourly support chase job exists.
+  "20261028130000": "select exists(select 1 from cron.job where jobname = 'fleetwise-support-chase')",
   // Finance history read by finance readers (integrates the audit rules with asset finance).
   "20261028120000":
     "select exists(select 1 from pg_constraint where conname = 'audit_table_rules_scope_check'" +

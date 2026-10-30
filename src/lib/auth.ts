@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
@@ -240,6 +240,71 @@ export function homePathFor(role: Role): string {
  * Require the profile to hold one of `roles`, else send them to their OWN home with a
  * flag the destination renders as a plain sentence.
  */
+/**
+ * Whether a farm may be used now (20261029090100), asked once per request. Server actions
+ * and API routes run before any layout, so the layout's billing gate alone left every one
+ * of them working for a farm that was pending, suspended or closed. The role helpers below
+ * ask this too, so the actions inherit it; an action with a guard of its own calls
+ * requireUsableFarm. The pages a stopped farm may still use (pay, activate, closed,
+ * download records, help) call requireProfile, not these.
+ *
+ * Fails OPEN, as the layout's gate does: a database hiccup must not lock a paying farm out.
+ */
+const farmUsable = cache(async (farmId: string): Promise<"ok" | "pending" | "suspended" | "closed"> => {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("farm_billing_gate", { p_farm: farmId });
+    if (error) {
+      captureError(new ReadFailed("auth:farm-usable", error), { where: "auth:farm-usable", farmId });
+      return "ok";
+    }
+    return data === "pending" || data === "suspended" || data === "closed" ? data : "ok";
+  } catch (error) {
+    unstable_rethrow(error);
+    captureError(error, { where: "auth:farm-usable", farmId });
+    return "ok";
+  }
+});
+
+/**
+ * Where a person goes when the farm they act on may not be used, or null when it may. The
+ * page is told WHICH farm (?farm=) whenever it is not the home farm: the stopped pages read
+ * it, and without it they looked at the home farm, found it fine, and sent the person
+ * back, round and round.
+ */
+async function stoppedFarmPath(farmId: string | null, homeFarmId?: string | null): Promise<string | null> {
+  if (!farmId) return null;
+  const state = await farmUsable(farmId);
+  const which = farmId !== homeFarmId ? `?farm=${farmId}` : "";
+  if (state === "suspended") return `/suspended${which}`;
+  if (state === "closed") return `/closed${which}`;
+  if (state === "pending") return `/activate${which}`;
+  return null;
+}
+
+/**
+ * Whether a farm may be used now, for a route handler that resolves its own farm (the
+ * assistant, fault capture, uploads). Fails open like the rest. Rapid Rise is never stopped.
+ */
+export async function farmIsUsable(farmId: string, profile?: Profile | null): Promise<boolean> {
+  if (profile?.role === "rr_admin") return true;
+  return (await farmUsable(farmId)) === "ok";
+}
+
+/**
+ * The gate for a server action with a guard of its own (requireProfile plus a role or
+ * permission check): sends the person to the stopped page when the farm may not be used.
+ * A server action is an endpoint, so a tab opened before the pause, or a direct POST,
+ * reached it with the layout's gate never run, and a paused farm could still invite
+ * people, record payments and change settings ("pay and download only", 2026-10-27).
+ * Rapid Rise is never stopped.
+ */
+export async function requireUsableFarm(farmId: string | null, profile: Profile): Promise<void> {
+  if (profile.role === "rr_admin") return;
+  const stopped = await stoppedFarmPath(farmId, profile.farm_id);
+  if (stopped) redirect(stopped);
+}
+
 export async function requireRole(roles: Role[]): Promise<Profile> {
   const profile = await requireProfile();
   if (profile.role === "rr_admin" || profile.role === "workshop") {
@@ -258,6 +323,8 @@ export async function requireRole(roles: Role[]): Promise<Profile> {
   if (!role || !roles.includes(role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  const stopped = await stoppedFarmPath(farmId, profile.farm_id);
+  if (stopped) redirect(stopped);
   return { ...profile, farm_id: farmId, role };
 }
 
@@ -282,6 +349,8 @@ export async function requireApiRole(
   const farmId = await currentFarmId(profile);
   const role = farmId ? await effectiveFarmRole(farmId, profile) : null;
   if (!role || !roles.includes(role)) return deny(403, "forbidden");
+  // 402: the farm must pay (or is closed) before this works; the screen says so.
+  if (farmId && (await farmUsable(farmId)) !== "ok") return deny(402, "farm-not-active");
   return { profile: { ...profile, farm_id: farmId, role } };
 }
 
@@ -448,6 +517,11 @@ export async function requireFarmRole(
 
   if (!role || !roles.includes(role)) {
     redirect(deniedPath ?? `${homePathFor(profile.role)}?denied=1`);
+  }
+  // A contractor too: a suspended or closed farm takes no work from anybody until it pays.
+  if (profile.role !== "rr_admin") {
+    const stopped = await stoppedFarmPath(farmId, profile.farm_id);
+    if (stopped) redirect(profile.role === "workshop" ? `${homePathFor("workshop")}?error=farm-not-active` : stopped);
   }
   return { profile, farmId, role };
 }

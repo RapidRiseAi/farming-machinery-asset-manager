@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { accessibleFarms, currentFarmId, effectiveFarmRole, requireProfile, type Profile } from "@/lib/auth";
+import { accessibleFarms, currentFarmId, effectiveFarmRole, requireProfile, requireUsableFarm, type Profile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { parseRandsToCents } from "@/lib/money";
@@ -46,6 +46,7 @@ async function requireAiAdmin(formData: FormData): Promise<{ profile: Profile; f
   }
   const role = await effectiveFarmRole(farmId, profile);
   if (role !== "owner" && role !== "rr_admin") done("forbidden");
+  await requireUsableFarm(farmId, profile);
   return { profile, farmId };
 }
 

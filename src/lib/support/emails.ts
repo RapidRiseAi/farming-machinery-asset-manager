@@ -8,7 +8,8 @@ import { COMPANY } from "@/lib/legal";
 /**
  * The two emails the support desk sends.
  *
- * 1. To Rapid Rise when a customer asks (`alertSupportInbox`): to OPS_ALERT_EMAIL when it is
+ * 1. To Rapid Rise when a customer asks, or answers back on an open case
+ *    (`alertSupportInbox`, event "new" or "reply"): to OPS_ALERT_EMAIL when it is
  *    set (or AI_ALERT_EMAIL, as the cron alerts do). Unset, the in-app alert still reaches
  *    every real admin, and the admin overview says email is off. Rapid Rise's own mail
  *    (scope "platform"): the case's subject, farm and deadline, never the question itself
@@ -58,8 +59,12 @@ export async function alertSupportInbox(input: {
   /** When the first answer is due, already formatted for a person. */
   due: string;
   isTest: boolean;
+  /** "reply": the customer answered back; `messageId` makes a retried send the same email. */
+  event?: "new" | "reply";
+  messageId?: string;
 }): Promise<MailOutcome> {
   if (input.isTest) return { sent: false, reason: "test-case" };
+  const reply = input.event === "reply";
   const to = supportAlertAddress();
   if (!to) return { sent: false, reason: "no-alert-address" };
   if (!emailConfigured()) return { sent: false, reason: "email-not-configured" };
@@ -69,7 +74,7 @@ export async function alertSupportInbox(input: {
   const kind = t(`support.kind.${input.kind}`, L);
   const subject = fill(t("support.alertEmailSubject", L), { who: input.who, subject: input.subject });
   const lines = [
-    fill(t("support.alertEmailBody", L), { kind, who: input.who }),
+    fill(t(reply ? "support.alertReplyBody" : "support.alertEmailBody", L), { kind, who: input.who }),
     "",
     input.subject,
     fill(t("support.alertEmailDue", L), { due: input.due }),
@@ -84,7 +89,7 @@ export async function alertSupportInbox(input: {
       subject: subject.slice(0, 180),
       text: lines.join("\n"),
       html: lines.map((l) => (l === link ? `<p><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>` : `<p>${escapeHtml(l)}</p>`)).join("\n"),
-      idempotencyKey: `support-new-${input.ticketId}`,
+      idempotencyKey: reply ? `support-customer-reply-${input.messageId ?? input.ticketId}` : `support-new-${input.ticketId}`,
     });
     return result.ok ? { sent: true } : { sent: false, reason: result.error };
   } catch (err) {

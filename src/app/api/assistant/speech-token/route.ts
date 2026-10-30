@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentFarmId, effectiveFarmRole, getFarmPlan, getProfile } from "@/lib/auth";
+import { currentFarmId, effectiveFarmRole, farmIsUsable, getFarmPlan, getProfile } from "@/lib/auth";
 import { getAzureSpeechProviderEnv } from "@/lib/assistant/provider-env";
 import { planAllows } from "@/lib/entitlements";
 import { openVoiceSession, reportVoiceSession } from "@/lib/ai-usage/ledger";
@@ -133,6 +133,7 @@ export async function POST(request: Request) {
   if (!farmId) return jsonError("farm_context_required", 409);
   const role = await effectiveFarmRole(farmId, profile);
   if (!role) return jsonError("forbidden", 403);
+  if (!(await farmIsUsable(farmId, profile))) return jsonError("farm-not-active", 402);
 
   if (role !== "rr_admin") {
     const plan = await getFarmPlan(farmId);

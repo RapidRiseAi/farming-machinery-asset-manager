@@ -112,11 +112,24 @@ export default async function AppLayout({
   // Rapid Rise suspended. Until that migration the gate had no such state and NOTHING ever
   // took access away, a farm that stopped paying kept the product on the downgrade plan
   // for ever, and a farm that cancelled kept all of it.
-  if (profile.farm_id && profile.role !== "rr_admin" && profile.role !== "workshop") {
-    const gateClient = await createClient();
-    const gate = await farmBillingGate(gateClient, profile.farm_id);
-    if (gate === "pending") redirect("/activate");
-    if (gate === "closed") redirect("/closed");
+  //
+  // 'suspended' (20261029090100): an invoice more than seven days overdue. Only the farm's
+  // own pay-and-download page. The farm being LOOKED AT is checked as well as the home
+  // farm: a member who switches to another site must not use it while it is suspended.
+  //
+  // The farm checked is the one being USED (the site switcher's choice, the home farm by
+  // default): a member whose home farm is paused can still work on another farm that is
+  // paid up, and one looking at a paused farm cannot use it. The stopped page is told which
+  // farm (?farm=) when it is not the home one, and offers the way back to the others.
+  if (profile.role !== "rr_admin" && profile.role !== "workshop") {
+    const viewing = (await currentFarmId(profile)) ?? profile.farm_id;
+    if (viewing) {
+      const gate = await farmBillingGate(await createClient(), viewing);
+      const which = viewing !== profile.farm_id ? `?farm=${viewing}` : "";
+      if (gate === "pending") redirect(`/activate${which}`);
+      if (gate === "suspended") redirect(`/suspended${which}`);
+      if (gate === "closed") redirect(`/closed${which}`);
+    }
   }
 
   const locale = profile.lang;

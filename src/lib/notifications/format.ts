@@ -243,6 +243,11 @@ export function formatNotification(
       return fill("notifications.tplBillingDowngraded", locale, {
         plan: p.plan ? t(`plan.${String(p.plan)}`, locale) : "",
       });
+    // Seven days' grace, then access stops until paid (20261029090100).
+    case "billing_suspended":
+      return t("notifications.tplBillingSuspended", locale);
+    case "billing_resumed":
+      return t("notifications.tplBillingResumed", locale);
     case "billing_card_expiring":
       return fill("notifications.tplBillingCardExpiring", locale, {
         card: `${String(p.card_brand ?? "").toUpperCase()} ${String(p.last4 ?? "")}`.trim(),
@@ -448,6 +453,8 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // A ticket chase goes to the list of cases, not to a farm's billing page.
   if (template === "support_ticket_due") return "/admin/support";
   // Every other billing alert is about the same one page, and it is not a machine.
+  // A suspended farm cannot open /billing (the app's layout sends it to /suspended).
+  if (template === "billing_suspended") return "/suspended";
   if (template.startsWith("billing_")) return "/billing";
   // The limit, the usage by person and the linked key all live on one owner page.
   if (template.startsWith("ai_")) return "/settings/ai";

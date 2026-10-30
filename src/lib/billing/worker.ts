@@ -42,6 +42,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { matchesExpectedCharge, type ExpectedCharge } from "./paystack";
 import type { SaasBillingProvider, VerifiedTransaction, VerifyResult } from "./types";
 import {
+  amountOwedChanged,
   chargeRequestFor,
   claimBillingCharge,
   dueBillingCharges,
@@ -119,6 +120,9 @@ export type SkipReason =
   | "provider-unavailable"
   | "no-stored-card"
   | "claimed-elsewhere"
+  /** The claim saw less owed than was read (an EFT landed in between, 20261029150000).
+   *  The next run reads the new amount; charging the old one would take too much. */
+  | "amount-changed"
   | "nothing-due"
   /** Below Paystack's R1.00 floor for a ZAR transaction. */
   | "below-minimum";
@@ -256,6 +260,11 @@ export async function chargeOneInvoice(
     kind,
     amountCents: due.amount_incl_cents,
   });
+  // Not an error: money arrived between the read and the claim, and the claim refused to
+  // take the old figure. Skipped tonight, read again on the next run.
+  if (amountOwedChanged(claimError)) {
+    return { result: "skipped", invoiceId: due.invoice_id, reason: "amount-changed" };
+  }
   if (claimError) {
     return { result: "error", invoiceId: due.invoice_id, reason: claimError.message };
   }

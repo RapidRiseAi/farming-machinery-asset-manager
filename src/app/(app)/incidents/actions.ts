@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { currentFarmId, homePathFor, requireProfile } from "@/lib/auth";
+import { currentFarmId, homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 import {
   INCIDENT_KINDS,
@@ -47,6 +47,7 @@ async function requireFarmUser() {
   if (!farmId || !["owner", "manager"].includes(profile.role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(farmId, profile);
   return { profile, farmId };
 }
 

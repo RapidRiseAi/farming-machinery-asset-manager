@@ -8,7 +8,7 @@ import { must, mustAll } from "@/lib/supabase/must";
 import { readAll } from "@/lib/supabase/read-all";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
-import { dateTime, num, roleLabel, shortDate } from "@/lib/format";
+import { dateTime, enumLabel, num, roleLabel, shortDate } from "@/lib/format";
 import { PLANS, BILLING_PERIODS, planNameKey } from "@/lib/entitlements";
 import { isUuid } from "@/lib/ids";
 import { mailtoHref, telHref, waHref } from "@/lib/contact";
@@ -291,7 +291,9 @@ export default async function ClientPage({
             <Fact label={t("adminHome.farmStatus", locale)} value={t(`adminHome.farmStatusValue.${farm.status}`, locale)} />
             <Fact
               label={t("adminHome.subscription", locale)}
-              value={sub ? t(`adminHome.subStatus.${sub.status}`, locale) : t("adminHome.noSubscription", locale)}
+              // enumLabel, not t(): a status with no label yet reads as its word, never as the
+              // dotted key, which is what `suspended` showed until it had one (release-2).
+              value={sub ? enumLabel("adminHome.subStatus", sub.status, locale) : t("adminHome.noSubscription", locale)}
               hint={sub?.discount_label ?? undefined}
             />
             {sub?.next_billing_on ? <Fact label={t("adminHome.nextCharge", locale)} value={shortDate(sub.next_billing_on, locale)} /> : null}

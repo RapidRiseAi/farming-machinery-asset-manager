@@ -8,6 +8,7 @@ import {
   getFarmPlan,
   homePathFor,
   requireProfile,
+  requireUsableFarm,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { mintApiToken } from "@/lib/api-tokens";
@@ -41,6 +42,7 @@ async function gate() {
   if (!role || !["owner", "manager", "rr_admin"].includes(role)) {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
+  await requireUsableFarm(farmId, profile);
   if (role !== "rr_admin" && !planAllows(await getFarmPlan(farmId), "api_access")) {
     redirect(`${HERE}?error=upgrade_required`);
   }

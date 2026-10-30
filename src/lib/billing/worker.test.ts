@@ -352,6 +352,31 @@ test("a NULL claim is not reported as an error", async () => {
   assert.equal(summary.claimed, 0);
 });
 
+test("a claim refused because less is owed now is skipped, not an error, and never charged", async () => {
+  const provider = fakeProvider({
+    async chargeAuthorization() {
+      throw new Error("must not be reached");
+    },
+  });
+  // app.claim_billing_charge (20261029150000) refuses an amount above what is owed: an EFT
+  // was recorded between the due-list read and the claim.
+  const { client } = fakeSupabase({
+    table: credentialTable,
+    rpc: (name) =>
+      name === "billing_claim_charge"
+        ? { data: null, error: { code: "22023", message: "BILLING: the amount owed has changed" } }
+        : { data: null, error: null },
+  });
+
+  const outcome = await chargeOneInvoice(client, provider, due());
+  assert.equal(outcome.result, "skipped");
+  assert.equal(outcome.result === "skipped" ? outcome.reason : "", "amount-changed");
+
+  const summary = await runBillingChargesWithRows(client, provider, [due()]);
+  assert.equal(summary.errors.length, 0, "a stale amount is not reported as an error");
+  assert.equal(summary.claimed, 0);
+});
+
 /** `runBillingCharges` with a stubbed shortlist, so the due-list read is one line. */
 async function runBillingChargesWithRows(
   client: SupabaseClient,

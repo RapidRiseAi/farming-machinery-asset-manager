@@ -25,7 +25,7 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return new NextResponse(null, { status: 403 });
-  const context = await getAssistantContext();
+  const context = await getAssistantContext({ allowStoppedFarm: true });
   if (!context) return new NextResponse(null, { status: 403 });
   let raw: unknown = null;
   try {

@@ -287,6 +287,29 @@ the role first. Two locks: the grant is absent *and* no permissive write policy 
 
 ## 11. Dunning, grace and cancellation
 
+> **Superseded on 2026-10-29 (20261029090100), by the founder's decision of 26 October
+> 2026.** A missed payment has seven days' grace (`billing_settings.access_grace_days`),
+> counted from the invoice's due date and read from INVOICES, so EFT and invoice customers
+> are covered as well as cards. From day 8 the farm is SUSPENDED: the subscription status
+> `suspended`, `farms.status` `suspended` with `suspended_for = 'billing'` (which stops
+> API tokens, WhatsApp, capture and the notification engines), and its people may only pay
+> and download their records (`/suspended`). Nothing is deleted. Paying what is overdue
+> resumes it (`app.billing_restore_after_payment`) without charging for the paused days:
+> when the debt was the current period's own invoice, paid after the pause began, the
+> period starts again on the payment date; otherwise the period end and the next billing
+> date move on by the days suspended (20261029120000). Nothing is invoiced while suspended,
+> AI use from before the pause included (it is billed on the first invoice after the farm
+> resumes, normally its next period invoice, 20261029150000); the card is retried weekly for four weeks. A suspended
+> subscription cannot be cancelled until what is owed is paid. Rapid Rise can keep a farm
+> open until a date, with a recorded reason (`admin_extend_billing_access`; only for a
+> paused or overdue farm, since the gate never reads it for a pending or closed one).
+> `billing_exempt` is a deliberate flag, not the test-account flag: an exempt farm is
+> never invoiced, charged, swept or suspended (20261029150000). The farms that were test
+> farms on 2026-10-29 were marked exempt once; a farm moved to the test side later is
+> marked by hand, and a test sign-up meant to exercise paying must stay non-exempt. The plan
+> is no longer reduced: the downgrade step is out of the nightly run. What follows describes
+> the earlier design and is kept for history.
+
 All nine values live in the single audited `billing_settings` row, so changing one is a
 decision somebody makes and the audit log records, not a deploy nobody reviews.
 
@@ -489,8 +512,9 @@ billing failure cannot disrupt maintenance jobs and vice versa. Same
 2. capture asset snapshots
 3. apply pending plan changes, then generate invoices
 4. run charges
-5. apply downgrades
-6. close cancellations
+5. apply suspensions (seven days' grace, then paused until paid, §11)
+6. close cancellations (the invoice run never renews a subscription that is ending, so a
+   period-end cancellation closes on the night after its period, 20261029150000)
 7. enqueue reminders, then **renewal notices** (§11a)
 8. card expiry, support escalation and delivery, dormant sign-up sweep
 9. receipts and failure emails

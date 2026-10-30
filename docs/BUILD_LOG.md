@@ -5897,3 +5897,207 @@ Not done: nothing is applied to any database; no browser pass (`ui:check` should
 /finance and the Costs tab at 360 and 1024px with real data, in Afrikaans too); the live
 schedule preview in the agreement form; the farm data export does not yet include the new
 tables; the assistant has no "what do I owe" tool.
+
+## 2026-10-29 - Seven days' grace, then paused until paid
+
+Decided by the founder on 26 October and answered on 27 October: a missed payment has seven
+days' grace; after that the farm is paused until it pays, and its people may only pay and
+download their records; paying starts a fresh period from the payment date; nothing is
+billed while paused and nothing is deleted.
+
+- **Before:** dunning began only when a stored card failed, so a farm paying by EFT or
+  invoice never lost access; a card farm kept full access for about five weeks, was then
+  reduced to Essential rather than stopped, and closed about thirty days later.
+- **The gate reads invoices** (`app.farm_overdue_since`): the oldest unpaid subscription,
+  plan-change, slot or AI invoice, leaving out one with a payment in flight (so an
+  unsettled webhook cannot lock out a farm that paid) and one that was refunded. From day 8
+  the gate answers `suspended`; `billing_settings.access_grace_days` holds the 7.
+- **One lever stops every channel.** The nightly run (`app.billing_apply_suspensions`, in
+  place of the downgrades) marks the subscription and sets `farms.status = 'suspended'`
+  with `suspended_for = 'billing'`. About thirty database checks already stop a farm that
+  is not trial or active, so API tokens, WhatsApp, capture and the notification and
+  report engines stop without each being rewritten. A Rapid Rise hold (no reason) stays
+  `closed`. Only Rapid Rise can update a farm row, so no farm lifts its own pause.
+- **The app:** the layout checks the farm being viewed as well as the home farm, and
+  `requireRole`, `requireFarmRole` and `requireApiRole` ask the gate once per request
+  (failing open), so the server actions and API routes stop too; contractors cannot work
+  on a paused farm. `/suspended` shows the overdue amount to owners and managers, Pay now
+  (the proven hosted checkout), an EFT note, Download my records and sign out.
+- **Coming back:** `app.billing_restore_after_payment` resumes a suspended farm once nothing
+  overdue is left, re-anchors the period to the payment date and tells the farm. The card
+  is retried weekly for four weeks. Rapid Rise can keep a farm open until a date, with a
+  recorded reason, from the admin billing page (service role, actor passed in).
+- Test farms are `billing_exempt`. The terms' "If a payment fails" clause says the new rule
+  (TERMS_VERSION 2026-10-29). BILLING.md section 11, the founder decisions, the go-live and
+  release-gate docs and the checklist say it too.
+
+Suite `billing_suspension.sql` (card and EFT farms, test farm, inside the grace, payment in
+flight, refunded, extended, Rapid Rise hold; the engine once; no invoice while paused; the
+weekly retry; one of two invoices paid; the re-anchored period; the extension's guard),
+mutation-tested against the refund exclusion and the re-anchor. All 50 SQL suites and 728
+unit tests pass.
+
+## 2026-10-29 - Payments made outside the app
+
+Founder decision 4 of 26 October: payments outside the app are allowed, and access starts
+only once payment is received. Until now the ledger's only writer of money in was the
+verified card settlement, so a farm that paid by EFT could not be recorded as paid, could
+not be activated, and with the seven days' grace would be paused while its money sat in
+the bank.
+
+- **Record a payment** (admin billing, per farm): invoice, amount, date received, method
+  (EFT, cash, other), bank reference, proof of payment (PDF or photo, up to 4 MB, stored in
+  the service-only `billing-proofs` bucket) and a note. `app.billing_record_manual_payment`
+  refuses anyone but a named Rapid Rise admin, more than is outstanding, a date in the
+  future or over a year ago, a missing proof, a card payment in flight on the invoice, and
+  the same bank reference twice (provider `manual`, reference `MAN-<normalised>`, through
+  the existing unique index). Once the invoice is paid in full it runs the same restore a
+  card payment does: a pending sign-up becomes active, a paused farm resumes. A refused
+  recording removes the proof it had stored.
+- **Reverse** (a bounced EFT, a mistake) withdraws the row with who and why, rather than
+  writing a negative one: a negative row is how a refund is written, and the pause test
+  ignores refunded invoices, so a bounced EFT written that way would never pause the farm
+  again. Withdrawn, the invoice reopens and the grace counts from its due date as before.
+
+Suite `billing_manual_payments.sql` (every refusal, a part payment not activating, the
+duplicate reference, a paused farm resuming, the reversal reopening and counting again).
+Still to come in this work: once-off service invoices, staff onboarding that opens access
+only after payment, payment links and an invoice email with EFT details.
+
+## 2026-10-29 - Once-off services on an invoice
+
+Founder decisions of 26 October: charge for onboarding, installations, training and QR
+stickers (QR generation stays included; the stickers are a paid add-on); prices pending.
+
+- A `service` invoice kind, built the way the AI-only invoice is: the plan-shaped columns
+  carry neutral values and the total is the sum of its lines (no subscription discount, no
+  AI use), so the invoice freeze and its NOT NULL columns are unchanged.
+- It carries no subscription, deliberately: the nightly card charge never takes it (a farm's
+  card is never charged for stickers without asking), the restore after payment never runs
+  for it, and the pause for non-payment never counts it. The subscription checkout skips it
+  too, so a paused farm's Pay now pays what keeps it running. It is paid by EFT (recorded
+  by hand) or, next, by a payment link.
+- `billing_service_catalogue` (onboarding, installation, training per hour, QR stickers per
+  sheet), readable by Rapid Rise; prices may stay empty and are typed per invoice.
+  `app.billing_raise_service_invoice` (a named Rapid Rise admin, 1 to 20 lines, whole
+  quantities, a due date within 120 days, never an invoice for nothing).
+- Admin billing gains "Invoice a service" (a row per catalogue service and one of its own);
+  the receipt PDF and email print a service invoice's lines instead of a plan row, with a
+  render test for service, plan, AI-only and Afrikaans receipts.
+
+Suite `billing_service_invoices.sql`. 52 suites, 731 unit tests.
+
+## 2026-10-29 - Review of the billing batch, and its fixes
+
+Three reviewers read the suspension, outside-payment and service-invoice work before
+release (money, access, runtime) and ran their scenarios on PGlite. Fixed:
+
+- **Coming back moved the period wrongly** (blocker). Resuming always started a fresh period
+  on the payment date, so an annual farm suspended over a R50 AI invoice was handed most of
+  a year free. `20261029120000`: a fresh period only when the current period's own invoice
+  was the debt (paid since the suspension, by payment-row time, so a backdated EFT cannot
+  fool it); otherwise the period end and next billing date move on by the days suspended.
+  Staying suspended now uses the gate's own test (past the grace), so a farm that paid what
+  was overdue is not kept out by an invoice due next week.
+- **Extending access billed the suspended weeks**: it now moves the period on the same way.
+- **A bounced EFT left a new sign-up active**: reversing its only payment puts it back to
+  pending.
+- **Service invoice lines carried 15% VAT** inside an invoice charging none: they read the
+  invoice's own rate.
+- **A redirect loop** (blocker) for a member of several farms whose chosen farm was closed or
+  unpaid: the stopped pages looked at the home farm, found it fine and sent them back. The
+  layout now checks the farm in use and tells the stopped page which farm (`?farm=`);
+  `/closed`, `/activate` and `/suspended` read it, check the role on that farm, and offer the
+  person's other farms. A paused home farm no longer blocks a paid-up second farm.
+- **AI, voice and uploads skipped the gate**: the assistant context, the speech token, fault
+  capture and the document, job card and work media uploads refuse a paused, closed or
+  unpaid farm (402), so no model runs on Rapid Rise's keys for a farm that is not paying.
+- The records download exports the farm the page is about; the pay buttons never offer a
+  service invoice (the button then paid another); the checkout never asks a paused farm to
+  pay back a refund; a catalogue price alone no longer counts as a service line.
+
+Each money fix has a test that fails without it (suspension h, i, j; manual payments e;
+service invoices e). 52 SQL suites, 732 unit tests.
+
+Verifying those fixes found three more, fixed in `20261029130000` and the app: a sign-up
+put back to pending by a reversal was then swept by the dormant sign-up cleaner after seven
+days (its debt voided, its farm deleted), so reversed payments now count as money recorded;
+the day-shift left `anchor_day`, so the next period snapped back to the old date and the
+compensation vanished, so the anchor moves with it; and a sign-up that paid in two transfers
+kept access when one bounced, so pending is now decided by whether any invoice is still
+paid. On the app side my own replacement had broken the stopped pages' hidden farm field
+(Reopen and Pay acted on the home farm); the farm now travels through every redirect,
+`/activate` offers the other farms and shows the invoice the checkout will actually charge,
+and the voice meter's usage reports are accepted from a stopped farm (refusing them billed
+an open session at its maximum). Each has a test that fails without it. 52 suites.
+
+A third verification pass found four more, fixed in `20261029140000`. An extension granted
+on the day of the pause moved `anchor_day` although no day had been lost, so a month-end
+anchor (31) dropped to the 28th and every later month was cut short; the anchor now moves
+only when days were actually spent paused. The extension also set a farm that had
+cancelled back to active, so it was never closed and was invoiced again; it returns to
+non-renewing, as the restore does. The invoice run only invoiced a pending subscription
+that had never had an invoice, so a farm that had paid for years, cancelled and reopened
+had nothing to pay and could not come back; the rule is now "no unpaid invoice open".
+And the team invite's "never paid" test ignored reversed payments while the dormant sweep
+counts them. On `/activate` the amount and the Pay button show what is still owed (total
+less paid) and the refresh link keeps the farm. Suspension tests k and l fail without the
+fix. 52 suites, 732 unit tests.
+
+Known and left: a reopened farm with older paid invoices whose new EFT bounces keeps access
+until its seven days' grace run out (the reversal cannot tell it from a farm that paid this
+period). The gate still closes it then.
+
+## 2026-10-29 - Fourth review of the billing batch: cancellations, the sweep, reopening, the stop gate
+
+A fourth independent pass (three reviewers: the subscription state machine, the app
+surface, release readiness) proved 26 findings with failing tests. Fixed in
+`20261029150000`, the app and the docs:
+
+- **A period-end cancellation never closed** (blocker, older than this batch, made worse by
+  it). The nightly run raises invoices before it closes cancellations, and the invoice run
+  included `non_renewing`, so on the night the period ended the farm was invoiced for the
+  next month and the close never matched; with suspension it was then paused and its card
+  charged for a month after it left. The invoice run never renews an ending subscription.
+- **The dormant sweep deleted a sign-up that had paid a service invoice** (onboarding has
+  no subscription). It asks by farm now, and never sweeps an exempt farm or one with a card
+  payment in flight.
+- **Exempt farms were still invoiced and charged**: the invoice run, the charge list and
+  the AI-usage invoices skip them. `billing_exempt` is a deliberate flag, not the test flag;
+  a farm moved to the test side later is marked by hand.
+- **AI-only invoices were raised while paused**, and fell overdue in turn; the use now
+  waits for the first invoice after the farm resumes.
+- **Reopening**: a reopened farm that paid late was raised every month it sat locked out
+  (the first payment of a pending subscription now starts its period); the reopen kept the
+  old anchor (a full month charged for a short period); reopening inside a paid month
+  billed those days again (it is active until that month ends); and an old refunded or a
+  service invoice blocked or replaced the month to pay.
+- **The checkout could charge more than was owed** when an EFT was recorded between the
+  read and the claim: the claim refuses, the checkout reads again once, and the nightly
+  worker skips that invoice until the next run.
+- **Keep open** is refused for a sign-up or a closed farm (the gate never reads it there).
+- **A paused farm cannot be cancelled** until what it owes is paid (it stayed paused for
+  ever and could not reopen).
+- **The stop gate on server actions**: fourteen action files authorised with
+  `requireProfile` alone, so a tab opened before a pause could still invite people, record
+  finance and change settings. `requireUsableFarm` is called from every such guard and from
+  `requireFarmPermission`; `stop-gate.test.ts` fails on a new action that skips it.
+- **The stopped pages**: `/activate` no longer shows "payment received" to a reopened farm
+  that once paid by card (the settling read is scoped to the invoice being paid);
+  `/suspended` shows what Pay now charges and says when more remains; managers see the
+  amount; `/suspended` shows a payment that is settling instead of a second Pay button.
+- **Rapid Rise's billing console**: refusals were URL-encoded twice and all read "try
+  again"; every refusal now has its sentence and keeps the farm open. "1,500" was recorded
+  as R1.50 (amounts go through `parseRandsToCents`). A lost answer after a recorded payment
+  deleted its proof (only a definite refusal removes it now). Paused farms are labelled,
+  counted and listed first.
+- The terms and docs said paying "starts the next period from the day you pay"; that holds
+  only when the paused period's own invoice was the debt, otherwise the period is made
+  longer by the paused days. They say both now.
+
+Accepted and left: voiding a sign-up's invoice by hand leaves it nothing to pay until its
+next billing date (no screen voids one); a lost answer before the payment committed could
+still remove its proof (the far likelier committed-then-lost case keeps it).
+
+Suite `billing_review_4.sql` fails without the migration (30 assertions across every
+finding) and passes with it. 53 SQL suites, 817 unit tests.
