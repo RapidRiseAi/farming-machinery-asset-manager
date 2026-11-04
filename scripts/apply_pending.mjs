@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // WhatsApp voice notes and photos: the media-aware receiver and the staging table.
+  "20261104210000": "select to_regprocedure('public.whatsapp_receive(text,text,text,timestamptz,text,text,text)') is not null and to_regclass('public.whatsapp_media') is not null",
   // The November 2026 price list: the active essential/monthly row carries the five-slot minimum.
   "20261104200000": "select exists (select 1 from public.billing_price_versions where version_label = 'launch-2026-11' and plan = 'essential' and billing_period = 'monthly' and status = 'active' and min_billed_slots = 5)",
   // Fifth review fixes: "is the current period paid" asked of the latest period invoice (a new helper).

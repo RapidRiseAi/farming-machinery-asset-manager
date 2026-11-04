@@ -1,12 +1,13 @@
 import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { whatsappConfig, whatsappEnabled } from "@/lib/whatsapp/config";
-import { equalSecret, hashLinkToken, parseWebhook, validSignature, linkMessageToken } from "@/lib/whatsapp/protocol";
+import { equalSecret, hashLinkToken, inboundContent, parseWebhook, validSignature, linkMessageToken } from "@/lib/whatsapp/protocol";
 import { processWhatsAppInbox } from "@/lib/whatsapp/worker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// A voice note is downloaded, heard (up to two models) and answered inside one run.
+export const maxDuration = 120;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -56,9 +57,9 @@ export async function POST(request: Request) {
         // Username-only identities are not guessed or matched by display name.
         // This pilot requires the employee to share their verified phone number.
         if (!message.from) continue;
-        const text = message.type === "text" ? message.text?.body
-          : message.type === "interactive" ? message.interactive?.button_reply?.id : undefined;
-        const link = linkMessageToken(text);
+        const content = inboundContent(message);
+        // A link code is only ever typed text, never a photo caption.
+        const link = content.media ? null : linkMessageToken(content.text);
         if (link) {
           const { data, error } = await service.rpc("whatsapp_verify_link", { p_hash: hashLinkToken(link), p_phone: message.from });
           if (error) throw new Error("link_store_failed");
@@ -67,8 +68,11 @@ export async function POST(request: Request) {
         }
         const { error } = await service.rpc("whatsapp_receive", {
           p_provider_id: message.id, p_phone: message.from,
-          p_text: text && text.length <= 2000 ? text : "[unsupported message]",
+          p_text: content.text,
           p_at: new Date(Number(message.timestamp) * 1000).toISOString(),
+          ...(content.media
+            ? { p_media_kind: content.media.kind, p_media_id: content.media.id, p_media_mime: content.media.mime }
+            : {}),
         });
         if (error) throw new Error("inbox_store_failed");
       }

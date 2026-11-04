@@ -5,12 +5,22 @@ import { siteUrl } from "@/lib/env";
 import { runAssistantTurn } from "@/lib/assistant/run-turn";
 import { confirmAssistantProposal } from "@/lib/assistant/confirm-proposal";
 import { assistantTurnRequestSchema } from "@/lib/assistant/request-schema";
-import type { AssistantTurnResponse, AssistantConfirmResponse } from "@/lib/assistant/types";
+import type { AssistantTurnResponse, AssistantConfirmResponse, AssistantClarification } from "@/lib/assistant/types";
+import type { AssistantContext } from "@/lib/assistant/context";
+import { loadAssistantMachines } from "@/lib/assistant/data";
+import { aiHelpOn, transcriptionVocabulary } from "@/lib/assistant/transcription";
+import { t, type Lang } from "@/lib/i18n";
 import { whatsappAssistantContext, type WhatsAppLink } from "./identity";
 import { whatsappEnabled } from "./config";
 import { sendWhatsApp } from "./client";
-import { replyWindowOpen } from "./protocol";
+import { UNSUPPORTED_MESSAGE, replyWindowOpen } from "./protocol";
 import { clarificationAnswer, confirmationAction, renderWhatsAppResponse } from "./conversation";
+import {
+  MAX_IMAGE_BYTES, MAX_VOICE_BYTES, MAX_VOICE_MS, MIN_VOICE_MS, MediaError,
+  downloadWhatsAppMedia, expireStagedPhotos, imageMimeFromBytes, oggOpusDurationMs, releasePhoto, stagePhoto,
+} from "./media";
+import { transcribeVoiceNote } from "./voice";
+import { faultLabel, faultListPrompt, isPhotoState, photoPrompt, photoStep, type PhotoFault, type PhotoState } from "./photo-flow";
 import { captureError } from "@/lib/observability";
 
 /**
@@ -22,7 +32,16 @@ function reportFailure(where: string, error: unknown) {
   captureError(new Error(`${where} failed (${error instanceof Error ? error.name : typeof error})`), { where });
 }
 
-type Inbox = { id: string; link_id: string; message_text: string; message_at: string; reply: string | null };
+/** The speech call, held here so a test can hear a known transcript without a provider. */
+export const workerDeps = { transcribeVoiceNote };
+
+type Inbox = {
+  id: string; link_id: string; message_text: string; message_at: string; reply: string | null;
+  media_kind?: "audio" | "image" | null; media_id?: string | null; media_mime?: string | null;
+};
+type Reply = { text: string; pending: unknown };
+/** A proposal prepared from a photo conversation carries the staged photo to attach on confirm. */
+type WithPhoto = { attachMediaId?: string };
 
 async function deliveryTarget(id: string): Promise<WhatsAppLink | null> {
   const { data, error } = await createServiceClient().rpc("whatsapp_delivery_target", { p_link: id });
@@ -30,41 +49,241 @@ async function deliveryTarget(id: string): Promise<WhatsAppLink | null> {
   return data as WhatsAppLink | null;
 }
 
-async function answer(link: WhatsAppLink, input: string, origin: string) {
+/**
+ * A voice note, heard (20261104210000). Returns the transcript, or the reply to send
+ * instead when it cannot be heard; the person's AI help, the farm's limits and its own key
+ * all apply exactly as they do to a spoken request in the app.
+ */
+async function hearVoiceNote(context: AssistantContext, item: Inbox, origin: string): Promise<{ text: string } | { reply: string }> {
+  const lang = context.profile.lang;
+  if (!aiHelpOn(context.profile)) return { reply: t("whatsapp.voiceAiOff", lang).replace("{url}", `${origin}/assistant`) };
+  let audio: Uint8Array;
+  try {
+    audio = await downloadWhatsAppMedia(item.media_id ?? "", MAX_VOICE_BYTES);
+  } catch (error) {
+    if (error instanceof MediaError && error.code === "media_too_large") return { reply: t("whatsapp.voiceTooLong", lang) };
+    reportFailure("whatsapp:voice-download", error);
+    return { reply: t("whatsapp.voiceUnavailable", lang) };
+  }
+  const durationMs = oggOpusDurationMs(audio);
+  if (durationMs === null || durationMs < MIN_VOICE_MS) return { reply: t("whatsapp.voiceUnreadable", lang) };
+  if (durationMs > MAX_VOICE_MS) return { reply: t("whatsapp.voiceTooLong", lang) };
+  let terms: string[] = [];
+  try {
+    terms = transcriptionVocabulary(await loadAssistantMachines(context.supabase, context.farmId, {
+      role: context.role, userId: context.profile.id,
+    }));
+  } catch {
+    // The machine names only sharpen the hearing; it still works without them.
+  }
+  const heard = await workerDeps.transcribeVoiceNote({
+    farmId: context.farmId, userId: context.profile.id, audio, durationMs, terms,
+  });
+  if (heard.ok) return { text: heard.text.slice(0, 2000) };
+  switch (heard.reason) {
+    case "not_heard": return { reply: t("whatsapp.voiceNotHeard", lang) };
+    case "farm_limit": case "member_limit": return { reply: t("whatsapp.voiceLimit", lang) };
+    case "ai_off": return { reply: t("whatsapp.voiceAiOff", lang).replace("{url}", `${origin}/assistant`) };
+    case "own_key_broken": return { reply: t("whatsapp.voiceOwnKey", lang).replace("{url}", `${origin}/settings/ai`) };
+    default: return { reply: t("whatsapp.voiceUnavailable", lang) };
+  }
+}
+
+/** Stage an incoming photo and ask what it is for. */
+async function receivePhoto(context: AssistantContext, link: WhatsAppLink, item: Inbox, previous: unknown): Promise<Reply> {
+  const lang = context.profile.lang;
+  let bytes: Uint8Array;
+  try {
+    bytes = await downloadWhatsAppMedia(item.media_id ?? "", MAX_IMAGE_BYTES);
+  } catch (error) {
+    if (!(error instanceof MediaError && error.code === "media_too_large")) reportFailure("whatsapp:photo-download", error);
+    return { text: t("whatsapp.photoUnreadable", lang), pending: null };
+  }
+  const mime = imageMimeFromBytes(bytes);
+  if (!mime) return { text: t("whatsapp.photoUnreadable", lang), pending: null };
+  // A new photo replaces one still waiting for a decision; the old one is removed.
+  if (isPhotoState(previous)) await releasePhoto(previous.mediaId, "discarded");
+  const staged = await stagePhoto({
+    inboxId: item.id, linkId: link.id, farmId: link.farm_id, userId: link.user_id, bytes, mime,
+  });
+  const caption = item.message_text.trim() || null;
+  const state: PhotoState = { kind: "photo", mediaId: staged.id, stage: "choose", caption };
+  return { text: photoPrompt(lang, caption), pending: state };
+}
+
+/** Open faults this person may see on the linked farm, newest first, under their own access. */
+async function openFaults(context: AssistantContext, lang: Lang): Promise<PhotoFault[]> {
+  const { data, error } = await context.supabase.from("faults").select("id,machine_id,description")
+    .eq("farm_id", context.farmId).in("status", ["open", "in_job", "scheduled"]).is("deleted_at", null)
+    .order("created_at", { ascending: false }).limit(9);
+  if (error) throw new Error("whatsapp_faults_unavailable");
+  const rows = (data ?? []) as { id: string; machine_id: string; description: string | null }[];
+  const ids = [...new Set(rows.map((r) => r.machine_id))];
+  const names = new Map<string, string>();
+  if (ids.length) {
+    const machines = await context.supabase.from("machines").select("id,name").in("id", ids);
+    if (machines.error) throw new Error("whatsapp_faults_unavailable");
+    for (const m of (machines.data ?? []) as { id: string; name: string }[]) names.set(m.id, m.name);
+  }
+  return rows.map((r) => ({ id: r.id, label: faultLabel(names.get(r.machine_id) ?? null, r.description, lang) }));
+}
+
+/**
+ * Attach a staged photo to a fault, as the person: the fault must be one they can read,
+ * and the attachment row goes in through their own delegated access (the storage object
+ * is already in the farm's folder). The staged row's id is the attachment's id, so a
+ * replay cannot attach it twice.
+ */
+async function attachPhoto(context: AssistantContext, mediaId: string, faultId: string): Promise<boolean> {
+  const db = createServiceClient();
+  const media = await db.from("whatsapp_media").select("id,storage_path,farm_id,state").eq("id", mediaId).maybeSingle();
+  if (media.error || !media.data || media.data.farm_id !== context.farmId) return false;
+  if (media.data.state === "attached") return true;
+  if (media.data.state !== "staged") return false;
+  const fault = await context.supabase.from("faults").select("id").eq("id", faultId)
+    .eq("farm_id", context.farmId).is("deleted_at", null).maybeSingle();
+  if (fault.error || !fault.data) return false;
+  const inserted = await context.supabase.from("attachments").insert({
+    id: media.data.id, farm_id: context.farmId, parent_type: "fault", parent_id: faultId,
+    kind: "photo", storage_path: media.data.storage_path, created_by: context.profile.id,
+  });
+  if (inserted.error && inserted.error.code !== "23505") return false;
+  const settled = await db.from("whatsapp_media").update({
+    state: "attached", attachment_id: media.data.id, settled_at: new Date().toISOString(),
+  }).eq("id", mediaId).eq("state", "staged");
+  return !settled.error;
+}
+
+async function runTurn(context: AssistantContext, input: string, clarification?: AssistantClarification): Promise<AssistantTurnResponse> {
+  const body = assistantTurnRequestSchema.parse({ input: input.slice(0, 2000), channel: "typed",
+    locale: context.profile.language === "af" ? "af-ZA" : "en-ZA", clarification: clarification ?? undefined,
+  });
+  const response = await runAssistantTurn(context, body);
+  return await response.json() as AssistantTurnResponse;
+}
+
+/** The photo conversation, one reply at a time (src/lib/whatsapp/photo-flow.ts). */
+async function continuePhoto(context: AssistantContext, state: PhotoState, input: string, origin: string): Promise<Reply> {
+  const lang = context.profile.lang;
+  const step = photoStep(state, input);
+  switch (step.do) {
+    case "describe":
+      return { text: t("whatsapp.photoDescribe", lang), pending: { ...state, stage: "describe" } };
+    case "report": {
+      const result = await runTurn(context, step.input);
+      if (result.kind === "confirm" || result.kind === "clarify") {
+        const note = result.kind === "confirm" ? `\n${t("whatsapp.photoOnConfirm", lang)}` : "";
+        return { text: renderWhatsAppResponse(result, origin) + note, pending: { ...result, attachMediaId: state.mediaId } };
+      }
+      // No proposal came of it (a question back, a refusal): the photo keeps waiting.
+      return {
+        text: `${renderWhatsAppResponse(result, origin)}\n${t("whatsapp.photoDescribe", lang)}`,
+        pending: { ...state, stage: "describe" },
+      };
+    }
+    case "list_faults": {
+      const faults = await openFaults(context, lang);
+      if (!faults.length) return { text: t("whatsapp.photoNoFaults", lang), pending: { ...state, stage: "choose" } };
+      return { text: faultListPrompt(lang, faults), pending: { ...state, stage: "pick_fault", faults } };
+    }
+    case "attach": {
+      const ok = await attachPhoto(context, state.mediaId, step.fault.id);
+      return {
+        text: ok
+          ? t("whatsapp.photoAttached", lang).replace("{label}", step.fault.label).replace("{url}", `${origin}/faults`)
+          : t("whatsapp.photoAttachFailed", lang).replace("{url}", `${origin}/faults`),
+        pending: null,
+      };
+    }
+    case "discard":
+      await releasePhoto(state.mediaId, "discarded");
+      return { text: t("whatsapp.photoDiscarded", lang), pending: null };
+    case "repeat":
+      return {
+        text: state.stage === "pick_fault" && state.faults?.length ? faultListPrompt(lang, state.faults)
+          : state.stage === "describe" ? t("whatsapp.photoDescribe", lang)
+          : photoPrompt(lang, state.caption),
+        pending: state,
+      };
+  }
+}
+
+async function answer(link: WhatsAppLink, item: Inbox, origin: string): Promise<Reply> {
   const context = await whatsappAssistantContext(link);
   const connect = `${origin}/account/whatsapp`;
   if (!context) return { text: `WhatsApp assistant access needs authorization in Fleetwise. Open ${connect}`, pending: null };
-  if (input === "[unsupported message]") return {
-    text: `Please send a text message. Photos, documents and voice notes currently need Fleetwise: ${origin}/assistant`, pending: null,
+  const lang = context.profile.lang;
+  if (!item.media_kind && item.message_text === UNSUPPORTED_MESSAGE) return {
+    text: t("whatsapp.unsupported", lang).replace("{url}", `${origin}/assistant`), pending: null,
   };
-  if (/^(HELP|HUMAN|SUPPORT)$/i.test(input.trim())) return {
-    text: `For help from a person, open Fleetwise support: ${origin}/help. Type NEW to start another request.`, pending: null,
-  };
-  if (/^NEW$/i.test(input.trim())) return { text: "What would you like to ask or record in Fleetwise?", pending: null };
+  // Cached conversation content counts only if it was built under the access held now.
+  const current = link.conversation && link.conversation_authority_tag === link.authority_tag
+    && link.conversation_at && Date.now() - Date.parse(link.conversation_at) < 10 * 60_000
+    ? link.conversation : null;
+  let input = item.message_text;
+  let heard: string | null = null;
+  if (item.media_kind === "audio") {
+    const voice = await hearVoiceNote(context, item, origin);
+    // Not heard: say why and keep whatever was waiting, so a typed reply can still answer it.
+    if ("reply" in voice) return { text: voice.reply, pending: current };
+    input = voice.text;
+    heard = t("whatsapp.voiceHeard", lang).replace("{text}", voice.text.length > 300 ? `${voice.text.slice(0, 297)}...` : voice.text);
+  }
+  const reply = await answerInput(context, link, item, input, current, origin);
+  return heard ? { ...reply, text: `${heard}\n\n${reply.text}` } : reply;
+}
+
+async function answerInput(context: AssistantContext, link: WhatsAppLink, item: Inbox, input: string,
+  current: unknown, origin: string): Promise<Reply> {
+  const connect = `${origin}/account/whatsapp`;
+  if (!item.media_kind || item.media_kind === "audio") {
+    if (/^(HELP|HUMAN|SUPPORT)$/i.test(input.trim())) return {
+      text: `For help from a person, open Fleetwise support: ${origin}/help. Type NEW to start another request.`, pending: null,
+    };
+    if (/^NEW$/i.test(input.trim())) {
+      const waiting = isPhotoState(current) ? current.mediaId : (current as WithPhoto | null)?.attachMediaId;
+      if (waiting) await releasePhoto(waiting, "discarded");
+      return { text: "What would you like to ask or record in Fleetwise?", pending: null };
+    }
+  }
   // A previous proposal may contain costs or machine details the person can no longer
   // read. Live authorization must cover cached conversation content, not just new reads.
   if (link.conversation && link.conversation_authority_tag !== link.authority_tag) return {
     text: `Your Fleetwise access changed. Please start your request again. ${connect}`, pending: null,
   };
-  const pending = link.conversation_at && Date.now() - Date.parse(link.conversation_at) < 10 * 60_000
-    ? link.conversation as AssistantTurnResponse | null : null;
+  if (item.media_kind === "image") return receivePhoto(context, link, item, current);
+  if (isPhotoState(current)) return continuePhoto(context, current, input, origin);
+  const pending = current as (AssistantTurnResponse & WithPhoto) | null;
+  const attachMediaId = pending?.attachMediaId;
   const action = confirmationAction(input, pending);
   if (action && pending?.kind === "confirm") {
     const result = await confirmAssistantProposal(context, { proposalId: pending.proposal.proposalId, action });
     const body = await result.json() as AssistantConfirmResponse;
-    return { text: body.message, pending: null };
+    let note = "";
+    if (attachMediaId) {
+      if (action === "confirm" && body.ok && body.linkedRecordType === "fault") {
+        note = await attachPhoto(context, attachMediaId, body.linkedRecordId)
+          ? t("whatsapp.photoAttachedToNew", context.profile.lang)
+          : t("whatsapp.photoAttachFailed", context.profile.lang).replace("{url}", `${origin}/faults`);
+      } else if (!body.ok && action === "confirm") {
+        // Not saved: the photo stays staged until the conversation lapses.
+      } else {
+        await releasePhoto(attachMediaId, "discarded");
+        note = t("whatsapp.photoNotKept", context.profile.lang);
+      }
+    }
+    return { text: note ? `${body.message}\n${note}` : body.message, pending: null };
   }
   if (pending?.kind === "confirm") return {
     text: renderWhatsAppResponse(pending, origin) + "\nType NEW to start another request.", pending,
   };
   const clarification = pending?.kind === "clarify" ? clarificationAnswer(input, pending) : undefined;
   if (pending?.kind === "clarify" && !clarification) return { text: renderWhatsAppResponse(pending, origin), pending };
-  const body = assistantTurnRequestSchema.parse({ input, channel: "typed",
-    locale: context.profile.language === "af" ? "af-ZA" : "en-ZA", clarification: clarification ?? undefined,
-  });
-  const response = await runAssistantTurn(context, body);
-  const result = await response.json() as AssistantTurnResponse;
-  return { text: renderWhatsAppResponse(result, origin), pending: ["confirm", "clarify"].includes(result.kind) ? result : null };
+  if (!input.trim()) return { text: "What would you like to ask or record in Fleetwise?", pending: null };
+  const result = await runTurn(context, input, clarification ?? undefined);
+  const next = ["confirm", "clarify"].includes(result.kind)
+    ? (attachMediaId ? { ...result, attachMediaId } : result) : null;
+  return { text: renderWhatsAppResponse(result, origin), pending: next };
 }
 
 export async function processWhatsAppInbox(limit = 1) {
@@ -89,7 +308,7 @@ export async function processWhatsAppInbox(limit = 1) {
       let reply = item.reply;
       const authorityBefore = link.authority_tag;
       if (!reply) {
-        const result = await answer(link, item.message_text, origin);
+        const result = await answer(link, item, origin);
         reply = result.text.slice(0, 4000);
         const saved = await db.rpc("whatsapp_save_reply", {
           p_id: item.id, p_lease: lease, p_reply: reply, p_conversation: result.pending, p_authority_tag: authorityBefore,
@@ -131,6 +350,12 @@ export async function processWhatsAppInbox(limit = 1) {
     }
   }
   return { processed };
+}
+
+/** Staged photos whose conversation lapsed without a decision: removed, never attached. */
+export async function expireWhatsAppPhotos() {
+  if (!whatsappEnabled()) return { expired: 0, skipped: true };
+  return { expired: await expireStagedPhotos() };
 }
 
 export async function deliverWhatsAppNotifications() {

@@ -32,7 +32,41 @@ const messageSchema = z.object({
   type: z.string(),
   text: z.object({ body: z.string().max(10000) }).optional(),
   interactive: z.object({ button_reply: z.object({ id: z.string().max(100) }).optional() }).optional(),
+  // Voice notes and photos arrive as a media id; the worker fetches the file (20261104210000).
+  audio: z.object({ id: z.string().min(1).max(300), mime_type: z.string().max(100).optional() }).optional(),
+  image: z.object({
+    id: z.string().min(1).max(300), mime_type: z.string().max(100).optional(), caption: z.string().max(10000).optional(),
+  }).optional(),
 });
+
+export type WebhookMessage = z.infer<typeof messageSchema>;
+export const UNSUPPORTED_MESSAGE = "[unsupported message]";
+
+/**
+ * What the inbox stores for one message: text (a reply or button id; a photo's caption),
+ * and for a voice note or photo the media id the worker fetches. Anything else (video,
+ * document, sticker, location) is the unsupported marker, and so is text over the inbox's
+ * 2000-character limit.
+ */
+export function inboundContent(message: WebhookMessage): {
+  text: string; media: { kind: "audio" | "image"; id: string; mime: string | null } | null;
+} {
+  const plain = (value: string | undefined) => ({
+    text: value && value.length <= 2000 ? value : UNSUPPORTED_MESSAGE, media: null,
+  });
+  if (message.type === "text") return plain(message.text?.body);
+  if (message.type === "interactive") return plain(message.interactive?.button_reply?.id);
+  if (message.type === "audio" && message.audio) {
+    return { text: "", media: { kind: "audio", id: message.audio.id, mime: message.audio.mime_type ?? null } };
+  }
+  if (message.type === "image" && message.image) {
+    return {
+      text: (message.image.caption ?? "").trim().slice(0, 2000),
+      media: { kind: "image", id: message.image.id, mime: message.image.mime_type ?? null },
+    };
+  }
+  return plain(undefined);
+}
 const envelopeSchema = z.object({
   object: z.literal("whatsapp_business_account"),
   entry: z.array(z.object({

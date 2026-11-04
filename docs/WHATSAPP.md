@@ -131,12 +131,45 @@ and account settings are supported; transport instructions and the initial appro
 notification templates use English. Employees can reconnect through the app to change
 the selected farm. Switching the app's farm selector does not redirect WhatsApp.
 
-Voice notes, photos, documents, group chats and username-only/BSUID-only identities
-are not implemented in this pilot. Unsupported media receives a link to the app;
-messages without a phone identity are ignored. Users must share their phone number
-for linking. Voice/media adapters can call the existing transcription and media
-workflows later; they are not a second agent. The pilot does not provide complete
-input-format parity with the web app.
+## Voice notes and photos (built 4 November 2026, migration `20261104210000`, not yet released)
+
+The webhook stores a voice note's or photo's **Meta media id**, never the file. The worker
+fetches the file only once the sender is a live, authorised link
+(`src/lib/whatsapp/media.ts`): the media id resolves to a short-lived URL, the bytes are
+downloaded with a size cap checked against Meta's figure and again on the stream, and
+the business token is sent only to Meta's own hosts.
+
+- **Voice notes** (`src/lib/whatsapp/voice.ts`) are heard by the in-app speech models
+  (gpt-4o-transcribe, MAI only if that fails) with the farm's machine names as
+  vocabulary, and answered exactly as if typed. The reply starts with what was heard
+  ("Heard: ..."), so a mishearing is visible before anything is confirmed. Every
+  attempt takes an AI budget hold first and settles in the ledger as `ai_hearing`, on
+  the farm's own OpenAI key where linked (docs/AI_USAGE.md). Refused before any
+  model call: AI help off for the person, a note over three minutes or 4 MB, and
+  anything that is not Ogg/Opus (the length is read from the file's own headers, so a
+  forwarded MP3 is refused rather than guessed). At the farm's spending limit the
+  reply says so and whatever was waiting is kept. Neither the audio nor the
+  transcript is stored beyond the inbox's own 30-day text retention.
+- **Photos** are checked by their own bytes (JPEG, PNG or WebP, under 6 MB), staged in
+  the farm's folder of the `fault-photos` bucket and recorded in `whatsapp_media`.
+  The reply asks what the photo is for (`src/lib/whatsapp/photo-flow.ts`):
+  1. **a new problem**: the person names the machine and what is wrong (or the
+     caption already did), the assistant prepares a fault for them to confirm, and
+     the photo is attached when they reply `CONFIRM <code>`;
+  2. **a problem already logged**: a numbered list of the open faults they can see,
+     and the photo is attached to the one they pick;
+  3. **discard**: the object is removed.
+
+  Attachment rows go in through the person's delegated access, so the farm's own
+  rules decide; the staged row's id is the attachment id, so a replay cannot attach
+  twice. A photo nobody decides about is removed by the minute cron once its
+  conversation has lapsed (30 minutes).
+
+Documents, videos, stickers, group chats and username-only/BSUID-only identities are
+still not handled; they get a short explanation and a link to the app. Messages without
+a phone identity are ignored, and users must share their phone number for linking.
+Confirmation stays typed (`CONFIRM <code>`): a spoken "yes" is never taken as
+confirmation.
 
 ## Platform feasibility and constraints
 

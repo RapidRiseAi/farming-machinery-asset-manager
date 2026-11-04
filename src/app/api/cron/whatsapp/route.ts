@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { processWhatsAppInbox, deliverWhatsAppNotifications } from "@/lib/whatsapp/worker";
+import { processWhatsAppInbox, deliverWhatsAppNotifications, expireWhatsAppPhotos } from "@/lib/whatsapp/worker";
 import { validWorkerAuthorization } from "@/lib/whatsapp/protocol";
 import { createServiceClient } from "@/lib/supabase/service";
 import { whatsappEnabled } from "@/lib/whatsapp/config";
@@ -8,7 +8,8 @@ import { captureError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// A voice note is downloaded, heard (up to two models) and answered inside one run.
+export const maxDuration = 120;
 
 export async function GET(request: Request) {
   // The Supabase scheduler gets its own credential, scoped to this route only.
@@ -24,8 +25,10 @@ export async function GET(request: Request) {
       const { error } = await createServiceClient().rpc("whatsapp_prune");
       if (error) throw new Error("whatsapp_prune_failed");
     }
-    const [inbox, notifications] = await Promise.all([processWhatsAppInbox(1), deliverWhatsAppNotifications()]);
-    return NextResponse.json({ inbox, notifications });
+    const [inbox, notifications, photos] = await Promise.all([
+      processWhatsAppInbox(1), deliverWhatsAppNotifications(), expireWhatsAppPhotos(),
+    ]);
+    return NextResponse.json({ inbox, notifications, photos });
   } catch (error) {
     // Fixed code and type only (the WhatsApp modules log no message text): the run failed
     // every minute with the cause lost.
