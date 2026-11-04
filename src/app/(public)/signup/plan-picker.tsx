@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { rands } from "@/lib/money";
-import { FEATURE_MIN_PLAN, isPlan, planAllows, type Feature } from "@/lib/entitlements";
+import { FEATURE_MIN_PLAN, MIN_BILLED_SLOTS, isPlan, planAllows, type Feature } from "@/lib/entitlements";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { CheckIcon } from "@/components/ui/icons";
 
@@ -85,7 +85,8 @@ export function PlanPicker({
   const firstSellable = options.find((o) => o.monthlyCents != null) ?? options[0];
   const [plan, setPlan] = useState(firstSellable.plan);
   const [period, setPeriod] = useState<"monthly" | "annual">("monthly");
-  const [vehicles, setVehicles] = useState(3);
+  // Starts at the plan minimum (five slots), which is also the least anybody is billed for.
+  const [vehicles, setVehicles] = useState(MIN_BILLED_SLOTS);
   const [comparing, setComparing] = useState(false);
 
   const chosen = options.find((o) => o.plan === plan) ?? firstSellable;
@@ -110,7 +111,7 @@ export function PlanPicker({
     })),
   ];
 
-  const clampVehicles = (n: number) => Math.min(200, Math.max(1, n));
+  const clampVehicles = (n: number) => Math.min(200, Math.max(MIN_BILLED_SLOTS, n));
 
   // On a phone the plans scroll sideways under a fixed feature column, and the plan
   // somebody has chosen can start off-screen. Bring its column in beside the features when
@@ -200,8 +201,8 @@ export function PlanPicker({
       </fieldset>
 
       {/* == What you actually get ============================================
-          A one-line blurb was the whole argument for spending R89 a vehicle instead of
-          R44, which left the most expensive question on the page unanswered. Collapsed by
+          A one-line blurb was the whole argument for spending R99 a vehicle instead of
+          R49, which left the most expensive question on the page unanswered. Collapsed by
           default so the form stays short for somebody who has already decided. */}
       <div>
         <button
@@ -302,7 +303,7 @@ export function PlanPicker({
         <div className="mt-2 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setVehicles((v) => clampVehicles((Number.isFinite(v) ? v : 1) - 1))}
+            onClick={() => setVehicles((v) => clampVehicles((Number.isFinite(v) ? v : MIN_BILLED_SLOTS) - 1))}
             aria-label={labels.vehiclesFewer}
             className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-sand-300 bg-surface text-xl font-semibold text-sand-800"
           >
@@ -313,19 +314,19 @@ export function PlanPicker({
             name="vehicles"
             type="number"
             inputMode="numeric"
-            min={1}
+            min={MIN_BILLED_SLOTS}
             max={200}
             value={Number.isFinite(vehicles) ? vehicles : ""}
             onChange={(e) => setVehicles(Number.parseInt(e.target.value, 10))}
             onBlur={(e) => {
               const n = Number.parseInt(e.target.value, 10);
-              setVehicles(Number.isFinite(n) ? clampVehicles(n) : 1);
+              setVehicles(Number.isFinite(n) ? clampVehicles(n) : MIN_BILLED_SLOTS);
             }}
             className="min-h-12 w-full rounded-lg border border-sand-300 bg-surface px-3 text-center text-lg font-semibold tabular-nums sm:min-h-11"
           />
           <button
             type="button"
-            onClick={() => setVehicles((v) => clampVehicles((Number.isFinite(v) ? v : 0) + 1))}
+            onClick={() => setVehicles((v) => clampVehicles((Number.isFinite(v) ? v : MIN_BILLED_SLOTS - 1) + 1))}
             aria-label={labels.vehiclesMore}
             className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-sand-300 bg-surface text-xl font-semibold text-sand-800"
           >

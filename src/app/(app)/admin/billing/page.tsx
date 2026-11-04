@@ -568,6 +568,7 @@ export default async function AdminBillingPage({
                   <Th>{t("adminBilling.colPeriod", locale)}</Th>
                   <Th className="text-right">{t("adminBilling.colPerVehicle", locale)}</Th>
                   <Th className="text-right">{t("adminBilling.colMonths", locale)}</Th>
+                  <Th className="text-right">{t("adminBilling.colMinSlots", locale)}</Th>
                   <Th>{t("adminBilling.colPriceStatus", locale)}</Th>
                   <Th>{t("adminBilling.colWindow", locale)}</Th>
                 </Tr>
@@ -584,6 +585,9 @@ export default async function AdminBillingPage({
                         : rands(p.per_vehicle_monthly_incl_cents)}
                     </Td>
                     <Td className="text-right tabular-nums">{p.months_charged}</Td>
+                    <Td className="text-right tabular-nums">
+                      {(p.min_billed_slots ?? 0) > 0 ? p.min_billed_slots : "-"}
+                    </Td>
                     <Td>
                       {/* Its own enum (`billing_price_status`). This used to look the value up
                           in the INVOICE statuses and then print the raw value on both

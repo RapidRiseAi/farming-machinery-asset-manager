@@ -52,6 +52,7 @@ import {
   savedIsTransient,
   savedNotice,
   subscriptionDiscountCents,
+  subscriptionPrice,
   type AttemptRow,
   type FarmBillingRow,
   type InvoiceRow,
@@ -918,4 +919,89 @@ test("Keep open is not offered for a farm Rapid Rise holds or has ended, only fo
   assert.equal(offersKeepOpen("active", { status: "suspended", suspended_for: null }), false, "a Rapid Rise hold");
   assert.equal(offersKeepOpen("past_due", { status: "cancelled", suspended_for: null }), false, "an ended farm");
   assert.equal(offersKeepOpen("active", null), true, "no farm row: judged by the subscription");
+});
+
+// == The November 2026 list (20261104200000) ====================================
+// Two generations are live at once now: a farm pinned to the launch list and a new farm
+// on the November list pay different figures for the same plan. The screen must price
+// each from its own row, in the order app.billing_price_for_subscription uses.
+
+const LAUNCH_ESSENTIAL: PriceRow = {
+  id: "launch-ess", version_label: "launch-2026", plan: "essential", billing_period: "monthly",
+  per_vehicle_monthly_incl_cents: 4400, months_charged: 1, vat_rate_bps: 0, min_billed_slots: 0,
+  status: "retired", effective_from: "2026-09-04", effective_to: "2026-11-03",
+};
+const NOV_ESSENTIAL: PriceRow = {
+  id: "nov-ess", version_label: "launch-2026-11", plan: "essential", billing_period: "monthly",
+  per_vehicle_monthly_incl_cents: 4900, months_charged: 1, vat_rate_bps: 0, min_billed_slots: 5,
+  status: "active", effective_from: "2026-11-04", effective_to: null,
+};
+const NOV_PRO: PriceRow = { ...NOV_ESSENTIAL, id: "nov-pro", plan: "professional", per_vehicle_monthly_incl_cents: 7900 };
+const LIST = [LAUNCH_ESSENTIAL, NOV_ESSENTIAL, NOV_PRO];
+const ON = new Date(2026, 10, 10);
+
+test("subscriptionPrice: a pin for the plan it is on wins, even on a retired row", () => {
+  const p = subscriptionPrice({ plan: "essential", billing_period: "monthly", price_version_id: "launch-ess" }, LIST, [], ON);
+  assert.equal(p?.per_vehicle_monthly_incl_cents, 4400);
+});
+
+test("subscriptionPrice: a pin for another plan is ignored, as the SQL ignores it", () => {
+  const p = subscriptionPrice({ plan: "professional", billing_period: "monthly", price_version_id: "launch-ess" }, LIST, [], ON);
+  assert.equal(p?.id, "nov-pro");
+});
+
+test("subscriptionPrice: no pin, the price on the latest non-void invoice for this plan", () => {
+  const invoices = [
+    { status: "void", price_version_label: "launch-2026-11", plan: "essential", billing_period: "monthly" },
+    { status: "paid", price_version_label: "launch-2026", plan: "essential", billing_period: "monthly" },
+  ];
+  const p = subscriptionPrice({ plan: "essential", billing_period: "monthly", price_version_id: null }, LIST, invoices, ON);
+  assert.equal(p?.id, "launch-ess", "the voided invoice must be skipped and the paid one's price used");
+});
+
+test("subscriptionPrice: nothing pinned or invoiced pays today's list", () => {
+  const invoices = [{ status: "open", price_version_label: "ai-usage", plan: "essential", billing_period: "monthly" }];
+  const p = subscriptionPrice({ plan: "essential", billing_period: "monthly", price_version_id: null }, LIST, invoices, ON);
+  assert.equal(p?.id, "nov-ess");
+  assert.equal(subscriptionPrice(null, LIST, [], ON), null);
+});
+
+test("the estimate bills the price's minimum, as the invoice run does, and says so", () => {
+  const small = estimateNextCharge({ price: NOV_ESSENTIAL, assetCount: 2, vatRegistered: false });
+  assert.ok(small.kind === "priced");
+  if (small.kind === "priced") {
+    assert.equal(small.assetCount, 5);
+    assert.equal(small.totalInclCents, 24500);
+    assert.equal(small.atMinimum, true);
+  }
+  const big = estimateNextCharge({ price: NOV_ESSENTIAL, assetCount: 8, vatRegistered: false });
+  assert.ok(big.kind === "priced" && big.assetCount === 8 && big.totalInclCents === 39200 && !big.atMinimum);
+  // The launch list has no minimum: a grandfathered farm's estimate is what it always was.
+  const old = estimateNextCharge({ price: LAUNCH_ESSENTIAL, assetCount: 2, vatRegistered: false });
+  assert.ok(old.kind === "priced" && old.assetCount === 2 && old.totalInclCents === 8800 && !old.atMinimum);
+  // A row read without the column prices as it always did.
+  const { min_billed_slots: _omit, ...bare } = NOV_ESSENTIAL;
+  const legacy = estimateNextCharge({ price: bare as PriceRow, assetCount: 2, vatRegistered: false });
+  assert.ok(legacy.kind === "priced" && legacy.assetCount === 2);
+});
+
+test("the minimum refusals have their own sentences, in both languages", () => {
+  assert.equal(quoteReasonKey("the minimum on this plan is 5 vehicle slots"), "billing.quoteSlotsMinimum");
+  assert.equal(quoteReasonKey("that plan needs at least 5 vehicle slots; add slots first"), "billing.quotePlanNeedsSlots");
+  for (const key of ["billing.quoteSlotsMinimum", "billing.quotePlanNeedsSlots", "billing.atMinimum", "billing.slotsMinimum"]) {
+    for (const lang of ["en", "af"] as const) assert.notEqual(t(key, lang), key, `${key} missing in ${lang}`);
+  }
+});
+
+test("the migration's refusal wording is what the screen and the actions match on", () => {
+  const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261104200000_pricing_november_2026.sql"), "utf8");
+  assert.ok(sql.includes("'the minimum on this plan is %s vehicle slots'"));
+  assert.ok(sql.includes("'that plan needs at least %s vehicle slots; add slots first'"));
+  const actions = readFileSync(join(process.cwd(), "src/app/(app)/billing/actions.ts"), "utf8");
+  const slots = /const SLOTS_MINIMUM = (\/.+\/i);/.exec(actions);
+  const plan = /const PLAN_NEEDS_SLOTS = (\/.+\/i);/.exec(actions);
+  assert.ok(slots && plan, "the actions must keep their two minimum patterns");
+  const re = (lit: string) => new RegExp(lit.slice(1, -2), "i");
+  assert.ok(re(slots![1]).test("BILLING: the minimum on this plan is 5 vehicle slots"));
+  assert.ok(re(plan![1]).test("BILLING: that plan needs at least 5 vehicle slots; add slots first"));
 });

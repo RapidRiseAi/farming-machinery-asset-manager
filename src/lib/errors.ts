@@ -496,6 +496,10 @@ const CODE_KEYS: Record<string, string> = {
   "billing-cancel-pending": "errors.billingCancelPending",
   // Slots and plan are not changed on a paused subscription (round 5, gate-3).
   "billing-change-paused": "errors.billingChangePaused",
+  // The plan minimum (20261104200000): fewer slots than five, or a plan change onto a
+  // price with a minimum the farm's slots do not reach.
+  "billing-slots-minimum": "errors.billingSlotsMinimum",
+  "billing-plan-needs-slots": "errors.billingPlanNeedsSlots",
   // == Rapid Rise's billing console, the rest of its refusals (app-2) ===========
   // Every refusal the four admin RPCs can raise, by their words, in their latest
   // definitions: billing_record_manual_payment (20261029100000), billing_reverse_manual_payment

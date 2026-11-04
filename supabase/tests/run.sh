@@ -220,5 +220,6 @@ echo "==> running fourth billing review tests (cancellations close, reopening, t
 pg "$DB" < "$ROOT/supabase/tests/billing_review_4.sql"
 echo "==> running fifth billing review tests (trial cancellations, reopening a paid period, exempt farms, paused changes)"
 pg "$DB" < "$ROOT/supabase/tests/billing_review_5.sql"
+pg "$DB" < "$ROOT/supabase/tests/billing_pricing_2026_11.sql"
 
 echo "==> OK"

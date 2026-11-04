@@ -17,7 +17,8 @@ begin;
 select pg_catalog.set_config('request.jwt.claims', '', false);
 
 create temporary table _p as
-  select per_vehicle_monthly_incl_cents as unit, months_charged as months
+  select per_vehicle_monthly_incl_cents as unit, months_charged as months,
+         min_billed_slots as min_slots   -- the plan minimum (20261104200000)
     from public.billing_price_versions
    where plan = 'complete' and billing_period = 'monthly' and status = 'active'
    limit 1;
@@ -177,7 +178,7 @@ begin
   if (select ai_billing_starts_on from public.billing_settings where singleton) is not null then
     raise exception 'AI INVOICE FAIL [a]: invoicing must ship switched off';
   end if;
-  select unit * 2 * months into v_gross from _p;
+  select unit * greatest(2, min_slots) * months into v_gross from _p;
   perform app.generate_billing_invoices('e1600000-0000-4000-9000-000000000006');
   select * into inv from public.billing_invoices where subscription_id = 'e1600000-0000-4000-9000-000000000006';
   if inv.total_incl_cents <> v_gross or inv.ai_usage_ex_vat_cents <> 0 or inv.ai_usage_people is not null then
@@ -202,7 +203,7 @@ declare
   v_people jsonb;
   v_line record;
 begin
-  select unit * 10 * months into v_gross from _p;
+  select unit * greatest(10, min_slots) * months into v_gross from _p;
   perform app.generate_billing_invoices('e1600000-0000-4000-9000-00000000000a');
   select * into inv from public.billing_invoices where subscription_id = 'e1600000-0000-4000-9000-00000000000a';
 
@@ -402,7 +403,7 @@ end $$;
 do $$
 declare v_payload jsonb; v_gross bigint;
 begin
-  select unit * 2 * months into v_gross from _p;
+  select unit * greatest(2, min_slots) * months into v_gross from _p;
   perform app.enqueue_billing_renewal_notices();
   select payload into v_payload from public.notifications
    where farm_id = 'e1000000-0000-4000-9000-000000000008' and template = 'billing_renewal_due'

@@ -15,11 +15,12 @@
  *    here, and both pages spread the same constant. Adding a column to that table
  *    therefore defaults to invisible, which is the right way round.
  *
- * 2. THE ESTIMATE. `billing_price_versions` ships EMPTY on purpose: the founder has not
- *    confirmed a price and two documents in this repo disagree about it. So the estimate
- *    is a DISCRIMINATED UNION with an explicit `unpriced` case, not a number that quietly
- *    falls back to zero. A screen cannot accidentally render R0,00 as if it were the
- *    price, because there is no number to render until a price exists.
+ * 2. THE ESTIMATE. A plan can have no live price (Done-For-You is quoted per customer, and
+ *    an unseeded catalogue has none at all). So the estimate is a DISCRIMINATED UNION with
+ *    an explicit `unpriced` case, not a number that quietly falls back to zero. A screen
+ *    cannot accidentally render R0,00 as if it were the price, because there is no number
+ *    to render until a price exists. It applies the price's slot minimum exactly as the
+ *    invoice run does.
  *
  * 3. VAT. Rapid Rise is not VAT-registered, and `app.billing_force_vat_rate` pins the
  *    rate to 0 on every invoice while that holds. The VAT arithmetic is still built in
@@ -50,7 +51,7 @@ export const SUBSCRIPTION_COLUMNS =
   // subscription predates the quota model and is still metered on what it counts, which is
   // why the screen has to distinguish the two rather than showing 0.
   "id, farm_id, plan, billing_period, status, asset_quota, pending_quota, pending_quota_on, " +
-  "price_version_label, trial_ends_on, " +
+  "price_version_id, price_version_label, trial_ends_on, " +
   // The farm's own deal (20260920150000). Read here so the estimate on screen is the same
   // figure the invoice generator will bill.
   "discount_percent_bps, discount_fixed_cents, discount_label, discount_until, discount_code, " +
@@ -95,6 +96,8 @@ export type SubscriptionRow = {
   asset_quota: number | null;
   pending_quota: number | null;
   pending_quota_on: string | null;
+  /** The price this subscription is held at, when one has been pinned. */
+  price_version_id?: string | null;
   price_version_label: string | null;
   trial_ends_on: string | null;
   /** The farm's own deal (20260920150000): a percentage OR an amount, never both. */
@@ -131,6 +134,11 @@ export type PriceRow = {
   per_vehicle_monthly_incl_cents: number | null;
   months_charged: number;
   vat_rate_bps: number;
+  /**
+   * Fewest slots this price bills (20261104200000): five on the November 2026 list, 0 on
+   * the launch list. Optional so a row read without it prices as it always did.
+   */
+  min_billed_slots?: number | null;
   status: string;
   effective_from: string | null;
   effective_to: string | null;
@@ -312,7 +320,10 @@ export type Estimate =
       versionLabel: string;
       /** Per vehicle per month, VAT-inclusive cents. */
       perVehicleInclCents: number;
+      /** The slots billed: the count passed in, or the price's minimum if that is more. */
       assetCount: number;
+      /** True when the price's minimum raised the count (the screen says why). */
+      atMinimum: boolean;
       /** 1 for monthly; the annual pre-pay term (2 months free → 10) for annual. */
       monthsCharged: number;
       /** perVehicle × assets × months, before any deal the farm was given. */
@@ -353,6 +364,45 @@ export function activePrice(
     return r;
   }
   return null;
+}
+
+/**
+ * The price THIS subscription is billed at: the TypeScript mirror of
+ * `app.billing_price_for_subscription` (20260910160000), in the same order.
+ *
+ *   1. its pin, when the pin is for the plan and term it is on (status ignored: a
+ *      grandfathered customer is on a retired row by definition);
+ *   2. the price on its latest non-void invoice for that plan and term;
+ *   3. today's active price.
+ *
+ * Needed since the November 2026 list (20261104200000): with one generation live the
+ * active price was everybody's price, and the screen got away with reading it. A farm
+ * still on the launch list would now be shown R49 and invoiced R44.
+ *
+ * `prices` must include retired rows (read with no status filter); `invoices` newest
+ * first, as the billing page reads them. Invoices name their price by label, which is
+ * unique per plan and term.
+ */
+export function subscriptionPrice(
+  sub: Pick<SubscriptionRow, "plan" | "billing_period" | "price_version_id"> | null | undefined,
+  prices: PriceRow[] | null | undefined,
+  invoices: Pick<InvoiceRow, "status" | "price_version_label" | "plan" | "billing_period">[] | null | undefined,
+  today = new Date(),
+): PriceRow | null {
+  if (!sub) return null;
+  const rows = prices ?? [];
+  const fits = (r: PriceRow) => r.plan === sub.plan && r.billing_period === sub.billing_period;
+  if (sub.price_version_id) {
+    const pinned = rows.find((r) => r.id === sub.price_version_id && fits(r));
+    if (pinned) return pinned;
+  }
+  for (const inv of invoices ?? []) {
+    if (inv.status === "void" || !inv.price_version_label) continue;
+    if (inv.plan !== sub.plan || inv.billing_period !== sub.billing_period) continue;
+    const invoiced = rows.find((r) => r.version_label === inv.price_version_label && fits(r));
+    if (invoiced) return invoiced;
+  }
+  return activePrice(rows, sub.plan, sub.billing_period, today);
 }
 
 /** `YYYY-MM-DD` for a Date, in local terms, the same shape a Postgres `date` arrives as. */
@@ -427,7 +477,11 @@ export function estimateNextCharge({
   if (unit == null) return { kind: "bespoke", versionLabel: price.version_label };
 
   const months = price.months_charged;
-  const gross = unit * Math.max(0, assetCount) * months;
+  // The plan minimum, exactly as app.generate_billing_invoices applies it: the larger of
+  // the billed units and the price's minimum (0 on the launch list).
+  const counted = Math.max(0, assetCount);
+  const billed = Math.max(counted, price.min_billed_slots ?? 0);
+  const gross = unit * billed * months;
   const discount = subscriptionDiscountCents(subscription ?? null, gross, on);
   const total = gross - discount;
   // While `billing_settings.vat_registered` is false a DB trigger pins every invoice's
@@ -438,7 +492,8 @@ export function estimateNextCharge({
     kind: "priced",
     versionLabel: price.version_label,
     perVehicleInclCents: unit,
-    assetCount: Math.max(0, assetCount),
+    assetCount: billed,
+    atMinimum: billed > counted,
     monthsCharged: months,
     grossInclCents: gross,
     discountCents: discount,
@@ -965,7 +1020,7 @@ export function planDiverged(
  */
 export const PRICE_COLUMNS =
   "id, version_label, plan, billing_period, per_vehicle_monthly_incl_cents, " +
-  "months_charged, vat_rate_bps, status, effective_from, effective_to";
+  "months_charged, vat_rate_bps, min_billed_slots, status, effective_from, effective_to";
 
 /**
  * The seller's own settings. `authenticated` may read this table in full, they are our
@@ -1190,10 +1245,9 @@ export function farmsWithoutSubscription(
 /**
  * Is there any price at all that could be charged today?
  *
- * `billing_price_versions` ships EMPTY on purpose, so this is `false` in every
- * environment until the founder confirms a figure. Both screens lead with that fact
- * rather than rendering a total of R0,00, the one wrong number a customer would never
- * think to question.
+ * False when no price is live (an environment whose catalogue was never seeded, or a
+ * plan that is quoted). Both screens lead with that fact rather than rendering a total of
+ * R0,00, the one wrong number a customer would never think to question.
  */
 export function anyActivePrice(rows: PriceRow[] | null | undefined, today = new Date()): boolean {
   const day = isoDay(today);
@@ -1337,6 +1391,9 @@ export function quoteReasonKey(reason: string | null | undefined): string {
   if (r.includes("no confirmed price")) return "billing.quoteNoPrice";
   if (r.includes("subscription has ended")) return "billing.quoteEnded";
   if (r.includes("at least one vehicle")) return "billing.quoteMinOne";
+  // The plan minimum (20261104200000).
+  if (r.includes("minimum on this plan")) return "billing.quoteSlotsMinimum";
+  if (r.includes("needs at least") && r.includes("vehicle slots")) return "billing.quotePlanNeedsSlots";
   if (r.includes("below what the provider")) return "billing.quoteBelowMinimum";
   return "billing.quoteUnavailableBody";
 }

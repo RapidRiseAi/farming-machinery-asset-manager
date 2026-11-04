@@ -168,67 +168,88 @@ insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, p
 -- ═════════════════════════════════════════════════════════════════════════════
 -- (0) The confirmed price list is exactly what the founder signed off
 -- ═════════════════════════════════════════════════════════════════════════════
--- This section used to assert the catalogue was EMPTY, which was the right property while
--- two sources disagreed about the price. The founder confirmed the founder document on
--- 4 September 2026 and `20260904120000` seeded it, so the property to defend is now
--- stronger: the catalogue holds EXACTLY the confirmed figures, and the display table in
--- `src/lib/entitlements.ts` agrees with it.
+-- The CURRENT list is launch-2026-11 (20261104200000): R49 / R79 / R99, annual ten months
+-- for twelve, a five-slot minimum, and no Done-For-You row because that plan is quoted.
+-- The LAUNCH list (R44 / R73 / R89 / R250, 2026-09-04) is retired with its money exactly
+-- as it was, because agreements pinned to it are still priced from it.
 --
--- That second half is the one worth having. `PLAN_PRICING` is what a farmer is quoted on
--- screen; `billing_price_versions` is what they are actually invoiced. They have drifted
--- apart once already (R39/R69/R99 against R44/R73/R89), and a quote that does not match
--- the bill is how a customer stops trusting the bill. If somebody edits one without the
--- other, this fails and names both numbers.
+-- `src/lib/entitlements.ts` PLAN_PRICING and MIN_BILLED_SLOTS are what a farmer is quoted
+-- on screen; these rows are what they are invoiced. safety.test.ts reads the migration and
+-- asserts the same figures, so editing one without the other fails on both sides.
 do $$
 declare
-  v_expected constant jsonb := jsonb_build_object(
+  v_current constant jsonb := jsonb_build_object(
+    'essential', 4900, 'professional', 7900, 'complete', 9900
+  );
+  v_launch constant jsonb := jsonb_build_object(
     'essential', 4400, 'professional', 7300, 'complete', 8900, 'done_for_you', 25000
   );
-  k text; v_cents bigint; n integer;
+  k text; v_cents bigint; n integer; v_min integer; v_status text;
 begin
-  raise notice '== BILLING (0): the confirmed launch price list =================';
+  raise notice '== BILLING (0): the confirmed price lists ========================';
 
-  for k in select jsonb_object_keys(v_expected) loop
-    -- Monthly: the headline figure, charged once per month.
-    select per_vehicle_monthly_incl_cents into v_cents
+  for k in select jsonb_object_keys(v_current) loop
+    select per_vehicle_monthly_incl_cents, months_charged, min_billed_slots into v_cents, n, v_min
       from billing_price_versions
-     where version_label = 'launch-2026' and plan = k::farm_plan
+     where version_label = 'launch-2026-11' and plan = k::farm_plan
        and billing_period = 'monthly' and status = 'active' and deleted_at is null;
-    if v_cents is distinct from (v_expected ->> k)::bigint then
-      raise exception 'BILLING FAIL [0]: % monthly is % cents, expected % (founder decision #1, '
-        'confirmed 2026-09-04). src/lib/entitlements.ts PLAN_PRICING must carry the same figure.',
-        k, coalesce(v_cents::text, 'MISSING'), v_expected ->> k;
+    if v_cents is distinct from (v_current ->> k)::bigint or n is distinct from 1 then
+      raise exception 'BILLING FAIL [0]: % monthly is % cents over % month(s), expected % over 1 '
+        '(founder decision 2026-10-29). src/lib/entitlements.ts PLAN_PRICING must carry the same figure.',
+        k, coalesce(v_cents::text, 'MISSING'), coalesce(n::text, '?'), v_current ->> k;
+    end if;
+    if v_min is distinct from 5 then
+      raise exception 'BILLING FAIL [0]: % monthly minimum is % slots, expected 5', k, coalesce(v_min::text, 'MISSING');
     end if;
 
-    -- Annual: the SAME per-vehicle price, charged for ten months. Two months free is
-    -- expressed as months_charged, never as a discounted unit price, a discounted unit
-    -- price would make "what do we charge per vehicle" have two answers.
-    select per_vehicle_monthly_incl_cents, months_charged into v_cents, n
+    -- Annual: the SAME per-vehicle price, charged for ten months, with the same minimum.
+    select per_vehicle_monthly_incl_cents, months_charged, min_billed_slots into v_cents, n, v_min
       from billing_price_versions
-     where version_label = 'launch-2026' and plan = k::farm_plan
+     where version_label = 'launch-2026-11' and plan = k::farm_plan
        and billing_period = 'annual' and status = 'active' and deleted_at is null;
-    if v_cents is distinct from (v_expected ->> k)::bigint then
-      raise exception 'BILLING FAIL [0]: % annual unit price is %, expected %, annual must '
-        'carry the same per-vehicle price as monthly', k, coalesce(v_cents::text, 'MISSING'), v_expected ->> k;
-    end if;
-    if n is distinct from 10 then
-      raise exception 'BILLING FAIL [0]: % annual charges % months, expected 10 (two months free)',
-        k, coalesce(n::text, 'MISSING');
+    if v_cents is distinct from (v_current ->> k)::bigint or n is distinct from 10 or v_min is distinct from 5 then
+      raise exception 'BILLING FAIL [0]: % annual is % cents x % months, minimum %; expected % x 10, minimum 5',
+        k, coalesce(v_cents::text, 'MISSING'), coalesce(n::text, '?'), coalesce(v_min::text, '?'), v_current ->> k;
     end if;
   end loop;
 
-  -- Rapid Rise is not VAT-registered (decision #8), so every seeded row is 0%. If this
-  -- ever fails it means somebody registered for VAT by editing the catalogue instead of
-  -- retiring a generation, and the frozen-money-columns rule has been worked around.
+  -- Done-For-You is quoted: no current row, so nothing can sign up for it or bill it.
   select count(*) into n from billing_price_versions
-   where version_label = 'launch-2026' and vat_rate_bps <> 0 and deleted_at is null;
+   where plan = 'done_for_you' and status = 'active' and deleted_at is null;
   if n <> 0 then
-    raise exception 'BILLING FAIL [0]: % launch price row(s) carry a non-zero VAT rate while '
-      'Rapid Rise is not registered. Registering means RETIRING this generation and adding a '
-      'new one, not editing these.', n;
+    raise exception 'BILLING FAIL [0]: % active Done-For-You price row(s); the plan is quoted per customer', n;
   end if;
 
-  -- The second lock is still on. Seeding a price releases the first lock only.
+  -- The launch list: retired, money untouched, no minimum.
+  for k in select jsonb_object_keys(v_launch) loop
+    select per_vehicle_monthly_incl_cents, min_billed_slots, status::text into v_cents, v_min, v_status
+      from billing_price_versions
+     where version_label = 'launch-2026' and plan = k::farm_plan
+       and billing_period = 'monthly' and deleted_at is null;
+    if v_cents is distinct from (v_launch ->> k)::bigint or v_min is distinct from 0
+       or v_status is distinct from 'retired' then
+      raise exception 'BILLING FAIL [0]: launch % monthly is % cents, minimum %, %; expected % cents, '
+        'no minimum, retired', k, coalesce(v_cents::text, 'MISSING'), coalesce(v_min::text, '?'),
+        coalesce(v_status, '?'), v_launch ->> k;
+    end if;
+  end loop;
+
+  -- Rapid Rise is not VAT-registered (decision #8), so every seeded row is 0%.
+  select count(*) into n from billing_price_versions
+   where version_label in ('launch-2026', 'launch-2026-11') and vat_rate_bps <> 0 and deleted_at is null;
+  if n <> 0 then
+    raise exception 'BILLING FAIL [0]: % price row(s) carry a non-zero VAT rate while Rapid Rise is '
+      'not registered. Registering means RETIRING a generation and adding a new one.', n;
+  end if;
+
+  -- The minimum is frozen with the money once a row is live.
+  begin
+    update billing_price_versions set min_billed_slots = 1
+     where version_label = 'launch-2026-11' and plan = 'essential' and billing_period = 'monthly';
+    raise exception 'BILLING FAIL [0]: an active price row''s minimum could be edited';
+  exception when check_violation then null;
+  end;
+
   select count(*) into n from billing_invoices;
   if n <> 0 then
     raise exception 'BILLING FAIL [0]: % invoice(s) exist before the suite raises one', n;
@@ -240,7 +261,7 @@ end $$;
 -- launch generation is retired inside this rolled-back transaction before synthetic prices
 -- are inserted. Nothing outside this transaction sees it, and section (0) above has already
 -- checked the real figures.
-update billing_price_versions set status = 'retired' where version_label = 'launch-2026';
+update billing_price_versions set status = 'retired' where status = 'active';
 
 -- Two obviously-synthetic prices. 1234 and 4444 cents could not be mistaken for a real
 -- FleetWise price by anybody reading a database dump.

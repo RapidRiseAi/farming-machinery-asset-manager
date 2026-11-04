@@ -30,7 +30,7 @@
  */
 
 /** The wording currently live. Recorded against every sign-up that accepts it. */
-export const TERMS_VERSION = "2026-10-29";
+export const TERMS_VERSION = "2026-11-04";
 
 export const COMPANY = {
   legalName: "Rapid Rise AI (Pty) Ltd",
@@ -63,7 +63,9 @@ export const TERMS: Clause[] = [
     heading: "What it costs",
     body: [
       "You choose a plan and tell us how many vehicles you want to cover. The price is per vehicle per month and is shown before you pay. Every price we show is the final price, Rapid Rise AI is not a registered VAT vendor, so no VAT is added and our invoices are not tax invoices.",
+      "Every subscription covers at least five vehicle slots, so the smallest monthly bill is five times the plan's price per vehicle.",
       "Paying yearly costs ten months instead of twelve.",
+      "Done-For-You is remote fleet management that we quote for your fleet in writing. Nothing is charged for it until you accept the quote.",
       "You pay by card through Paystack. Your card details go to Paystack and never reach our servers; we keep only the last four digits and the card’s expiry, so you can tell which card is on file.",
       "The subscription renews automatically at the end of each period, for the same plan and the same number of vehicle slots, until you cancel. We email a receipt for every payment.",
     ],

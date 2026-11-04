@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The November 2026 price list: the active essential/monthly row carries the five-slot minimum.
+  "20261104200000": "select exists (select 1 from public.billing_price_versions where version_label = 'launch-2026-11' and plan = 'essential' and billing_period = 'monthly' and status = 'active' and min_billed_slots = 5)",
   // Fifth review fixes: "is the current period paid" asked of the latest period invoice (a new helper).
   "20261029160000": "select to_regprocedure('app.billing_latest_period_paid(uuid)') is not null",
   // Fourth review fixes: a charge claim refuses more than is owed (a new refusal in it).

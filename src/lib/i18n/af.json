@@ -5308,7 +5308,9 @@
     "billingServiceDescription": "Elke reël het 'n beskrywing van hoogstens 200 karakters nodig.",
     "billingServiceQty": "'n Hoeveelheid moet 'n heelgetal van 1 tot 10 000 wees.",
     "billingServicePrice": "'n Prys moet van R0 tot R1 000 000 elk wees.",
-    "billingExtendNotOverdue": "Net 'n onderbreekte of agterstallige plaas kan oopgehou word. Vir 'n plaas wat nog op sy eerste betaling wag, teken eerder daardie betaling aan."
+    "billingExtendNotOverdue": "Net 'n onderbreekte of agterstallige plaas kan oopgehou word. Vir 'n plaas wat nog op sy eerste betaling wag, teken eerder daardie betaling aan.",
+    "billingSlotsMinimum": "Jou plan word vir minstens vyf voertuigplekke gefaktureer, so die getal kan nie laer as dit wees nie.",
+    "billingPlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan."
   },
   "billing": {
     "title": "Rekening",
@@ -5339,7 +5341,7 @@
     "unpricedBody": "Jou plan is aktief en alles daarop werk. Ons het nog nie 'n prys daarvoor vasgestel nie, dus word niks gehef nie.",
     "unpricedNote": "Jy sal gesê word wat die prys is, en gevra word om daartoe in te stem, voordat enigiets ooit van 'n kaart afgetrek word.",
     "bespokeTitle": "Jou plan word individueel geprys",
-    "bespokeBody": "Done-For-You word per plaas gekwoteer eerder as van 'n pryslys af. Praat met ons en ons sit dit op skrif.",
+    "bespokeBody": "Done-For-You is vlootbestuur op afstand, gekwoteer vir jou vloot vanaf R170 per voertuig per maand (minstens R2 500 per maand). Niks word gehef voordat jy 'n skriftelike kwotasie aanvaar nie.",
     "cardTitle": "Hoe jy betaal",
     "cardNone": "Geen kaart gestoor nie",
     "cardNoneBody": "Voeg 'n kaart by en die maandelikse bedrag word outomaties afgetrek. Jy kan dit enige tyd verwyder of vervang.",
@@ -5504,7 +5506,11 @@
     "downloadReceiptFull": "Laai kwitansie af",
     "quoteAdjust": "Verander die syfers",
     "cancelSuspended": "Hierdie plaas is onderbreek totdat wat dit skuld betaal is, en 'n onderbreekte plaas kan nie gekanselleer word nie. Betaal eers wat agterstallig is, of kontak Rapid Rise.",
-    "cancelSuspendedRr": "Onderbreekte plase word nie gekanselleer nie. Sodra die skuld betaal of afgeskryf is, teken die betaling aan of hou die plaas oop, en dan kan dit hier gekanselleer word."
+    "cancelSuspendedRr": "Onderbreekte plase word nie gekanselleer nie. Sodra die skuld betaal of afgeskryf is, teken die betaling aan of hou die plaas oop, en dan kan dit hier gekanselleer word.",
+    "slotsMinimum": "Hierdie plan word vir minstens {n} voertuigplekke gefaktureer.",
+    "atMinimum": "Gefaktureer teen die planminimum van {n} plekke. Jy kan tot {n} voertuie byvoeg sonder ekstra koste.",
+    "quoteSlotsMinimum": "Jou plan word vir minstens vyf voertuigplekke gefaktureer, so die getal kan nie laer as dit wees nie.",
+    "quotePlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan."
   },
   "adminBilling": {
     "title": "Intekeninge",
@@ -5707,7 +5713,8 @@
     "serviceNote": "'n Diensfaktuur word nooit outomaties van die plaas se kaart gehef nie en onderbreek nooit die plaas nie. Dit word per EFT betaal, hier aangeteken, of met sy skakel.",
     "serviceSave": "Stuur faktuur",
     "savedServiceInvoice": "Diensfaktuur geskep. Dit is onder die plaas se fakture.",
-    "statSuspended": "Onderbreek"
+    "statSuspended": "Onderbreek",
+    "colMinSlots": "Min. plekke"
   },
   "billingReceipt": {
     "title": "Kwitansie",
@@ -5789,7 +5796,7 @@
   "signup": {
     "title": "Begin met FleetWise",
     "lead": "Kies 'n plan, sê vir ons hoeveel voertuie jy het, en jy is binne 'n minuut reg.",
-    "vehicles": "Hoeveel voertuie?",
+    "vehicles": "Hoeveel voertuigplekke?",
     "monthly": "Maandeliks",
     "annual": "Jaarliks",
     "perMonth": "per maand",
@@ -5810,7 +5817,7 @@
       "essential": "Die voertuigregister, diensherinneringe, werkkaarte en foute.",
       "professional": "Alles in Essensieel, plus die paneelbord, diesel en volledige kosteverslae.",
       "complete": "Alles in Professioneel, plus verkeersboetes, meerdere plase en stemopname.",
-      "done_for_you": "Alles in Volledig, plus API-toegang en persoonlike opstelling."
+      "done_for_you": "Ons doen jou vlootadministrasie vir jou: onderhoudsbeplanning, opvolg by werkswinkels en eienaarsverslae. Gekwoteer vanaf R170 per voertuig per maand."
     },
     "choosePlan": "Kies 'n plan",
     "howOften": "Hoe gereeld jy betaal",
@@ -5835,7 +5842,7 @@
     "compareHide": "Versteek die vergelyking",
     "saveAnnual": "Bespaar {amount} per jaar",
     "annualPerMonth": "omtrent {amount} per maand",
-    "vehiclesHelp": "Tel die masjiene wat jy op FleetWise wil hê. Jy kan later meer koop, en jy betaal net vir wat jy het.",
+    "vehiclesHelp": "Een plek per masjien wat jy op FleetWise wil hê. Die minimum is vyf, en jy kan later plekke byvoeg.",
     "vehiclesFewer": "Minder voertuie",
     "vehiclesMore": "Meer voertuie",
     "totalMonthlyNote": "elke maand gehef",
@@ -5851,7 +5858,7 @@
       "tco": "Koste per uur per masjien",
       "aarto": "Verkeersboetes en AARTO",
       "voice_ai": "Stemopname en plaasassistent",
-      "multi_site": "Meer as een plaas of depot",
+      "multi_site": "Gesamentlike oorsig oor jou plase",
       "whatsapp": "WhatsApp-waarskuwings",
       "api_access": "API-toegang vir jou eie stelsels"
     },

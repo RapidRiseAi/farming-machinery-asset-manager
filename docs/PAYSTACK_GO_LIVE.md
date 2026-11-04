@@ -16,11 +16,17 @@ deliberately.
 
 ---
 
-## 0. ✅ Prices, CONFIRMED 2026-09-04
+## 0. ✅ Prices, CONFIRMED 2026-09-04, REPLACED 2026-11-04
 
-The founder document was confirmed correct and is seeded: **Essential R44 / Professional
-R73 / Complete R89 / Done-For-You R250** per vehicle per month, VAT-inclusive, with annual
-charging ten months (two free). Migration `20260904120000`.
+**Current list (migration `20261104200000`, not yet applied to production):** Essential
+R49 / Professional R79 / Complete R99 per vehicle per month, annual ten months for twelve,
+at least five vehicle slots per subscription; Done-For-You quoted per customer (from R170
+per vehicle a month, at least R2 500 a month), with no catalogue row. Agreements already on
+the launch list keep it. See `docs/BILLING.md` §5.
+
+The launch list was the founder document: **Essential R44 / Professional R73 / Complete
+R89 / Done-For-You R250** per vehicle per month, VAT-inclusive, with annual charging ten
+months (two free). Migration `20260904120000`.
 
 That releases the first of the two locks. **`BILLING_CHARGING_ENABLED` is still unset, so
 nothing can be charged**, invoices can now be raised and watched first, which is exactly

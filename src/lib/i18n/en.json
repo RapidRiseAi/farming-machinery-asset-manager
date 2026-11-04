@@ -5308,7 +5308,9 @@
     "billingServiceDescription": "Every line needs a description of up to 200 characters.",
     "billingServiceQty": "A quantity must be a whole number from 1 to 10 000.",
     "billingServicePrice": "A price must be from R0 to R1 000 000 each.",
-    "billingExtendNotOverdue": "Only a paused or overdue farm can be kept open. A farm still waiting for its first payment needs that payment recorded instead."
+    "billingExtendNotOverdue": "Only a paused or overdue farm can be kept open. A farm still waiting for its first payment needs that payment recorded instead.",
+    "billingSlotsMinimum": "Your plan is billed for at least five vehicle slots, so the number cannot go below that.",
+    "billingPlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan."
   },
   "billing": {
     "title": "Billing",
@@ -5339,7 +5341,7 @@
     "unpricedBody": "Your plan is active and everything on it works. We have not set a price for it yet, so nothing is being charged.",
     "unpricedNote": "You will be told what the price is, and asked to agree to it, before anything is ever taken from a card.",
     "bespokeTitle": "Your plan is priced individually",
-    "bespokeBody": "Done-For-You is quoted per farm rather than off a price list. Speak to us and we will put it in writing.",
+    "bespokeBody": "Done-For-You is remote fleet management, quoted for your fleet from R170 per vehicle a month (at least R2,500 a month). Nothing is charged until you accept a written quote.",
     "cardTitle": "How you pay",
     "cardNone": "No card saved",
     "cardNoneBody": "Add a card and the monthly amount is taken automatically. You can remove or replace it whenever you like.",
@@ -5504,7 +5506,11 @@
     "downloadReceiptFull": "Download receipt",
     "quoteAdjust": "Change the figures",
     "cancelSuspended": "This farm is paused until what it owes is paid, and a paused farm cannot be cancelled. Pay what is overdue first, or contact Rapid Rise.",
-    "cancelSuspendedRr": "Paused farms are not cancelled. Once the debt is paid or written off, record the payment or keep the farm open, and it can be cancelled from here."
+    "cancelSuspendedRr": "Paused farms are not cancelled. Once the debt is paid or written off, record the payment or keep the farm open, and it can be cancelled from here.",
+    "slotsMinimum": "This plan is billed for at least {n} vehicle slots.",
+    "atMinimum": "Billed at the plan minimum of {n} slots. You can add vehicles up to {n} at no extra cost.",
+    "quoteSlotsMinimum": "Your plan is billed for at least five vehicle slots, so the number cannot go below that.",
+    "quotePlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan."
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -5707,7 +5713,8 @@
     "serviceNote": "A service invoice is never charged to the farm's card automatically and never pauses the farm. It is paid by EFT, recorded here, or by its link.",
     "serviceSave": "Raise invoice",
     "savedServiceInvoice": "Service invoice raised. It is in the farm's invoices below.",
-    "statSuspended": "Paused"
+    "statSuspended": "Paused",
+    "colMinSlots": "Min slots"
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -5789,7 +5796,7 @@
   "signup": {
     "title": "Start using FleetWise",
     "lead": "Pick a plan, tell us how many vehicles you run, and you are set up in a minute.",
-    "vehicles": "How many vehicles?",
+    "vehicles": "How many vehicle slots?",
     "monthly": "Monthly",
     "annual": "Yearly",
     "perMonth": "per month",
@@ -5810,7 +5817,7 @@
       "essential": "The vehicle register, service reminders, job cards and faults.",
       "professional": "Everything in Essential, plus the dashboard, diesel and full cost reporting.",
       "complete": "Everything in Professional, plus traffic fines, multi-site and voice capture.",
-      "done_for_you": "Everything in Complete, plus API access and hands-on setup."
+      "done_for_you": "We run your fleet admin for you: maintenance planning, workshop follow-up and owner reports. Quoted from R170 per vehicle a month."
     },
     "choosePlan": "Choose a plan",
     "howOften": "How often you pay",
@@ -5835,7 +5842,7 @@
     "compareHide": "Hide the comparison",
     "saveAnnual": "Save {amount} a year",
     "annualPerMonth": "about {amount} a month",
-    "vehiclesHelp": "Count the machines you want on FleetWise. You can buy more later, and you will only pay for what you have.",
+    "vehiclesHelp": "One slot per machine you want on FleetWise. The minimum is five, and you can add slots later.",
     "vehiclesFewer": "Fewer vehicles",
     "vehiclesMore": "More vehicles",
     "totalMonthlyNote": "billed every month",
@@ -5851,7 +5858,7 @@
       "tco": "Cost per hour per machine",
       "aarto": "Traffic fines and AARTO",
       "voice_ai": "Voice capture and farm assistant",
-      "multi_site": "More than one farm or depot",
+      "multi_site": "Combined view across your farms",
       "whatsapp": "WhatsApp alerts",
       "api_access": "API access for your own systems"
     },

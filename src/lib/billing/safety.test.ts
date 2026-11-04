@@ -22,7 +22,9 @@ import { join } from "node:path";
 import {
   ANNUAL_MONTHS_CHARGED,
   PLANS,
+  MIN_BILLED_SLOTS,
   PLAN_PRICING,
+  billedSlots,
   subscriptionSubtotalCents,
 } from "@/lib/entitlements";
 
@@ -551,20 +553,25 @@ test("date arithmetic crosses a month end and a leap day correctly", () => {
 // The SQL side asserts the same figures in the suite's section (0), so a change to
 // either one without the other fails on both sides.
 
-test("PLAN_PRICING matches the prices the seeding migration actually inserts", () => {
+test("PLAN_PRICING matches the prices the current list's migration actually inserts", () => {
   const sql = readFileSync(
-    join(process.cwd(), "supabase/migrations/20260904120000_saas_billing_launch_prices.sql"),
+    join(process.cwd(), "supabase/migrations/20261104200000_pricing_november_2026.sql"),
     "utf8"
   );
 
   for (const plan of PLANS) {
-    // ('launch-2026', '<plan>', 'monthly',  4400,  1, 0, 'active', …)
+    // ('launch-2026-11', '<plan>', 'monthly', 4900,  1, 0, 5, 'active', …)
     const row = new RegExp(
-      `'launch-2026',\\s*'${plan}',\\s*'monthly',\\s*(\\d+),\\s*(\\d+),\\s*(\\d+)`
+      `'launch-2026-11',\\s*'${plan}',\\s*'monthly',\\s*(\\d+),\\s*(\\d+),\\s*(\\d+),\\s*(\\d+)`
     ).exec(sql);
+    if (PLAN_PRICING[plan].perVehicleMonthlyCents == null) {
+      // Quoted per customer: no row to invoice at, or sign-up would sell it.
+      assert.equal(row, null, `${plan} is price on application but the migration seeds a row for it`);
+      continue;
+    }
     assert.ok(row, `the migration has no monthly row for ${plan}`);
 
-    const [, cents, months, vatBps] = row;
+    const [, cents, months, vatBps, minSlots] = row;
     assert.equal(
       PLAN_PRICING[plan].perVehicleMonthlyCents,
       Number(cents),
@@ -572,35 +579,55 @@ test("PLAN_PRICING matches the prices the seeding migration actually inserts", (
         `migration invoices ${cents}. The quote and the bill must be the same number.`
     );
     assert.equal(Number(months), 1, `${plan} monthly must charge one month`);
-    assert.equal(
-      Number(vatBps),
-      0,
-      `${plan}: Rapid Rise is not VAT-registered, so the seeded rate must be 0`
-    );
+    assert.equal(Number(vatBps), 0, `${plan}: Rapid Rise is not VAT-registered, so the seeded rate must be 0`);
+    assert.equal(Number(minSlots), MIN_BILLED_SLOTS, `${plan}: the screen's minimum must be the invoice's`);
 
-    // Annual carries the SAME unit price and charges ten months. Expressing the discount
-    // as months rather than a reduced unit price keeps "what do we charge per vehicle" a
-    // question with one answer.
+    // Annual carries the SAME unit price, charges ten months and keeps the minimum.
     const annual = new RegExp(
-      `'launch-2026',\\s*'${plan}',\\s*'annual',\\s*(\\d+),\\s*(\\d+)`
+      `'launch-2026-11',\\s*'${plan}',\\s*'annual',\\s*(\\d+),\\s*(\\d+),\\s*(\\d+),\\s*(\\d+)`
     ).exec(sql);
     assert.ok(annual, `the migration has no annual row for ${plan}`);
     assert.equal(Number(annual[1]), Number(cents), `${plan}: annual unit price must equal monthly`);
     assert.equal(Number(annual[2]), ANNUAL_MONTHS_CHARGED, `${plan}: annual must charge 10 months`);
+    assert.equal(Number(annual[4]), MIN_BILLED_SLOTS, `${plan}: annual keeps the minimum`);
   }
 });
 
-test("the confirmed figures are the founder-document ones", () => {
+test("the confirmed figures are the November 2026 ones", () => {
   // Named explicitly so that changing a price is a deliberate act with a failing test
   // attached, not something that slips through in a diff full of other work.
-  assert.equal(PLAN_PRICING.essential.perVehicleMonthlyCents, 4400);
-  assert.equal(PLAN_PRICING.professional.perVehicleMonthlyCents, 7300);
-  assert.equal(PLAN_PRICING.complete.perVehicleMonthlyCents, 8900);
-  assert.equal(PLAN_PRICING.done_for_you.perVehicleMonthlyCents, 25000);
+  assert.equal(PLAN_PRICING.essential.perVehicleMonthlyCents, 4900);
+  assert.equal(PLAN_PRICING.professional.perVehicleMonthlyCents, 7900);
+  assert.equal(PLAN_PRICING.complete.perVehicleMonthlyCents, 9900);
+  assert.equal(PLAN_PRICING.done_for_you.perVehicleMonthlyCents, null);
+  assert.equal(MIN_BILLED_SLOTS, 5);
+  // The minimum monthly invoices the website states: R245 / R395 / R495.
+  assert.equal(subscriptionSubtotalCents("essential", "monthly", 1), 24500);
+  assert.equal(subscriptionSubtotalCents("professional", "monthly", 3), 39500);
+  assert.equal(subscriptionSubtotalCents("complete", "monthly", 5), 49500);
+  // And annual: R2,450 / R3,950 / R4,950.
+  assert.equal(subscriptionSubtotalCents("essential", "annual", 2), 245000);
+  assert.equal(subscriptionSubtotalCents("professional", "annual", 5), 395000);
+  assert.equal(subscriptionSubtotalCents("complete", "annual", 4), 495000);
+  // Above the minimum, every slot counts.
+  assert.equal(subscriptionSubtotalCents("complete", "monthly", 12), 118800);
+  assert.equal(billedSlots(0), 5);
+  assert.equal(billedSlots(7), 7);
+});
+
+test("the retired launch list is untouched: agreements pinned to it are still priced from it", () => {
+  const sql = readFileSync(
+    join(process.cwd(), "supabase/migrations/20260904120000_saas_billing_launch_prices.sql"),
+    "utf8"
+  );
+  for (const [plan, cents] of [["essential", 4400], ["professional", 7300], ["complete", 8900], ["done_for_you", 25000]] as const) {
+    const row = new RegExp(`'launch-2026',\\s*'${plan}',\\s*'monthly',\\s*(\\d+)`).exec(sql);
+    assert.ok(row && Number(row[1]) === cents, `launch ${plan} must still read ${cents}`);
+  }
 });
 
 test("a year on the annual plan costs ten months, not twelve", () => {
-  for (const plan of PLANS) {
+  for (const plan of PLANS.filter((p) => PLAN_PRICING[p].perVehicleMonthlyCents != null)) {
     const monthly = subscriptionSubtotalCents(plan, "monthly", 12);
     const annual = subscriptionSubtotalCents(plan, "annual", 12);
     assert.ok(monthly != null && annual != null);

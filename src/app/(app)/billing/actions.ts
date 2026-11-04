@@ -105,6 +105,12 @@ async function requireBillingAdmin(): Promise<{ profile: Profile; farmId: string
  * "retire or sell" refusal is.
  */
 const PAUSED_CHANGE = /paused subscription cannot change/i;
+/**
+ * The plan minimum (20261104200000): the engine refuses fewer slots than the price's
+ * minimum, and a plan change onto a price whose minimum the slots do not reach.
+ */
+const SLOTS_MINIMUM = /minimum on this plan is \d+ vehicle slots/i;
+const PLAN_NEEDS_SLOTS = /needs at least \d+ vehicle slots/i;
 
 export async function changeVehicleSlots(formData: FormData): Promise<void> {
   const { farmId } = await requireBillingAdmin();
@@ -122,6 +128,7 @@ export async function changeVehicleSlots(formData: FormData): Promise<void> {
     // refusal the farmer can do something about themselves.
     if (/retire or sell/i.test(error.message)) bounce("billing-quota-below-fleet");
     if (PAUSED_CHANGE.test(error.message)) bounce("billing-change-paused");
+    if (SLOTS_MINIMUM.test(error.message)) bounce("billing-slots-minimum");
     bounce("billing-quota-failed");
   }
 
@@ -160,7 +167,11 @@ export async function changeOwnPlan(formData: FormData): Promise<void> {
     plan,
     billingPeriod: period,
   });
-  if (error) bounce(PAUSED_CHANGE.test(error.message) ? "billing-change-paused" : "billing-plan-failed");
+  if (error) {
+    if (PAUSED_CHANGE.test(error.message)) bounce("billing-change-paused");
+    if (PLAN_NEEDS_SLOTS.test(error.message)) bounce("billing-plan-needs-slots");
+    bounce("billing-plan-failed");
+  }
 
   const applied = String(result?.applied ?? "");
   revalidatePath("/billing");

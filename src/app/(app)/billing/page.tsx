@@ -30,6 +30,7 @@ import {
   cardSummary,
   chargeSummary,
   estimateNextCharge,
+  subscriptionPrice,
   fleetSummary,
   invoiceDocuments,
   nextChargeState,
@@ -112,12 +113,14 @@ export const dynamic = "force-dynamic";
  * the data behind it.
  *
  * == THE ONE THING THIS SCREEN MUST NOT DO ====================================
- * There is no confirmed price. `billing_price_versions` ships EMPTY on purpose, two
- * documents in this repo disagree about the figures and the founder has confirmed
- * neither, so with no active price row the invoice generator raises nothing and nothing
- * can be charged.
+ * Show a price that is not the farm's. A farm is billed at ITS price (its pin, its last
+ * invoice, then today's list: `subscriptionPrice`, the mirror of
+ * `app.billing_price_for_subscription`), and since the November 2026 list a farm on the
+ * launch list and a new one pay different figures for the same plan. A plan can also
+ * have no price at all (Done-For-You is quoted), and with no price row the invoice
+ * generator raises nothing.
  *
- * A screen that quietly rendered R0,00 there would be stating a price, and R0,00 is the
+ * A screen that quietly rendered R0,00 for no price would be stating a price, and R0,00 is the
  * one wrong price a customer would never think to question. So the estimate arrives as a
  * DISCRIMINATED UNION (`Estimate` in `lib/billing/view.ts`) with an explicit `unpriced`
  * case, and this page renders words for it: your plan is on, nothing is being charged, a
@@ -211,7 +214,9 @@ export default async function BillingPage({
       .eq("farm_id", farmId)
       .is("deleted_at", null)
       .maybeSingle(),
-    supabase.from("billing_price_versions").select(PRICE_COLUMNS).eq("status", "active"),
+    // Every generation, retired ones too: a farm still on the launch list is priced from
+    // its own row (subscriptionPrice), not today's.
+    supabase.from("billing_price_versions").select(PRICE_COLUMNS),
     supabase.from("machines").select("status").eq("farm_id", farmId).is("deleted_at", null),
     supabase
       .from("billing_invoices")
@@ -270,7 +275,11 @@ export default async function BillingPage({
   // payment, which is not what a downgrade is.
   const commercialPlan = sub?.plan ?? farm?.plan ?? "essential";
   const period = sub?.billing_period ?? farm?.billing_period ?? "monthly";
-  const price = activePrice(prices, commercialPlan, period);
+  // The price THIS farm is billed at (its pin, its last invoice, then today's list), as
+  // app.billing_price_for_subscription resolves it. With no subscription yet, today's list.
+  const price = sub
+    ? subscriptionPrice({ ...sub, plan: commercialPlan, billing_period: period }, prices, invoices)
+    : activePrice(prices, commercialPlan, period);
   // The QUOTA when one was bought, the counted fleet when it was not, `billedUnits`
   // mirrors `app.billing_billable_units`, which is what the invoice generator uses.
   // Passing `assets.billable` here showed a farm holding slots it had not filled a
@@ -964,9 +973,11 @@ export default async function BillingPage({
                   name="quota"
                   type="number"
                   inputMode="numeric"
-                  min={Math.max(assets.billable, 1)}
+                  min={Math.max(assets.billable, price?.min_billed_slots ?? 0, 1)}
                   defaultValue={
-                    wantsSlotsReview ? requestedQuota : (sub.asset_quota ?? Math.max(assets.billable, 1))
+                    wantsSlotsReview
+                      ? requestedQuota
+                      : (sub.asset_quota ?? Math.max(assets.billable, price?.min_billed_slots ?? 0, 1))
                   }
                   className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
                 />
@@ -975,6 +986,11 @@ export default async function BillingPage({
                 </SubmitButton>
               </div>
               <p className="mt-2 text-xs text-sand-600">{t("billing.slotsRule", locale)}</p>
+              {(price?.min_billed_slots ?? 0) > 1 ? (
+                <p className="mt-1 text-xs text-sand-600">
+                  {t("billing.slotsMinimum", locale).replace("{n}", String(price?.min_billed_slots))}
+                </p>
+              ) : null}
             </form>
           </div>
         </details>
@@ -1019,6 +1035,11 @@ export default async function BillingPage({
               <dd className="tabular-nums text-sand-900 text-right">
                 {rands(estimate.perVehicleInclCents * estimate.assetCount)}
               </dd>
+              {estimate.atMinimum ? (
+                <dd className="col-span-2 text-xs text-sand-600">
+                  {t("billing.atMinimum", locale).replace("{n}", String(estimate.assetCount))}
+                </dd>
+              ) : null}
 
               {estimate.monthsCharged > 1 ? (
                 <>

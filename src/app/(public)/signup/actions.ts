@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { PLANS, BILLING_PERIODS, perVehicleMonthlyCents, type Plan } from "@/lib/entitlements";
+import { PLANS, BILLING_PERIODS, billedSlots, perVehicleMonthlyCents, type Plan } from "@/lib/entitlements";
 import { BILLING_RPC } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -152,7 +152,8 @@ export async function signUp(formData: FormData): Promise<void> {
     p_farm_name: farmName,
     p_plan: plan,
     p_period: period,
-    p_quota: vehicles,
+    // At least the plan minimum (five), which app.create_pending_signup also enforces.
+    p_quota: billedSlots(vehicles),
     p_promo_code: promoCode || null,
   });
 

@@ -89,8 +89,35 @@ this codebase has one idea about "an issuer who may not charge VAT", not two.
 `billing_price_versions` holds a **versioned** price list: one row per (version, plan,
 billing period), priced per vehicle per month, **VAT-inclusive**, in integer cents.
 
-**RESOLVED 2026-09-04.** The founder confirmed the founder document, and migration
-`20260904120000` seeded the `launch-2026` generation:
+**CURRENT: the November 2026 list** (founder decisions of 29 October 2026, published on
+the website on 4 November 2026). Migration `20261104200000` retired the launch list and
+seeded the `launch-2026-11` generation:
+
+| Plan | Per vehicle / month | Annual (10 months) | Minimum (5 slots) |
+|---|---|---|---|
+| Essential | R49,00 | R490,00 | R245 a month, R2 450 a year |
+| Professional | R79,00 | R790,00 | R395 a month, R3 950 a year |
+| Complete | R99,00 | R990,00 | R495 a month, R4 950 a year |
+| Done-For-You | quoted | quoted | from R170 per vehicle, at least R2 500 a month |
+
+- **The minimum** is `billing_price_versions.min_billed_slots` (5 on this list, 0 on the
+  launch list), frozen with the money columns. It is a number of SLOTS, not an amount:
+  sign-up raises the slots to it, a slot change refuses to go below it, a plan change onto
+  it asks for the slots first, a scheduled change that lands on it lifts the slots, and
+  the invoice run bills at least it (a counted fleet below it is billed the minimum,
+  labelled "(plan minimum)"). It is per subscription, which today is per farm; the
+  website's pooled multi-site subscription is set up by staff until a billing-customer
+  grouping exists.
+- **Done-For-You has no current row.** It is quoted per customer, so sign-up, plan changes
+  and the invoice run all treat it as price on application. A farm pinned to the launch
+  R250 row keeps it; a scheduled move to Done-For-You is not landed while it has no price.
+- **Existing agreements keep their price.** `app.billing_price_for_subscription` resolves
+  a farm's pin, then its last invoice, then today's list; the migration pinned the live,
+  non-exempt subscriptions that had neither before retiring the launch rows. The billing
+  page prices a farm the same way (`subscriptionPrice` in `src/lib/billing/view.ts`).
+
+The launch list (`20260904120000`, confirmed 2026-09-04) is retired and still prices
+the agreements pinned to it:
 
 | Plan | Per vehicle / month (VAT-incl) | Annual (10 months) |
 |---|---|---|
@@ -99,7 +126,7 @@ billing period), priced per vehicle per month, **VAT-inclusive**, in integer cen
 | Complete | R89,00 | R890,00 |
 | Done-For-You | R250,00 | R2 500,00 |
 
-`src/lib/entitlements.ts` carries the same figures, and a test reads the migration itself
+`src/lib/entitlements.ts` carries the current figures, and a test reads the migration itself
 to prove the quoted price and the invoiced price agree. **Seeding a price releases only the
 FIRST lock**, invoices can now be raised, and with `BILLING_CHARGING_ENABLED` unset nothing
 can be charged. The conflict this replaced was:
@@ -114,7 +141,7 @@ catalogue shipped EMPTY rather than guessing: with no `active` price version
 `app.generate_billing_invoices` raises nothing, and there is nothing to charge.
 
 **Repricing later never edits these rows.** A non-draft price version's money columns are
-frozen, so a new price is a new generation: retire `launch-2026` and insert the next one.
+frozen, so a new price is a new generation: retire the current one and insert the next (as `20261104200000` did).
 Invoices already issued keep the price they were raised under. The shape is:
 
 ```sql

@@ -17,7 +17,8 @@ select pg_catalog.set_config('request.jwt.claims', '', false);
 -- 20260904120000, rather than a figure invented here. Every expectation below is derived
 -- from it, so this suite cannot start disagreeing with the catalogue.
 create temporary table _d_price as
-  select per_vehicle_monthly_incl_cents as unit, months_charged as months
+  select per_vehicle_monthly_incl_cents as unit, months_charged as months,
+         min_billed_slots as min_slots   -- the plan minimum (20261104200000)
     from public.billing_price_versions
    where plan = 'complete' and billing_period = 'monthly' and status = 'active'
    limit 1;
@@ -51,7 +52,7 @@ insert into public.billing_subscriptions (id, farm_id, plan, billing_period, sta
   -- 20% off, for life.
   ('d1600000-0000-4000-9000-000000000001', 'd1000000-0000-4000-9000-000000000001',
    'complete', 'monthly', 'active', current_date, current_date, 2000, null, 'Founding Farmer', null),
-  -- R500,00 off a R100,00 invoice: more than the bill.
+  -- R500,00 off a one-vehicle farm, billed the R495 minimum: still more than the bill.
   ('d1600000-0000-4000-9000-000000000002', 'd1000000-0000-4000-9000-000000000002',
    'complete', 'monthly', 'active', current_date, current_date, null, 50000, 'Oversized deal', null),
   -- A deal that ended yesterday.
@@ -65,7 +66,7 @@ insert into public.billing_subscriptions (id, farm_id, plan, billing_period, sta
 do $$
 declare inv public.billing_invoices%rowtype; n integer; v_gross bigint;
 begin
-  select unit * 10 * months into v_gross from _d_price;
+  select unit * greatest(10, min_slots) * months into v_gross from _d_price;
   n := app.generate_billing_invoices('d1600000-0000-4000-9000-000000000001');
   if n <> 1 then raise exception 'DISCOUNT FAIL: the generator made % invoices', n; end if;
 
@@ -100,7 +101,7 @@ end $$;
 do $$
 declare inv public.billing_invoices%rowtype; v_gross bigint;
 begin
-  select unit * 1 * months into v_gross from _d_price;
+  select unit * greatest(1, min_slots) * months into v_gross from _d_price;
   perform app.generate_billing_invoices('d1600000-0000-4000-9000-000000000002');
   select * into inv from public.billing_invoices
    where subscription_id = 'd1600000-0000-4000-9000-000000000002';
@@ -117,7 +118,7 @@ end $$;
 do $$
 declare inv public.billing_invoices%rowtype; v_gross bigint;
 begin
-  select unit * 10 * months into v_gross from _d_price;
+  select unit * greatest(10, min_slots) * months into v_gross from _d_price;
   perform app.generate_billing_invoices('d1600000-0000-4000-9000-000000000003');
   select * into inv from public.billing_invoices
    where subscription_id = 'd1600000-0000-4000-9000-000000000003';
@@ -131,7 +132,7 @@ end $$;
 do $$
 declare inv public.billing_invoices%rowtype; v_gross bigint;
 begin
-  select unit * 10 * months into v_gross from _d_price;
+  select unit * greatest(10, min_slots) * months into v_gross from _d_price;
   perform app.generate_billing_invoices('d1600000-0000-4000-9000-000000000004');
   select * into inv from public.billing_invoices
    where subscription_id = 'd1600000-0000-4000-9000-000000000004';
