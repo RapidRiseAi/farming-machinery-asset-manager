@@ -66,6 +66,7 @@ type SP = {
   dir?: string;
   retired?: string;
   imported?: string;
+  skipped?: string;
   cc?: string;
   dept?: string;
   service?: string;
@@ -634,7 +635,14 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
         actions={headerActions}
       />
 
-      <Flash tone="success" message={sp.imported ? t("machines.importedN", locale).replace("{n}", sp.imported) : undefined} />
+      <Flash
+        tone="success"
+        message={sp.imported
+          ? (sp.skipped && /^\d+$/.test(sp.skipped)
+              ? t("machines.importedSkipped", locale).replace("{n}", sp.imported).replace("{skipped}", sp.skipped)
+              : t("machines.importedN", locale).replace("{n}", sp.imported))
+          : undefined}
+      />
       <Flash tone="success" message={sp.saved === "reading" ? t("ui.saved", locale) : undefined} />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
 

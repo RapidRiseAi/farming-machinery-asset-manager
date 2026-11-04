@@ -548,7 +548,20 @@
       "headerNoNameTitle": "We can't find the machine names",
       "headerNoNameBody": "Your first row must have a column headed \"name\", that's the one that tells us what each machine is called. Nothing has been loaded.",
       "headerFound": "The columns in your file are: {cols}",
-      "headerNoNameFix": "Rename the column holding the machine names to \"name\", or download our blank sheet above and paste your list into it."
+      "headerNoNameFix": "Rename the column holding the machine names to \"name\", or download our blank sheet above and paste your list into it.",
+      "meter_defaulted_hours": "No meter type: set to hours",
+      "meter_defaulted_km": "No meter type: set to km",
+      "status_defaulted": "No status: set to active",
+      "reading_without_meter": "Has a reading but the meter type is none",
+      "reading_date_invalid": "Reading date not understood (use 2026-07-29 or 29/07/2026)",
+      "reading_date_future": "Reading date is in the future",
+      "reading_date_unused": "Reading date without a reading: ignored",
+      "reading_date_today": "No reading date: dated today",
+      "serial_on_farm": "Serial number already on the farm",
+      "serial_twice": "Serial number twice in this file",
+      "reg_on_farm": "Registration already on the farm",
+      "reg_twice": "Registration twice in this file",
+      "name_on_farm": "A machine with this name is already on the farm"
     },
     "identityCard": "Details",
     "purchaseDate": "Purchase date",
@@ -630,7 +643,10 @@
     "qrSheetAll": "Print the whole fleet",
     "qrSheetEmpty": "No machines to print stickers for yet",
     "qrSheetDone": "The stickers are on",
-    "qrSheetDoneHint": "Once every machine has its sticker, tick this step off your farm set-up list."
+    "qrSheetDoneHint": "Once every machine has its sticker, tick this step off your farm set-up list.",
+    "readingDate": "Reading date",
+    "importAddsOnly": "Import adds new machines; it never changes ones already on FleetWise. Rows whose serial or registration is already on the farm are left out, so importing the same file again adds nothing twice.",
+    "importedSkipped": "Imported {n} machines. {skipped} rows had a problem and were left out: fix them in the sheet and import just those."
   },
   "machineType": {
     "tractor": "Tractor",
@@ -6514,7 +6530,7 @@
     "weekdays": "Weekdays",
     "hoursLine": "{days}, {opens} to {closes}, South African time.",
     "holidaysClosed": "Closed on South African public holidays.",
-    "promiseLine": "Ask before {cutoff} on a working day and we answer by {closes} that day. Later than that, we answer by {next} on the next working day.",
+    "promiseLine": "We aim to give you a first answer within one working day. That is a target for the first reply, not a promise that everything is fixed by then.",
     "channelInApp": "Here in the app: ask us something above.",
     "channelEmail": "Email",
     "channelPhone": "Phone",

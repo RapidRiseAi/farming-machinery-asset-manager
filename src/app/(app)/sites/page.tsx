@@ -8,7 +8,6 @@ import { setCurrentFarm } from "@/app/(app)/actions";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
-import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { DownloadLink } from "@/components/ui/download-link";
@@ -96,64 +95,56 @@ export default async function SitesPage() {
         </p>
       ) : null}
 
-      <Card flush className="mt-4">
-        <div className="flex items-center justify-between gap-3 px-4 pt-4">
-          <CardTitle>{t("sites.byFarm", locale)}</CardTitle>
-          <DownloadLink
-            href="/sites/export.csv"
-            labels={downloadLabels(locale)}
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
-          >
-            {t("sites.export", locale)}
-          </DownloadLink>
-        </div>
-        <Table>
-          <Thead>
-            <Tr>
-              <Th>{t("sites.farm", locale)}</Th>
-              <Th className="text-right">{t("sites.machines", locale)}</Th>
-              <Th className="text-right">{t("sites.outOfService", locale)}</Th>
-              <Th className="text-right">{t("sites.openFaults", locale)}</Th>
-              <Th className="text-right">{t("sites.overdue", locale)}</Th>
-              <Th className="text-right">{t("sites.openJobs", locale)}</Th>
-              {money ? <Th className="text-right">{t("sites.runningCost", locale)}</Th> : null}
-              <Th><span className="sr-only">{t("sites.open", locale)}</span></Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {rows.map((r) => (
-              <Tr key={r.id}>
-                <Td className="font-medium text-sand-900">
-                  {r.name}
-                  <span className="block text-xs font-normal text-sand-500">
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-sand-900">{t("sites.byFarm", locale)}</h2>
+        <DownloadLink
+          href="/sites/export.csv"
+          labels={downloadLabels(locale)}
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          {t("sites.export", locale)}
+        </DownloadLink>
+      </div>
+      {/* One card per farm: a seven-column table scrolled inside its card on a phone. */}
+      <ul className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {rows.map((r) => (
+          <li key={r.id}>
+            <Card>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle as="h3" className="truncate">{r.name}</CardTitle>
+                  <p className="mt-0.5 text-xs text-sand-500">
                     {r.role ? t(`role.${r.role}`, locale) : ""}
                     {r.figures ? "" : ` · ${t(planNameKey(r.plan), locale)}`}
-                  </span>
-                </Td>
-                {r.figures ? (
-                  <>
-                    <Td className="text-right tabular-nums">{r.figures.machines}</Td>
-                    <Td className="text-right tabular-nums">{r.figures.outOfService}</Td>
-                    <Td className="text-right tabular-nums">{r.figures.openFaults}</Td>
-                    <Td className="text-right tabular-nums">{r.figures.overdueServices}</Td>
-                    <Td className="text-right tabular-nums">{r.figures.openJobs}</Td>
-                    {money ? (
-                      <Td className="text-right tabular-nums">
-                        {r.figures.runningCostCents !== null ? rands(r.figures.runningCostCents) : "-"}
-                      </Td>
-                    ) : null}
-                  </>
-                ) : (
-                  <Td colSpan={money ? 6 : 5} className="text-sm text-sand-600">
-                    {t("sites.notIncluded", locale)}
-                  </Td>
-                )}
-                <Td className="text-right">{open(r)}</Td>
-              </Tr>
-            ))}
-          </Tbody>
-        </Table>
-      </Card>
+                  </p>
+                </div>
+                {open(r)}
+              </div>
+              {r.figures ? (
+                <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
+                  {([
+                    ["sites.machines", String(r.figures.machines)],
+                    ["sites.outOfService", String(r.figures.outOfService)],
+                    ["sites.openFaults", String(r.figures.openFaults)],
+                    ["sites.overdue", String(r.figures.overdueServices)],
+                    ["sites.openJobs", String(r.figures.openJobs)],
+                    ...(money
+                      ? [["sites.runningCost", r.figures.runningCostCents !== null ? rands(r.figures.runningCostCents) : "-"]]
+                      : []),
+                  ] as [string, string][]).map(([key, value]) => (
+                    <div key={key} className="min-w-0">
+                      <dt className="text-xs text-sand-500">{t(key, locale)}</dt>
+                      <dd className="font-semibold tabular-nums text-sand-900">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="mt-3 text-sm text-sand-600">{t("sites.notIncluded", locale)}</p>
+              )}
+            </Card>
+          </li>
+        ))}
+      </ul>
       <p className="mt-3 text-xs text-sand-600">{t("sites.note", locale)}</p>
     </PageContainer>
   );

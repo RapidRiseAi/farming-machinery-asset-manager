@@ -14,7 +14,9 @@ import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-opti
 import { uploadMachinePhotoDataUrl } from "@/lib/machine-photo";
 import { todayLocal } from "@/lib/format";
 import { readTab, withTab } from "@/components/ui/tabs-url";
-import { validateCsv, MAX_IMPORT_ROWS } from "./import/csv";
+import { validateCsv, MAX_IMPORT_ROWS, type ExistingMachines } from "./import/csv";
+import { readAll } from "@/lib/supabase/read-all";
+import { must } from "@/lib/supabase/must";
 import { runOnce } from "@/lib/request-claim";
 import { errorCode } from "@/lib/action-errors";
 import { captureError } from "@/lib/observability";
@@ -358,6 +360,21 @@ export async function clearPrimaryPhoto(formData: FormData) {
   revalidatePath("/machines");
 }
 
+/** The farm's machines' names, serials and registrations, for the import duplicate rule. */
+async function existingMachines(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  farmId: string,
+): Promise<ExistingMachines> {
+  const rows = must(await readAll(() => supabase.from("machines").select("id, name, serial_no, reg_no")
+    .eq("farm_id", farmId).is("deleted_at", null)), "machines:existing-for-import") as
+    { name: string; serial_no: string | null; reg_no: string | null }[] | null;
+  return {
+    names: (rows ?? []).map((r) => r.name),
+    serials: (rows ?? []).map((r) => r.serial_no).filter((v): v is string => !!v),
+    regs: (rows ?? []).map((r) => r.reg_no).filter((v): v is string => !!v),
+  };
+}
+
 /** Bulk import machines from a CSV posted by the import preview. The server
  *  re-parses and re-validates (the client preview is UX only) and inserts only
  *  the valid rows, farm-scoped. */
@@ -374,7 +391,10 @@ export async function importMachines(formData: FormData) {
       const csv = String(formData.get("csv") ?? "");
       if (!csv.trim()) redirect("/machines/import?error=No+CSV+provided");
 
-      const parsed = validateCsv(csv);
+      // The farm's own machines, so a re-run of the same sheet adds nothing: rows whose
+      // serial or registration is already here are refused, exactly as the preview showed.
+      const importClient = await createClient();
+      const parsed = validateCsv(csv, await existingMachines(importClient, farmId));
       if (parsed.headerError) redirect("/machines/import?error=Invalid+CSV+header");
 
       const valid = parsed.rows.filter((r) => r.valid && r.machine).map((r) => r.machine!);
@@ -385,7 +405,6 @@ export async function importMachines(formData: FormData) {
       // the whole insert anyway, which is what makes an import all-or-nothing rather than a
       // fleet that silently stops at the limit, but "50 rows into 10 free slots" is a
       // different quality of answer from a constraint violation.
-      const importClient = await createClient();
       // Same rule, read the same way: null is "no ceiling", not "no room".
       const slotsFree = await vehicleSlotsFree(importClient, farmId);
       if (slotsFree !== null && valid.length > slotsFree) {
@@ -406,7 +425,8 @@ export async function importMachines(formData: FormData) {
           reg_no: m.reg_no,
           meter_type: m.meter_type,
           current_reading: m.current_reading,
-          current_reading_date: m.current_reading != null ? today : null,
+          // The sheet's date when it has one; otherwise today, which the preview said.
+          current_reading_date: m.current_reading != null ? (m.current_reading_date ?? today) : null,
           status: m.status,
           notes: m.notes,
         }))
@@ -415,7 +435,11 @@ export async function importMachines(formData: FormData) {
       if (error) redirect(`/machines/import?error=${errorCode(error, "app/machines/actions:importMachines")}`);
 
       revalidatePath("/machines");
-      return `/machines?imported=${valid.length}`;
+      // Rows with a problem were left out: say how many, so "Imported 31" is not read as
+      // the whole sheet.
+      return parsed.invalidCount > 0
+        ? `/machines?imported=${valid.length}&skipped=${parsed.invalidCount}`
+        : `/machines?imported=${valid.length}`;
     },
     { whileRunning: "/machines?error=still-saving" },
   );

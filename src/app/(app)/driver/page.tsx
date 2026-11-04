@@ -193,11 +193,14 @@ export default async function DriverHomePage({
           <ul className="mt-3 flex flex-col gap-3">
             {shown.map((m) => {
               const metered = !!m.meter_type && m.meter_type !== "none";
+              // One machine with a picture gets it large; with no picture, the compact row
+              // (an empty 16:9 placeholder was most of the first screen on a phone).
+              const bigPhoto = single && photoByMachine.has(m.id);
               return (
                 <li key={m.id} className="overflow-hidden rounded-2xl border border-sand-200 bg-surface">
                   {/* alt="" is right here: the machine's name is the next line of the
                       card, so describing the photo repeats it. */}
-                  {single ? (
+                  {bigPhoto ? (
                     <Photo
                       src={photoByMachine.get(m.id)}
                       alt=""
@@ -207,7 +210,7 @@ export default async function DriverHomePage({
                     />
                   ) : null}
                   <div className="flex items-center gap-3 p-3">
-                    {!single ? (
+                    {!bigPhoto ? (
                       <Photo
                         src={photoByMachine.get(m.id)}
                         alt=""

@@ -13,6 +13,9 @@ export const IMPORT_COLUMNS = [
   "reg_no",
   "meter_type",
   "current_reading",
+  // The day the reading was taken (20261105). A reading without one is dated today, and
+  // the preview says so on that row rather than inventing the date silently.
+  "reading_date",
   "status",
   "notes",
 ] as const;
@@ -73,6 +76,8 @@ export type MachineInsert = {
   reg_no: string | null;
   meter_type: string;
   current_reading: number | null;
+  /** YYYY-MM-DD from the sheet, or null: the server then dates the reading today. */
+  current_reading_date: string | null;
   status: string;
   notes: string | null;
 };
@@ -97,9 +102,60 @@ export type ParseResult = {
 
 const norm = (h: string) => h.trim().toLowerCase().replace(/\s+/g, "_");
 
+/**
+ * What is already on the farm, so a re-run of the same sheet does not add the fleet twice.
+ * Serial and registration identify a machine; a name does not (two "Bakkie"s are normal),
+ * so a matching name only warns.
+ */
+export type ExistingMachines = { names: string[]; serials: string[]; regs: string[] };
+
+/** Case, spaces and dashes do not make a different serial or registration. */
+export const idKey = (v: string) => v.toUpperCase().replace(/[\s-]/g, "");
+
+/** Today as YYYY-MM-DD on the farm's calendar. */
+export function farmToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+}
+
+/**
+ * A reading date as the sheet spells it, to YYYY-MM-DD, or null when it is not a real day.
+ * ISO (2026-07-29, 2026/07/29) and South African day-first (29/07/2026, 29-07-2026).
+ * Month-first is not accepted: "07/08/2026" means 7 August here, and guessing the other
+ * way would quietly date a reading a month out.
+ */
+export function parseReadingDate(raw: string): string | null {
+  const v = raw.trim();
+  let y: number, m: number, d: number;
+  let match = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(v);
+  if (match) { y = +match[1]; m = +match[2]; d = +match[3]; }
+  else if ((match = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(v))) { d = +match[1]; m = +match[2]; y = +match[3]; }
+  else return null;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** The meter a machine type normally has, the same default the Add machine form uses. */
+export function defaultMeterFor(type: string): "hours" | "km" {
+  return type === "bakkie" || type === "truck" ? "km" : "hours";
+}
+
 /** Parse + validate a machines CSV. Returns per-row results for the preview and
  *  the valid MachineInsert objects for the server to persist. */
-export function validateCsv(text: string): ParseResult {
+export function validateCsv(
+  text: string,
+  existing: ExistingMachines = { names: [], serials: [], regs: [] },
+  today: string = farmToday(),
+): ParseResult {
+  const onFarm = {
+    names: new Set(existing.names.map((n) => n.trim().toLowerCase())),
+    serials: new Set(existing.serials.map(idKey)),
+    regs: new Set(existing.regs.map(idKey)),
+  };
+  const seenSerials = new Set<string>();
+  const seenRegs = new Set<string>();
   const grid = parseCsv(text);
   if (grid.length === 0) {
     return { headerError: "empty", headerFound: [], rows: [], validCount: 0, invalidCount: 0 };
@@ -139,16 +195,24 @@ export function validateCsv(text: string): ParseResult {
     if (!type) errors.push("type_required");
     else if (!MACHINE_TYPES.includes(type as (typeof MACHINE_TYPES)[number])) errors.push("type_invalid");
 
-    const meter_type = get("meter_type").toLowerCase() || "hours";
+    // A blank meter type follows the machine type (a bakkie is in kilometres), and a blank
+    // status is active; both are shown on the row so a kilometre truck is not imported as
+    // hours without anybody seeing it.
+    const meterRaw = get("meter_type").toLowerCase();
+    const meter_type = meterRaw || defaultMeterFor(type);
+    if (!meterRaw) warnings.push(meter_type === "km" ? "meter_defaulted_km" : "meter_defaulted_hours");
     if (!METER_TYPES.includes(meter_type as (typeof METER_TYPES)[number])) errors.push("meter_invalid");
 
-    const status = get("status").toLowerCase() || "active";
+    const statusRaw = get("status").toLowerCase();
+    const status = statusRaw || "active";
+    if (!statusRaw) warnings.push("status_defaulted");
     if (!MACHINE_STATUSES.includes(status as (typeof MACHINE_STATUSES)[number])) errors.push("status_invalid");
 
     const yearStr = get("year");
     let year: number | null = null;
     if (yearStr) {
-      const y = Number.parseInt(yearStr, 10);
+      // A whole four-digit year only: parseInt read "2019abc" or "20.5" as a year.
+      const y = /^\d{4}$/.test(yearStr) ? Number(yearStr) : NaN;
       if (!Number.isFinite(y) || y < 1900 || y > 2100) errors.push("year_invalid");
       else year = y;
     }
@@ -160,6 +224,38 @@ export function validateCsv(text: string): ParseResult {
       if (!Number.isFinite(n) || n < 0) errors.push("reading_invalid");
       else current_reading = n;
     }
+    // "none" is a machine without a meter, not an unknown reading.
+    if (current_reading !== null && meter_type === "none") errors.push("reading_without_meter");
+
+    const dateStr = get("reading_date");
+    let current_reading_date: string | null = null;
+    if (dateStr) {
+      const parsedDate = parseReadingDate(dateStr);
+      if (!parsedDate || parsedDate < "1990-01-01") errors.push("reading_date_invalid");
+      else if (parsedDate > today) errors.push("reading_date_future");
+      else if (current_reading === null) warnings.push("reading_date_unused");
+      else current_reading_date = parsedDate;
+    } else if (current_reading !== null) {
+      warnings.push("reading_date_today");
+    }
+
+    // Already on the farm, or twice in this sheet: refused, so running the same file
+    // again adds nothing. Only serial and registration count; names only warn.
+    const serial = get("serial_no");
+    const reg = get("reg_no");
+    if (serial) {
+      const k = idKey(serial);
+      if (onFarm.serials.has(k)) errors.push("serial_on_farm");
+      else if (seenSerials.has(k)) errors.push("serial_twice");
+      seenSerials.add(k);
+    }
+    if (reg) {
+      const k = idKey(reg);
+      if (onFarm.regs.has(k)) errors.push("reg_on_farm");
+      else if (seenRegs.has(k)) errors.push("reg_twice");
+      seenRegs.add(k);
+    }
+    if (name && onFarm.names.has(name.toLowerCase())) warnings.push("name_on_farm");
 
     if (name) {
       const key = name.toLowerCase();
@@ -185,6 +281,7 @@ export function validateCsv(text: string): ParseResult {
             reg_no: get("reg_no") || null,
             meter_type,
             current_reading,
+            current_reading_date,
             status,
             notes: get("notes") || null,
           }
@@ -205,9 +302,9 @@ export function validateCsv(text: string): ParseResult {
 export function templateCsv(): string {
   const header = IMPORT_COLUMNS.join(",");
   const example = [
-    "Groen John Deere,tractor,John Deere,6155M,2019,1LV6155MABC123,CA123456,hours,4200,active,Main tractor",
-    "Rooi Massey,tractor,Massey Ferguson,5710,2016,,,hours,7800,active,",
-    "Waterpomp Noord,pump_generator,Honda,WB30,2021,,,none,,standby,Borehole 3",
+    "Groen John Deere,tractor,John Deere,6155M,2019,1LV6155MABC123,CA123456,hours,4200,2026-10-01,active,Main tractor",
+    "Rooi Massey,tractor,Massey Ferguson,5710,2016,,,hours,7800,15/09/2026,active,",
+    "Waterpomp Noord,pump_generator,Honda,WB30,2021,,,none,,,standby,Borehole 3",
   ].join("\n");
   return `${header}\n${example}\n`;
 }
@@ -240,6 +337,7 @@ const ALIASES: Record<(typeof IMPORT_COLUMNS)[number], string[]> = {
   reg_no: ["regno", "reg", "registration", "registrasie", "registrasienommer", "numberplate", "nommerplaat", "licenceplate", "licenseplate", "plate"],
   meter_type: ["metertype", "meter", "metertipe", "unit", "eenheid", "measure"],
   current_reading: ["currentreading", "reading", "lesing", "hours", "ure", "uur", "hourmeter", "uurmeter", "km", "kilometers", "kilometres", "odometer", "odo", "mileage"],
+  reading_date: ["readingdate", "dateread", "readon", "lesingdatum", "datumgelees", "meterdate", "meterdatum"],
   status: ["status", "toestand", "state", "condition"],
   notes: ["notes", "note", "notas", "nota", "opmerkings", "comment", "comments", "kommentaar", "remarks"],
 };

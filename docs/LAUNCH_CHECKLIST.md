@@ -264,6 +264,41 @@ Order: correctness and security first, then load, then product.
       to 20261028111100, NOT yet applied; `asset_finance.sql`. Still to do: apply and probe,
       `ui:check` on /finance and the machine Costs tab at 360 and 1024px with real data.
 
+### Launch preparation, 4 to 5 November (branch `claude/launch-prep-nov`, NOT deployed)
+
+Prepared locally while the founder was away; nothing applied to production, nothing
+pushed. Each item has its own commit, tests and mutation checks.
+
+- [x] **November price list** (`83ec86d`): R49 / R79 / R99, annual ten months, five-slot
+      minimum on every billing path, Done-For-You quote-only, existing prices pinned; the
+      plan-upgrade quote now prices slots, not machines. Terms version 2026-11-04.
+- [x] **WhatsApp voice notes and photos** (`82ea4e5`): voice notes heard by the app's speech
+      models under the AI budget; photos staged and filed on a fault after the person
+      chooses and confirms. Needs the real-phone pass once WhatsApp is switched on.
+- [x] **Plan audit** (`0a29d01`, `docs/PLAN_FEATURES.md`): cost analytics, budgets and book
+      value gated at Professional (screens, actions, RPC); feeds gated at Done-For-You;
+      combined farm view (`/sites`) built for Complete; CSV exports formula-safe.
+- [x] **Website corrections** prepared on the website repository's branch
+      `claude/plan-accuracy` (`bbceae6`), not published.
+- [x] **Corporate and trucking roadmap**: `docs/CORPORATE_FLEET_ROADMAP.md`.
+
+**Release order** (when the founder says go):
+
+1. `node scripts/apply_pending.mjs --dry`, then `--apply`: `20261104200000` (prices),
+   `20261104210000` (WhatsApp media), `20261104220000` (plan boundaries), each probed.
+   Database first: the live app tolerates all three (old WhatsApp webhooks still call the
+   four-argument receiver), while the new app's billing pages read `min_billed_slots`.
+2. Push the branch to `main` straight after, verify the deployment by commit SHA, then the
+   live checks (health, role sweep, repeat-tap check). Between steps 1 and 2 the old sign-up
+   page still shows the launch prices while the invoice uses the new ones, so keep the gap
+   to minutes (no real farms are affected today).
+3. Publish the website branch `claude/plan-accuracy` once the app is live.
+
+**Still open from the 29 October pricing brief** (not to be sold as working until built):
+pooled slots across a customer's sites (billing-customer grouping), WhatsApp provider-cost
+metering, storage metering, recording an accepted Done-For-You quote, and the activation
+service catalogue (setup, document capture, training, QR kits) as orders in the app.
+
 ### Founder decisions (2026-10-13)
 
 | Decision | Answer | Engineering consequence |

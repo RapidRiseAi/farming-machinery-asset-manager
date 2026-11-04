@@ -20,7 +20,6 @@ import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-
 import { Field } from "@/components/ui/field";
 import { UrgencyStatus, FaultStatus, JobStatus } from "@/components/ui/status";
 import { buttonVariants } from "@/components/ui/button";
-import { menuItemClass } from "@/components/ui/menu-item";
 import { Disclosure } from "@/components/ui/disclosure";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { filterState } from "@/components/ui/filter-state";
@@ -333,7 +332,10 @@ export default async function FaultsPage({
                     </div>
                   ) : null}
 
-                  {f.job_card_id ? <Link href={`/jobcards/${f.job_card_id}`} className="focus-ring mt-3 inline-flex min-h-[44px] items-center rounded text-sm font-medium text-brand-ink underline">{t("jobcards.workflow.openJob", locale)}</Link> : null}
+                  {/* The plain link only where the button below is not shown (a sorted-out
+                      fault, or a job card whose status this person cannot read): both at
+                      once put "Open job card" on the row twice. */}
+                  {f.job_card_id && (resolved || !jobStatus.has(f.job_card_id)) ? <Link href={`/jobcards/${f.job_card_id}`} className="focus-ring mt-3 inline-flex min-h-[44px] items-center rounded text-sm font-medium text-brand-ink underline">{t("jobcards.workflow.openJob", locale)}</Link> : null}
                   {!resolved ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       {f.job_card_id && jobStatus.has(f.job_card_id) ? (
@@ -366,11 +368,6 @@ export default async function FaultsPage({
                           label={t("common.actions", locale)}
                           closeLabel={t("ui.close", locale)}
                         >
-                          {f.job_card_id && jobStatus.has(f.job_card_id) ? (
-                            <Link href={`/jobcards/${f.job_card_id}`} className={menuItemClass()}>
-                              {t("work.openJobCard", locale)}
-                            </Link>
-                          ) : null}
                           {canJob && f.status === "open" ? (
                             <form action={acknowledgeFault}>
                               <input type="hidden" name="id" value={f.id} />

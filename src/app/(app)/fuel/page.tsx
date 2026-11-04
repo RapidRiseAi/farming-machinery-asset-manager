@@ -607,12 +607,12 @@ export default async function FuelPage({
               ) : (
                 <ul className="flex flex-col divide-y divide-sand-100 text-sm">
                   {deliveries.slice(0, 12).map((d) => (
-                    <li key={d.id} className="flex items-center justify-between gap-3 py-1.5">
-                      <span className="min-w-0 truncate">
+                    <li key={d.id} className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:py-1.5">
+                      <span className="min-w-0 sm:truncate">
                         <span className="font-medium tabular-nums text-sand-800">{litres(d.litres)}</span>
                         <span className="text-sand-500"> · {tankName.get(d.tank_id) ?? t("fuel.tank", locale)}{d.supplier ? ` · ${d.supplier}` : ""}</span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs text-sand-500">
+                      <span className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-sand-500">
                         {costsVisible && d.price_per_l_cents != null ? <span className="tabular-nums">{rands(Math.round((d.litres ?? 0) * d.price_per_l_cents))}</span> : null}
                         <span className="tabular-nums">{shortDate(d.date, locale)}</span>
                       </span>
@@ -628,12 +628,12 @@ export default async function FuelPage({
               ) : (
                 <ul className="flex flex-col divide-y divide-sand-100 text-sm">
                   {issues.slice(0, 12).map((i) => (
-                    <li key={i.id} className="flex items-center justify-between gap-3 py-1.5">
-                      <span className="min-w-0 truncate">
+                    <li key={i.id} className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:py-1.5">
+                      <span className="min-w-0 sm:truncate">
                         <span className="font-medium tabular-nums text-sand-800">{litres(i.litres)}</span>
                         <span className="text-sand-500"> · {i.machine_id ? (machineName.get(i.machine_id) ?? t("fines.unknownVehicle", locale)) : t("fuel.farmLevel", locale)}{i.activity ? ` · ${activityLabel(i.activity, locale)}` : ""}{draweeLabel(i) ? ` · ${draweeLabel(i)}` : ""}</span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs text-sand-500">
+                      <span className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-sand-500">
                         {costsVisible && i.cost_cents != null ? <span className="tabular-nums">{rands(i.cost_cents)}</span> : null}
                         {i.anomaly_notified_at ? <StatusBadge tone="danger" shape="triangle" label={t("fuel.flagged", locale)} /> : null}
                         <span className="tabular-nums">{shortDate(i.date, locale)}</span>

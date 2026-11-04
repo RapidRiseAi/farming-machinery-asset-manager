@@ -548,7 +548,20 @@
       "headerNoNameTitle": "Ons kry nie die masjiene se name nie",
       "headerNoNameBody": "Jou eerste ry moet 'n kolom hê met die opskrif \"name\", dis die een wat vir ons sê wat elke masjien genoem word. Niks is gelaai nie.",
       "headerFound": "Die kolomme in jou lêer is: {cols}",
-      "headerNoNameFix": "Hernoem die kolom met die masjiene se name na \"name\", of laai ons leë blad hierbo af en plak jou lys daarin."
+      "headerNoNameFix": "Hernoem die kolom met die masjiene se name na \"name\", of laai ons leë blad hierbo af en plak jou lys daarin.",
+      "meter_defaulted_hours": "Geen metertipe: op ure gestel",
+      "meter_defaulted_km": "Geen metertipe: op km gestel",
+      "status_defaulted": "Geen status: op aktief gestel",
+      "reading_without_meter": "Het 'n lesing maar die metertipe is geen",
+      "reading_date_invalid": "Lesingdatum nie verstaan nie (gebruik 2026-07-29 of 29/07/2026)",
+      "reading_date_future": "Lesingdatum is in die toekoms",
+      "reading_date_unused": "Lesingdatum sonder 'n lesing: geïgnoreer",
+      "reading_date_today": "Geen lesingdatum nie: vandag gedateer",
+      "serial_on_farm": "Serienommer reeds op die plaas",
+      "serial_twice": "Serienommer twee keer in hierdie lêer",
+      "reg_on_farm": "Registrasie reeds op die plaas",
+      "reg_twice": "Registrasie twee keer in hierdie lêer",
+      "name_on_farm": "'n Masjien met hierdie naam is reeds op die plaas"
     },
     "identityCard": "Besonderhede",
     "purchaseDate": "Aankoopdatum",
@@ -630,7 +643,10 @@
     "qrSheetAll": "Druk die hele vloot",
     "qrSheetEmpty": "Nog geen masjiene om plakkers voor te druk nie",
     "qrSheetDone": "Die plakkers is op",
-    "qrSheetDoneHint": "Sodra elke masjien sy plakker het, merk hierdie stap af op jou plaas se opstellys."
+    "qrSheetDoneHint": "Sodra elke masjien sy plakker het, merk hierdie stap af op jou plaas se opstellys.",
+    "readingDate": "Lesingdatum",
+    "importAddsOnly": "Invoer voeg nuwe masjiene by; dit verander nooit masjiene wat reeds op FleetWise is nie. Rye waarvan die serie- of registrasienommer reeds op die plaas is, word uitgelaat, so as jy dieselfde lêer weer invoer word niks twee keer bygevoeg nie.",
+    "importedSkipped": "{n} masjiene ingevoer. {skipped} rye het 'n probleem gehad en is uitgelaat: maak hulle in die lêer reg en voer net daardie rye in."
   },
   "machineType": {
     "tractor": "Trekker",
@@ -6514,7 +6530,7 @@
     "weekdays": "Weeksdae",
     "hoursLine": "{days}, {opens} tot {closes}, Suid-Afrikaanse tyd.",
     "holidaysClosed": "Gesluit op Suid-Afrikaanse openbare vakansiedae.",
-    "promiseLine": "Vra voor {cutoff} op 'n werksdag en ons antwoord teen {closes} dieselfde dag. Later as dit, antwoord ons teen {next} op die volgende werksdag.",
+    "promiseLine": "Ons mik daarna om jou binne een werksdag 'n eerste antwoord te gee. Dit is 'n teiken vir die eerste antwoord, nie 'n belofte dat alles teen dan reggestel is nie.",
     "channelInApp": "Hier in die toep: vra ons iets hierbo.",
     "channelEmail": "E-pos",
     "channelPhone": "Telefoon",

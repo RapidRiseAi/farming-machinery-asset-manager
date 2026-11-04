@@ -10,12 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import {
   validateCsv, templateCsv, MAX_IMPORT_ROWS, IMPORT_COLUMNS, SKIP_COLUMN,
-  guessMapping, applyMapping, readHeaders, parseCsv, countDataRows, type ParseResult,
+  guessMapping, applyMapping, readHeaders, parseCsv, countDataRows, type ParseResult, type ExistingMachines,
 } from "./csv";
 import { importMachines } from "../actions";
 import { RequestIdInput } from "@/components/ui/request-id-input";
 
-export function ImportClient({ locale }: { locale: Lang }) {
+export function ImportClient({ locale, existing }: { locale: Lang; existing: ExistingMachines }) {
   const [raw, setRaw] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
   const [sample, setSample] = useState<string[]>([]);
@@ -34,8 +34,8 @@ export function ImportClient({ locale }: { locale: Lang }) {
     [raw, mapping],
   );
   const result: ParseResult | null = useMemo(
-    () => (canonical ? validateCsv(canonical) : null),
-    [canonical],
+    () => (canonical ? validateCsv(canonical, existing) : null),
+    [canonical, existing],
   );
   const dataRows = useMemo(() => (raw ? countDataRows(raw) : 0), [raw]);
   const mappedName = mapping.includes("name");
@@ -143,7 +143,7 @@ export function ImportClient({ locale }: { locale: Lang }) {
                     <option value={SKIP_COLUMN}>{t("machines.mapLeaveOut", locale)}</option>
                     {IMPORT_COLUMNS.map((c) => (
                       <option key={c} value={c}>
-                        {t(`machines.${c === "serial_no" ? "serialNo" : c === "reg_no" ? "regNo" : c === "meter_type" ? "meterType" : c === "current_reading" ? "reading" : c}`, locale)}
+                        {t(`machines.${c === "serial_no" ? "serialNo" : c === "reg_no" ? "regNo" : c === "meter_type" ? "meterType" : c === "current_reading" ? "reading" : c === "reading_date" ? "readingDate" : c}`, locale)}
                       </option>
                     ))}
                   </Select>
@@ -202,6 +202,8 @@ export function ImportClient({ locale }: { locale: Lang }) {
               ) : null}
             </span>
           </div>
+          {/* Import adds machines and never updates them: say so before anybody presses. */}
+          <p className="px-4 pb-3 text-sm text-sand-600">{t("machines.importAddsOnly", locale)}</p>
           <Table>
             <Thead>
               <Tr>
