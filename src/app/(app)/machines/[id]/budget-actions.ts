@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { effectiveFarmRole, farmAllows, requireRole, requireUsableFarm, type Profile } from "@/lib/auth";
 import { withTab } from "@/components/ui/tabs-url";
 import { parseRandsToCents } from "@/lib/money";
 import { COST_TYPES } from "@/lib/cost";
@@ -30,11 +30,39 @@ function anchor(fd: FormData): string {
   return YMD.test(v) ? v : new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Budgets are Professional analytics (`tco`, 20261104220000). Every budget action is
+ * decided on the BUDGET's farm: its plan, the person's role there, and that farm's stop
+ * gate. `requireRole` answers for the selected farm, which for a multi-site manager is
+ * not necessarily the machine's.
+ */
+async function budgetGate(farmId: string | null, machineId: string): Promise<Profile> {
+  const profile = await requireRole(["owner", "manager"]);
+  if (!farmId) redirect(withTab(`/machines/${machineId}?error=Missing+machine`, "costs"));
+  const role = profile.role === "rr_admin" ? "rr_admin" : await effectiveFarmRole(farmId, profile);
+  if (role !== "owner" && role !== "manager" && role !== "rr_admin") {
+    redirect(withTab(`/machines/${machineId}?error=forbidden`, "costs"));
+  }
+  await requireUsableFarm(farmId, profile);
+  if (!(await farmAllows(farmId, "tco", profile))) {
+    redirect(withTab(`/machines/${machineId}?error=upgrade-required`, "costs"));
+  }
+  return profile;
+}
+
+/** The farm a budget belongs to, read as the person (RLS), or null. */
+async function budgetFarm(id: string): Promise<string | null> {
+  if (!id) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.from("budgets").select("farm_id").eq("id", id).maybeSingle();
+  return (data as { farm_id: string } | null)?.farm_id ?? null;
+}
+
 /** Set a budget target (ex-VAT) for a machine + optional category + period (FR-10.4). */
 export async function addBudget(formData: FormData) {
-  await requireRole(["owner", "manager"]);
   const machineId = String(formData.get("machine_id") ?? "");
   const farmId = String(formData.get("farm_id") ?? "");
+  await budgetGate(farmId || null, machineId);
   const amount = parseRandsToCents(strOrNull(formData, "amount"));
   if (!machineId || !farmId) redirect(withTab(`/machines/${machineId}?error=Missing+machine`, "costs"));
   if (amount == null || amount <= 0) redirect(withTab(`/machines/${machineId}?error=Budget+amount+is+required`, "costs"));
@@ -59,9 +87,9 @@ export async function addBudget(formData: FormData) {
 
 /** Edit a budget's amount / category / period. */
 export async function updateBudget(formData: FormData) {
-  await requireRole(["owner", "manager"]);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
+  await budgetGate(await budgetFarm(id), machineId);
   const amount = parseRandsToCents(strOrNull(formData, "amount"));
   if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "costs"));
   if (amount == null || amount <= 0) redirect(withTab(`/machines/${machineId}?error=Budget+amount+is+required`, "costs"));
@@ -87,9 +115,9 @@ export async function updateBudget(formData: FormData) {
 
 /** Soft-delete a budget. */
 export async function deleteBudget(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
   const machineId = String(formData.get("machine_id") ?? "");
   const id = String(formData.get("id") ?? "");
+  const profile = await budgetGate(await budgetFarm(id), machineId);
   if (!id) redirect(withTab(`/machines/${machineId}?error=Missing+id`, "costs"));
   const supabase = await createClient();
   const { error } = await supabase

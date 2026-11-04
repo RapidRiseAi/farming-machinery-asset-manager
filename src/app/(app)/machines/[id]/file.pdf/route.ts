@@ -1,4 +1,4 @@
-import { getProfile } from "@/lib/auth";
+import { getProfile, farmAllows } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
 import { must, mustAll } from "@/lib/supabase/must";
@@ -34,6 +34,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const m = data as Machine | null;
   if (!m) return new Response("Not found", { status: 404 });
   const costsVisible = await canViewFarmCosts(supabase, m.farm_id);
+  // Spend is a record; cost per hour is total cost of ownership arithmetic, Professional.
+  const perHourVisible = costsVisible && (await farmAllows(m.farm_id, "tco", profile));
 
   // A failed read would print "No job cards" and a lifetime spend of R0 as the machine's
   // service book; a 500 is the honest answer.
@@ -68,7 +70,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   pdf.heading("Lifetime stats");
   if (costsVisible) pdf.kv("Total spend (ex-VAT)", rands(totalSpend));
   pdf.kv("Job cards", String(jobCards.length));
-  if (costsVisible) pdf.kv("Cost per hour", perHour != null ? rands(perHour) : "-");
+  if (perHourVisible) pdf.kv("Cost per hour", perHour != null ? rands(perHour) : "-");
 
   pdf.heading("Service plan");
   if (plan.length === 0) pdf.text("No service plan.");

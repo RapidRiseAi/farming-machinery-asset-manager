@@ -82,7 +82,7 @@ export function ConnectionForm({
       )}
       <SubmitButton>{t("common.save", locale)}</SubmitButton>
       {state.error && (
-        <p role="alert">{t("driving.connectionError", locale)}</p>
+        <p role="alert">{t(state.planRequired ? "driving.planRequired" : "driving.connectionError", locale)}</p>
       )}
       {state.saved && <p role="status">{t("driving.saved", locale)}</p>}
       {state.token && (

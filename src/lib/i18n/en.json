@@ -92,7 +92,8 @@
     "moreHasNew": "Something new inside",
     "adminAi": "AI and voice costs",
     "aiUsage": "AI and voice",
-    "driverActivity": "Driver activity"
+    "driverActivity": "Driver activity",
+    "sites": "Your farms"
   },
   "assistant": {
     "title": "Voice assistant",
@@ -1048,7 +1049,7 @@
       "tco": "total cost of ownership",
       "aarto": "driver & AARTO records",
       "voice_ai": "the voice assistant",
-      "multi_site": "multi-site",
+      "multi_site": "the combined view of your farms",
       "whatsapp": "WhatsApp alerts",
       "api_access": "API access",
       "financials": "Running the books"
@@ -6317,7 +6318,8 @@
       "other": "Other"
     },
     "signedInAs": "Signed in as",
-    "past": "Past driving sessions"
+    "past": "Past driving sessions",
+    "planRequired": "This farm is not on Done-For-You, so a feed cannot be switched on. Hardware and provider feeds are part of a Done-For-You agreement."
   },
   "inviteEmail": {
     "subject": "{inviter} added you to {farm} on {app}",
@@ -7087,5 +7089,23 @@
     "owedInvoice": "{amount} is unpaid on invoice {ref}, due since {date}.",
     "moreOverdue": "After this payment, {amount} is still overdue on other invoices, so the farm stays paused until that is paid too.",
     "payAmount": "Pay {amount} now"
+  },
+  "sites": {
+    "title": "Your farms",
+    "lead": "Every farm you work on, side by side: machines, problems and this month's running cost.",
+    "oneFarm": "You belong to one farm, so there is nothing to combine yet. This view lists every farm you work on once you belong to more than one.",
+    "machines": "Machines",
+    "outOfService": "Out of service",
+    "openFaults": "Open problems",
+    "overdue": "Services overdue",
+    "openJobs": "Open job cards",
+    "runningCost": "Running cost this month",
+    "costsPartial": "Running cost covers {n} of {total} farms: the others do not show you their costs.",
+    "byFarm": "By farm",
+    "export": "Download CSV",
+    "farm": "Farm",
+    "open": "Open",
+    "notIncluded": "Not in the combined view: this farm's plan does not include it (Complete and above).",
+    "note": "Each farm's figures are what you can see on that farm. Running cost is fuel, parts, labour, workshop invoices and other costs since the first of the month, ex VAT."
   }
 }

@@ -1,8 +1,10 @@
 \set ON_ERROR_STOP on
 begin;
-insert into farms(id,name,status) values
- ('da000000-0000-4000-8000-000000000001','Driving Farm','active'),
- ('da000000-0000-4000-8000-000000000002','Other Farm','active');
+-- Driving Farm buys a provider feed, which is Done-For-You (20261104220000); the manual
+-- driver log the rest of this suite tests is on every plan.
+insert into farms(id,name,status,plan) values
+ ('da000000-0000-4000-8000-000000000001','Driving Farm','active','done_for_you'),
+ ('da000000-0000-4000-8000-000000000002','Other Farm','active','essential');
 insert into auth.users(id,email) values
  ('da100000-0000-4000-8000-000000000001','driving-owner@example.test'),
  ('da100000-0000-4000-8000-000000000002','driving-driver@example.test'),

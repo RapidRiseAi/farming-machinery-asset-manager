@@ -9,6 +9,41 @@ Decisions made by the founder that bind the build. Agents building Billing, Voic
 | 3 | **Voice offline requirement?** | **QUEUE-AND-SYNC** (reuse F2) | No native/on-device speech required now. Push-to-talk captures offline, Tier-0 local grammar answers simple reads instantly, everything else enqueues in the existing F2 IndexedDB sync queue and transcribes on reconnect. Native/Capacitor + on-device models stay a later phase. |
 | 10 | **AI help on by default, and AI usage billed** (2026-10-03, supersedes 2) | **ON BY DEFAULT, told first; billed at cost plus margin; owner limits; own OpenAI key** | AI help (the AI hearing and AI answers) runs for everyone who has seen the notice, and anyone can switch it off; the legal basis is service necessity, so the Vercel, Microsoft and OpenAI data agreements must be signed before real users join. Usage is metered per farm and person and billed at provider cost in rand plus an admin-set margin (default 30%), excluding VAT. Owners set monthly limits (farm and person); at the limit voice and AI pause and typing keeps working. A farm may link its own OpenAI API key; that use is shown, never billed. See `docs/AI_USAGE.md`. |
 
+## Addendum, 4 November 2026: the November price list and plan boundaries
+
+Founder decisions of 29 October 2026 (`output/fleetwise-economics-2026-10-29/approved-pricing-and-activation.md`),
+as published on the FleetWise website on 4 November 2026. **These supersede decision #1's
+figures for new agreements**; decision #1 remains the record of the launch list.
+
+| Topic | Decision | Built |
+|---|---|---|
+| Prices | Essential R49, Professional R79, Complete R99 per asset a month; annual ten months for twelve (R490 / R790 / R990). No per-user fee. VAT treatment unchanged (not registered). | Migration `20261104200000` (`launch-2026-11`), `src/lib/entitlements.ts`, terms version 2026-11-04 |
+| Minimum | Five paid slots per subscription: R245 / R395 / R495 a month, R2 450 / R3 950 / R4 950 a year. | `billing_price_versions.min_billed_slots`; every billing path applies it |
+| Existing agreements | Keep their price; new prices apply to new agreements. | Live subscriptions pinned before the launch list retired |
+| Done-For-You | Remote fleet management QUOTED from R170 per asset a month, at least R2 500 a month; no automatic catalogue price; annual terms quoted individually. | No catalogue row: quote-only in sign-up, plan changes and invoicing. Recording an accepted quote is open |
+| Plan boundaries | As `docs/PLAN_FEATURES.md`: core records on every plan; fuel, TCO, budgets, book value, dashboards, reports and accounting exports on Professional; combined multi-farm view, AARTO, AI/voice and WhatsApp on Complete; API and hardware feeds on Done-For-You. | Gates fixed in `20261104220000` and the app (4 November) |
+| Usage | AI and WhatsApp at actual provider cost +30%, no included paid messages; R200 default AI cap kept. | AI: built. WhatsApp metering: open |
+| Storage | 100 MB per paid asset, minimum 1 GB; R49 per extra 10 GB; billed only once metering works. | Open (not metered) |
+
+**Two conflicts between the website and the 29 October decisions, resolved for now in
+favour of the decisions and the app (founder to confirm):**
+
+1. The website's Professional "financial records" card lists expenses, suppliers,
+   purchase orders, recurring expenses, cash flow, banking, reconciliation, statements
+   and VAT tools. In the app these are the workshop-partner books, not farm features. The
+   website branch `claude/plan-accuracy` says what farms actually get (accounting journal
+   and chart-of-accounts exports).
+2. The website puts "compliance packs" on Complete; the decisions and the app put the
+   fleet compliance evidence pack on Professional (machine packs on every plan). The
+   website branch moves it to Professional; AARTO stays on Complete.
+
+**Open, and not to be advertised as working until built:** slots pooled across a
+customer's sites with one minimum per customer (needs a billing-customer grouping above
+farms; multi-site customers are quoted and set up by staff until then), WhatsApp
+provider-cost metering, storage metering, the activation service catalogue (setup,
+document capture, training, QR kits) as orders in the app, and recording an accepted
+Done-For-You quote.
+
 ## Still open (not blocking Phase-1 build; defaults noted)
 
 | # | Item | Default / action |

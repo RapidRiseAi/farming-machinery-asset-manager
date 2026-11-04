@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Plan boundaries: the book value register asks for the Professional tco entitlement.
+  "20261104220000": "select coalesce(pg_get_functiondef(to_regprocedure('public.farm_book_values(uuid,date)')) like '%has_entitlement(m.farm_id, ''tco'')%', false)",
   // WhatsApp voice notes and photos: the media-aware receiver and the staging table.
   "20261104210000": "select to_regprocedure('public.whatsapp_receive(text,text,text,timestamptz,text,text,text)') is not null and to_regclass('public.whatsapp_media') is not null",
   // The November 2026 price list: the active essential/monthly row carries the five-slot minimum.

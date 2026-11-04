@@ -587,6 +587,19 @@ export async function checkEntitlement(
 }
 
 /**
+ * Does the plan of THIS farm unlock `feature`? For a resource that belongs to a farm (a
+ * machine, a budget, a report row), which is not necessarily the farm the person has
+ * selected: a multi-site manager looking at a machine on their Essential farm must not see
+ * its Professional analytics because their other farm is on Complete. The same bypass as
+ * `currentPlan`: Rapid Rise staff and workshops are not the billing subject.
+ */
+export async function farmAllows(farmId: string | null, feature: Feature, profile: Profile): Promise<boolean> {
+  if (profile.role === "rr_admin" || profile.role === "workshop") return true;
+  if (!farmId) return false;
+  return planAllows(await getFarmPlan(farmId), feature);
+}
+
+/**
  * Enforce an entitlement server-side in a route/action. If the farm's plan does not
  * unlock `feature`, redirect to `redirectTo` (the relevant surface, which renders the
  * upgrade prompt), a real server-side denial, not merely hidden UI. Returns the profile

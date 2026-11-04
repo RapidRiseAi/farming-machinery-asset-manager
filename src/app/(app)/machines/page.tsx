@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireProfile, currentFarmId } from "@/lib/auth";
+import { requireProfile, currentFarmId, farmAllows } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
@@ -113,7 +113,10 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const canAddReading = permissionState.role != null &&
     ["rr_admin", "owner", "manager", "mechanic", "operator"].includes(permissionState.role);
   const hasFullFleetGrant = permissionState.grants.has("see_all_vehicles");
-  const costsVisible = profile.role === "rr_admin" || await canViewFarmCosts(supabase, farmId);
+  // Cost per hour or km is total cost of ownership arithmetic: a Professional feature
+  // (`tco`) on top of the role's cost visibility, decided on the farm being listed.
+  const costsVisible = (profile.role === "rr_admin" || await canViewFarmCosts(supabase, farmId))
+    && await farmAllows(farmId, "tco", profile);
 
   // The list query has no range: a farm's fleet is bounded by its vehicle slots, and the
   // service filter and "needs attention" sort below need the whole set to be honest.

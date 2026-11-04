@@ -373,8 +373,20 @@ export async function getReportData(
 }
 
 /** Serialise a grid to RFC-4180 CSV (quoted fields, CRLF). */
+/**
+ * One quoted CSV cell. Text that begins like a spreadsheet formula (=, +, -, @, or a tab
+ * or carriage return) gets a leading apostrophe, so a machine called "=HYPERLINK(...)"
+ * opens in Excel as the words it is rather than as a formula that runs on the bookkeeper's
+ * computer. Numbers, and text that is just a signed amount ("-120,50"), are left alone.
+ */
+export function csvCell(f: string | number): string {
+  let v = String(f);
+  if (typeof f === "string" && /^[=+\-@\t\r]/.test(v) && !/^[+-]?\d[\d\s]*([.,]\d+)?$/.test(v)) v = `'${v}`;
+  return `"${v.replace(/"/g, '""')}"`;
+}
+
 export function toCsv(rows: (string | number)[][]): string {
-  return rows.map((r) => r.map((f) => `"${String(f).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  return rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
 }
 
 export function csvResponse(filename: string, csv: string): Response {

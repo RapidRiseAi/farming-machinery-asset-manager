@@ -40,9 +40,9 @@ import { readMachineFinancials } from "@/lib/cost-visibility";
 import {
   type Profile,
   type Role,
-  checkEntitlement,
   currentFarmId,
   effectiveFarmRole,
+  farmAllows,
   getProfile,
 } from "@/lib/auth";
 import {
@@ -331,7 +331,8 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   // nothing.
   const [issuer, gate, licRes, planRes, jcRes, faultRes, readRes, photoRes] = await Promise.all([
     loadIssuer(supabase, farmId, profile),
-    checkEntitlement("tco", profile),
+    // The machine's own farm decides, not the farm the person has selected.
+    farmAllows(machine.farm_id, "tco", profile),
     readAll(() => supabase.from("licences").select(LICENCE_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("expiry_date")),
     readAll(() => supabase.from("service_plan_lines").select(PLAN_COLUMNS)
@@ -348,7 +349,7 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   ]);
   mustAll([licRes, planRes, jcRes, faultRes, readRes, photoRes], "packs:sale");
 
-  const costsAllowed = gate.allowed;
+  const costsAllowed = gate;
   let costs: PackCost[] = [];
   if (costsAllowed) {
     // A failed read here printed a machine that cost nothing on a sale document.

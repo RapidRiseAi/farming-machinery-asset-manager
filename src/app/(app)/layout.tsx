@@ -311,6 +311,11 @@ export default async function AppLayout({
   const tyres: NavItemData = { href: "/tyres", label: t("nav.tyres", locale), icon: "tyre" };
   const inbox: NavItemData = { href: "/inbox", label: t("nav.inbox", locale), icon: "inbox", badge: inboxDecisions || undefined };
   const reports: NavItemData = { href: "/reports", label: t("nav.reports", locale), icon: "reports" };
+  // The combined view of a multi-farm person's farms (Complete). Shown to anyone who
+  // belongs to more than one farm, like the switcher: on a lower plan the page explains
+  // what Complete adds rather than the entry disappearing.
+  const sites: NavItemData = { href: "/sites", label: t("nav.sites", locale), icon: "pin" };
+  const sitesVisible = !isWorkshop && !isAdmin && farms.length > 1;
   const alerts: NavItemData = { href: "/notifications", label: t("nav.notifications", locale), icon: "bell" };
   const team: NavItemData = { href: "/team", label: t("nav.team", locale), icon: "team" };
   const settings: NavItemData = { href: "/settings", label: t("nav.settings", locale), icon: "settings" };
@@ -384,6 +389,7 @@ export default async function AppLayout({
         incidents,
         calendar,
         ...(reportsAllowed ? [reports] : []),
+        ...(sitesVisible ? [sites] : []),
         ...(reportsAllowed && isManagerPlus ? [accounting] : []),
         alerts,
         ...(apiTokensAllowed ? [apiTokens] : []),
@@ -398,6 +404,7 @@ export default async function AppLayout({
   const overviewItems: NavItemData[] = [
     ...(dashAllowed ? [dashboard] : []),
     ...(canUseInbox ? [inbox] : []),
+    ...(sitesVisible ? [sites] : []),
     ...(reportsAllowed ? [reports] : []),
     ...(reportsAllowed && isManagerPlus ? [accounting] : []),
   ];

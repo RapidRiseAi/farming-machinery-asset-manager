@@ -6,9 +6,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 export async function configureConnection(
-  _previous: { token?: string; error?: boolean; saved?: boolean },
+  _previous: { token?: string; error?: boolean; planRequired?: boolean; saved?: boolean },
   form: FormData,
-): Promise<{ id?: string; token?: string; error?: boolean; saved?: boolean }> {
+): Promise<{ id?: string; token?: string; error?: boolean; planRequired?: boolean; saved?: boolean }> {
   await requireRole(["rr_admin"]);
   const db = await createClient();
   const id = String(form.get("id") ?? "");
@@ -23,7 +23,9 @@ export async function configureConnection(
     p_quote: String(form.get("quote") ?? "").trim() || null,
     p_hash: token ? createHash("sha256").update(token).digest("hex") : null,
   });
-  if (error) return { error: true };
+  // A feed is Done-For-You (20261104220000): the database refuses to switch one on for a
+  // farm on a lower plan, and staff are told that rather than a generic failure.
+  if (error) return { error: true, ...(/plan_required/.test(error.message) ? { planRequired: true } : {}) };
   revalidatePath("/admin/driver-integrations");
   return { id: data, saved: true, ...(token ? { token } : {}) };
 }

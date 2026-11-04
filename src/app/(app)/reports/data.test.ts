@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getReportData, type ReportFilters } from "./data";
+import { csvCell, getReportData, toCsv, type ReportFilters } from "./data";
 
 const filters: ReportFilters = { from: "2026-09-01", to: "2026-09-30", includeInactive: false, group: null };
 const protectedTables = ["job_cards", "fuel_issues", "fuel_deliveries", "work_requests"];
@@ -71,4 +71,17 @@ test("only the scheduled service worker opts into raw report reads", () => {
   assert.match(worker, /deliverReportRun\(supabase, run, \{ serviceRole: true \}\)/);
   assert.match(interactive, /deliverReportRun\(supabase, run\)/);
   assert.doesNotMatch(interactive, /serviceRole:\s*true/);
+});
+
+test("a CSV cell that would run as a spreadsheet formula is written as text", () => {
+  for (const evil of ["=HYPERLINK(\"https://x.test\",\"x\")", "+SUM(A1)", "-2+3", "@cmd", "\t=1", "\r=1"]) {
+    assert.ok(csvCell(evil).startsWith("\"'"), evil);
+  }
+  // Numbers and signed amounts stay numbers; ordinary text is untouched.
+  assert.equal(csvCell(-120), '"-120"');
+  assert.equal(csvCell("-120,50"), '"-120,50"');
+  assert.equal(csvCell("+27 82 000 0000".replace(/\s/g, "")), '"+27820000000"');
+  assert.equal(csvCell("JD 6120"), '"JD 6120"');
+  assert.equal(csvCell('Say "hi"'), '"Say ""hi"""');
+  assert.equal(toCsv([["a", 1], ["=1", "b"]]), '"a","1"\r\n"\'=1","b"');
 });

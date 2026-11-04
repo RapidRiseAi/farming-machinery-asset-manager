@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { currentFarmId, requireProfile, requireUsableFarm } from "@/lib/auth";
+import { currentFarmId, farmAllows, requireProfile, requireUsableFarm } from "@/lib/auth";
 
 /**
  * Set one machine's book-value policy.
@@ -85,6 +85,9 @@ export async function setDepreciationPolicy(formData: FormData): Promise<void> {
   if (machineError) bounce("depreciation-save-failed");
   const machineFarm = (machine as { farm_id: string } | null)?.farm_id;
   if (machineFarm) await requireUsableFarm(machineFarm, profile);
+  // Depreciation policy feeds the book value register, Professional analytics
+  // (20261104220000), on the machine's own farm.
+  if (machineFarm && !(await farmAllows(machineFarm, "tco", profile))) bounce("upgrade-required");
 
   const { error } = await supabase.rpc("set_machine_depreciation", {
     p_machine: machineId,

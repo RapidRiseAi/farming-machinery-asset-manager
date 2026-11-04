@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { currentFarmId, requireProfile } from "@/lib/auth";
+import { currentFarmId, farmAllows, getFarmPlan, requireProfile } from "@/lib/auth";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { errorMessage } from "@/lib/errors";
@@ -62,6 +63,29 @@ export default async function AssetRegisterPage({
   const farmId = await currentFarmId(profile);
 
   const supabase = await createClient();
+  // The register is Professional analytics (`tco`, 20261104220000); `farm_book_values`
+  // refuses a lower plan too, so this decides what to say rather than what is read.
+  const allowed = await farmAllows(farmId, "tco", profile);
+  if (!allowed) {
+    return (
+      <PageContainer>
+        <PageHeader
+          title={t("depreciation.title", locale)}
+          lead={t("depreciation.lead", locale)}
+          infoKey="assetRegister"
+          locale={locale}
+          back={{ href: "/reports", label: t("reports.title", locale) }}
+        />
+        <UpgradeNotice
+          feature="tco"
+          requiredPlan="professional"
+          currentPlan={farmId ? await getFarmPlan(farmId) : null}
+          locale={locale}
+          canUpgrade={profile.role === "owner"}
+        />
+      </PageContainer>
+    );
+  }
   const canSeeCosts = await canViewFarmCosts(supabase, farmId);
 
   const on = isIsoDate(sp.on) ? sp.on : undefined;

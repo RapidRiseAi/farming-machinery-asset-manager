@@ -2,7 +2,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
-import { currentPlan, effectiveFarmRole } from "@/lib/auth";
+import { currentPlan, effectiveFarmRole, farmAllows } from "@/lib/auth";
 import { planAllows, requiredPlan } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
@@ -188,6 +188,11 @@ export default async function MachineDetailPage({
       (resourceRole === "operator" && machineBase.assigned_operator_id === profile.id));
   const canJob = resourceRole != null && ["owner", "manager", "mechanic", "workshop", "rr_admin"].includes(resourceRole);
   const costsVisible = await canViewFarmCosts(supabase, machineBase.farm_id);
+  // Who may see the money is a role question (above); what the plan adds on top of the
+  // records is a plan question, asked of the machine's own farm: total cost of ownership,
+  // cost per hour or km, the repair-or-replace ratio and budgets are Professional (`tco`).
+  // The cost records themselves stay on every plan for whoever may see costs.
+  const analyticsVisible = costsVisible && (await farmAllows(machineBase.farm_id, "tco", profile));
   const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
   // Finance agreements, leases and contracts: owners and managers only (founder default,
   // `app.can_view_farm_finance`), narrower than costs. Interest and lease payments still
@@ -778,7 +783,7 @@ export default async function MachineDetailPage({
                     </dd>
                   </div>
                 ) : null}
-                {costsVisible && perMeter != null ? (
+                {analyticsVisible && perMeter != null ? (
                   <div>
                     <dt className="text-xs text-sand-500">{perMeterLabel}</dt>
                     <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">{rands(perMeter)}</dd>
@@ -1659,7 +1664,18 @@ export default async function MachineDetailPage({
               label: t("machine.tabCosts", locale),
               content: (
                 <div className="flex flex-col gap-4">
-              {/* Lifetime stats */}
+              {!analyticsVisible ? (
+                <UpgradeNotice
+                  feature="tco"
+                  requiredPlan="professional"
+                  currentPlan={plan}
+                  locale={locale}
+                  compact
+                  canUpgrade={resourceRole === "owner"}
+                />
+              ) : null}
+              {/* Lifetime stats: Professional analytics. */}
+              {analyticsVisible ? (<>
               <Card>
                 <CardHeader><CardTitle>{t("machine.lifetimeStats", locale)}</CardTitle></CardHeader>
                 {/* Three money tiles, one per row on a phone: `rands` is one unbreakable
@@ -1867,6 +1883,7 @@ export default async function MachineDetailPage({
                   </div>
                 ) : null}
               </Card>
+              </>) : null}
 
                 </div>
               ),
