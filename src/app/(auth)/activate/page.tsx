@@ -93,12 +93,13 @@ export default async function ActivatePage({
   // less paid).
   const owedCents = invoice ? Math.max(0, invoice.total_incl_cents - invoice.amount_paid_cents) : 0;
 
-  // Has this person ALREADY paid, seconds ago? The callback's redirect to /billing bounces
-  // back here until the webhook settles, so the answer is read from the ledger
-  // (settlingOnInvoice says why). Only attempts on THIS invoice count: a reopened farm that
-  // once paid by card was told "payment received" over its new bill and never shown a Pay
-  // button again (review finding app-1). Read only for somebody who may pay, as nobody
-  // else is shown the button it replaces.
+  // Is this person's money already moving, seconds after they paid? The callback's redirect
+  // to /billing bounces back here until the webhook settles, so the answer is read from the
+  // ledger (settlingOnInvoice says why). Only a pending attempt on THIS invoice counts: a
+  // succeeded one was read as "payment received" and hid the Pay button for good, over a
+  // new bill (review finding app-1) and over this one when it was owed again (round 5,
+  // app-1). Read only for somebody who may pay, as nobody else is shown the button it
+  // replaces.
   const settling = svc
     ? await settlingOnInvoice(svc, farmId, invoice?.id ?? null, "activate:payment-attempt")
     : null;
@@ -148,7 +149,6 @@ export default async function ActivatePage({
         ) : settling ? (
           // No Pay button while money is already moving on this invoice (SettlingNotice).
           <SettlingNotice
-            settling={settling}
             refreshHref={farmId !== profile.farm_id ? `/activate?farm=${farmId}` : "/activate"}
             locale={locale}
           />

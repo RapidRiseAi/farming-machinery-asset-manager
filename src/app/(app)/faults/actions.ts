@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { effectiveFarmRole, requireFarmRole, requireProfile, type Role } from "@/lib/auth";
+import { effectiveFarmRole, requireFarmRole, requireProfile, requireUsableFarm, type Role } from "@/lib/auth";
 import { recordFault } from "@/lib/domain/fleet-commands";
 import { errorCode } from "@/lib/action-errors";
 
@@ -56,6 +56,9 @@ export async function createFault(formData: FormData) {
   if (!role || !["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role)) {
     redirect("/faults?error=You+cannot+report+a+fault+for+that+farm");
   }
+  // The stop gate on the posted farm (review round 5, finding gate-1), outside the try below
+  // so its redirect is not caught.
+  await requireUsableFarm(farmId, profile);
 
   const supabase = await createClient();
   try {

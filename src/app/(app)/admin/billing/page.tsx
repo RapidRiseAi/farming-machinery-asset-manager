@@ -87,6 +87,7 @@ import {
   adminSetPlan,
   adminStartSubscription,
 } from "./actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +147,7 @@ export default async function AdminBillingPage({
       .select(SUBSCRIPTION_COLUMNS)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
-    supabase.from("farms").select(`${FARM_BILLING_COLUMNS}, is_test`).order("name", { ascending: true }),
+    supabase.from("farms").select(`${FARM_BILLING_COLUMNS}, is_test, suspended_for`).order("name", { ascending: true }),
   ]);
   // A failed read here showed "no subscriptions" and "no price list", and offered to start
   // a subscription for a farm that already pays.
@@ -787,7 +788,7 @@ export default async function AdminBillingPage({
               keep a farm open past it, until a date and for a reason that is recorded. Not
               offered where the gate never reads it (app-8): a sign-up still to pay, a
               cancelled farm, the old downgrade. */}
-          {offersKeepOpen(selected.sub.status) ? (
+          {offersKeepOpen(selected.sub.status, selected.farm) ? (
             <Card>
               <CardHeader
                 action={
@@ -1191,6 +1192,9 @@ export default async function AdminBillingPage({
                 >
                   <form action={adminRaiseServiceInvoice}>
                     <input type="hidden" name="farm_id" value={selected.sub.farm_id} />
+                    {/* The same post twice raised two identical invoices (review round 5,
+                        finding app-8): the request id makes a repeat land on the first. */}
+                    <RequestIdInput action="admin-billing:service-invoice" />
                     {[...catalogue.slice(0, 5).map((c) => ({
                       code: c.code,
                       name: locale.startsWith("af") ? c.name_af : c.name_en,

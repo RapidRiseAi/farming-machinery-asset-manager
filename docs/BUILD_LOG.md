@@ -6101,3 +6101,45 @@ still remove its proof (the far likelier committed-then-lost case keeps it).
 
 Suite `billing_review_4.sql` fails without the migration (30 assertions across every
 finding) and passes with it. 53 SQL suites, 817 unit tests.
+
+## 2026-11-04 - Fifth review of the billing batch
+
+A fifth pass (the money logic, the app surface, the stop gate and release readiness) found
+22 issues, none a blocker, each proven by a failing test or an exact citation. The fix run
+that followed died to usage limits before writing anything; a checkpoint of its one
+half-finished worktree had been pushed on 31 October (`codex/cloud-handoff-20261030`), and
+its stopped-page and checkout work was taken from there and finished. All fixed in
+`20261029160000`, the app and the docs:
+
+- **A trial that cancelled was invoiced, never closed, then paused** (the one high). The
+  invoice run and the closer now read the trial end as the period end. A cancelled farm
+  whose last retry was declined (past due, grace) closes too, its debt kept on the invoice.
+- **Reopening and paying**: reopening inside a paid period no longer goes pending when a
+  small invoice is open; "this period is paid" is read off the latest period invoice, since
+  a re-anchor moves the period start; a re-payment after a bounced EFT keeps its period
+  instead of starting a fresh one; a reopened farm is not swept the same night as an old
+  sign-up (`reopened_at`); the first period after a trial is a full month.
+- **Exempt farms**: their periods move on with nothing raised (clearing the flag used to
+  bill every exempt month), and the AI they used while exempt is waived when the flag is
+  cleared (`farms.billing_exempt_since`, `ai_usage.waived_at`; the AI ledger's guard allows
+  that one change). A manual retry never charges an exempt farm, and can charge a paused
+  one, which then resumes. Slot and plan changes raise no invoice for an exempt farm and are
+  refused while a farm is paused.
+- **Keep open** is refused for a farm Rapid Rise holds or has ended, and not offered there.
+- **The stopped pages**: "payment received" could stick for ever on an invoice owed again;
+  only a checkout in progress is shown now. A checkout abandoned at Paystack blocked paying
+  for up to a day: after the stale window it is asked about by its own reference, freed only
+  if Paystack says no money moved, and a payment that did go through is never charged again.
+- **Cancelling**: an unpaid sign-up and a cancelled subscription are refused with their own
+  sentences; Rapid Rise reads its own sentence on a paused farm.
+- **The stop gate**: the dashboard's meter readings, the reorder window and fault capture
+  were still ungated, and the guard test checked whole files. It now checks each action and
+  the same-file helpers it calls, ignores comments, and proved it by naming exactly those
+  actions when their gates were taken out. Finance actions that change a record by id gate
+  that record's farm, not only the farm in use; so does the depreciation policy.
+- **Rapid Rise's console**: amounts accept only the three ways money is written ("0,005"
+  and "1,50.00" were saved as R5 and R150); raising a service invoice runs once per request.
+
+Suite `billing_review_5.sql` (the verifiers' twelve proofs plus a plan-change case) fails
+without the migration and passes with it; every other fix has a unit test that fails when
+the fix is taken out. 54 SQL suites, 835 unit tests.

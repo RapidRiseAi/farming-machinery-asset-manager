@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { currentFarmId, effectiveFarmRole, requireProfile, requireRole } from "@/lib/auth";
+import { currentFarmId, effectiveFarmRole, farmIsUsable, requireProfile, requireRole } from "@/lib/auth";
 import { FleetCommandError, recordMeterReading } from "@/lib/domain/fleet-commands";
 import { todayLocal } from "@/lib/format";
 import { DASH_COOKIE, DASH_SECTIONS, serializeDashPrefs, type DashPrefs } from "@/lib/dashboard-prefs";
@@ -61,6 +61,11 @@ async function recordOne(
   if (!farmId) throw new Error("not-found");
   const role = await effectiveFarmRole(farmId, profile);
   if (!role || !READERS.includes(role)) throw new Error("forbidden");
+  // The stop gate on the machine's own farm (review round 5, finding gate-1). A boolean and
+  // a code, not requireUsableFarm: its redirect would be caught by the callers' catch and
+  // swallowed. The redirect back to the dashboard meets the layout's gate, which sends a
+  // paused farm to its stopped page.
+  if (!(await farmIsUsable(farmId, profile))) throw new Error("farm-not-active");
   await recordMeterReading(supabase, {
     farmId,
     machineId,

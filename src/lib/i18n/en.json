@@ -5298,6 +5298,8 @@
     "billingServiceDue": "The due date must be within the next 120 days.",
     "billingAmountChanged": "The amount owed changed while you were paying. Refresh the page to see what is owed now, then pay again.",
     "billingCancelSuspended": "A paused farm cannot be cancelled until what it owes is paid. Pay first, or contact Rapid Rise.",
+    "billingChangePaused": "Slots and the plan cannot be changed while the subscription is paused. Pay what is overdue first.",
+    "billingCancelPending": "This subscription has not been paid yet, so there is nothing to cancel. If it is not paid, it closes by itself.",
     "billingAmountUnclear": "That amount can be read more than one way. Type it like 1500 or 1 500,00.",
     "billingManualProofFailed": "The proof of payment could not be stored, so nothing was recorded. Try again in a moment.",
     "billingNoSuchInvoice": "That invoice no longer exists. Refresh the page and choose it again.",
@@ -5501,7 +5503,8 @@
     "manageLead": "Nothing changes until you have seen the price and said yes.",
     "downloadReceiptFull": "Download receipt",
     "quoteAdjust": "Change the figures",
-    "cancelSuspended": "This farm is paused until what it owes is paid, and a paused farm cannot be cancelled. Pay what is overdue first, or contact Rapid Rise."
+    "cancelSuspended": "This farm is paused until what it owes is paid, and a paused farm cannot be cancelled. Pay what is overdue first, or contact Rapid Rise.",
+    "cancelSuspendedRr": "Paused farms are not cancelled. Once the debt is paid or written off, record the payment or keep the farm open, and it can be cancelled from here."
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -5778,8 +5781,6 @@
     "pay": "Pay and open my farm",
     "payAmount": "Pay {amount} and open my farm",
     "note": "You are taken to Paystack to pay by card. Your card details never reach FleetWise. The plan renews every month and you can cancel it at any time from the billing screen.",
-    "settlingReceivedTitle": "Payment received",
-    "settlingReceivedBody": "Thank you. We are switching your account on now. It usually takes a few seconds. Refresh this page and you will be straight in.",
     "settlingInflightTitle": "We are waiting on your bank",
     "settlingInflightBody": "Your payment is going through. Please do not pay again, refresh this page in a moment and it should be done. If it has not cleared in a few minutes, get in touch and we will look it up.",
     "settlingRefresh": "Refresh",
@@ -7055,7 +7056,6 @@
     "leadMany": "More than one payment is over seven days overdue, so the app is paused until they are all paid. Everything comes back once the last one is.",
     "owedInvoice": "{amount} is unpaid on invoice {ref}, due since {date}.",
     "moreOverdue": "After this payment, {amount} is still overdue on other invoices, so the farm stays paused until that is paid too.",
-    "payAmount": "Pay {amount} now",
-    "settlingReceivedMore": "Thank you, that payment is in. Other invoices are still overdue, so refresh this page to pay the next one."
+    "payAmount": "Pay {amount} now"
   }
 }

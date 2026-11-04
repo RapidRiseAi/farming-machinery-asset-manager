@@ -42,6 +42,7 @@ type Result = { data: unknown; error: Failure | null };
 type Call = { kind: string; args: unknown[] };
 
 const calls: Call[] = [];
+const finishedRequests = new Map<string, string>();
 let rpcResult: Result = { data: null, error: null };
 let lookupResult: Result = { data: [], error: null };
 let lookupThrows = false;
@@ -102,6 +103,18 @@ const STUBS: Record<string, unknown> = {
   "@/lib/supabase/service": { createServiceClient: () => fakeClient },
   // Not exercised here; stubbed so the provider adapter is never loaded at all.
   "@/lib/billing/worker": { reconcileAttemptById: async () => ({}), retryInvoiceCharge: async () => ({}) },
+  // As the real one: a request id that already finished lands on its first result without
+  // running again, and a refusal (the work throws) releases it for a corrected retry.
+  "@/lib/request-claim": {
+    runOnce: async (fd: FormData, _action: string, work: () => Promise<string>) => {
+      const id = String(fd.get("request_id") ?? "");
+      const seen = id ? finishedRequests.get(id) : undefined;
+      if (seen) throw new Redirect(seen);
+      const target = await work();
+      if (id) finishedRequests.set(id, target);
+      throw new Redirect(target);
+    },
+  },
 };
 
 const load = createRequire(path.join(process.cwd(), "package.json"));
@@ -367,6 +380,8 @@ for (const [typed, cents] of [
   ["250,50", 25050],
   ["R1 500.00", 150000],
   ["1,500.50", 150050],
+  // Dot thousands with a comma decimal (review round 5, app-7).
+  ["1.500,50", 150050],
 ] as const) {
   test(`a payment typed "${typed}" is recorded as ${cents} cents`, async () => {
     reset();
@@ -376,7 +391,8 @@ for (const [typed, cents] of [
   });
 }
 
-for (const typed of ["1,2345", "1.500", "1.505", "1,500,50", "abc"]) {
+// "0,005" and "1,50.00" were saved as R5,00 and R150,00 (review round 5, app-7).
+for (const typed of ["1,2345", "1.500", "1.505", "1,500,50", "abc", "0,005", "1,50.00", "0500"]) {
   test(`a payment typed "${typed}" reads two ways (or none) and is refused before anything is stored`, async () => {
     reset();
     const url = await run(actions.adminRecordPayment, paymentForm({ amount: typed }));
@@ -394,6 +410,18 @@ for (const typed of ["", "0", "-5"]) {
     assert.equal(count("upload") + count("rpc"), 0);
   });
 }
+
+test("the same service-invoice post twice raises one invoice (review round 5, app-8)", async () => {
+  reset();
+  rpcResult = { data: INVOICE, error: null };
+  const fd = serviceForm("1500", "1");
+  fd.set("request_id", "5b1d2f0e-8c3a-4d6b-9e2f-1a2b3c4d5e6f");
+  const first = await run(actions.adminRaiseServiceInvoice, fd);
+  const second = await run(actions.adminRaiseServiceInvoice, fd);
+  assert.equal(count("rpc"), 1, "billing_raise_service_invoice ran once");
+  assert.equal(second.toString(), first.toString(), "the repeat lands on the first result");
+  assert.equal(first.searchParams.get("saved"), "service-invoice");
+});
 
 test("a service price is read the same way: '1,500' is R1 500 a unit", async () => {
   reset();

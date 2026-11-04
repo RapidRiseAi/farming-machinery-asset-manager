@@ -930,9 +930,19 @@ export function adminRank(status: string): number {
  * for a cancelled one BEFORE it reads `access_extended_until`, so keeping either open saved
  * "access extended" and changed nothing. A downgrade is the old non-payment state, which
  * the gate does not stop either. The database refuses them too; the dialog is not offered.
+ *
+ * Nor for a farm the gate closes from its own row (review round 5, finding app-3): ended
+ * (`cancelled`), or held by Rapid Rise (`suspended` for anything but billing). The
+ * extension was saved for those too and never read.
  */
-export function offersKeepOpen(status: string): boolean {
-  return status !== "pending" && status !== "cancelled" && status !== "downgraded";
+export function offersKeepOpen(
+  status: string,
+  farm?: Pick<FarmBillingRow, "status" | "suspended_for"> | null,
+): boolean {
+  if (status === "pending" || status === "cancelled" || status === "downgraded") return false;
+  if (farm?.status === "cancelled") return false;
+  if (farm?.status === "suspended" && farm.suspended_for !== "billing") return false;
+  return true;
 }
 
 /** True when the commercial plan and the effective plan have parted company. */
@@ -998,6 +1008,9 @@ export type FarmBillingRow = {
    * Read by the billing console only (it selects it on top of FARM_BILLING_COLUMNS), so the
    * farm's own billing page never depends on the column. */
   is_test?: boolean;
+  /** Why a suspended farm is stopped: `billing` (paused until paid) or null (a Rapid Rise
+   * hold). Read by the billing console only, like is_test. */
+  suspended_for?: string | null;
 };
 
 // == The billable count, and the sentence that explains it ====================

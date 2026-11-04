@@ -98,6 +98,14 @@ async function requireBillingAdmin(): Promise<{ profile: Profile; farmId: string
  * The answer comes back as a WORD rather than a number, so the screen can say which of
  * those three happened, which is the part a farmer actually needs to read.
  */
+/**
+ * The engine refuses slot and plan changes on a paused subscription
+ * (20261029160000, review round 5 finding gate-3): adding slots raised and opened a
+ * pro-rata invoice while the farm could not use the app. Matched by its words, as the
+ * "retire or sell" refusal is.
+ */
+const PAUSED_CHANGE = /paused subscription cannot change/i;
+
 export async function changeVehicleSlots(formData: FormData): Promise<void> {
   const { farmId } = await requireBillingAdmin();
   const quota = Number.parseInt(String(formData.get("quota") ?? ""), 10);
@@ -113,6 +121,7 @@ export async function changeVehicleSlots(formData: FormData): Promise<void> {
     // worth separating is "retire or sell a vehicle first", because it is the only
     // refusal the farmer can do something about themselves.
     if (/retire or sell/i.test(error.message)) bounce("billing-quota-below-fleet");
+    if (PAUSED_CHANGE.test(error.message)) bounce("billing-change-paused");
     bounce("billing-quota-failed");
   }
 
@@ -151,7 +160,7 @@ export async function changeOwnPlan(formData: FormData): Promise<void> {
     plan,
     billingPeriod: period,
   });
-  if (error) bounce("billing-plan-failed");
+  if (error) bounce(PAUSED_CHANGE.test(error.message) ? "billing-change-paused" : "billing-plan-failed");
 
   const applied = String(result?.applied ?? "");
   revalidatePath("/billing");

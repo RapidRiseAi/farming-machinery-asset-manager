@@ -299,12 +299,19 @@ the role first. Two locks: the grant is absent *and* no permissive write policy 
 > period starts again on the payment date; otherwise the period end and the next billing
 > date move on by the days suspended (20261029120000). Nothing is invoiced while suspended,
 > AI use from before the pause included (it is billed on the first invoice after the farm
-> resumes, normally its next period invoice, 20261029150000); the card is retried weekly for four weeks. A suspended
-> subscription cannot be cancelled until what is owed is paid. Rapid Rise can keep a farm
-> open until a date, with a recorded reason (`admin_extend_billing_access`; only for a
-> paused or overdue farm, since the gate never reads it for a pending or closed one).
+> resumes, normally its next period invoice, 20261029150000); the card is retried weekly
+> for four weeks, and a manual retry can charge a paused farm, which then resumes. A paused
+> farm cannot change its slots or plan, and cannot be cancelled, until what is owed is paid;
+> an unpaid sign-up cannot be cancelled either, since it closes by itself. A farm that
+> cancels at period end closes the night after its period, a trial that cancels the night
+> after its trial, and one whose last retry was declined closes too, its debt kept on the
+> open invoice (20261029160000). Rapid Rise can keep a farm open until a date, with a
+> recorded reason (`admin_extend_billing_access`; only for a paused or overdue farm, since
+> the gate never reads it for a pending, closed or held one).
 > `billing_exempt` is a deliberate flag, not the test-account flag: an exempt farm is
-> never invoiced, charged, swept or suspended (20261029150000). The farms that were test
+> never invoiced, charged, swept or suspended. Its periods move on with nothing raised, and
+> the AI it used while exempt is waived when the flag is cleared (`farms.billing_exempt_since`,
+> `ai_usage.waived_at`, 20261029160000), so clearing it bills only from then on. The farms that were test
 > farms on 2026-10-29 were marked exempt once; a farm moved to the test side later is
 > marked by hand, and a test sign-up meant to exercise paying must stay non-exempt. The plan
 > is no longer reduced: the downgrade step is out of the nightly run. What follows describes

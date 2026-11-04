@@ -909,3 +909,13 @@ test("Keep open is offered for a paused or overdue farm, never for a sign-up, a 
     assert.equal(offersKeepOpen(status), false, `${status} should not offer Keep open`);
   }
 });
+
+// Review round 5, finding app-3: the gate closes a farm from its own row (ended, or held by
+// Rapid Rise) before it reads the extension, whatever the subscription says.
+test("Keep open is not offered for a farm Rapid Rise holds or has ended, only for one paused for billing", () => {
+  assert.equal(offersKeepOpen("suspended", { status: "suspended", suspended_for: "billing" }), true);
+  assert.equal(offersKeepOpen("past_due", { status: "active", suspended_for: null }), true);
+  assert.equal(offersKeepOpen("active", { status: "suspended", suspended_for: null }), false, "a Rapid Rise hold");
+  assert.equal(offersKeepOpen("past_due", { status: "cancelled", suspended_for: null }), false, "an ended farm");
+  assert.equal(offersKeepOpen("active", null), true, "no farm row: judged by the subscription");
+});

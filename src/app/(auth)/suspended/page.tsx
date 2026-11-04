@@ -109,12 +109,7 @@ export default async function SuspendedPage({
         ) : bill?.settling ? (
           // The payer is back from Paystack and the webhook has not settled yet: no Pay now,
           // which could only be refused as "already in progress" (review finding app-10).
-          <SettlingNotice
-            settling={bill.settling}
-            refreshHref={here}
-            locale={locale}
-            receivedBody={more ? t("suspended.settlingReceivedMore", locale) : undefined}
-          />
+          <SettlingNotice refreshHref={here} locale={locale} />
         ) : (
           <form action={payOverdueAction} className="mt-6">
             {farmId !== profile.farm_id ? <input type="hidden" name="farm" value={farmId} /> : null}

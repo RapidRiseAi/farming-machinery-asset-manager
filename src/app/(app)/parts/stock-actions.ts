@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { farmPermissionState, requireFarmPermission } from "@/lib/permissions";
+import { requireUsableFarm } from "@/lib/auth";
 import { parseRandsToCents } from "@/lib/money";
 import { MOVE_KINDS, type MoveKind } from "@/lib/stock";
 import { clampLookahead } from "@/lib/reorder";
@@ -254,10 +255,13 @@ export async function untrackPart(formData: FormData) {
  * card states the window in words, and its "Change" dialog is the control that moves it.
  */
 export async function setReorderWindow(formData: FormData) {
-  const { farmId, role } = await farmPermissionState();
+  const { farmId, role, profile } = await farmPermissionState();
   if (!farmId || !role || !["owner", "manager"].includes(role)) {
     redirect("/parts?error=Not+allowed");
   }
+  // The stop gate (review round 5, finding gate-1): farmPermissionState has none, and this
+  // writes farm settings.
+  await requireUsableFarm(farmId, profile);
 
   const days = clampLookahead(String(formData.get("reorder_lookahead_days") ?? ""));
 

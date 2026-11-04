@@ -19,6 +19,7 @@ import { isIsoDate, isUuid } from "@/lib/ids";
 import { classifyFailure, errorCode, type DbFailure } from "@/lib/action-errors";
 import { parseRandsToCents } from "@/lib/money";
 import { captureError } from "@/lib/observability";
+import { runOnce } from "@/lib/request-claim";
 
 /**
  * Rapid Rise's own billing controls.
@@ -81,8 +82,21 @@ function failure(error: DbFailure, where: string): string {
  * refuses "1,2345". It reads a lone dot as the decimal point and keeps two places, so
  * "1.500" would still be R1,50: more than two digits after a dot is refused here as well,
  * since no amount of money is written that way and a thousands dot is the likelier meaning.
+ *
+ * And only the three shapes money is written in (review round 5, finding app-7): plain
+ * ("1500", "250,50"), comma thousands with a dot decimal ("1,500.50") and dot thousands
+ * with a comma decimal ("1.500,50"). "0,005" was read as R5,00 and "1,50.00" as R150,00,
+ * both saved under a success banner. A grouped number never starts with a 0 group, and no
+ * number starts with a 0 unless it is the 0 before a decimal. A leading minus is let
+ * through so the caller's "more than zero" check answers it.
  */
 function randsToCents(raw: string): number | null {
+  const s = String(raw).trim().replace(/^R\s*/i, "").replace(/[\s   ']/g, "");
+  const shaped =
+    /^-?\d+([.,]\d{1,2})?$/.test(s) ||
+    /^-?[1-9]\d{0,2}(,\d{3})+(\.\d{1,2})?$/.test(s) ||
+    /^-?[1-9]\d{0,2}(\.\d{3})+(,\d{1,2})?$/.test(s);
+  if (!shaped || /^-?0\d/.test(s)) return null;
   const cents = parseRandsToCents(raw);
   if (cents == null || !Number.isSafeInteger(cents)) return null;
   if (/\.\d{3,}$/.test(raw.replace(/[\s']/g, ""))) return null;
@@ -525,17 +539,27 @@ export async function adminRaiseServiceInvoice(formData: FormData): Promise<void
   }
   if (lines.length === 0) bounce("billing-service-empty", farmId);
 
+  // Once per request (review round 5, finding app-8): the same post twice, from a tap before
+  // the page woke or a browser resubmitting a slow response, raised two identical invoices
+  // the farm could then pay twice by EFT. A refusal releases the claim, so a corrected
+  // retry is a new attempt; a repeat of one that saved lands on its result.
   const supabase = createServiceClient();
-  const { error } = await supabase.rpc(BILLING_RPC.raiseServiceInvoice, {
-    p_farm: farmId,
-    p_lines: lines,
-    p_due_on: due || null,
-    p_by: profile.id,
-  });
-  if (error) bounce(failure(error, "admin-billing:service-invoice"), farmId);
-
-  revalidatePath("/admin/billing");
-  redirect(`/admin/billing?farm=${farmId}&saved=service-invoice`);
+  return runOnce(
+    formData,
+    "admin-billing:service-invoice",
+    async () => {
+      const { error } = await supabase.rpc(BILLING_RPC.raiseServiceInvoice, {
+        p_farm: farmId,
+        p_lines: lines,
+        p_due_on: due || null,
+        p_by: profile.id,
+      });
+      if (error) bounce(failure(error, "admin-billing:service-invoice"), farmId);
+      revalidatePath("/admin/billing");
+      return `/admin/billing?farm=${farmId}&saved=service-invoice`;
+    },
+    { whileRunning: `/admin/billing?farm=${farmId}&error=still-saving` },
+  );
 }
 
 /** Take back a payment recorded by hand (a bounced EFT, a typing mistake), with a reason. */

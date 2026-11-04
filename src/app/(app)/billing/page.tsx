@@ -295,17 +295,21 @@ export default async function BillingPage({
   // render rather than carried in a hidden field, so a stale tab or a tampered value
   // cannot put a price in front of somebody that the engine will not honour, and a
   // review that is only ever a navigation can never itself take money.
+  // Not on a paused or unpaid subscription: the engine refuses both changes there
+  // (20261029160000, review round 5 finding gate-3), so neither the forms nor a priced
+  // review are offered.
+  const canChange = canManage && !!sub && sub.status !== "suspended" && sub.status !== "pending";
   const wantsPlanReview =
     sp.change === "plan" &&
     !!sub &&
-    canManage &&
+    canChange &&
     (PLANS as readonly string[]).includes(String(sp.plan)) &&
     (BILLING_PERIODS as readonly string[]).includes(String(sp.period));
   const requestedQuota = Number.parseInt(String(sp.quota ?? ""), 10);
   const wantsSlotsReview =
     sp.change === "slots" &&
     !!sub &&
-    canManage &&
+    canChange &&
     Number.isFinite(requestedQuota) &&
     requestedQuota >= 1;
 
@@ -424,8 +428,14 @@ export default async function BillingPage({
           : undefined;
 
   const endsOn = sub?.ended_on ?? sub?.current_period_end ?? null;
+  // Not for a sign-up that has not paid (review round 5, finding money-8): setCancellation
+  // refuses it, since an unpaid subscription closes by itself.
   const cancellable =
-    !!sub && sub.status !== "cancelled" && sub.status !== "non_renewing" && !sub.cancel_at_period_end;
+    !!sub &&
+    sub.status !== "cancelled" &&
+    sub.status !== "non_renewing" &&
+    sub.status !== "pending" &&
+    !sub.cancel_at_period_end;
 
   return (
     <PageContainer>
@@ -860,7 +870,7 @@ export default async function BillingPage({
           renders the priced review above, and only the review's own button commits.
           `?manage=` opens it, which is how the vehicle-limit wall on /machines/new
           lands an owner on the slots form rather than on a closed box. */}
-      {sub && canManage ? (
+      {sub && canChange ? (
         <details
           id="manage"
           open={manageOpen}
@@ -1412,13 +1422,17 @@ export default async function BillingPage({
       {/* A paused farm is not cancelled until it has paid (review finding money-4):
           `setCancellation` refuses it, so the reason is said here instead of offering a
           dialog whose only answer is that refusal. A page opened before the pause still
-          gets the refusal as the error banner above, like the other cancel errors. */}
+          gets the refusal as the error banner above, like the other cancel errors.
+          Rapid Rise reads its own sentence: "contact Rapid Rise" told the support desk to
+          contact itself (review round 5, finding app-6). */}
       {cancellable && sub?.status === "suspended" ? (
         <Card>
           <CardHeader>
             <CardTitle>{t("billing.cancelTitle", locale)}</CardTitle>
           </CardHeader>
-          <p className="text-sm text-sand-700">{t("billing.cancelSuspended", locale)}</p>
+          <p className="text-sm text-sand-700">
+            {t(profile.role === "rr_admin" ? "billing.cancelSuspendedRr" : "billing.cancelSuspended", locale)}
+          </p>
         </Card>
       ) : cancellable && sub ? (
         <Card>

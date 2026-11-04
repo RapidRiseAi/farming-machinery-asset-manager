@@ -20,30 +20,38 @@ import { must, soft } from "@/lib/supabase/must";
 import { addDays } from "./policy";
 import { STALE_PENDING_MINUTES } from "./worker";
 
-/** Money already moving on the invoice the Pay button would charge. */
-export type Settling = "received" | "inflight";
+/**
+ * Money already moving on the invoice the Pay button would charge: a checkout open at the
+ * bank. There used to be a second state, "received", for a `succeeded` attempt, and it
+ * could only ever be wrong (review round 5, finding app-1; `settlingOnInvoice` says why).
+ */
+export type Settling = "inflight";
 
 export type SettlingAttempt = { status: string; requested_at: string };
 
 /**
- * What the latest pending-or-succeeded attempt on the invoice means for the page.
+ * What the latest pending attempt on the invoice means for the page.
  *
  * A `pending` attempt older than the reconciler's own staleness window is not somebody at
- * a payment page; it is a checkout that was abandoned and will be swept. Showing "waiting
- * for your bank" for ever would strand them with no way to try again, so the same 30
- * minutes the worker uses decides it here. One definition, not two.
+ * a payment page; it is a checkout that was abandoned. Showing "waiting for your bank" for
+ * ever would strand them with no way to try again, so the same 30 minutes the worker uses
+ * decides it here, and `beginCheckout` asks Paystack about that attempt when Pay is
+ * pressed instead of refusing it as "already in progress" until the nightly run (review
+ * round 5, finding app-2). One definition, not two.
+ *
+ * Anything but `pending` is nothing. The read asks for pending only; this holds the line
+ * if it is ever handed something else.
  */
 export function settlingFrom(attempt: SettlingAttempt | null, nowMs: number): Settling | null {
-  if (!attempt) return null;
-  if (attempt.status === "succeeded") return "received";
+  if (!attempt || attempt.status !== "pending") return null;
   const ageMinutes = (nowMs - new Date(attempt.requested_at).getTime()) / 60000;
-  return attempt.status === "pending" && ageMinutes < STALE_PENDING_MINUTES ? "inflight" : null;
+  return ageMinutes < STALE_PENDING_MINUTES ? "inflight" : null;
 }
 
 /**
- * Has this person ALREADY paid this invoice, seconds ago?
+ * Is money moving on this invoice right now?
  *
- * The Paystack callback sends them to `/billing?checkout=paid`, inside `(app)`, whose
+ * The Paystack callback sends the payer to `/billing?checkout=paid`, inside `(app)`, whose
  * layout runs the gate, and the gate keeps answering `pending` or `suspended` until the
  * webhook settles the attempt. So they bounce back to the stopped page, and somebody who
  * had just handed over a card was shown the Pay button again; pressing it was refused by
@@ -51,12 +59,18 @@ export function settlingFrom(attempt: SettlingAttempt | null, nowMs: number): Se
  * sentence at the worst moment. The state is read from the LEDGER rather than a query
  * parameter, so it holds however they arrived.
  *
- * Only attempts on THE invoice being paid count (review finding app-1). The read used to
- * take the farm's latest attempt of any invoice, so a farm that once paid by card, then
- * cancelled and reopened, found last period's `succeeded` attempt, was told "payment
- * received, refresh and you will be straight in" over its new invoice, and was never shown
- * a Pay button again. With no invoice there is nothing that can be settling, so nothing is
- * read.
+ * PENDING attempts only (review round 5, finding app-1). The read also took `succeeded`
+ * ones and answered "payment received, refresh and you will be straight in" with no Pay
+ * button. But `app.settle_billing_attempt` marks the attempt succeeded, records the payment
+ * and restores the farm in ONE transaction, so by the time a page can see a success the
+ * invoice is already paid and is no longer the one being offered. A success on an invoice
+ * that is still owed is never "paid seconds ago": the invoice is owed again (an EFT on it
+ * was reversed after the card paid the rest), and that farm was told to refresh for ever
+ * with no way to pay.
+ *
+ * Only attempts on THE invoice being paid count (review finding app-1, round 4): the farm's
+ * latest attempt of any invoice could belong to a bill long since settled. With no invoice
+ * there is nothing that can be settling, so nothing is read.
  *
  * `must`: a failed read here would show the Pay button to somebody whose money was moving.
  */
@@ -74,7 +88,7 @@ export async function settlingOnInvoice(
       .select("status, requested_at")
       .eq("farm_id", farmId)
       .eq("invoice_id", invoiceId)
-      .in("status", ["pending", "succeeded"])
+      .eq("status", "pending")
       .order("requested_at", { ascending: false })
       .limit(1)
       .maybeSingle(),

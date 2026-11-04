@@ -74,6 +74,18 @@ export async function setDepreciationPolicy(formData: FormData): Promise<void> {
   }
 
   const supabase = await createClient();
+  // The stop gate on the machine's own farm as well as the farm in use (review round 5,
+  // finding gate-2): any machine the person can see was accepted here. Read through their
+  // own client, so RLS decides; a machine they cannot see is the RPC's to refuse.
+  const { data: machine, error: machineError } = await supabase
+    .from("machines")
+    .select("farm_id")
+    .eq("id", machineId)
+    .maybeSingle();
+  if (machineError) bounce("depreciation-save-failed");
+  const machineFarm = (machine as { farm_id: string } | null)?.farm_id;
+  if (machineFarm) await requireUsableFarm(machineFarm, profile);
+
   const { error } = await supabase.rpc("set_machine_depreciation", {
     p_machine: machineId,
     p_method: method,

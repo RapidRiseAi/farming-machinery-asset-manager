@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Fifth review fixes: "is the current period paid" asked of the latest period invoice (a new helper).
+  "20261029160000": "select to_regprocedure('app.billing_latest_period_paid(uuid)') is not null",
   // Fourth review fixes: a charge claim refuses more than is owed (a new refusal in it).
   "20261029150000": "select coalesce(pg_get_functiondef(to_regprocedure('app.claim_billing_charge(uuid,text,billing_attempt_kind,bigint)')) like '%the amount owed has changed%', false)",
   // Third review fixes: the generator raises a reopened farm an invoice (its new pending rule).

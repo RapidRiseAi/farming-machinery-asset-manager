@@ -138,6 +138,26 @@ async function actingProfile(): Promise<Profile> {
   return profile;
 }
 
+/**
+ * The stop gate on the farm a record belongs to (review round 5, finding gate-2). The
+ * by-id actions gated only the farm in use, so a person on two farms, working in the paid
+ * one, could still change a paused farm's agreement from a tab opened on it. The farm is
+ * read through the caller's own client, so RLS answers who may see the row; a row they
+ * cannot see is left to the RPC, which refuses it.
+ */
+async function gateRecordFarm(
+  table: "finance_agreements" | "finance_instalments" | "asset_contracts",
+  recordId: string,
+  profile: Profile,
+  path: string,
+): Promise<void> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from(table).select("farm_id").eq("id", recordId).maybeSingle();
+  if (error) bounceDb(path, errorCode(error, `finance:gate:${table}`));
+  const farmId = (data as { farm_id: string } | null)?.farm_id;
+  if (farmId) await requireUsableFarm(farmId, profile);
+}
+
 // == Finance agreements =======================================================
 
 /** Capture a finance agreement on a machine; its schedule is built in the same call. */
@@ -175,9 +195,10 @@ export async function createFinanceAgreement(formData: FormData) {
 
 /** Edit an agreement's terms. The schedule's unpaid rows are rebuilt when a term changed. */
 export async function updateFinanceAgreement(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
+  await gateRecordFarm("finance_agreements", agreementId, profile, path);
   const fields = agreementFields(formData, path);
   const supabase = await createClient();
   // The statement balance is its own small form; keep what is there.
@@ -199,9 +220,10 @@ export async function updateFinanceAgreement(formData: FormData) {
 
 /** The lender's statement balance, which then wins over the schedule's estimate. */
 export async function recordStatementBalance(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
+  await gateRecordFarm("finance_agreements", agreementId, profile, path);
   const balance = money(formData, "statement_balance", path, "finance-amount-invalid");
   const on = date(formData, "statement_on", path, "finance-dates");
   if ((balance == null) !== (on == null)) bounce(path, "finance-statement-incomplete");
@@ -228,8 +250,9 @@ export async function recordStatementBalance(formData: FormData) {
 export async function recordFinancePayment(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:record-payment", async () => {
-    await actingProfile();
+    const profile = await actingProfile();
     const instalmentId = id(formData, "instalment_id", path);
+    await gateRecordFarm("finance_instalments", instalmentId, profile, path);
     const amount = money(formData, "amount", path, "finance-payment-amount");
     const paidOn = date(formData, "paid_on", path, "finance-dates");
     const supabase = await createClient();
@@ -246,9 +269,10 @@ export async function recordFinancePayment(formData: FormData) {
 
 /** Undo a payment recorded by mistake. */
 export async function clearFinancePayment(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const instalmentId = id(formData, "instalment_id", path);
+  await gateRecordFarm("finance_instalments", instalmentId, profile, path);
   const supabase = await createClient();
   const { error } = await supabase.rpc("finance_clear_payment", { p_instalment: instalmentId });
   if (error) bounceDb(path, errorCode(error, "finance:clear-payment"));
@@ -257,9 +281,10 @@ export async function clearFinancePayment(formData: FormData) {
 
 /** Correct one row of the schedule: the lender moved a date or charged another amount. */
 export async function updateFinanceInstalment(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const instalmentId = id(formData, "instalment_id", path);
+  await gateRecordFarm("finance_instalments", instalmentId, profile, path);
   const due = date(formData, "due_date", path, "finance-dates");
   const amount = money(formData, "amount", path, "finance-amount-invalid");
   if (!due || amount == null) bounce(path, "finance-schedule-invalid");
@@ -275,9 +300,10 @@ export async function updateFinanceInstalment(formData: FormData) {
 
 /** Rebuild the unpaid rows on the agreement's current terms. */
 export async function regenerateFinanceSchedule(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
+  await gateRecordFarm("finance_agreements", agreementId, profile, path);
   const supabase = await createClient();
   const { error } = await supabase.rpc("finance_regenerate_schedule", { p_agreement: agreementId });
   if (error) bounceDb(path, errorCode(error, "finance:regenerate"));
@@ -288,8 +314,9 @@ export async function regenerateFinanceSchedule(formData: FormData) {
 export async function settleFinanceAgreement(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:settle", async () => {
-    await actingProfile();
+    const profile = await actingProfile();
     const agreementId = id(formData, "agreement_id", path);
+    await gateRecordFarm("finance_agreements", agreementId, profile, path);
     const on = date(formData, "settled_on", path, "finance-settle-date");
     const amount = money(formData, "settlement", path, "finance-payment-amount");
     if (!on) bounce(path, "finance-settle-date");
@@ -307,9 +334,10 @@ export async function settleFinanceAgreement(formData: FormData) {
 
 /** Remove an agreement captured by mistake (soft; the costs it booked are withdrawn). */
 export async function deleteFinanceAgreement(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const agreementId = id(formData, "agreement_id", path);
+  await gateRecordFarm("finance_agreements", agreementId, profile, path);
   const supabase = await createClient();
   const { error } = await supabase.rpc("finance_delete_agreement", { p_agreement: agreementId });
   if (error) bounceDb(path, errorCode(error, "finance:delete-agreement"));
@@ -355,10 +383,11 @@ function contractFields(fd: FormData, path: string): Record<string, unknown> {
 export async function createContract(formData: FormData) {
   const path = back(formData);
   return runOnce(formData, "finance:create-contract", async () => {
-    await actingProfile();
+    const profile = await actingProfile();
     const farmId = id(formData, "farm_id", path);
     const supabase = await createClient();
     if (!(await canViewFarmFinance(supabase, farmId))) bounce(path, "forbidden");
+    await requireUsableFarm(farmId, profile);
     const { error } = await supabase.rpc("asset_contract_save", {
       p_contract: null,
       p_farm: farmId,
@@ -370,9 +399,10 @@ export async function createContract(formData: FormData) {
 }
 
 export async function updateContract(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
+  await gateRecordFarm("asset_contracts", contractId, profile, path);
   const supabase = await createClient();
   const { error } = await supabase.rpc("asset_contract_save", {
     p_contract: contractId,
@@ -385,9 +415,10 @@ export async function updateContract(formData: FormData) {
 
 /** End a contract on a day: nothing falls due after it and it no longer renews. */
 export async function endContract(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
+  await gateRecordFarm("asset_contracts", contractId, profile, path);
   const on = date(formData, "end_date", path, "contract-dates");
   if (!on) bounce(path, "contract-dates");
   const supabase = await createClient();
@@ -398,9 +429,10 @@ export async function endContract(formData: FormData) {
 
 /** Renew to a later end date, optionally at a new amount. */
 export async function renewContract(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
+  await gateRecordFarm("asset_contracts", contractId, profile, path);
   const on = date(formData, "end_date", path, "contract-renew-date");
   if (!on) bounce(path, "contract-renew-date");
   const amount = money(formData, "amount", path, "finance-amount-invalid");
@@ -415,9 +447,10 @@ export async function renewContract(formData: FormData) {
 }
 
 export async function deleteContract(formData: FormData) {
-  await actingProfile();
+  const profile = await actingProfile();
   const path = back(formData);
   const contractId = id(formData, "contract_id", path);
+  await gateRecordFarm("asset_contracts", contractId, profile, path);
   const supabase = await createClient();
   const { error } = await supabase.rpc("asset_contract_delete", { p_contract: contractId });
   if (error) bounceDb(path, errorCode(error, "finance:delete-contract"));
@@ -459,6 +492,7 @@ export async function uploadFinanceDocument(formData: FormData) {
       .maybeSingle();
     if (parentError) bounceDb(path, errorCode(parentError, "finance:upload-document:parent"));
     const farmId = (parent as { farm_id: string } | null)?.farm_id;
+    if (farmId) await requireUsableFarm(farmId, profile);
     if (!farmId) bounce(path, "finance-not-found");
 
     // The person's own file name is arbitrary input on a path; keep only the kind of file.
@@ -495,13 +529,14 @@ export async function removeFinanceDocument(formData: FormData) {
   const supabase = await createClient();
   const { data: existing, error: readError } = await supabase
     .from("attachments")
-    .select("id")
+    .select("id, farm_id")
     .eq("id", docId)
     .in("parent_type", ["finance_agreement", "asset_contract"])
     .is("deleted_at", null)
     .maybeSingle();
   if (readError) bounceDb(path, errorCode(readError, "finance:remove-document:read"));
   if (!existing) bounce(path, "finance-not-found");
+  await requireUsableFarm((existing as { farm_id: string }).farm_id, profile);
   // Not asked back: the select policy hides the row the moment it is soft-deleted.
   const { error } = await supabase
     .from("attachments")

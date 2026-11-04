@@ -1302,6 +1302,8 @@ declare
     'farm_billing_gate','create_pending_signup',
     'billing_quota_change_quote','change_billing_quota','sweep_dormant_signups',
     'billing_reopen_subscription','billing_record_refund',
+    -- 20261029160000: "is the current period paid", read off the latest period invoice.
+    'billing_latest_period_invoice','billing_latest_period_paid',
     -- Support tickets (20260912160000). `support_ticket_evidence` reads five billing
     -- tables and builds an object that LEAVES THE BUILDING, it is posted to the support
     -- dashboard, so it is the most sensitive function in this list. Granted to nobody at
