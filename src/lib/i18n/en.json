@@ -7176,5 +7176,249 @@
     "open": "Open",
     "notIncluded": "Not in the combined view: this farm's plan does not include it (Complete and above).",
     "note": "Each farm's figures are what you can see on that farm. Running cost is fuel, parts, labour, workshop invoices and other costs since the first of the month, ex VAT."
+  },
+  "dash": {
+    "w": {
+      "attention": {
+        "title": "Needs your attention",
+        "desc": "Every problem, overdue service, expiring paper and fine, worst first, one row per machine."
+      },
+      "open_problems": {
+        "title": "Open problems",
+        "desc": "Problems not yet resolved, and how many have a machine standing still."
+      },
+      "new_problems": {
+        "title": "New problems",
+        "desc": "Problems reported today, this week or this month."
+      },
+      "machines_with_problems": {
+        "title": "Machines with problems",
+        "desc": "How many machines have at least one open problem."
+      },
+      "machines_stopped": {
+        "title": "Machines standing still",
+        "desc": "Machines with a problem that stops them working."
+      },
+      "problems_trend": {
+        "title": "Problems over time",
+        "desc": "Problems reported each month."
+      },
+      "problems_by_urgency": {
+        "title": "Problems by urgency",
+        "desc": "Open problems split into stopped, limping and can still work."
+      },
+      "latest_problems": {
+        "title": "Latest problems",
+        "desc": "The newest open problems, with the machine and how urgent each one is."
+      },
+      "service_overdue": {
+        "title": "Service overdue",
+        "desc": "Machines with at least one overdue service task."
+      },
+      "service_due": {
+        "title": "Service due",
+        "desc": "Machines with a service due soon or overdue."
+      },
+      "service_status": {
+        "title": "Service status",
+        "desc": "Every machine by its most urgent service: overdue, due soon, OK, or no plan."
+      },
+      "upcoming_services": {
+        "title": "Upcoming services",
+        "desc": "The next service tasks by date."
+      },
+      "stale_meters": {
+        "title": "Meters to read",
+        "desc": "Machines whose hours or kilometres have not been recorded lately."
+      },
+      "fleet_size": {
+        "title": "Fleet size",
+        "desc": "Machines in use, and how many are working now."
+      },
+      "fleet_status": {
+        "title": "Fleet status",
+        "desc": "Machines active, on standby, in the workshop and out of service."
+      },
+      "in_workshop": {
+        "title": "In the workshop",
+        "desc": "Machines in the workshop and for how long."
+      },
+      "open_job_cards": {
+        "title": "Open job cards",
+        "desc": "Job cards not finished yet, and how many are waiting for parts."
+      },
+      "job_cards_by_status": {
+        "title": "Job cards by status",
+        "desc": "Open job cards split by where they stand."
+      },
+      "spend_month": {
+        "title": "Spend this month",
+        "desc": "Parts, labour and outside invoices on job cards this month, against last month."
+      },
+      "spend_trend": {
+        "title": "Spend over time",
+        "desc": "Job card spend each month."
+      },
+      "spend_by_type": {
+        "title": "Spend by kind of work",
+        "desc": "Services, repairs, inspections and other work over the period."
+      },
+      "top_cost_machines": {
+        "title": "Costliest machines",
+        "desc": "The machines that cost the most over the period."
+      },
+      "fuel_litres_month": {
+        "title": "Fuel this month",
+        "desc": "Litres issued this month, against last month."
+      },
+      "fuel_spend_month": {
+        "title": "Fuel spend this month",
+        "desc": "What this month's fuel cost, against last month."
+      },
+      "fuel_trend": {
+        "title": "Fuel over time",
+        "desc": "Litres issued each month."
+      },
+      "fuel_flags": {
+        "title": "Fuel flags",
+        "desc": "Fuel draws flagged as unusual in the last 45 days."
+      },
+      "expiring_papers": {
+        "title": "Expiring papers",
+        "desc": "Licences and warranties expiring soon or already expired."
+      },
+      "fines_to_nominate": {
+        "title": "Fines to nominate",
+        "desc": "Fines still waiting for a driver to be nominated, and the next deadline."
+      }
+    },
+    "cat": {
+      "attention": "Attention",
+      "problems": "Problems",
+      "servicing": "Servicing",
+      "fleet": "Fleet",
+      "costs": "Costs",
+      "fuel": "Fuel",
+      "papers": "Papers and fines"
+    },
+    "optLabel": {
+      "title": "Name (optional)",
+      "colour": "Colour",
+      "colours": "Colours",
+      "chart": "Chart",
+      "months": "Period",
+      "days": "Period",
+      "rows": "Rows",
+      "compare": "Compare with last month"
+    },
+    "opt": {
+      "colour": {
+        "auto": "By state",
+        "green": "Green",
+        "blue": "Blue",
+        "orange": "Orange",
+        "violet": "Violet",
+        "gold": "Gold",
+        "rose": "Rose"
+      },
+      "colours": {
+        "status": "By state (red, amber, green)",
+        "fleetwise": "FleetWise",
+        "classic": "Classic"
+      },
+      "chart": {
+        "bar": "Bars",
+        "line": "Line",
+        "area": "Area",
+        "donut": "Ring",
+        "pie": "Pie",
+        "bars": "Bars",
+        "list": "List"
+      },
+      "months": {
+        "3": "3 months",
+        "6": "6 months",
+        "12": "12 months"
+      },
+      "days": {
+        "1": "Today",
+        "7": "7 days",
+        "30": "30 days"
+      },
+      "rows": {
+        "5": "5",
+        "10": "10"
+      },
+      "compare": {
+        "on": "Yes",
+        "off": "No"
+      }
+    },
+    "deltaMore": "{amount} more than {month}",
+    "deltaLess": "{amount} less than {month}",
+    "sub": {
+      "stoppedOne": "1 standing still",
+      "stoppedMany": "{n} standing still",
+      "noneStopped": "None standing still",
+      "days1": "Today",
+      "days7": "In the last 7 days",
+      "days30": "In the last 30 days",
+      "ofMachines": "Of {n} machines",
+      "standingStill": "Standing still now",
+      "allWorking": "Nothing standing still",
+      "taskOne": "1 service task",
+      "taskMany": "{n} service tasks",
+      "working": "{n} active now",
+      "inForDays": "In the workshop {n} days",
+      "waitingParts": "{n} waiting for parts",
+      "noneWaiting": "None waiting for parts",
+      "last45": "Flagged in the last 45 days",
+      "nextDeadline": "Next deadline {when}",
+      "noDeadlines": "No deadlines"
+    },
+    "noPlan": "No service plan",
+    "other": "Other",
+    "expired": "Expired",
+    "expiring": "Expiring",
+    "empty": {
+      "problems": "No open problems.",
+      "services": "No services planned.",
+      "stale": "Every meter is up to date.",
+      "workshop": "Nothing in the workshop.",
+      "papers": "Nothing expiring soon.",
+      "chart": "Nothing to show for this period yet."
+    },
+    "customise": "Customise",
+    "done": "Done",
+    "addWidget": "Add widget",
+    "catalogTitle": "Add a widget",
+    "add": "Add",
+    "onBoard": "On your board",
+    "reset": "Reset to the FleetWise board",
+    "resetConfirm": "Your own layout and widget settings are replaced with the FleetWise board.",
+    "editHint": "Drag a widget by its handle to move it and by its corner to resize it. With a keyboard, focus the handle: arrow keys move it, Shift and arrow keys resize it.",
+    "editHintPhone": "Use the arrows on each widget to change the order. Moving and resizing by dragging works on a larger screen.",
+    "settings": "Widget settings",
+    "settingsFor": "Settings: {title}",
+    "remove": "Remove {title}",
+    "moveEarlier": "Move {title} earlier",
+    "moveLater": "Move {title} later",
+    "dragHandle": "Move {title}",
+    "resizeHandle": "Resize {title}",
+    "moved": "{title}: column {x}, row {y}, {w} wide, {h} high",
+    "seeAll": "See all",
+    "saving": "Saving",
+    "saved": "Saved",
+    "saveFailed": "Your changes could not be saved. Check your connection and try again.",
+    "loading": "Loading",
+    "locked": {
+      "costs": "Only people who may see costs see this widget.",
+      "plan": "This widget needs a higher plan.",
+      "module": "Turned off for this farm in Settings, Menus."
+    },
+    "emptyBoard": "Your board is empty. Add a widget to start.",
+    "dataTable": "Data",
+    "total": "Total",
+    "more": "and {n} more"
   }
 }

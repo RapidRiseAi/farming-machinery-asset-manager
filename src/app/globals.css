@@ -538,3 +538,16 @@ html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
     }
   }
 }
+
+/* == Dashboard chart colours ================================================
+ * A mark carries its light and dark step as --c-l / --c-d (lib/dashboard/palettes.ts)
+ * and .viz-c picks one by theme, because charts render on the server and the theme
+ * switches in the browser. Same two scopes as the tokens above. */
+.viz-c { --c: var(--c-l); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .viz-c { --c: var(--c-d); }
+}
+:root[data-theme="dark"] .viz-c { --c: var(--c-d); }
+.viz-bg { background-color: var(--c); }
+.viz-fill { fill: var(--c); }
+.viz-stroke { stroke: var(--c); }

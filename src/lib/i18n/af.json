@@ -7176,5 +7176,249 @@
     "open": "Maak oop",
     "notIncluded": "Nie in die gesamentlike oorsig nie: hierdie plaas se plan sluit dit nie in nie (Volledig en hoër).",
     "note": "Elke plaas se syfers is wat jy op daardie plaas kan sien. Lopende koste is brandstof, onderdele, arbeid, werkswinkelfakture en ander koste sedert die eerste van die maand, sonder BTW."
+  },
+  "dash": {
+    "w": {
+      "attention": {
+        "title": "Moet jou aandag kry",
+        "desc": "Elke probleem, agterstallige diens, verstrykende dokument en boete, ergste eerste, een ry per masjien."
+      },
+      "open_problems": {
+        "title": "Oop probleme",
+        "desc": "Probleme wat nog nie opgelos is nie, en hoeveel 'n masjien laat stilstaan."
+      },
+      "new_problems": {
+        "title": "Nuwe probleme",
+        "desc": "Probleme wat vandag, hierdie week of hierdie maand aangemeld is."
+      },
+      "machines_with_problems": {
+        "title": "Masjiene met probleme",
+        "desc": "Hoeveel masjiene ten minste een oop probleem het."
+      },
+      "machines_stopped": {
+        "title": "Masjiene wat stilstaan",
+        "desc": "Masjiene met 'n probleem wat hulle laat stilstaan."
+      },
+      "problems_trend": {
+        "title": "Probleme oor tyd",
+        "desc": "Probleme wat elke maand aangemeld is."
+      },
+      "problems_by_urgency": {
+        "title": "Probleme volgens dringendheid",
+        "desc": "Oop probleme verdeel in gestop, sukkel en kan nog werk."
+      },
+      "latest_problems": {
+        "title": "Nuutste probleme",
+        "desc": "Die nuutste oop probleme, met die masjien en hoe dringend elkeen is."
+      },
+      "service_overdue": {
+        "title": "Diens agterstallig",
+        "desc": "Masjiene met ten minste een agterstallige dienstaak."
+      },
+      "service_due": {
+        "title": "Diens verskuldig",
+        "desc": "Masjiene met 'n diens wat binnekort verskuldig of agterstallig is."
+      },
+      "service_status": {
+        "title": "Diensstatus",
+        "desc": "Elke masjien volgens sy dringendste diens: agterstallig, binnekort, reg, of geen plan nie."
+      },
+      "upcoming_services": {
+        "title": "Komende dienste",
+        "desc": "Die volgende dienstake volgens datum."
+      },
+      "stale_meters": {
+        "title": "Meters om te lees",
+        "desc": "Masjiene waarvan die ure of kilometers lanklaas aangeteken is."
+      },
+      "fleet_size": {
+        "title": "Vlootgrootte",
+        "desc": "Masjiene in gebruik, en hoeveel nou werk."
+      },
+      "fleet_status": {
+        "title": "Vlootstatus",
+        "desc": "Masjiene aktief, op bystand, in die werkswinkel en buite diens."
+      },
+      "in_workshop": {
+        "title": "In die werkswinkel",
+        "desc": "Masjiene in die werkswinkel en vir hoe lank."
+      },
+      "open_job_cards": {
+        "title": "Oop werkkaarte",
+        "desc": "Werkkaarte wat nog nie klaar is nie, en hoeveel vir onderdele wag."
+      },
+      "job_cards_by_status": {
+        "title": "Werkkaarte volgens status",
+        "desc": "Oop werkkaarte verdeel volgens waar hulle staan."
+      },
+      "spend_month": {
+        "title": "Uitgawes hierdie maand",
+        "desc": "Onderdele, arbeid en buite-fakture op werkkaarte hierdie maand, teenoor verlede maand."
+      },
+      "spend_trend": {
+        "title": "Uitgawes oor tyd",
+        "desc": "Werkkaartuitgawes elke maand."
+      },
+      "spend_by_type": {
+        "title": "Uitgawes volgens soort werk",
+        "desc": "Dienste, herstelwerk, inspeksies en ander werk oor die tydperk."
+      },
+      "top_cost_machines": {
+        "title": "Duurste masjiene",
+        "desc": "Die masjiene wat oor die tydperk die meeste gekos het."
+      },
+      "fuel_litres_month": {
+        "title": "Brandstof hierdie maand",
+        "desc": "Liter uitgereik hierdie maand, teenoor verlede maand."
+      },
+      "fuel_spend_month": {
+        "title": "Brandstofuitgawes hierdie maand",
+        "desc": "Wat hierdie maand se brandstof gekos het, teenoor verlede maand."
+      },
+      "fuel_trend": {
+        "title": "Brandstof oor tyd",
+        "desc": "Liter uitgereik elke maand."
+      },
+      "fuel_flags": {
+        "title": "Brandstofwaarskuwings",
+        "desc": "Brandstoftrekkings wat die afgelope 45 dae as ongewoon gemerk is."
+      },
+      "expiring_papers": {
+        "title": "Verstrykende dokumente",
+        "desc": "Lisensies en waarborge wat binnekort verstryk of reeds verstryk het."
+      },
+      "fines_to_nominate": {
+        "title": "Boetes om te nomineer",
+        "desc": "Boetes wat nog wag dat 'n bestuurder genomineer word, en die volgende sperdatum."
+      }
+    },
+    "cat": {
+      "attention": "Aandag",
+      "problems": "Probleme",
+      "servicing": "Diens",
+      "fleet": "Vloot",
+      "costs": "Koste",
+      "fuel": "Brandstof",
+      "papers": "Dokumente en boetes"
+    },
+    "optLabel": {
+      "title": "Naam (opsioneel)",
+      "colour": "Kleur",
+      "colours": "Kleure",
+      "chart": "Grafiek",
+      "months": "Tydperk",
+      "days": "Tydperk",
+      "rows": "Rye",
+      "compare": "Vergelyk met verlede maand"
+    },
+    "opt": {
+      "colour": {
+        "auto": "Volgens toestand",
+        "green": "Groen",
+        "blue": "Blou",
+        "orange": "Oranje",
+        "violet": "Violet",
+        "gold": "Goud",
+        "rose": "Roos"
+      },
+      "colours": {
+        "status": "Volgens toestand (rooi, amber, groen)",
+        "fleetwise": "FleetWise",
+        "classic": "Klassiek"
+      },
+      "chart": {
+        "bar": "Stawe",
+        "line": "Lyn",
+        "area": "Area",
+        "donut": "Ring",
+        "pie": "Sirkel",
+        "bars": "Stawe",
+        "list": "Lys"
+      },
+      "months": {
+        "3": "3 maande",
+        "6": "6 maande",
+        "12": "12 maande"
+      },
+      "days": {
+        "1": "Vandag",
+        "7": "7 dae",
+        "30": "30 dae"
+      },
+      "rows": {
+        "5": "5",
+        "10": "10"
+      },
+      "compare": {
+        "on": "Ja",
+        "off": "Nee"
+      }
+    },
+    "deltaMore": "{amount} meer as {month}",
+    "deltaLess": "{amount} minder as {month}",
+    "sub": {
+      "stoppedOne": "1 staan stil",
+      "stoppedMany": "{n} staan stil",
+      "noneStopped": "Niks staan stil nie",
+      "days1": "Vandag",
+      "days7": "In die afgelope 7 dae",
+      "days30": "In die afgelope 30 dae",
+      "ofMachines": "Uit {n} masjiene",
+      "standingStill": "Staan nou stil",
+      "allWorking": "Niks staan stil nie",
+      "taskOne": "1 dienstaak",
+      "taskMany": "{n} dienstake",
+      "working": "{n} nou aktief",
+      "inForDays": "{n} dae in die werkswinkel",
+      "waitingParts": "{n} wag vir onderdele",
+      "noneWaiting": "Niks wag vir onderdele nie",
+      "last45": "Gemerk in die afgelope 45 dae",
+      "nextDeadline": "Volgende sperdatum {when}",
+      "noDeadlines": "Geen sperdatums"
+    },
+    "noPlan": "Geen diensplan",
+    "other": "Ander",
+    "expired": "Verstryk",
+    "expiring": "Verstryk binnekort",
+    "empty": {
+      "problems": "Geen oop probleme nie.",
+      "services": "Geen dienste beplan nie.",
+      "stale": "Elke meter is op datum.",
+      "workshop": "Niks in die werkswinkel nie.",
+      "papers": "Niks verstryk binnekort nie.",
+      "chart": "Nog niks om vir hierdie tydperk te wys nie."
+    },
+    "customise": "Pas aan",
+    "done": "Klaar",
+    "addWidget": "Voeg legstuk by",
+    "catalogTitle": "Voeg 'n legstuk by",
+    "add": "Voeg by",
+    "onBoard": "Op jou bord",
+    "reset": "Herstel na die FleetWise-bord",
+    "resetConfirm": "Jou eie uitleg en legstukinstellings word met die FleetWise-bord vervang.",
+    "editHint": "Sleep 'n legstuk aan sy handvatsel om dit te skuif en aan sy hoek om die grootte te verander. Met 'n sleutelbord: fokus op die handvatsel, pyltjies skuif dit, Shift en pyltjies verander die grootte.",
+    "editHintPhone": "Gebruik die pyltjies op elke legstuk om die volgorde te verander. Skuif en grootte verander deur te sleep werk op 'n groter skerm.",
+    "settings": "Legstukinstellings",
+    "settingsFor": "Instellings: {title}",
+    "remove": "Verwyder {title}",
+    "moveEarlier": "Skuif {title} vroeër",
+    "moveLater": "Skuif {title} later",
+    "dragHandle": "Skuif {title}",
+    "resizeHandle": "Verander grootte van {title}",
+    "moved": "{title}: kolom {x}, ry {y}, {w} breed, {h} hoog",
+    "seeAll": "Sien alles",
+    "saving": "Stoor tans",
+    "saved": "Gestoor",
+    "saveFailed": "Jou veranderinge kon nie gestoor word nie. Kyk na jou verbinding en probeer weer.",
+    "loading": "Laai tans",
+    "locked": {
+      "costs": "Net mense wat koste mag sien, sien hierdie legstuk.",
+      "plan": "Hierdie legstuk het 'n hoër plan nodig.",
+      "module": "Vir hierdie plaas afgeskakel in Instellings, Kieslyste."
+    },
+    "emptyBoard": "Jou bord is leeg. Voeg 'n legstuk by om te begin.",
+    "dataTable": "Data",
+    "total": "Totaal",
+    "more": "en nog {n}"
   }
 }
