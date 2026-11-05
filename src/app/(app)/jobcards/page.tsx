@@ -158,7 +158,8 @@ export default async function JobCardsPage({
   );
 
   return (
-    <PageContainer>
+    // The board of groups uses a PC's width (below); one status's list stays one column.
+    <PageContainer className={sp.status ? undefined : "xl:max-w-none"}>
       <PageHeader title={t("jobcards.title", locale)} infoKey="jobcards" locale={locale}
         actions={creationMachines.length > 0 ? (
           <NewJobCard actorId={profile.id} machines={creationMachines} contractors={contractors} isContractor={profile.role === "workshop"} locale={locale} />
@@ -180,7 +181,7 @@ export default async function JobCardsPage({
           {sp.status === "approved" ? pager : null}
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(24rem,1fr))] xl:items-start">
           {review.length > 0 ? (
             <section className="flex flex-col gap-2">
               <h2 className="text-sm font-semibold text-sand-700">{t("jobview.list.review", locale)} <span className="font-normal text-sand-500">{review.length}</span></h2>

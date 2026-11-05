@@ -95,7 +95,7 @@ export default async function SettingsPage({
     </option>
   ));
   const heading = (id: string, key: string) => (
-    <h2 id={id} className="pt-2 text-lg font-semibold tracking-tight text-ink">
+    <h2 id={id} className="pt-2 text-lg font-semibold tracking-tight text-ink xl:col-span-2">
       {t(key, locale)}
     </h2>
   );
@@ -152,7 +152,9 @@ export default async function SettingsPage({
   );
 
   return (
-    <PageContainer size="narrow">
+    // One column of cards up to a laptop; two from 1280px, where one narrow column left
+    // most of a PC screen empty (5 November).
+    <PageContainer size="narrow" className="xl:max-w-6xl">
       {/* The farm's name is the quiet line, not part of the h1: "Settings, Weltevrede
           Boerdery" wrapped on a phone, and the farm switcher already names it there. */}
       <PageHeader title={t("settings.title", locale)} meta={farm?.name || undefined} infoKey="settings" locale={locale} />
@@ -188,7 +190,7 @@ export default async function SettingsPage({
       ) : null}
 
       {/* == Money and invoices ================================================ */}
-      <section aria-labelledby="settings-money" className="flex flex-col gap-4">
+      <section aria-labelledby="settings-money" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
         {heading("settings-money", "settings.sectionMoney")}
 
         {/* Without these, an invoice a contractor raises against this farm is not a
@@ -258,7 +260,7 @@ export default async function SettingsPage({
       </section>
 
       {/* == Reminders and alerts ============================================== */}
-      <section aria-labelledby="settings-alerts" className="flex flex-col gap-4">
+      <section aria-labelledby="settings-alerts" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
         {heading("settings-alerts", "settings.sectionAlerts")}
 
         {group({
@@ -368,7 +370,7 @@ export default async function SettingsPage({
       </section>
 
       {/* == Menus: module switches and simple mode for drivers (H9) ============ */}
-      <section aria-labelledby="settings-menus" className="flex flex-col gap-4">
+      <section aria-labelledby="settings-menus" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
         {heading("settings-menus", "settings.sectionMenus")}
 
         {group({
@@ -414,7 +416,7 @@ export default async function SettingsPage({
       </section>
 
       {/* == Workflow and reports ============================================== */}
-      <section aria-labelledby="settings-workflow" className="flex flex-col gap-4">
+      <section aria-labelledby="settings-workflow" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
         {heading("settings-workflow", "settings.sectionWorkflow")}
 
         {group({

@@ -44,7 +44,7 @@
   --sand-200: 230 226 215; /* Warm Grey, decorative edge */
   --sand-300: 143 139 127; /* control border   3.07:1 */
   --sand-400: 113 110 100; /* placeholder      4.60:1 */
-  --sand-500: 93 90 82; /* secondary text   6.21:1 */
+  --sand-500: 80 77 70; /* secondary text   7.60:1 (was 6.21; read as faint at 14px, 5 Nov) */
   --sand-600: 72 70 64; /*                  8.51:1 */
   --sand-700: 57 56 50; /*                 10.61:1 */
   --sand-800: 46 45 41; /*                 12.43:1 */
@@ -64,7 +64,7 @@
   --surface-sunken: 239 234 220; /* deeper, wells, hovers, table heads */
 
   --ink: 36 40 36; /* charcoal  , body text        13.49:1 */
-  --ink-muted: 93 90 82; /* sand-500  , secondary text    6.21:1 */
+  --ink-muted: 80 77 70; /* sand-500  , secondary text    7.60:1 */
   --ink-subtle: 113 110 100; /* sand-400  , placeholders      4.60:1 */
 
   --edge: 143 139 127; /* sand-300  , control borders   3.07:1 */
@@ -157,7 +157,7 @@
     --sand-200: 39 44 39; /* decorative edge / card */
     --sand-300: 109 107 98; /* control border   3.05:1 */
     --sand-400: 143 139 127; /* placeholder      4.79:1 */
-    --sand-500: 162 160 151; /* secondary text   6.22:1 */
+    --sand-500: 178 176 168; /* secondary text   7.51:1 */
     --sand-600: 189 187 182; /*                  8.50:1 */
     --sand-700: 210 209 205; /*                 10.67:1 */
     --sand-800: 225 225 222; /*                 12.45:1 */
@@ -227,7 +227,7 @@
   --sand-200: 39 44 39; /* decorative edge / card */
   --sand-300: 109 107 98; /* control border   3.05:1 */
   --sand-400: 143 139 127; /* placeholder      4.79:1 */
-  --sand-500: 162 160 151; /* secondary text   6.22:1 */
+  --sand-500: 178 176 168; /* secondary text   7.51:1 */
   --sand-600: 189 187 182; /*                  8.50:1 */
   --sand-700: 210 209 205; /*                 10.67:1 */
   --sand-800: 225 225 222; /*                 12.45:1 */
@@ -301,6 +301,14 @@ html[data-text="large"] {
 }
 html[data-text="larger"] {
   font-size: 125%;
+}
+/* A big monitor sits further from the eye than a phone: one step up by default there, so
+   14px secondary text is not the size of a phone's on a 27-inch screen. A person's own
+   choice above still wins. */
+@media (min-width: 1536px) {
+  html:not([data-text="large"]):not([data-text="larger"]) {
+    font-size: 106.25%;
+  }
 }
 
 /* Mobile-first: avoid the 300ms tap delay and keep tap targets responsive. */

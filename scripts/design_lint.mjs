@@ -392,8 +392,8 @@ if (existsSync(manifestPath)) {
 
 // == Contrast self-test: the token scale must keep its promises ==============
 const CONTRACT = [
-  ["sand-500 secondary text on cream", "#5d5a52", BRAND.cream, 4.5],
-  ["sand-500 secondary text on white", "#5d5a52", BRAND.white, 4.5],
+  ["sand-500 secondary text on cream", "#504d46", BRAND.cream, 4.5],
+  ["sand-500 secondary text on white", "#504d46", BRAND.white, 4.5],
   ["sand-400 placeholder on cream", "#716e64", BRAND.cream, 4.5],
   ["sand-300 control border on cream", "#8f8b7f", BRAND.cream, 3.0],
   ["sand-900 body text on cream", BRAND.charcoal, BRAND.cream, 4.5],

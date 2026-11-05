@@ -707,7 +707,7 @@ export default async function MachineDetailPage({
   );
 
   return (
-    <PageContainer>
+    <PageContainer size="wide">
       <PageHeader
         back={{ href: backHref(sp.from, "/machines"), label: t("machines.title", locale) }}
         title={machine.name}
@@ -890,9 +890,10 @@ export default async function MachineDetailPage({
               key: "overview",
               label: t("machine.tabOverview", locale),
               content: (
-                <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
               {/* A machine with no plan yet: the two jobs that make it useful, until done. */}
               {canEdit && planLines.length === 0 ? (
+                <div className="xl:col-span-2">
                 <GetStarted
                   title={t("machine.setupTitle", locale)}
                   hint={t("machine.setupHint", locale)}
@@ -907,6 +908,7 @@ export default async function MachineDetailPage({
                     </Link>
                   }
                 />
+                </div>
               ) : null}
               {/* Meter history */}
               {machine.meter_type !== "none" ? (
@@ -1274,9 +1276,10 @@ export default async function MachineDetailPage({
               key: "servicing",
               label: t("machine.tabServicing", locale),
               content: (
-                <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
               {/* Service plan */}
-              <Card>
+              {/* The plan's table needs the full width. */}
+              <Card className="xl:col-span-2">
                 <CardHeader
                   action={canJob ? (
                     <NewJobCard {...jobCreation} defaultType="scheduled_service" triggerVariant="secondary" triggerSize="sm" />
@@ -1636,8 +1639,9 @@ export default async function MachineDetailPage({
               key: "costs",
               label: t("machine.tabCosts", locale),
               content: (
-                <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
               {!analyticsVisible ? (
+                <div className="xl:col-span-2">
                 <UpgradeNotice
                   feature="tco"
                   requiredPlan="professional"
@@ -1646,6 +1650,7 @@ export default async function MachineDetailPage({
                   compact
                   canUpgrade={resourceRole === "owner"}
                 />
+                </div>
               ) : null}
               {/* Lifetime stats: Professional analytics. */}
               {analyticsVisible ? (<>
@@ -1865,7 +1870,7 @@ export default async function MachineDetailPage({
               key: "history",
               label: t("machine.tabHistory", locale),
               content: (
-                <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
               {/* Timeline */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.timeline", locale)}</CardTitle></CardHeader>
@@ -2137,7 +2142,7 @@ export default async function MachineDetailPage({
               key: "papers",
               label: t("machine.tabPapers", locale),
               content: (
-                <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
               {/* The machine's own record, stated as facts. Reg no, purchase, supplier and
                   notes could only be read inside the edit form's input boxes. */}
               {details.length > 0 || canEdit ? (

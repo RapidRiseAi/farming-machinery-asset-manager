@@ -281,7 +281,8 @@ export default async function FaultsPage({
       ) : null}
 
       {openFaults.length === 0 ? null : (
-        <ul className="flex flex-col gap-2">
+        // Two columns of cards from 1280px; still worst first, reading left to right.
+        <ul className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-start">
           {openFaults.map((f) => {
             const role = roles.get(f.farm_id) ?? "";
             const canJob = ["rr_admin", "owner", "manager", "mechanic", "workshop"].includes(role);

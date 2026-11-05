@@ -119,7 +119,7 @@ const config: Config = {
          *   200 #e6e2d7 ★ Warm Grey , decorative divider / card edge
          *   300 #8f8b7f   3.07:1    , CONTROL border (SC 1.4.11)
          *   400 #716e64   4.60:1    , placeholder text, decorative icons
-         *   500 #5d5a52   6.21:1    , SECONDARY TEXT
+         *   500 #504d46   7.60:1    , SECONDARY TEXT
          *   900 #242824 ★ Charcoal  , body text, 13.49:1
          *   950 #000000 ★ FleetWise Black
          */

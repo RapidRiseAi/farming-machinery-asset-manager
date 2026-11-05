@@ -294,12 +294,20 @@ pushed. Each item has its own commit, tests and mutation checks.
       step (no trial), EFT details on the pay page, never swept as an abandoned sign-up.
 - [x] **Founding Farmer by staff only; repeat-tap follow-ups** (`3e20615`).
 - [x] **Domain readiness warning on /api/health** (`c913dcc`).
+- [x] **Email sign-in link** (`41b734a`): existing accounts only, the configured address, and a
+      link that lands on the front page still signs in.
+- [x] **Machine history as a timeline** (`30189c9`).
+- [x] **Customisable dashboard** (`0837cab`, `0923e39`, `20261105120000`): 28 widgets, drag, resize,
+      chart and colour settings, each widget linked to the page with the same data.
+- [x] **PC layout and readability**: two-column layouts on large screens, darker secondary
+      text, one step larger type on big monitors.
 
 **Release order** (when the founder says go):
 
 1. `node scripts/apply_pending.mjs --dry`, then `--apply`: `20261104200000` (prices),
    `20261104210000` (WhatsApp media), `20261104220000` (plan boundaries),
-   `20261105090000` (erasure voice notes), `20261105100000` (staff onboarding), each probed.
+   `20261105090000` (erasure voice notes), `20261105100000` (staff onboarding),
+   `20261105120000` (dashboard boards), each probed.
    Database first: the live app tolerates all three (old WhatsApp webhooks still call the
    four-argument receiver), while the new app's billing pages read `min_billed_slots`.
 2. Push the branch to `main` straight after, verify the deployment by commit SHA, then the
