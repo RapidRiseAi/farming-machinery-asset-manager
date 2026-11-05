@@ -147,7 +147,7 @@ export function ActionMenu({
 /** A non-interactive label that groups the rows under it. */
 export function MenuSection({ children }: { children: ReactNode }) {
   return (
-    <p className="px-1 pt-2 text-xs font-semibold uppercase tracking-wide text-sand-500">
+    <p className="px-1 pt-2 text-sm font-semibold text-sand-700">
       {children}
     </p>
   );

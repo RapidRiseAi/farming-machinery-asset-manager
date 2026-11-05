@@ -362,7 +362,7 @@ export default async function PublicMachinePage({
           placeholder={<MachinesIcon className="text-3xl" />}
         />
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
+          <p className="text-sm font-medium text-sand-700">
             {t("qr.thisIsMachine", locale)}
           </p>
           <h1 className="mt-0.5 text-xl font-bold leading-tight text-sand-950">{machine.name}</h1>

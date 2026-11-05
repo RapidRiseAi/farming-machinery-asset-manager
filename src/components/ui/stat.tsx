@@ -101,7 +101,7 @@ export function Stat({
   const inner = (
     <>
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-sand-500">
+        <span className="min-w-0 break-words text-sm font-semibold text-sand-700">
           {label}
         </span>
         {icon ? <span className="shrink-0 text-xl text-sand-400">{icon}</span> : null}
@@ -120,7 +120,7 @@ export function Stat({
       >
         {value}
       </div>
-      {delta ? <div className="mt-1.5 break-words text-xs text-sand-500">{delta}</div> : null}
+      {delta ? <div className="mt-1.5 break-words text-sm text-sand-600">{delta}</div> : null}
     </>
   );
 

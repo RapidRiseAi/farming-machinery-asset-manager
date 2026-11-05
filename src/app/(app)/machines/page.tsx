@@ -423,7 +423,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
       return linked ? (
         <Link
           href={withTab(detailHref(m.id), "servicing")}
-          className={`focus-ring ${look} hover:border-brand-300 hover:bg-brand-tint`}
+          className={`focus-ring relative z-[1] ${look} hover:border-brand-300 hover:bg-brand-tint`}
         >
           <PlusIcon className="text-sm" />
           {t("machines.setUpPlan", locale)}
@@ -709,7 +709,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
           }
           preview={
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
+              <p className="text-sm font-medium text-sand-700">
                 {t("machines.firstRunPreview", locale)}
               </p>
               {[0, 1].map((i) => (
@@ -789,10 +789,12 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                 {machines.map((m) => {
                   const cpu = costPerUnit(m);
                   return (
-                    <Tr key={m.id}>
+                    // The whole row opens the machine: the name's link is stretched over it, and the
+                    // row's own controls (set up a plan, log a reading) sit above that.
+                    <Tr key={m.id} className="relative cursor-pointer hover:bg-surface-hover">
                       <Td>{rowThumb(m)}</Td>
                       <Td>
-                        <Link href={detailHref(m.id)} className="focus-ring rounded font-semibold text-sand-900 hover:text-brand-ink hover:underline">
+                        <Link href={detailHref(m.id)} className="focus-ring rounded font-semibold text-sand-900 after:absolute after:inset-0 after:content-[''] hover:text-brand-ink hover:underline">
                           {m.name}
                         </Link>
                         <span className="mt-0.5 block text-xs text-sand-500">{subtitle(m, false)}</span>
@@ -808,7 +810,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
                       ) : null}
                       {showReadingActions ? (
                         <Td className="text-right">
-                          {canLog(m) ? logReading(m, "row") : <span className="text-sand-400">-</span>}
+                          <span className="relative z-[1]">{canLog(m) ? logReading(m, "row") : <span className="text-sand-400">-</span>}</span>
                         </Td>
                       ) : null}
                     </Tr>

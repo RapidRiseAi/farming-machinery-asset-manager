@@ -77,7 +77,7 @@ export function SchedulePreview({ locale }: { locale: Lang }) {
 
   return (
     <div ref={ref} className="rounded-lg bg-surface-sunken p-3 text-sm sm:col-span-2" aria-live="polite">
-      <p className="text-xs font-medium uppercase tracking-wide text-sand-500">{L("previewTitle")}</p>
+      <p className="text-sm font-medium text-sand-700">{L("previewTitle")}</p>
       <p className="mt-1">{body}</p>
     </div>
   );

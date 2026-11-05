@@ -314,7 +314,7 @@ export default async function DocumentPage({
 
         <div className="grid gap-4 px-4 py-4 sm:grid-cols-2">
           <div className="text-sm">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-500">
+            <p className="mb-1 text-sm font-semibold text-sand-700">
               {layout.bill_to_label ?? t("doc.billTo", locale)}
             </p>
             <p className="font-medium text-sand-900">{doc.bill_to_name || farm?.name}</p>
@@ -499,7 +499,7 @@ export default async function DocumentPage({
             {doc.notes ? <p className="whitespace-pre-line text-sand-700">{doc.notes}</p> : null}
             {layout.show_banking && doc.kind === "invoice" && brand.bank_name ? (
               <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sand-500">{t("doc.howToPay", locale)}</p>
+                <p className="mb-1 text-sm font-semibold text-sand-700">{t("doc.howToPay", locale)}</p>
                 <p className="text-sand-700">
                   {[brand.bank_account_name, brand.bank_name, brand.bank_account_number, brand.bank_branch_code]
                     .filter(Boolean)

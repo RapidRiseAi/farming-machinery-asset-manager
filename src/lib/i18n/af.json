@@ -1041,7 +1041,9 @@
       "service": "Diens",
       "checks": "Kontrolelyste",
       "work": "Kontrakteurs",
-      "changes": "Rekordveranderinge"
+      "changes": "Rekordveranderinge",
+      "parts": "Onderdele",
+      "fuel": "Brandstof"
     },
     "tlKind": {
       "origin": "Gekoop",
@@ -1050,9 +1052,43 @@
       "watch": "Waaklys",
       "checklist": "Kontrolelys",
       "work": "Kontrakteur",
-      "audit": "Rekordverandering"
+      "audit": "Rekordverandering",
+      "part": "Onderdeel",
+      "fuel": "Brandstof"
     },
-    "tlNoneOfKind": "Nog niks van hierdie soort nie. Kies Alles om alles te sien."
+    "tlNoneOfKind": "Nog niks van hierdie soort nie. Kies Alles om alles te sien.",
+    "evPart": "Onderdeel aangebring",
+    "evFuel": "{litres} L brandstof",
+    "dash": {
+      "seeBreakdown": "Sien die uiteensetting",
+      "periodLabel": "Tydperk",
+      "period": {
+        "month": "Hierdie maand",
+        "year": "Afgelope 12 maande",
+        "life": "Sedert gekoop"
+      },
+      "noCosts": "Geen koste in hierdie tydperk aangeteken nie.",
+      "fullCosts": "Alle koste",
+      "costTitle": "Wat hierdie masjien kos",
+      "spentThisMonth": "Hierdie maand bestee",
+      "lifetime": "{amount} sedert gekoop",
+      "fuelThisMonth": "Brandstof hierdie maand",
+      "noConsumption": "Nog nie genoeg lesings vir 'n gemiddeld nie",
+      "average": "{value} gemiddeld",
+      "planHint": "'n Plan sê vir jou wanneer die volgende diens verskuldig is.",
+      "openJobCards": "Oop werkkaarte",
+      "downtime": "Staantyd, 30 dae",
+      "days": "{n} d",
+      "costByMonth": "Uitgawes per maand",
+      "fuelByMonth": "Brandstof per maand",
+      "fuelDetail": "Brandstofrekords",
+      "hoursByMonth": "Ure gewerk per maand",
+      "kmByMonth": "Kilometers per maand",
+      "meterDetail": "Lesings",
+      "recent": "Onlangse geskiedenis",
+      "fullHistory": "Volle geskiedenis",
+      "openProblemsChip": "{n} oop probleme"
+    }
   },
   "admin": {
     "farms": "Plase",
@@ -7323,7 +7359,13 @@
       "days": "Tydperk",
       "rows": "Rye",
       "compare": "Vergelyk met verlede maand",
-      "size": "Grootte"
+      "size": "Grootte",
+      "accent": "Kaartkleur",
+      "style": "Kaartstyl",
+      "figure": "Syfergrootte",
+      "trend": "Neigingslyn",
+      "labels": "Waardes op die grafiek",
+      "sort": "Volgorde"
     },
     "opt": {
       "colour": {
@@ -7333,7 +7375,12 @@
         "orange": "Oranje",
         "violet": "Violet",
         "gold": "Goud",
-        "rose": "Roos"
+        "rose": "Roos",
+        "teal": "Blougroen",
+        "red": "Rooi",
+        "slate": "Leiklip",
+        "olive": "Olyf",
+        "brown": "Bruin"
       },
       "colours": {
         "status": "Volgens toestand (rooi, amber, groen)",
@@ -7366,6 +7413,41 @@
       "compare": {
         "on": "Ja",
         "off": "Nee"
+      },
+      "accent": {
+        "group": "Groepkleur",
+        "green": "Groen",
+        "blue": "Blou",
+        "orange": "Oranje",
+        "violet": "Violet",
+        "gold": "Goud",
+        "rose": "Roos",
+        "teal": "Blougroen",
+        "red": "Rooi",
+        "slate": "Leiklip",
+        "olive": "Olyf",
+        "brown": "Bruin"
+      },
+      "style": {
+        "plain": "Eenvoudig",
+        "tinted": "Getint",
+        "outline": "Omlyn"
+      },
+      "figure": {
+        "normal": "Normaal",
+        "large": "Groot"
+      },
+      "trend": {
+        "on": "Wys",
+        "off": "Versteek"
+      },
+      "labels": {
+        "on": "Wys",
+        "off": "Versteek"
+      },
+      "sort": {
+        "value": "Grootste eerste",
+        "name": "A tot Z"
       }
     },
     "deltaMore": "{amount} meer as {month}",
@@ -7453,6 +7535,11 @@
       "l": "Groot",
       "wide": "Breed"
     },
-    "resetShort": "Herstel"
+    "resetShort": "Herstel",
+    "section": {
+      "basics": "Basies",
+      "chart": "Wat dit wys",
+      "card": "Kaart"
+    }
   }
 }

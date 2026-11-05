@@ -150,7 +150,7 @@ export function Td({ label, className, children, ...props }: TdProps) {
         <span
           aria-hidden
           data-cell-label
-          className="hidden shrink-0 text-xs font-medium uppercase tracking-wide text-ink-muted"
+          className="hidden shrink-0 text-sm font-medium text-sand-700"
         >
           {label}
         </span>

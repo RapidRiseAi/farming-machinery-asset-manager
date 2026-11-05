@@ -248,7 +248,7 @@ export default async function FinesPage({
               if (lapses.length === 0) return null;
               return (
                 <div className="mt-2 rounded-lg border border-callout-danger-edge bg-callout-danger-bg px-3 py-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-callout-danger-ink">
+                  <p className="text-sm font-semibold text-callout-danger-ink">
                     {t("credentials.lapsedLead", locale)}
                   </p>
                   <ul className="mt-1 space-y-0.5">

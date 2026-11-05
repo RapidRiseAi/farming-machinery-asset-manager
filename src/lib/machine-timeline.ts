@@ -6,7 +6,7 @@
  * groups them, so the rules can be tested without rendering anything.
  */
 
-export type TimelineKind = "origin" | "jobcard" | "fault" | "watch" | "checklist" | "work" | "audit";
+export type TimelineKind = "origin" | "jobcard" | "fault" | "watch" | "checklist" | "work" | "part" | "fuel" | "audit";
 
 export type TimelineEvent = {
   /** YYYY-MM-DD. */
@@ -25,6 +25,8 @@ export type TimelineEvent = {
 export const TIMELINE_FILTERS = {
   problems: ["fault", "watch"],
   service: ["jobcard"],
+  parts: ["part"],
+  fuel: ["fuel"],
   checks: ["checklist"],
   work: ["work"],
   changes: ["audit"],

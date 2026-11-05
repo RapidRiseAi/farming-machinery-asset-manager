@@ -24,6 +24,14 @@ export const HUES = {
   violet: { light: "#6250d6", dark: "#9085e9" },
   gold: { light: "#c98500", dark: "#c98500" },
   rose: { light: "#d55181", dark: "#d55181" },
+  // Single colours a person may pick for a widget (3.9:1 to 6.3:1 against the card in both
+  // themes, checked by palettes' contrast test). Not in the categorical sets: a chart with
+  // several series keeps the validated order above.
+  teal: { light: "#0f8584", dark: "#1fa3a1" },
+  red: { light: "#d63a3a", dark: "#e66767" },
+  slate: { light: "#5f6f84", dark: "#8a9ab0" },
+  olive: { light: "#6f8a1f", dark: "#8fab3c" },
+  brown: { light: "#9c6a3a", dark: "#b8885a" },
 } as const satisfies Record<string, Swatch>;
 export type HueKey = keyof typeof HUES;
 export const HUE_KEYS = Object.keys(HUES) as HueKey[];

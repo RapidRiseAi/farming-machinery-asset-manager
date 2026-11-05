@@ -491,9 +491,13 @@ export function DashboardGrid({
               const look = def ? CATEGORY_LOOK[def.category] : CATEGORY_LOOK.fleet;
               const name = title(item);
               const small = def?.shape === "kpi";
+              // Card colour and style (settings): the chosen hue, or the group's own.
+              const chosen = item.settings.accent && item.settings.accent in HUES ? (item.settings.accent as HueKey) : null;
+              const cardStyle = item.settings.style ?? "plain";
               const style = {
                 "--x": item.x + 1, "--y": item.y + 1, "--w": item.w, "--h": item.h,
                 "--hm": small ? 2 : Math.min(item.h, def?.shape === "attention" ? 8 : 5),
+                ...swatchStyle(HUES[chosen ?? look.hue]),
               } as CSSProperties;
               const placement = cn(
                 small ? "col-span-1" : "col-span-2",
@@ -519,13 +523,19 @@ export function DashboardGrid({
                     "relative flex min-h-0 min-w-0 flex-col rounded-2xl p-4 transition-shadow duration-150",
                     holder
                       ? "z-[1] border-2 border-dashed border-brand-600 bg-brand-tint/60 [&>*]:invisible"
-                      : "z-[2] border border-sand-200 bg-surface shadow-card",
+                      : cn(
+                          "z-[2] shadow-card",
+                          cardStyle === "tinted" ? "viz-c viz-tint border"
+                            : cardStyle === "outline" ? "viz-c viz-outline bg-surface"
+                            : "border border-sand-200 bg-surface",
+                        ),
                     editing && !holder && "cursor-grab touch-pan-y ring-1 ring-sand-300 hover:shadow-soft hover:ring-brand-600/50 active:cursor-grabbing",
                     resizing?.id === item.id && "ring-2 ring-brand-600",
                   )}
                 >
                   <FrameHeader
                     look={look}
+                    accent={!!chosen}
                     name={name}
                     href={!editing && frame?.href && !frame.locked ? frame.href : undefined}
                     seeAll={t("dash.seeAll", locale)}
@@ -659,12 +669,13 @@ export function DashboardGrid({
 
 /** A widget's header: its group's icon on a tint, the title (a link to its page), controls. */
 function FrameHeader({
-  look, name, href, seeAll, handle, controls,
-}: { look: { icon: ReactNode; tone: BadgeTone }; name: string; href?: string; seeAll: string; handle?: ReactNode; controls?: ReactNode }) {
+  look, name, href, seeAll, handle, controls, accent = false,
+}: { look: { icon: ReactNode; tone: BadgeTone }; name: string; href?: string; seeAll: string; handle?: ReactNode; controls?: ReactNode; accent?: boolean }) {
   return (
     <header className="mb-3 flex min-h-8 items-center gap-2.5">
       {handle}
-      <span aria-hidden="true" className={cn("flex size-8 shrink-0 items-center justify-center rounded-xl text-base", TONES[look.tone])}>
+      {/* A chosen card colour paints the icon too (the card carries the colour as --c). */}
+      <span aria-hidden="true" className={cn("flex size-8 shrink-0 items-center justify-center rounded-xl text-base", accent ? "viz-c viz-icon" : TONES[look.tone])}>
         {look.icon}
       </span>
       <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-semibold text-sand-800">
@@ -846,8 +857,37 @@ function WidgetSettingsForm({
     "flex min-h-10 cursor-pointer items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-600",
     on ? "border-brand-600 bg-brand-600 text-white" : "border-sand-300 bg-surface text-sand-800 hover:bg-surface-hover",
   );
+  const CARD_KEYS = ["accent", "style"];
+  const optionGroup = (keys: string[]) => keys.map((key) => {
+    const opt = def.options[key];
+    return (
+      <fieldset key={key} className="flex flex-col gap-1.5">
+        <legend className="mb-1.5 text-sm font-medium text-sand-800">{t(`dash.optLabel.${key}`, locale)}</legend>
+        <div className="flex flex-wrap gap-1.5">
+          {opt.choices.map((c) => {
+            const on = values[key] === c;
+            return (
+              <label key={c} className={chip(on)}>
+                <input type="radio" name={key} value={c} checked={on} onChange={() => setValues({ ...values, [key]: c })} className="sr-only" />
+                {(key === "colour" || key === "accent") && c in HUES ? <ColourDot hue={c} /> : null}
+                {t(`dash.opt.${key}.${c}`, locale)}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+    );
+  });
+  const chartKeys = Object.keys(def.options).filter((k) => !CARD_KEYS.includes(k));
+  const section = (title: string, children: ReactNode) => (
+    <section className="flex flex-col gap-4 border-t border-sand-100 pt-4 first:border-t-0 first:pt-0">
+      <h3 className="text-base font-bold text-sand-900">{title}</h3>
+      {children}
+    </section>
+  );
   return (
-    <form className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); apply(); }}>
+    <form className="flex max-h-[70dvh] flex-col gap-5 overflow-y-auto pr-1" onSubmit={(e) => { e.preventDefault(); apply(); }}>
+      {section(t("dash.section.basics", locale), <>
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-sand-800">{t("dash.optLabel.title", locale)}</span>
         <input
@@ -874,24 +914,10 @@ function WidgetSettingsForm({
           })}
         </div>
       </fieldset>
-      {Object.entries(def.options).map(([key, opt]) => (
-        <fieldset key={key} className="flex flex-col gap-1.5">
-          <legend className="mb-1.5 text-sm font-medium text-sand-800">{t(`dash.optLabel.${key}`, locale)}</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {opt.choices.map((c) => {
-              const on = values[key] === c;
-              return (
-                <label key={c} className={chip(on)}>
-                  <input type="radio" name={key} value={c} checked={on} onChange={() => setValues({ ...values, [key]: c })} className="sr-only" />
-                  {key === "colour" && c !== "auto" ? <ColourDot hue={c} /> : null}
-                  {t(`dash.opt.${key}.${c}`, locale)}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-      ))}
-      <div className="flex justify-end gap-2 border-t border-sand-100 pt-4">
+      </>)}
+      {chartKeys.length > 0 ? section(t("dash.section.chart", locale), optionGroup(chartKeys)) : null}
+      {section(t("dash.section.card", locale), optionGroup(CARD_KEYS))}
+      <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-sand-100 bg-surface px-1 pt-4">
         <Button type="button" variant="ghost" onClick={onCancel}>{t("common.cancel", locale)}</Button>
         <Button type="button" variant="primary" onClick={apply}>{t("common.save", locale)}</Button>
       </div>

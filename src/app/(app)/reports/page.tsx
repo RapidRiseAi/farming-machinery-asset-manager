@@ -243,7 +243,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     </div>
   );
 
-  const subLabel = "mb-1 text-xs font-semibold uppercase tracking-wide text-sand-500";
+  const subLabel = "mb-1 text-sm font-semibold text-sand-700";
 
   // == Costs ============================================================================
   const costsTab = (

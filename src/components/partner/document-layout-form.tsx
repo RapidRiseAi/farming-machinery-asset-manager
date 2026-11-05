@@ -111,7 +111,7 @@ export function DocumentLayoutForm({
     <form action={updateDocumentLayout} className="flex flex-col gap-4">
       {/* == The preview =========================================== */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-sand-500">
+        <p className="mb-2 text-sm font-semibold text-sand-700">
           {t("layout.previewTitle", locale)}
         </p>
         {/* The same miniature the page and the template picker draw, one preview in the

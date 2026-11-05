@@ -133,6 +133,27 @@ export const WIDGETS: WidgetDef[] = [
     needs: { feature: "aarto", module: "fines" }, sources: ["machines", "fines"], href: () => "/fines" },
 ];
 
+/** Number widgets that carry a trend line (compute.ts fills `trend` for these). */
+const HAS_TREND = new Set(["open_problems", "new_problems", "spend_month", "fuel_litres_month", "fuel_spend_month"]);
+
+// Options every widget offers, and the extras of its shape, added once here so the list
+// above stays about what each widget IS. Order is the order the settings show them.
+for (const w of WIDGETS) {
+  const extra: Record<string, WidgetOption> = {};
+  if (w.shape === "kpi") {
+    extra.figure = { choices: ["normal", "large"], default: "normal" };
+    if (HAS_TREND.has(w.type)) extra.trend = { choices: ["on", "off"], default: "on" };
+  }
+  if (w.shape === "series") extra.labels = { choices: ["on", "off"], default: "on" };
+  if (w.shape === "breakdown") extra.sort = { choices: ["value", "name"], default: "value" };
+  w.options = {
+    ...w.options,
+    ...extra,
+    accent: { choices: ["group", ...HUE_KEYS], default: "group" },
+    style: { choices: ["plain", "tinted", "outline"], default: "plain" },
+  };
+}
+
 export const WIDGET_BY_TYPE: ReadonlyMap<string, WidgetDef> = new Map(WIDGETS.map((w) => [w.type, w]));
 
 /**

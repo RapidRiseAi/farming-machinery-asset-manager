@@ -151,7 +151,7 @@ export default async function ChecklistInstancePage({ params }: { params: Promis
         )}
         {instance.notes ? (
           <div className="mt-3 border-t border-sand-100 pt-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("checklists.overallNotes", locale)}</p>
+            <p className="text-sm font-medium text-sand-700">{t("checklists.overallNotes", locale)}</p>
             <p className="mt-1 text-sm text-sand-700">{instance.notes}</p>
           </div>
         ) : null}

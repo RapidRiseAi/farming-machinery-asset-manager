@@ -249,7 +249,7 @@ export function FilterBar({
           {groups.map((g) => (
             <div key={g.paramName}>
               {/* The visible heading the stacked rows never had. */}
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-sand-500">
+              <p className="mb-1.5 text-sm font-semibold text-sand-700">
                 {g.label}
               </p>
               <div

@@ -201,7 +201,8 @@ export default async function HelpPage({
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("help.sent", locale) : undefined} />
 
-      <section className="flex flex-col gap-2" aria-labelledby="help-quick">
+      {/* Beside "Talk to a person" on a PC (PageContainer pairs it with that card). */}
+      <section data-span="half" className="flex flex-col gap-2" aria-labelledby="help-quick">
         <h2 id="help-quick" className="text-base font-bold text-sand-900">{t("help.quickTitle", locale)}</h2>
         {answers.map((key) => (
           <Disclosure key={key} summary={t(`pageInfo.${key}Title`, locale)}>

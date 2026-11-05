@@ -264,7 +264,7 @@ export default async function CalendarPage({
             which is a number and a dot, and that is exactly what an overview is for. */}
         <div className="mt-4 grid grid-cols-7 gap-1 text-center">
           {WEEKDAY_KEYS.map((k) => (
-            <div key={k} className="pb-1 text-xs font-medium uppercase tracking-wide text-sand-500" aria-hidden>
+            <div key={k} className="pb-1 text-sm font-medium text-sand-700" aria-hidden>
               {t(k, locale)}
             </div>
           ))}

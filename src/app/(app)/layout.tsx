@@ -824,7 +824,7 @@ export default async function AppLayout({
                   `-mx-3 px-6` bleeds it to the panel edges so rows pass BEHIND it
                   rather than beside it.
                 */}
-                <p className="sticky top-0 z-10 -mx-3 bg-surface px-6 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-sand-400">
+                <p className="sticky top-0 z-10 -mx-3 bg-surface px-6 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-sand-600">
                   {g.label}
                 </p>
                 {g.items.map((item) => (

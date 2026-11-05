@@ -148,25 +148,25 @@ export default async function OrderPage({
       <Card>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
+            <p className="text-sm font-medium text-sand-700">
               {t("po.subtotal", locale)}
             </p>
             <p className="text-lg font-semibold tabular-nums text-sand-900">{rands(order.subtotal_cents)}</p>
           </div>
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
+            <p className="text-sm font-medium text-sand-700">
               {t("po.vat", locale)} ({vatPercent(order.vat_rate_bps)})
             </p>
             <p className="text-lg font-semibold tabular-nums text-sand-900">{rands(order.vat_cents)}</p>
           </div>
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
+            <p className="text-sm font-medium text-sand-700">
               {t("po.total", locale)}
             </p>
             <p className="text-lg font-bold tabular-nums text-sand-900">{rands(order.total_cents)}</p>
           </div>
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-sand-500">
+            <p className="text-sm font-medium text-sand-700">
               {t("po.arrived", locale)}
             </p>
             <p className="text-lg font-semibold tabular-nums text-sand-900">

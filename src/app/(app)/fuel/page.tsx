@@ -461,7 +461,7 @@ export default async function FuelPage({
                         <StatusBadge tone="warning" shape="triangle" label={t("fuel.runningLow", locale)} />
                       ) : null}
                     </div>
-                    <p className="mt-3 text-xs font-medium uppercase tracking-wide text-sand-500">
+                    <p className="mt-3 text-sm font-medium text-sand-700">
                       {t("fuel.balance", locale)}
                     </p>
                     <p className="mt-1 text-3xl font-bold tracking-tight tabular-nums text-sand-900">

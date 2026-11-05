@@ -44,7 +44,7 @@ test("a chip shows its kinds only, and the purchase only under All", () => {
   assert.deepEqual(filterTimeline(all, "problems").map((e) => e.kind), ["fault", "watch"]);
   assert.deepEqual(filterTimeline(all, "service").map((e) => e.kind), ["jobcard"]);
   assert.equal(filterTimeline(all, "all").length, 4);
-  assert.deepEqual(timelineCounts(all), { all: 4, problems: 2, service: 1, checks: 0, work: 0, changes: 0 });
+  assert.deepEqual(timelineCounts(all), { all: 4, problems: 2, service: 1, parts: 0, fuel: 0, checks: 0, work: 0, changes: 0 });
 });
 
 test("an unknown or hostile ?tl= is All", () => {

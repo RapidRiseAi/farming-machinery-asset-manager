@@ -1108,7 +1108,7 @@ export default async function BillingPage({
         )}
 
         <div className="mt-4 border-t border-sand-200 pt-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-sand-500">
+          <p className="text-sm font-semibold text-sand-700">
             {t("billing.nextTitle", locale)}
           </p>
           <p className="mt-1 text-sm text-sand-800">{nextSentence}</p>

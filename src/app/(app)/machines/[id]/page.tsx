@@ -55,7 +55,7 @@ import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat, StatGrid } from "@/components/ui/stat";
 import { Fact, FactList } from "@/components/ui/facts";
-import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { BackLink, PageContainer } from "@/components/ui/page-header";
 import { backHref } from "@/components/ui/back-href";
 import { readTab } from "@/components/ui/tabs-url";
 import { cn } from "@/components/ui/cn";
@@ -85,6 +85,9 @@ import { setMachineStatus } from "./status-actions";
 import { Tabs } from "@/components/ui/tabs";
 import { MachineTimeline } from "@/components/machine-timeline";
 import { buildTimeline, readTimelineFilter, type TimelineEvent } from "@/lib/machine-timeline";
+import { MachineDashboard, MachineHero } from "@/components/machine/machine-overview";
+import type { CostPeriod } from "@/components/machine/cost-breakdown";
+import { lastMonths } from "@/lib/dashboard/compute";
 import { ExpiryStatus, FineStatus, WorkStatus, MachineStatus } from "@/components/ui/status";
 import { WorkRequestIntakeForm } from "@/app/(app)/work/work-request-intake-form";
 import {
@@ -488,6 +491,36 @@ export default async function MachineDetailPage({
       href: `/work/${w.id}`,
     });
   }
+  // Parts fitted (from job card lines, through the cost-masked view) and fuel drawn.
+  const jobById = new Map(jobCards.map((j) => [j.id, j]));
+  const partData = jobCards.length
+    ? soft(await supabase.from("job_card_lines_visible").select("id, job_card_id, description, part_no, qty, total_cents, created_at")
+        .in("job_card_id", jobCards.map((j) => j.id)).eq("kind", "part").is("deleted_at", null)
+        .order("created_at", { ascending: false }).limit(200), "machine:part-lines")
+    : [];
+  type PartLine = { id: string; job_card_id: string; description: string | null; part_no: string | null; qty: number | null; total_cents: number | null; created_at: string };
+  for (const p of (partData as PartLine[] | null) ?? []) {
+    const card = jobById.get(p.job_card_id);
+    events.push({
+      date: card?.date_out ?? p.created_at.slice(0, 10),
+      kind: "part",
+      title: p.description?.trim() || p.part_no || t("machine.evPart", locale),
+      sub: [p.part_no && p.description ? p.part_no : null, p.qty != null ? `${num(Number(p.qty), 2)} ×` : null, costsVisible && p.total_cents != null ? rands(p.total_cents) : null]
+        .filter(Boolean).join(" · "),
+      href: `/jobcards/${p.job_card_id}`,
+    });
+  }
+  for (const f of fuelDraws) {
+    if (!f.litres) continue;
+    events.push({
+      date: f.date,
+      kind: "fuel",
+      title: t("machine.evFuel", locale).replace("{litres}", num(Number(f.litres), 0)),
+      sub: [f.activity ? activityLabel(f.activity, locale) : null, costsVisible && f.cost_cents != null ? rands(f.cost_cents) : null].filter(Boolean).join(" · "),
+      href: `/fuel?machine=${machine.id}`,
+    });
+  }
+
   // The day it was bought starts the line. Pushed last, so on an equal date it sits below
   // everything else (the timeline's sort is stable). Supplier and price are Professional.
   if (machine.purchase_date) {
@@ -504,6 +537,7 @@ export default async function MachineDetailPage({
   }
   const timeline = buildTimeline(events, (n) => t("machine.evAuditMany", locale).replace("{n}", String(n)));
   const timelineFilter = readTimelineFilter(sp.tl);
+
 
   // Service-line progress (0..1) and status colour.
   const today = new Date();
@@ -562,6 +596,78 @@ export default async function MachineDetailPage({
   // The header's "Next service": the plan line that needs attention first.
   const nextLine = worstServiceLine(planLines, machine.current_reading);
   const nextLineText = nextLine ? serviceDueText(nextLine, machine.current_reading, machine.meter_type, locale) : null;
+
+  // == The machine's dashboard (Overview) ===================================
+  const months12 = lastMonths(new Date(), 12, locale);
+  const thisMonthKey = todayLocal().slice(0, 7);
+  const sumByMonth = (rows: { day: string | null; value: number }[]) => {
+    const m = new Map<string, number>();
+    for (const r of rows) if (r.day) m.set(r.day.slice(0, 7), (m.get(r.day.slice(0, 7)) ?? 0) + r.value);
+    return months12.map((x) => ({ ...x, value: Math.round(m.get(x.key) ?? 0) }));
+  };
+  const costPeriod = (key: CostPeriod["key"], from: string | null): CostPeriod => {
+    const rows = costRows.filter((r) => !from || (r.occurred_on ?? "") >= from);
+    const { total, breakdown: b } = summariseCosts(rows);
+    return { key, total, items: COST_TYPES.map((type) => ({ key: type, label: t(`costType.${type}`, locale), value: b[type] })) };
+  };
+  const costMonthly = sumByMonth(costRows.map((r) => ({ day: r.occurred_on, value: r.amount_cents ?? 0 })));
+  const fuelMonthly = sumByMonth(fuelDraws.map((f) => ({ day: f.date, value: Number(f.litres ?? 0) })));
+  // Hours or km by month: each reading's gain over the one before, in the month it was read.
+  const ascReadings = [...readings].sort((a, b) => a.reading_date.localeCompare(b.reading_date));
+  const usageMonthly = sumByMonth(ascReadings.slice(1).map((r, i) => ({ day: r.reading_date, value: Math.max(0, r.reading - ascReadings[i].reading) })));
+  const openJobCount = jobCards.filter((j) => ["reported", "open", "in_progress", "waiting_parts"].includes(j.status)).length;
+  const fuelThisMonth = fuelDraws.filter((f) => f.date.startsWith(thisMonthKey)).reduce((a, f) => a + Number(f.litres ?? 0), 0);
+  const dashboardProps = {
+    locale,
+    machineId: machine.id,
+    historyHref: `/machines/${machine.id}?tab=history#timeline`,
+    meter: machine.meter_type !== "none" ? {
+      label: meterLabel(machine.meter_type, locale),
+      value: machine.current_reading != null ? readingText(machine.current_reading) : "-",
+      note: machine.current_reading_date
+        ? t("machine.lastRead", locale).replace("{when}", relativeDate(machine.current_reading_date, locale))
+        : t("machines.neverRead", locale),
+      stale: isStale,
+      trend: ascReadings.map((r) => r.reading),
+      href: `/machines/${machine.id}?tab=overview#meter-reading`,
+    } : null,
+    service: nextLine ? {
+      status: nextLine.status as "ok" | "due_soon" | "overdue",
+      pill: statusPillLabel(nextLine.status),
+      task: nextLine.task,
+      due: nextLineText,
+      progress: lineProgress(nextLine as PlanLine),
+      href: `/machines/${machine.id}?tab=servicing`,
+    } : canEdit ? { setupHref: `/machines/${machine.id}?tab=servicing` } : null,
+    cost: analyticsVisible ? {
+      thisMonth: costRows.filter((r) => (r.occurred_on ?? "").startsWith(thisMonthKey)).reduce((a, r) => a + (r.amount_cents ?? 0), 0),
+      lifetime: tco,
+      perMeter: perMeter != null ? `${rands(perMeter)} ${perMeterLabel.toLocaleLowerCase()}` : null,
+      periods: [costPeriod("month", `${thisMonthKey}-01`), costPeriod("year", `${months12[0].key}-01`), costPeriod("life", null)],
+      monthly: costMonthly,
+      fullHref: `/machines/${machine.id}?tab=costs`,
+    } : null,
+    fuel: fuelAllowed ? {
+      thisMonth: fuelThisMonth,
+      consumption: fuelConsumption.display != null ? t("machine.dash.average", locale).replace("{value}", formatConsumption(fuelConsumption, locale)) : null,
+      monthly: fuelMonthly,
+      href: `/fuel?machine=${machine.id}`,
+    } : null,
+    usageMonthly,
+    usageUnit: machine.meter_type === "km" ? "km" as const : machine.meter_type === "none" ? null : "hours" as const,
+    quick: [
+      { label: t("machine.openFaults", locale), value: String(openFaultCount), tone: openFaultCount > 0 ? "bad" as const : "ok" as const, href: `/machines/${machine.id}?tab=history&tl=problems#timeline` },
+      { label: t("machine.dash.openJobCards", locale), value: String(openJobCount), href: `/jobcards?machine=${machine.id}` },
+      ...(analyticsVisible ? [
+        { label: t("machine.utilisation", locale), value: utilisation.pct != null ? `${utilisation.pct.toFixed(0)}%` : "-", href: `/machines/${machine.id}?tab=overview#utilisation` },
+        { label: t("machine.dash.downtime", locale), value: t("machine.dash.days", locale).replace("{n}", String(downtimeDays)) },
+      ] : [
+        { label: t("machine.watchItems", locale), value: String(openWatch.length) },
+        { label: t("machine.checklists", locale), value: String(checklists.length) },
+      ]),
+    ],
+    recent: timeline,
+  };
 
   // The tab to open on: ?tab= from a save or a link, or History for a driver lookup.
   const tabKeys = ["overview", "servicing", ...(costsVisible ? ["costs"] : []), "history", "papers"];
@@ -708,105 +814,41 @@ export default async function MachineDetailPage({
 
   return (
     <PageContainer size="wide">
-      <PageHeader
-        back={{ href: backHref(sp.from, "/machines"), label: t("machines.title", locale) }}
+      <BackLink href={backHref(sp.from, "/machines")} label={t("machines.title", locale)} />
+
+      {/*
+        The machine's banner, after the AutoVault vehicle page: its photo, state and the
+        figures people check first as chips, and the things they come here to do. The
+        dashboard under Overview carries the numbers; this says what and how it is.
+      */}
+      <MachineHero
         title={machine.name}
-        badge={<MachineStatus value={machine.status} locale={locale} size="md" />}
-        meta={[
+        subtitle={[
           typeLabel(machine.type, locale),
           machine.make ? `${machine.make} ${machine.model ?? ""}`.trim() : null,
           machine.reg_no,
           machine.year ? String(machine.year) : null,
           machine.location,
         ].filter(Boolean).join(" · ")}
-      />
+        photo={
+          primaryPhotoUrl ? (
+            <Photo src={primaryPhotoUrl} alt={machine.name} size="detail" priority className="h-20 w-20 sm:h-24 sm:w-24" />
+          ) : (
+            <span className="flex h-20 w-20 items-center justify-center text-4xl text-white/90 sm:h-24 sm:w-24">
+              <MachinesIcon />
+            </span>
+          )
+        }
+        status={<MachineStatus value={machine.status} locale={locale} size="md" />}
+        chips={[
+          machine.meter_type !== "none" && machine.current_reading != null ? readingText(machine.current_reading) : null,
+          machine.assigned_operator_id ? operatorName.get(machine.assigned_operator_id) ?? null : null,
+          openFaultCount > 0 ? t("machine.dash.openProblemsChip", locale).replace("{n}", String(openFaultCount)) : null,
+        ]}
+        note={isOutOfService ? t("machine.outOfServiceHint", locale) : null}
+        actions={
+          <>
 
-      {/*
-        What the machine is doing, and the things people came here to do. On a phone this
-        was a 132px empty photo box, a three-line subtitle, two numbers, three buttons over
-        two rows and a separate out-of-service card, so the tabs began about 890px down.
-        Now: a small photo beside the numbers that matter (meter, cost, next service), one
-        action row, and everything else about the machine in its More menu.
-      */}
-      <section aria-label={machine.name} className="rounded-2xl border border-sand-200 bg-surface p-4 shadow-card">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-start gap-3 sm:gap-5">
-            {/* Above the fold and the subject of the page, so it loads eagerly -
-                lazy-loading the LCP image only delays it. */}
-            <Photo
-              src={primaryPhotoUrl}
-              alt={machine.name}
-              size="detail"
-              priority
-              className="h-16 w-16 shrink-0 rounded-xl ring-1 ring-sand-200 sm:h-24 sm:w-24"
-              placeholder={<MachinesIcon className="text-2xl" />}
-            />
-            <div className="min-w-0 flex-1">
-              <dl className="flex flex-wrap gap-x-8 gap-y-3">
-                {machine.meter_type !== "none" ? (
-                  <div>
-                    <dt className="text-xs text-sand-500">{meterLabel(machine.meter_type, locale)}</dt>
-                    <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">
-                      {machine.current_reading != null ? readingText(machine.current_reading) : "-"}
-                    </dd>
-                    <dd className={`text-xs ${isStale ? "font-medium text-status-due" : "text-sand-500"}`}>
-                      {machine.current_reading_date
-                        ? t("machine.lastRead", locale).replace("{when}", relativeDate(machine.current_reading_date, locale))
-                        : t("machines.neverRead", locale)}
-                    </dd>
-                  </div>
-                ) : null}
-                {analyticsVisible && perMeter != null ? (
-                  <div>
-                    <dt className="text-xs text-sand-500">{perMeterLabel}</dt>
-                    <dd className="text-xl font-bold tabular-nums leading-tight text-sand-950">{rands(perMeter)}</dd>
-                  </div>
-                ) : null}
-                {/* The column people scan on the list; it was only on the Servicing tab. */}
-                {nextLine ? (
-                  <div className="min-w-0">
-                    <dt className="text-xs text-sand-500">{t("machines.nextService", locale)}</dt>
-                    <dd>
-                      <Link
-                        href={`/machines/${machine.id}?tab=servicing`}
-                        className="focus-ring -mx-1 inline-flex min-h-12 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-1 sm:min-h-9"
-                      >
-                        <StatusPill status={nextLine.status as "ok" | "due_soon" | "overdue"} label={statusPillLabel(nextLine.status)} />
-                        <span className="min-w-0 break-words text-sm font-medium text-sand-900">{nextLine.task}</span>
-                      </Link>
-                    </dd>
-                    {nextLineText ? (
-                      <dd className={cn("text-xs", dueTone[nextLine.status] ?? "text-sand-500")}>{nextLineText}</dd>
-                    ) : null}
-                  </div>
-                ) : canEdit ? (
-                  <div>
-                    <dt className="text-xs text-sand-500">{t("machines.nextService", locale)}</dt>
-                    <dd className="mt-1">
-                      <Link
-                        href={`/machines/${machine.id}?tab=servicing`}
-                        className="focus-ring inline-flex min-h-12 items-center rounded-lg border border-dashed border-sand-300 px-3 text-sm font-medium text-sand-600 sm:min-h-9"
-                      >
-                        {t("machines.setUpPlan", locale)}
-                      </Link>
-                    </dd>
-                  </div>
-                ) : null}
-                {openFaultCount > 0 ? (
-                  <div>
-                    <dt className="text-xs text-sand-500">{t("machine.openFaults", locale)}</dt>
-                    <dd className="text-xl font-bold tabular-nums leading-tight text-status-overdue">{openFaultCount}</dd>
-                  </div>
-                ) : null}
-              </dl>
-              {/* The pill above already says "Out of service"; this says why and what next. */}
-              {isOutOfService ? (
-                <p className="mt-3 text-sm text-sand-700">{t("machine.outOfServiceHint", locale)}</p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
             {canJob ? (
               <NewJobCard {...jobCreation} triggerVariant="secondary" />
             ) : null}
@@ -870,9 +912,14 @@ export default async function MachineDetailPage({
                 {t("machine.machineFile", locale)}
               </DownloadLink>
             </ActionMenu>
-          </div>
-        </div>
-      </section>
+            {canReportFault ? (
+              <Link href={`/faults?report=1&machine=${machine.id}`} className={buttonVariants({ variant: "secondary" })}>
+                {t("faults.report", locale)}
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? financeSavedKey(sp.saved) ?? "ui.saved", locale) : undefined} />
@@ -891,6 +938,9 @@ export default async function MachineDetailPage({
               label: t("machine.tabOverview", locale),
               content: (
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+              <div className="xl:col-span-2">
+                <MachineDashboard {...dashboardProps} />
+              </div>
               {/* A machine with no plan yet: the two jobs that make it useful, until done. */}
               {canEdit && planLines.length === 0 ? (
                 <div className="xl:col-span-2">
@@ -2087,7 +2137,7 @@ export default async function MachineDetailPage({
                     pre-selecting this vehicle. */}
                 <div className="mt-4 border-t border-sand-100 pt-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("machine.finesTitle", locale)}</p>
+                    <p className="text-sm font-medium text-sand-700">{t("machine.finesTitle", locale)}</p>
                     {canEdit ? (
                       <Link href={`/fines?sm=${machine.id}`} className="focus-ring rounded text-xs font-medium text-brand-ink">
                         {t("machine.recordFine", locale)} →
@@ -2168,7 +2218,7 @@ export default async function MachineDetailPage({
 
                 {/* Warranty (stored on the machine) */}
                 <div className="flex flex-col gap-1.5">
-                  <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.warranty", locale)}</p>
+                  <p className="text-sm font-medium text-sand-700">{t("compliance.warranty", locale)}</p>
                   {hasWarranty ? (
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-sand-700">
                       {machine.warranty_expiry_date ? (
@@ -2186,7 +2236,7 @@ export default async function MachineDetailPage({
 
                 {/* Licences / renewals */}
                 <div className="mt-4 border-t border-sand-100 pt-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-sand-400">{t("compliance.licences", locale)}</p>
+                  <p className="text-sm font-medium text-sand-700">{t("compliance.licences", locale)}</p>
                   {licences.length === 0 ? (
                     <p className="mt-1 text-sm text-sand-400">{t("compliance.noLicences", locale)}</p>
                   ) : (

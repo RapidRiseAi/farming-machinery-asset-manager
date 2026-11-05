@@ -20,6 +20,8 @@ import {
   BellIcon,
   ChecklistIcon,
   FaultsIcon,
+  FuelIcon,
+  PartsIcon,
   JobCardsIcon,
   MachinesIcon,
   PinIcon,
@@ -37,6 +39,8 @@ const KIND_TONE: Record<TimelineKind, BadgeTone> = {
   watch: "warning",
   checklist: "ok",
   work: "info",
+  part: "info",
+  fuel: "warning",
   audit: "neutral",
 };
 
@@ -47,6 +51,8 @@ const KIND_ICON: Record<TimelineKind, ReactNode> = {
   watch: <BellIcon />,
   checklist: <ChecklistIcon />,
   work: <WorkIcon />,
+  part: <PartsIcon />,
+  fuel: <FuelIcon />,
   audit: <PinIcon />,
 };
 
@@ -63,14 +69,18 @@ export function MachineTimeline({
   filter,
   machineId,
   locale,
+  compact,
 }: {
   /** From `buildTimeline`: sorted and folded, not yet filtered. */
   events: TimelineEvent[];
   filter: TimelineFilter;
   machineId: string;
   locale: Lang;
+  /** The newest N rows only, without chips: the overview's recent history. */
+  compact?: number;
 }) {
   if (events.length === 0) return <EmptyState title={t("machine.noTimeline", locale)} />;
+  if (compact) return <Rail events={events.slice(0, compact)} locale={locale} />;
 
   const counts = timelineCounts(events);
   // A chip only where it leads somewhere, and no chip row at all for a one-kind history.
@@ -137,7 +147,7 @@ function Rail({ events, locale }: { events: TimelineEvent[]; locale: Lang }) {
     >
       {groupByMonth(events).map((g) => (
         <li key={g.month}>
-          <h3 className="relative flex min-h-9 items-center pl-10 text-xs font-semibold uppercase tracking-wide text-sand-500">
+          <h3 className="relative flex min-h-9 items-center pl-10 text-sm font-bold text-sand-800">
             <span aria-hidden="true" className="absolute left-4 size-2.5 -translate-x-1/2 rounded-full bg-sand-300 ring-4 ring-surface" />
             {monthLabel(`${g.month}-01`, locale)}
           </h3>

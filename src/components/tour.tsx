@@ -104,7 +104,7 @@ export function Tour({
 
       <div className="flex flex-col gap-4 px-5 pb-5 pt-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sand-500">
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-sand-700">
             {t("tour.stepOf", locale).replace("{n}", String(i + 1)).replace("{total}", String(steps.length))}
           </span>
           {/* Out on the first card, not buried at the end. */}

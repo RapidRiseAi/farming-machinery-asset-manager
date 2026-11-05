@@ -97,20 +97,22 @@ function Tip({ children }: { children: ReactNode }) {
  * last month, and a sparkline of the same measure over earlier periods when there is one.
  * The widget's colour setting paints the dot and the sparkline; "auto" uses the state.
  */
-export function KpiTile({ data, colour, locale }: { data: KpiData; colour: string; locale: Lang }) {
+export function KpiTile({
+  data, colour, locale, large = false, showTrend = true,
+}: { data: KpiData; colour: string; locale: Lang; large?: boolean; showTrend?: boolean }) {
   const sw = hueSwatch(colour, data.tone);
   const deltaText = data.delta
     ? t(data.delta.more ? "dash.deltaMore" : "dash.deltaLess", locale)
         .replace("{amount}", formatValue(data.delta.amount, data.format, locale))
         .replace("{month}", data.delta.month)
     : null;
-  const trend = data.trend && data.trend.some((v) => v > 0) ? data.trend : null;
+  const trend = showTrend && data.trend && data.trend.some((v) => v > 0) ? data.trend : null;
   return (
     // The sparkline sits beside the figure: under it, a two-row tile clipped the line.
     <div className="flex h-full min-h-0 items-center gap-3">
       <div className="min-w-0 flex-1">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-        <p className="truncate text-3xl font-bold tabular-nums tracking-tight text-sand-950 xl:text-4xl">
+        <p className={cn("truncate font-bold tabular-nums tracking-tight text-sand-950", large ? "text-4xl xl:text-5xl" : "text-3xl xl:text-4xl")}>
           {formatValue(data.value, data.format, locale)}
         </p>
         {data.delta && deltaText ? (
@@ -162,8 +164,8 @@ export function Sparkline({ values, sw, className }: { values: number[]; sw: Swa
 // == Over time ===================================================================
 
 export function SeriesChart({
-  data, chart, colour, title, locale,
-}: { data: SeriesData; chart: string; colour: string; title: string; locale: Lang }) {
+  data, chart, colour, title, locale, labels = true,
+}: { data: SeriesData; chart: string; colour: string; title: string; locale: Lang; labels?: boolean }) {
   const pts = data.points;
   const max = Math.max(0, ...pts.map((p) => p.value));
   if (max === 0) return <Empty locale={locale} />;
@@ -172,7 +174,7 @@ export function SeriesChart({
   const pct = (v: number) => (v / top) * 100;
   // Selective labels: the latest value and the highest, never a number on every mark.
   const peak = pts.reduce((best, p, i) => (p.value > pts[best].value ? i : best), 0);
-  const labelled = new Set([peak, pts.length - 1]);
+  const labelled = new Set(labels ? [peak, pts.length - 1] : []);
 
   return (
     <figure className="flex h-full min-h-0 flex-col" aria-label={title}>
@@ -260,8 +262,12 @@ export function niceCeiling(max: number): number {
 // == Shares ======================================================================
 
 export function BreakdownChart({
-  data, chart, colours, title, locale,
-}: { data: BreakdownData; chart: string; colours: string; title: string; locale: Lang }) {
+  data: given, chart, colours, title, locale, sort = "value",
+}: { data: BreakdownData; chart: string; colours: string; title: string; locale: Lang; sort?: "value" | "name" }) {
+  // "A to Z" reorders the slices; colours follow the slice's place, never its rank.
+  const data = sort === "name"
+    ? { ...given, items: [...given.items].sort((a, b) => a.label.localeCompare(b.label, locale === "af" ? "af" : "en")) }
+    : given;
   const total = data.items.reduce((a, i) => a + i.value, 0);
   if (total === 0) return <Empty locale={locale} />;
   const palette = (colours in PALETTES ? colours : "fleetwise") as PaletteKey;

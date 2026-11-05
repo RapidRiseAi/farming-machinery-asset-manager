@@ -4,6 +4,7 @@ import type { WidgetData } from "@/lib/dashboard/compute";
 import type { WidgetSettings } from "@/lib/dashboard/layout";
 import { WIDGET_BY_TYPE, setting, type WidgetCategory } from "@/lib/dashboard/widgets";
 import type { BadgeTone } from "@/components/ui/badge";
+import type { HueKey } from "@/lib/dashboard/palettes";
 import {
   CalendarIcon, CashIcon, DocumentsIcon, FaultsIcon, FuelIcon, MachinesIcon, WarningIcon,
 } from "@/components/ui/icons";
@@ -20,20 +21,23 @@ export function WidgetBody({ type, settings, data, locale }: { type: string; set
   const opt = (k: string) => setting(def, settings, k);
   const title = settings.title || t(`dash.w.${type}.title`, locale);
   switch (data.kind) {
-    case "kpi": return <KpiTile data={data} colour={opt("colour") || "auto"} locale={locale} />;
-    case "series": return <SeriesChart data={data} chart={opt("chart")} colour={opt("colour")} title={title} locale={locale} />;
-    case "breakdown": return <BreakdownChart data={data} chart={opt("chart")} colours={opt("colours")} title={title} locale={locale} />;
+    case "kpi": return <KpiTile data={data} colour={opt("colour") || "auto"} large={opt("figure") === "large"} showTrend={opt("trend") !== "off"} locale={locale} />;
+    case "series": return <SeriesChart data={data} chart={opt("chart")} colour={opt("colour")} labels={opt("labels") !== "off"} title={title} locale={locale} />;
+    case "breakdown": return <BreakdownChart data={data} chart={opt("chart")} colours={opt("colours")} sort={opt("sort") === "name" ? "name" : "value"} title={title} locale={locale} />;
     case "list": return <ListWidget data={data} locale={locale} />;
   }
 }
 
-/** Each group's icon and tint, on the widget's header and in the tray. */
-export const CATEGORY_LOOK: Record<WidgetCategory, { icon: ReactNode; tone: BadgeTone }> = {
-  attention: { icon: <WarningIcon />, tone: "danger" },
-  problems: { icon: <FaultsIcon />, tone: "danger" },
-  servicing: { icon: <CalendarIcon />, tone: "warning" },
-  fleet: { icon: <MachinesIcon />, tone: "brand" },
-  costs: { icon: <CashIcon />, tone: "ok" },
-  fuel: { icon: <FuelIcon />, tone: "info" },
-  papers: { icon: <DocumentsIcon />, tone: "neutral" },
+/**
+ * Each group's icon and tint, on the widget's header and in the tray, and the colour a
+ * tinted or outlined card wears when its card colour is left on "Group colour".
+ */
+export const CATEGORY_LOOK: Record<WidgetCategory, { icon: ReactNode; tone: BadgeTone; hue: HueKey }> = {
+  attention: { icon: <WarningIcon />, tone: "danger", hue: "rose" },
+  problems: { icon: <FaultsIcon />, tone: "danger", hue: "red" },
+  servicing: { icon: <CalendarIcon />, tone: "warning", hue: "gold" },
+  fleet: { icon: <MachinesIcon />, tone: "brand", hue: "green" },
+  costs: { icon: <CashIcon />, tone: "ok", hue: "teal" },
+  fuel: { icon: <FuelIcon />, tone: "info", hue: "orange" },
+  papers: { icon: <DocumentsIcon />, tone: "neutral", hue: "slate" },
 };

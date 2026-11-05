@@ -1041,7 +1041,9 @@
       "service": "Service",
       "checks": "Checklists",
       "work": "Contractors",
-      "changes": "Record changes"
+      "changes": "Record changes",
+      "parts": "Parts",
+      "fuel": "Fuel"
     },
     "tlKind": {
       "origin": "Bought",
@@ -1050,9 +1052,43 @@
       "watch": "Watch item",
       "checklist": "Checklist",
       "work": "Contractor",
-      "audit": "Record change"
+      "audit": "Record change",
+      "part": "Part",
+      "fuel": "Fuel"
     },
-    "tlNoneOfKind": "Nothing of this kind yet. Choose All to see everything."
+    "tlNoneOfKind": "Nothing of this kind yet. Choose All to see everything.",
+    "evPart": "Part fitted",
+    "evFuel": "{litres} L of fuel",
+    "dash": {
+      "seeBreakdown": "See the breakdown",
+      "periodLabel": "Period",
+      "period": {
+        "month": "This month",
+        "year": "Last 12 months",
+        "life": "Since bought"
+      },
+      "noCosts": "No costs recorded in this period.",
+      "fullCosts": "All costs",
+      "costTitle": "What this machine costs",
+      "spentThisMonth": "Spent this month",
+      "lifetime": "{amount} since bought",
+      "fuelThisMonth": "Fuel this month",
+      "noConsumption": "Not enough readings for an average yet",
+      "average": "{value} on average",
+      "planHint": "A plan tells you when the next service is due.",
+      "openJobCards": "Open job cards",
+      "downtime": "Downtime, 30 days",
+      "days": "{n} d",
+      "costByMonth": "Spending by month",
+      "fuelByMonth": "Fuel by month",
+      "fuelDetail": "Fuel records",
+      "hoursByMonth": "Hours worked by month",
+      "kmByMonth": "Kilometres by month",
+      "meterDetail": "Readings",
+      "recent": "Latest history",
+      "fullHistory": "Full history",
+      "openProblemsChip": "{n} open problems"
+    }
   },
   "admin": {
     "farms": "Farms",
@@ -7323,7 +7359,13 @@
       "days": "Period",
       "rows": "Rows",
       "compare": "Compare with last month",
-      "size": "Size"
+      "size": "Size",
+      "accent": "Card colour",
+      "style": "Card style",
+      "figure": "Figure size",
+      "trend": "Trend line",
+      "labels": "Values on the chart",
+      "sort": "Order"
     },
     "opt": {
       "colour": {
@@ -7333,7 +7375,12 @@
         "orange": "Orange",
         "violet": "Violet",
         "gold": "Gold",
-        "rose": "Rose"
+        "rose": "Rose",
+        "teal": "Teal",
+        "red": "Red",
+        "slate": "Slate",
+        "olive": "Olive",
+        "brown": "Brown"
       },
       "colours": {
         "status": "By state (red, amber, green)",
@@ -7366,6 +7413,41 @@
       "compare": {
         "on": "Yes",
         "off": "No"
+      },
+      "accent": {
+        "group": "Group colour",
+        "green": "Green",
+        "blue": "Blue",
+        "orange": "Orange",
+        "violet": "Violet",
+        "gold": "Gold",
+        "rose": "Rose",
+        "teal": "Teal",
+        "red": "Red",
+        "slate": "Slate",
+        "olive": "Olive",
+        "brown": "Brown"
+      },
+      "style": {
+        "plain": "Plain",
+        "tinted": "Tinted",
+        "outline": "Outlined"
+      },
+      "figure": {
+        "normal": "Normal",
+        "large": "Large"
+      },
+      "trend": {
+        "on": "Show",
+        "off": "Hide"
+      },
+      "labels": {
+        "on": "Show",
+        "off": "Hide"
+      },
+      "sort": {
+        "value": "Largest first",
+        "name": "A to Z"
       }
     },
     "deltaMore": "{amount} more than {month}",
@@ -7453,6 +7535,11 @@
       "l": "Large",
       "wide": "Wide"
     },
-    "resetShort": "Reset"
+    "resetShort": "Reset",
+    "section": {
+      "basics": "Basics",
+      "chart": "What it shows",
+      "card": "Card"
+    }
   }
 }

@@ -74,7 +74,7 @@ export function LifecycleActions({
     <div className="flex flex-col gap-3">
       {showChecklist ? (
         <div id={readyId} className="rounded-lg border border-sand-200 px-3 py-2">
-          <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-sand-500">{t("jobview.ready.title", locale)}</p>
+          <p className="pb-1 text-sm font-semibold text-sand-700">{t("jobview.ready.title", locale)}</p>
           <ul className="divide-y divide-sand-100">
             {item(hasWorkPerformed, t("jobview.ready.work", locale), fixWork)}
             {meterRequired ? item(!needsMeter, t("jobview.ready.meter", locale), fixMeter) : null}

@@ -559,3 +559,15 @@ html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
 .viz-bg { background-color: var(--c); }
 .viz-fill { fill: var(--c); }
 .viz-stroke { stroke: var(--c); }
+/* A widget's card colour (dashboard settings): a tint, an outline, and its icon, all from
+ * the same --c, so dark mode takes its own step. Text stays ink: the tint is 9%, light
+ * enough that body text keeps its contrast in both themes. */
+.viz-tint {
+  background-color: color-mix(in srgb, var(--c) 9%, rgb(var(--surface)));
+  border-color: color-mix(in srgb, var(--c) 35%, rgb(var(--surface)));
+}
+.viz-outline { border-color: var(--c); border-width: 2px; }
+.viz-icon {
+  background-color: color-mix(in srgb, var(--c) 16%, rgb(var(--surface)));
+  color: var(--c);
+}
