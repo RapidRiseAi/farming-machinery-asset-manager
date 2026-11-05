@@ -281,11 +281,25 @@ pushed. Each item has its own commit, tests and mutation checks.
 - [x] **Website corrections** prepared on the website repository's branch
       `claude/plan-accuracy` (`bbceae6`), not published.
 - [x] **Corporate and trucking roadmap**: `docs/CORPORATE_FLEET_ROADMAP.md`.
+- [x] **Phone pass and safer import** (`a0004b2`): every route fits 360px and 1024px
+      (ui_check); four layout fixes from screenshots; machine import takes reading dates,
+      refuses rows already on the farm, and shows its defaults; support promise reworded to
+      the approved target.
+- [x] **Recovery links, voice-note erasure, full export** (`47a8455`): reset links say
+      "same browser" and explain a link opened elsewhere; erasure removes the person's
+      voice notes (`20261105090000`); the farm export adds finance and newer tables and
+      streams.
+- [x] **H9 module switches and simple driver mode** (`9b64488`).
+- [x] **Staff onboarding** (`8c055f2`, `20261105100000`): set up a quoted customer in one
+      step (no trial), EFT details on the pay page, never swept as an abandoned sign-up.
+- [x] **Founding Farmer by staff only; repeat-tap follow-ups** (`3e20615`).
+- [x] **Domain readiness warning on /api/health** (`c913dcc`).
 
 **Release order** (when the founder says go):
 
 1. `node scripts/apply_pending.mjs --dry`, then `--apply`: `20261104200000` (prices),
-   `20261104210000` (WhatsApp media), `20261104220000` (plan boundaries), each probed.
+   `20261104210000` (WhatsApp media), `20261104220000` (plan boundaries),
+   `20261105090000` (erasure voice notes), `20261105100000` (staff onboarding), each probed.
    Database first: the live app tolerates all three (old WhatsApp webhooks still call the
    four-argument receiver), while the new app's billing pages read `min_billed_slots`.
 2. Push the branch to `main` straight after, verify the deployment by commit SHA, then the
