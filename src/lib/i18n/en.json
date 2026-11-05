@@ -430,10 +430,13 @@
     "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Open the email on this device and in this browser (in the same private window, if you are using one): the link only works where you asked for it. Check your spam folder if it does not arrive in a few minutes.",
     "errRapidRiseCheck": "Your Rapid Rise access could not be confirmed just now. Try again in a moment, or sign out and sign in again.",
     "errOtherBrowser": "That link was opened in a different browser or device from the one that asked for it, so it could not sign you in. Open the email on the device and in the browser where you asked for the link (in the same private window, if you used one), or ask for a new link here and open it on this device.",
-    "brandTitle": "Your whole fleet, together in one place.",
     "brandPoint1": "Services, faults and job cards for every machine",
     "brandPoint2": "What each machine costs you, down to the rand",
-    "brandPoint3": "Works in the field without signal, in English and Afrikaans"
+    "brandPoint3": "Works in the field without signal, in English and Afrikaans",
+    "eyebrow": "Sign in to FleetWise",
+    "heroTitle": "Keep your fleet working.",
+    "heroAccent": "Know what it costs.",
+    "heroLead": "Maintenance, costs and work progress in one place, for farms, vehicles and mixed equipment fleets."
   },
   "mfa": {
     "verifyTitle": "Enter your code",
@@ -5987,7 +5990,13 @@
     "compareNo": "Not included",
     "compareSwipe": "Swipe sideways to see all four plans.",
     "promoOpen": "Have a promo code?",
-    "submitting": "Setting up your farm..."
+    "submitting": "Setting up your farm...",
+    "eyebrow": "Start your farm",
+    "heroTitle": "Every machine on your farm,",
+    "heroAccent": "in one place.",
+    "stepPlanHint": "A plan, how you pay and how many vehicles you run.",
+    "stepDetailsHint": "Your farm's name, your name, an email and a password.",
+    "stepPayHint": "Agree to the terms and continue to payment."
   },
   "closed": {
     "title": "Your FleetWise farm is closed",
@@ -6134,12 +6143,23 @@
       "card": "You pay through Paystack. Your card details never reach our servers.",
       "data": "Your records stay yours, and you can download them whenever you like."
     },
-    "drivers": "Your drivers do not each need an account. They scan the QR sticker on the machine and report a fault or a reading without signing in to anything."
+    "drivers": "Your drivers do not each need an account. They scan the QR sticker on the machine and report a fault or a reading without signing in to anything.",
+    "eyebrow": "Your whole fleet, connected"
   },
   "publicNav": {
     "terms": "Terms of use",
     "privacy": "Privacy notice",
-    "reg": "Reg."
+    "reg": "Reg.",
+    "website": "Website",
+    "getInTouch": "Get in touch",
+    "tagline": "Everything your fleet needs.",
+    "taglineSub": "Management. Software. Parts. People.",
+    "goodToKnow": "Good to know",
+    "company": "The company",
+    "copyright": "© {year} FleetWise. Keep good things moving.",
+    "product": "A Rapid Rise AI product",
+    "signIn": "Sign in",
+    "legalEyebrow": "Terms and privacy"
   },
   "adminSupport": {
     "title": "Support cases",

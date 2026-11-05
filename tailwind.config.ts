@@ -292,6 +292,10 @@ const config: Config = {
         "2xl": ["1.625rem", { lineHeight: "2rem", letterSpacing: "-0.015em" }],
         "3xl": ["2.0625rem", { lineHeight: "2.375rem", letterSpacing: "-0.02em" }],
         "4xl": ["2.625rem", { lineHeight: "2.875rem", letterSpacing: "-0.025em" }],
+        // Display steps, for the pre-login pages only (sign in, sign up, the front page,
+        // the legal pages), which follow the website's headline size and tight tracking.
+        "5xl": ["3.25rem", { lineHeight: "1.05", letterSpacing: "-0.035em" }],
+        "6xl": ["4rem", { lineHeight: "1.03", letterSpacing: "-0.04em" }],
       },
       boxShadow: {
         // Warm-tinted, layered. Tinted with the charcoal rather than pure black

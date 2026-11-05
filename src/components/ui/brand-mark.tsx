@@ -20,8 +20,8 @@ export function BrandMark({
 }: {
   className?: string;
   priority?: boolean;
-  /** `md` beside a wordmark (36px tall), `lg` as the subject of a panel (80px). */
-  size?: "md" | "lg";
+  /** `md` beside a wordmark (36px), `site` the website's header tile (40px), `lg` 80px. */
+  size?: "md" | "site" | "lg";
 }) {
   return (
     <Image
@@ -34,7 +34,11 @@ export function BrandMark({
       priority={priority}
       // One alignment per size: in a flex column the mark would otherwise stretch to the
       // full width, flattened (the sign-in panel, found in a screenshot).
-      className={cn("w-auto shrink-0", size === "lg" ? "h-20 self-start" : "h-9 self-center rounded-md", className)}
+      className={cn(
+        "w-auto shrink-0",
+        size === "lg" ? "h-20 self-start" : size === "site" ? "h-10 self-center rounded-[5px]" : "h-9 self-center rounded-md",
+        className,
+      )}
     />
   );
 }
@@ -47,18 +51,31 @@ export function BrandMark({
 export function Wordmark({
   name,
   tone = "page",
+  caps = false,
   className,
 }: {
   name: string;
-  tone?: "page" | "nav";
+  /** `footer`: white on FleetWise Black, with "WISE" white too, as the website's footer. */
+  tone?: "page" | "nav" | "footer";
+  /** The website's capitals, FLEETWISE, for the pages before sign-in. */
+  caps?: boolean;
   className?: string;
 }) {
   const split = name === "FleetWise";
+  const ink = tone === "page" ? "text-ink" : "text-white";
+  const wise = tone === "nav" ? "text-nav-accent" : tone === "footer" ? "text-white" : "text-brand-ink";
   return (
-    <span className={cn("text-lg font-bold tracking-tight", tone === "nav" ? "text-nav-ink" : "text-ink", className)}>
+    <span
+      className={cn(
+        "font-bold",
+        caps ? "text-2xl uppercase tracking-[-0.03em]" : "text-lg tracking-tight",
+        ink,
+        className,
+      )}
+    >
       {split ? (
         <>
-          Fleet<span className={tone === "nav" ? "text-nav-accent" : "text-brand-ink"}>Wise</span>
+          Fleet<span className={wise}>Wise</span>
         </>
       ) : (
         name

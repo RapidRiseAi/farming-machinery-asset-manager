@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -6,7 +7,11 @@ import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { rands } from "@/lib/money";
 import { PLANS, perVehicleMonthlyCents } from "@/lib/entitlements";
-import { PublicShell, Tick } from "@/components/public-shell";
+import { PublicShell, SITE_GUTTER, Tick } from "@/components/public-shell";
+import { ArrowRightIcon, ArrowUpRightIcon, CalendarIcon, CashIcon, DeviceIcon } from "@/components/ui/icons";
+
+/** Each claim's icon, in the website's green square. */
+const POINT_ICON = { due: <CalendarIcon />, costs: <CashIcon />, offline: <DeviceIcon /> } as const;
 
 /**
  * The app's front door, and the installed app's `start_url`.
@@ -62,75 +67,88 @@ export default async function LandingPage({
   const points = ["due", "costs", "offline"] as const;
 
   return (
-    <PublicShell locale={locale} width="wide">
-      {/* == What this is ==================================================== */}
-      <section className="mx-auto max-w-2xl pt-6 text-center sm:pt-12">
-        <h1 className="text-3xl font-bold tracking-tight text-sand-900 sm:text-4xl">
-          {t("landing.headline", locale)}
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-sand-600">
-          {t("landing.sub", locale)}
-        </p>
+    <PublicShell locale={locale} width="full">
+      {/* == The website's hero: the same photograph, headline and buttons ========== */}
+      <section className="relative isolate overflow-hidden bg-brand-950">
+        {/* hero.jpg, "Tractor and baler at sunset" by Jed Owen, Unsplash licence, the
+            website's own hero (fleetwise-website docs/ASSETS.md). Atmosphere only. */}
+        <Image src="/images/hero.jpg" alt="" fill priority sizes="100vw" className="-z-20 object-cover object-[70%_center]" />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 bg-gradient-to-b from-brand-950/95 via-brand-950/85 to-brand-950/70 lg:bg-gradient-to-r lg:from-brand-950 lg:via-brand-950/85 lg:to-brand-950/10"
+        />
+        <div className={`${SITE_GUTTER} pb-24 pt-14 lg:pb-32 lg:pt-24`}>
+          <div className="max-w-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">{t("landing.eyebrow", locale)}</p>
+            <h1 className="mt-5 text-4xl font-bold leading-[1.04] tracking-[-0.04em] text-white sm:text-5xl xl:text-6xl">
+              {t("auth.heroTitle", locale)}
+              <span className="block text-accent">{t("auth.heroAccent", locale)}</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/90">{t("landing.sub", locale)}</p>
 
-        {/* Two paths, and the screen says which is which. The old page offered one button
-            labelled "Get started" that went to sign IN. */}
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link
-            href="/signup"
-            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-brand-600 px-6 text-base font-semibold text-white shadow-soft transition hover:bg-brand-700 sm:min-h-11"
-          >
-            {t("landing.start", locale)}
-          </Link>
-          <Link
-            href="/login"
-            className="inline-flex min-h-12 items-center justify-center rounded-xl border border-sand-300 bg-surface px-6 text-base font-semibold text-sand-900 transition hover:bg-sand-100 sm:min-h-11"
-          >
-            {t("landing.signIn", locale)}
-          </Link>
+            {/* Two paths, and the screen says which is which. The old page offered one button
+                labelled "Get started" that went to sign IN. */}
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/signup"
+                className="focus-ring inline-flex min-h-[52px] items-center justify-between gap-4 rounded-md bg-gold-500 px-5 text-sm font-bold text-accent-on-fill transition hover:bg-gold-400 sm:justify-center"
+              >
+                {t("landing.start", locale)}
+                <ArrowUpRightIcon className="text-base" />
+              </Link>
+              <Link
+                href="/login"
+                className="focus-ring inline-flex min-h-[52px] items-center justify-between gap-4 rounded-md border-2 border-white px-5 text-sm font-bold text-white transition hover:bg-white/10 sm:justify-center"
+              >
+                {t("landing.signIn", locale)}
+                <ArrowRightIcon className="text-base" />
+              </Link>
+            </div>
+
+            {cheapest ? (
+              <p className="mt-6 flex items-center gap-2 text-sm text-white/85">
+                <Tick className="text-accent" />
+                {t("landing.priceFrom", locale).replace("{price}", rands(cheapest))}
+              </p>
+            ) : null}
+          </div>
         </div>
-
-        {cheapest ? (
-          <p className="mt-4 text-sm text-sand-600">
-            {t("landing.priceFrom", locale).replace("{price}", rands(cheapest))}
-          </p>
-        ) : null}
       </section>
 
-      {/* == What it does, in three concrete claims ========================== */}
-      <section className="mx-auto mt-12 grid max-w-4xl gap-4 sm:mt-16 sm:grid-cols-3">
-        {points.map((k) => (
-          <div key={k} className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-brand-tint text-brand-ink">
-              <Tick />
-            </span>
-            <h2 className="mt-3 font-semibold text-sand-900">
-              {t(`landing.point.${k}.title`, locale)}
-            </h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-sand-600">
-              {t(`landing.point.${k}.body`, locale)}
-            </p>
-          </div>
-        ))}
+      {/* == What it does: the website's white strip with a gold top rule ============= */}
+      <section className={`relative -mt-12 ${SITE_GUTTER}`}>
+        <h2 className="sr-only">{t("landing.headline", locale)}</h2>
+        <div className="grid border-t-4 border-gold-500 bg-surface shadow-soft sm:grid-cols-3">
+          {points.map((k, i) => (
+            <div key={k} className={`p-6 sm:p-7 ${i > 0 ? "border-t border-edge-soft sm:border-l sm:border-t-0" : ""}`}>
+              <span aria-hidden="true" className="grid size-11 place-items-center bg-brand-600 text-xl text-white">
+                {POINT_ICON[k]}
+              </span>
+              <h3 className="mt-4 text-lg font-bold text-ink">{t(`landing.point.${k}.title`, locale)}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{t(`landing.point.${k}.body`, locale)}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* == The three things a person worries about before paying =========== */}
-      <section className="mx-auto mt-10 max-w-3xl rounded-2xl border border-sand-200 bg-surface p-5 sm:mt-12">
-        <ul className="grid gap-3 sm:grid-cols-3">
+      <section className={`${SITE_GUTTER} py-14`}>
+        <ul className="grid gap-4 sm:grid-cols-3">
           {(["cancel", "card", "data"] as const).map((k) => (
-            <li key={k} className="flex items-start gap-2.5 text-sm text-sand-700">
+            <li key={k} className="flex items-start gap-3 text-base text-ink">
               <Tick className="mt-0.5 text-status-ok" />
               <span>{t(`landing.trust.${k}`, locale)}</span>
             </li>
           ))}
         </ul>
-      </section>
 
-      {/* The workforce this is built for often has no work email at all. Saying so here,
-          not only on the sign-in screen, stops a driver concluding the product is not for
-          them before they ever reach a login box. */}
-      <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-sand-600">
-        {t("landing.drivers", locale)}
-      </p>
+        {/* The workforce this is built for often has no work email at all. Saying so here,
+            not only on the sign-in screen, stops a driver concluding the product is not for
+            them before they ever reach a login box. */}
+        <p className="mt-10 max-w-3xl border-l-4 border-gold-500 bg-surface p-5 text-base leading-relaxed text-ink-muted shadow-xs">
+          {t("landing.drivers", locale)}
+        </p>
+      </section>
     </PublicShell>
   );
 }

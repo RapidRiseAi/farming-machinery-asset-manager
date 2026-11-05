@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { PublicShell, Tick } from "@/components/public-shell";
+import { HeroAside, PublicShell, SplitLayout, Tick } from "@/components/public-shell";
 import { PlanPicker } from "./plan-picker";
 import { signUp } from "./actions";
 
@@ -61,23 +61,39 @@ export default async function SignUpPage({
     };
   });
 
+  // The same gold square the green panel numbers its steps with, as the website's contact page.
   const step = (nth: number, label: string) => (
-    <div className="flex items-center gap-2.5">
-      <span className="flex size-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
+    <div className="flex items-center gap-3">
+      <span aria-hidden="true" className="grid size-8 place-items-center bg-gold-500 text-sm font-bold text-accent-on-fill">
         {nth}
       </span>
-      <h2 className="font-semibold text-sand-900">{label}</h2>
+      <h3 className="text-lg font-bold text-ink">{label}</h3>
     </div>
   );
 
   return (
-    <PublicShell locale={locale}>
-      <div className="pt-4 sm:pt-10">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">
-          {t("signup.title", locale)}
-        </h1>
-        <p className="mt-1.5 text-sand-600">{t("signup.lead", locale)}</p>
-      </div>
+    <PublicShell locale={locale} width="full">
+      {/* The website's contact-page split: the three steps on the green, the form on cream. */}
+      <SplitLayout
+        formWidth="xl"
+        aside={
+          <HeroAside
+            eyebrow={t("signup.eyebrow", locale)}
+            title={t("signup.heroTitle", locale)}
+            accent={t("signup.heroAccent", locale)}
+            lead={t("signup.lead", locale)}
+            points={[
+              { icon: "1", title: t("signup.stepPlan", locale), body: t("signup.stepPlanHint", locale) },
+              { icon: "2", title: t("signup.stepDetails", locale), body: t("signup.stepDetailsHint", locale) },
+              { icon: "3", title: t("signup.stepPay", locale), body: t("signup.stepPayHint", locale) },
+            ]}
+          />
+        }
+      >
+      <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+        {t("signup.title", locale)}
+      </h2>
+      <p className="mt-2 text-lg text-ink-muted lg:hidden">{t("signup.lead", locale)}</p>
 
       {sp.error ? (
         <div className="mt-5">
@@ -85,11 +101,11 @@ export default async function SignUpPage({
         </div>
       ) : null}
 
-      <form action={signUp} className="mt-5 space-y-4">
+      <form action={signUp} className="mt-8 space-y-5">
         {/* Step 1, the plan, the period and the vehicle count all move one number, so
             they belong in one box. The picker itself is untouched: its arithmetic is
             proven across 24 plan/period/count combinations. */}
-        <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
+        <section className="rounded-md border border-sand-200 bg-surface p-5 shadow-xs sm:p-6">
           {step(1, t("signup.stepPlan", locale))}
           <div className="mt-4">
         <PlanPicker
@@ -140,7 +156,7 @@ export default async function SignUpPage({
             real labels that stay put, and `aria-invalid` wiring. The hand-rolled inputs
             this replaces used `bg-surface`, a token committed config never defined, so
             they had no background at all in production. */}
-        <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
+        <section className="rounded-md border border-sand-200 bg-surface p-5 shadow-xs sm:p-6">
           {step(2, t("signup.stepDetails", locale))}
           <div className="mt-4 space-y-4">
             <Field label={t("signup.farmName", locale)} htmlFor="farm_name">
@@ -174,7 +190,7 @@ export default async function SignUpPage({
 
             The version travels with the form, so what gets recorded is what this page
             rendered rather than whatever is current by the time the submit lands. */}
-        <section className="rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs">
+        <section className="rounded-md border border-sand-200 bg-surface p-5 shadow-xs sm:p-6">
           {step(3, t("signup.stepPay", locale))}
 
           {/* The three things somebody actually worries about with a card in their hand,
@@ -216,12 +232,13 @@ export default async function SignUpPage({
         </section>
       </form>
 
-      <p className="mt-6 text-center text-sm text-sand-600">
+      <p className="mt-8 text-sm text-ink-muted">
         {t("signup.haveAccount", locale)}{" "}
-        <Link href="/login" className="font-medium text-brand-ink underline">
+        <Link href="/login" className="font-bold text-brand-ink underline underline-offset-4">
           {t("signup.signIn", locale)}
         </Link>
       </p>
+      </SplitLayout>
     </PublicShell>
   );
 }

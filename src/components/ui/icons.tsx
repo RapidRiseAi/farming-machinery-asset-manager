@@ -624,3 +624,19 @@ export const DeviceIcon = (p: IconProps) => (
     <path d="M10.5 18.5h3" />
   </Svg>
 );
+
+/** Leaves for somewhere else (the website, an email): the website's outbound arrow. */
+export const ArrowUpRightIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 17 17 7" />
+    <path d="M8 7h9v9" />
+  </Svg>
+);
+
+/** Goes on to the next step, as on the website's buttons. */
+export const ArrowRightIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 12h14" />
+    <path d="m13 6 6 6-6 6" />
+  </Svg>
+);

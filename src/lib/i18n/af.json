@@ -430,10 +430,13 @@
     "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons 'n skakel gestuur om 'n nuwe wagwoord te stel. Maak die e-pos op hierdie toestel en in hierdie blaaier oop (in dieselfde privaat venster as jy een gebruik): die skakel werk net waar jy daarvoor gevra het. Kyk in jou gemorsvouer as dit nie binne 'n paar minute aankom nie.",
     "errRapidRiseCheck": "Jou Rapid Rise-toegang kon nie nou bevestig word nie. Probeer oor 'n oomblik weer, of meld af en meld weer aan.",
     "errOtherBrowser": "Daardie skakel is in 'n ander blaaier of toestel oopgemaak as die een wat daarvoor gevra het, so dit kon jou nie aanmeld nie. Maak die e-pos oop op die toestel en in die blaaier waar jy vir die skakel gevra het (in dieselfde privaat venster as jy een gebruik het), of vra hier vir 'n nuwe skakel en maak dit op hierdie toestel oop.",
-    "brandTitle": "Jou hele vloot, saam op een plek.",
     "brandPoint1": "Dienste, foute en werkkaarte vir elke masjien",
     "brandPoint2": "Wat elke masjien jou kos, tot op die rand",
-    "brandPoint3": "Werk op die land sonder sein, in Engels en Afrikaans"
+    "brandPoint3": "Werk op die land sonder sein, in Engels en Afrikaans",
+    "eyebrow": "Teken in by FleetWise",
+    "heroTitle": "Hou jou vloot aan die werk.",
+    "heroAccent": "Weet wat dit kos.",
+    "heroLead": "Onderhoud, koste en werkvordering op een plek, vir plase, voertuie en gemengde toerustingvlote."
   },
   "mfa": {
     "verifyTitle": "Tik jou kode in",
@@ -5987,7 +5990,13 @@
     "compareNo": "Nie ingesluit nie",
     "compareSwipe": "Swiep sywaarts om al vier planne te sien.",
     "promoOpen": "Het jy 'n promosiekode?",
-    "submitting": "Stel tans jou plaas op..."
+    "submitting": "Stel tans jou plaas op...",
+    "eyebrow": "Begin jou plaas",
+    "heroTitle": "Elke masjien op jou plaas,",
+    "heroAccent": "op een plek.",
+    "stepPlanHint": "'n Plan, hoe jy betaal en hoeveel voertuie jy het.",
+    "stepDetailsHint": "Jou plaas se naam, jou naam, 'n e-posadres en 'n wagwoord.",
+    "stepPayHint": "Stem in tot die bepalings en gaan voort na betaling."
   },
   "closed": {
     "title": "Jou FleetWise-plaas is gesluit",
@@ -6134,12 +6143,23 @@
       "card": "Jy betaal deur Paystack. Jou kaartbesonderhede bereik nooit ons bedieners nie.",
       "data": "Jou rekords bly joune, en jy kan dit aflaai wanneer jy wil."
     },
-    "drivers": "Jou bestuurders het nie elkeen 'n rekening nodig nie. Hulle skandeer die QR-plakker op die masjien en rapporteer 'n fout of 'n lesing sonder om by enigiets aan te meld."
+    "drivers": "Jou bestuurders het nie elkeen 'n rekening nodig nie. Hulle skandeer die QR-plakker op die masjien en rapporteer 'n fout of 'n lesing sonder om by enigiets aan te meld.",
+    "eyebrow": "Jou hele vloot, verbind"
   },
   "publicNav": {
     "terms": "Gebruiksvoorwaardes",
     "privacy": "Privaatheidskennisgewing",
-    "reg": "Reg."
+    "reg": "Reg.",
+    "website": "Webwerf",
+    "getInTouch": "Kontak ons",
+    "tagline": "Alles wat jou vloot nodig het.",
+    "taglineSub": "Bestuur. Sagteware. Onderdele. Mense.",
+    "goodToKnow": "Goed om te weet",
+    "company": "Die maatskappy",
+    "copyright": "© {year} FleetWise. Hou goeie dinge aan die gang.",
+    "product": "'n Produk van Rapid Rise AI",
+    "signIn": "Teken in",
+    "legalEyebrow": "Bepalings en privaatheid"
   },
   "adminSupport": {
     "title": "Ondersteuningsake",

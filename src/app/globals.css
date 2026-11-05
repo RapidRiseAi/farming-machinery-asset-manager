@@ -607,3 +607,22 @@ html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
   background-color: color-mix(in srgb, var(--c) 16%, rgb(var(--surface)));
   color: var(--c);
 }
+
+/*
+ * Forms on the pages before sign-in follow the website's own form (fleetwise-website
+ * Pages.module.css `.formPanel`): taller fields with a heavier border and squarer corners,
+ * and bold labels. Scoped here rather than changed in the kit, because inside the app the
+ * 48px field is the standard and these pages are the website's continuation.
+ */
+.site-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.site-form select,
+.site-form textarea {
+  min-height: 54px;
+  border-width: 1.5px;
+  border-radius: 6px;
+}
+.site-form label[for] {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: rgb(var(--ink));
+}

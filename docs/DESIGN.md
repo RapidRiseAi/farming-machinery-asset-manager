@@ -59,9 +59,22 @@ that isn't in the palette, with one deliberate exception noted in §4.
 - **Page titles are green** (`text-brand-ink`), as the palette assigns headings.
 - **One gold button per screen**, at most: the machine banner's "Start a job card" is
   the model, gold on the green banner.
-- **Sign-in** pairs the form with a FleetWise Black panel on a wide screen
-  (`<BrandPanel>`): the mark, the brand's first message, three things the product
-  really does. No invented numbers or endorsements, as the brand guide says.
+- **Before sign-in, the pages look like the website** (fleet-wise.co.za, whose "Log in"
+  lands on /login). `PublicShell` (`components/public-shell.tsx`) carries the
+  website's white header (logo tile, FLEETWISE in capitals, a link back, a green "Get in
+  touch") and its FleetWise Black footer, which also holds the company details ECTA
+  wants before a sale. Sign in and sign up use `SplitLayout` + `HeroAside`, the
+  website's contact-page split: a deep green panel (gold eyebrow in capitals, headline
+  with a gold second line, gold square tiles) beside the form on cream. The front page is
+  the website's hero; terms and privacy have its green title band. Every full-width
+  section sits on `SITE_GUTTER` so all of them start on the header's line. `.site-form`
+  (`globals.css`) gives these forms the website's 54px fields and bold labels. The
+  display sizes `text-5xl` and `text-6xl` exist for these headlines only.
+- **Photography** (before sign-in only): `public/images/hero.jpg`, "Tractor and baler
+  at sunset" by Jed Owen, Unsplash licence, the website's own hero (recorded in
+  fleetwise-website `docs/ASSETS.md`). Atmosphere only: it shows no FleetWise customer,
+  and the machinery brand in it does not endorse FleetWise. No invented numbers or
+  endorsements anywhere, as the brand guide says.
 
 ---
 

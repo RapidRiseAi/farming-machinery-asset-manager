@@ -3,7 +3,8 @@ import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
-import { BrandPanel, PublicShell } from "@/components/public-shell";
+import { HeroAside, PublicShell, SplitLayout } from "@/components/public-shell";
+import { CashIcon, DeviceIcon, JobCardsIcon } from "@/components/ui/icons";
 
 /**
  * Sign in.
@@ -78,71 +79,79 @@ export default async function LoginPage({
                   : t("auth.errGeneric", locale);
 
   return (
-    <PublicShell locale={locale} width="wide">
-      {/* The form in its usual column, the brand beside it on a wide screen. */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
-      <div className="mx-auto w-full max-w-md lg:mx-0">
-      <div className="pt-4 sm:pt-10">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">
+    <PublicShell locale={locale} width="full">
+      {/* The website's contact-page split: its headline on the green, the form on cream. */}
+      <SplitLayout
+        aside={
+          <HeroAside
+            eyebrow={t("auth.eyebrow", locale)}
+            title={t("auth.heroTitle", locale)}
+            accent={t("auth.heroAccent", locale)}
+            lead={t("auth.heroLead", locale)}
+            points={[
+              { icon: <JobCardsIcon />, title: t("auth.brandPoint1", locale) },
+              { icon: <CashIcon />, title: t("auth.brandPoint2", locale) },
+              { icon: <DeviceIcon />, title: t("auth.brandPoint3", locale) },
+            ]}
+          />
+        }
+      >
+        <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
           {t("auth.signInTitle", locale)}
-        </h1>
-        <p className="mt-1.5 text-sand-600">{t("auth.welcomeSub", locale)}</p>
-      </div>
+        </h2>
+        <p className="mt-2 text-lg text-ink-muted">{t("auth.welcomeSub", locale)}</p>
 
-      {/* Everything they care about DID work, the farm, the owner, the subscription and
-          the invoice are all committed; only the session is missing. So this is a success
-          message, and it is the one thing that was missing when somebody hit this path. */}
-      {sp.signedup ? (
-        <p className="mt-5 rounded-xl border border-status-ok/30 bg-status-ok/10 p-4 text-sm leading-relaxed text-sand-800">
-          {t("auth.signedUp", locale)}
+        {/* Everything they care about DID work, the farm, the owner, the subscription and
+            the invoice are all committed; only the session is missing. So this is a success
+            message, and it is the one thing that was missing when somebody hit this path. */}
+        {sp.signedup ? (
+          <p className="mt-6 rounded-md border border-status-ok/30 bg-status-ok/10 p-4 text-sm leading-relaxed text-sand-800">
+            {t("auth.signedUp", locale)}
+          </p>
+        ) : null}
+
+        {/* Worded so it is true whether or not that address has an account: saying "no
+            account with that address" on a reset form tells a stranger which addresses exist. */}
+        {sp.reset ? (
+          <p className="mt-6 rounded-md border border-sand-200 bg-surface p-4 text-sm leading-relaxed text-sand-700">
+            {t("auth.resetSent", locale)}
+          </p>
+        ) : null}
+
+        {sp.resume ? (
+          <p className="mt-6 rounded-md border border-sand-200 bg-surface p-4 text-sm leading-relaxed text-sand-700">
+            {t("auth.resume", locale)}
+          </p>
+        ) : null}
+
+        {/* Straight on the cream, as the website's form: no card around it. */}
+        <div className="mt-8">
+          <LoginForm
+            next={sp.next}
+            error={errorMessage}
+            sent={sp.sent}
+            locale={locale}
+            defaultEmail={sp.email}
+          />
+        </div>
+
+        {/* Much of the workforce this is built for has no work email, they use the QR
+            stickers, which need no login at all. The login screen never said so, so drivers
+            got stuck at the door. A gold rule, as the website marks the thing to know. */}
+        <div className="mt-8 border-l-4 border-gold-500 bg-surface p-5 shadow-xs">
+          <p className="font-bold text-ink">{t("auth.noEmailTitle", locale)}</p>
+          <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+            {t("auth.noEmailBody", locale)}
+          </p>
+        </div>
+
+        <p className="mt-8 text-sm text-ink-muted">
+          {t("auth.noAccount", locale)}{" "}
+          <Link href="/signup" className="font-bold text-brand-ink underline underline-offset-4">
+            {t("auth.startTrial", locale)}
+          </Link>
         </p>
-      ) : null}
-
-      {/* Worded so it is true whether or not that address has an account: saying "no
-          account with that address" on a reset form tells a stranger which addresses exist. */}
-      {sp.reset ? (
-        <p className="mt-5 rounded-xl border border-sand-200 bg-surface p-4 text-sm leading-relaxed text-sand-700">
-          {t("auth.resetSent", locale)}
-        </p>
-      ) : null}
-
-      {sp.resume ? (
-        <p className="mt-5 rounded-xl border border-sand-200 bg-surface p-4 text-sm leading-relaxed text-sand-700">
-          {t("auth.resume", locale)}
-        </p>
-      ) : null}
-
-      <div className="mt-5 rounded-2xl border border-sand-200 bg-surface p-5 shadow-xs sm:p-6">
-        <LoginForm
-          next={sp.next}
-          error={errorMessage}
-          sent={sp.sent}
-          locale={locale}
-          defaultEmail={sp.email}
-        />
-      </div>
-
-      {/* Much of the workforce this is built for has no work email, they use the QR
-          stickers, which need no login at all. The login screen never said so, so drivers
-          got stuck at the door. */}
-      <div className="mt-4 rounded-2xl border border-sand-200 bg-sand-100 p-4">
-        <p className="font-semibold text-sand-900">{t("auth.noEmailTitle", locale)}</p>
-        <p className="mt-1 text-sm leading-relaxed text-sand-600">
-          {t("auth.noEmailBody", locale)}
-        </p>
-      </div>
-
-      <p className="mt-6 text-center text-sm text-sand-600">
-        {t("auth.noAccount", locale)}{" "}
-        <Link href="/signup" className="font-semibold text-brand-ink underline">
-          {t("auth.startTrial", locale)}
-        </Link>
-      </p>
-      </div>
-      <div className="lg:pt-10">
-        <BrandPanel locale={locale} />
-      </div>
-      </div>
+      </SplitLayout>
     </PublicShell>
   );
 }

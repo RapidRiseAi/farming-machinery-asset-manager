@@ -2,7 +2,9 @@ import Link from "next/link";
 
 import { APP_NAME } from "@/lib/env";
 import { COMPANY, TERMS_VERSION, type Clause } from "@/lib/legal";
-import { MachinesIcon } from "@/components/ui/icons";
+import { t } from "@/lib/i18n";
+import { deviceLocale } from "@/lib/locale";
+import { PublicShell, SITE_GUTTER } from "@/components/public-shell";
 
 /**
  * The shared shell for /terms and /privacy.
@@ -15,9 +17,13 @@ import { MachinesIcon } from "@/components/ui/icons";
  * a translation key, but a translated CONTRACT is a second document that can disagree with
  * the first, and "which version binds" is the question nobody wants to answer in front of a
  * magistrate. Pointing an Afrikaans reader at a person to talk to is more honest than a
- * machine translation of a liability clause.
+ * machine translation of a liability clause. (The header and footer around it follow the
+ * device language like every other page before sign-in; the clauses do not.)
+ *
+ * Laid out as the website's own privacy page: a green band with a gold eyebrow and the
+ * title, then the text on the page ground.
  */
-export function LegalPage({
+export async function LegalPage({
   title,
   intro,
   clauses,
@@ -30,16 +36,19 @@ export function LegalPage({
   otherHref: string;
   otherLabel: string;
 }) {
+  const locale = await deviceLocale();
   return (
-    <main className="mx-auto w-full max-w-2xl p-6 pb-16">
-      <Link href="/" className="flex items-center gap-3">
-        <MachinesIcon className="size-8 text-brand-ink" aria-hidden="true" />
-        <span className="text-xl font-semibold text-brand-ink">{APP_NAME}</span>
-      </Link>
-
-      <h1 className="mt-8 text-3xl font-semibold">{title}</h1>
-      <p className="mt-2 text-sand-700">{intro}</p>
-      <p className="mt-1 text-sm text-sand-600">
+    <PublicShell locale={locale} width="full">
+      <section className="bg-brand-800 py-14 text-white lg:py-20">
+        <div className={SITE_GUTTER}>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">{t("publicNav.legalEyebrow", locale)}</p>
+          <h1 className="mt-4 text-4xl font-bold leading-[1.04] tracking-[-0.04em] text-white lg:text-5xl">{title}</h1>
+          <p className="mt-5 max-w-3xl text-lg leading-relaxed text-white/85">{intro}</p>
+        </div>
+      </section>
+      <div className={`${SITE_GUTTER} py-12 lg:py-16`}>
+      <div className="max-w-3xl">
+      <p className="text-sm text-sand-600">
         Version {TERMS_VERSION}. {COMPANY.legalName}, registration {COMPANY.regNumber},{" "}
         {COMPANY.address}.
       </p>
@@ -48,12 +57,12 @@ export function LegalPage({
         email {COMPANY.email} and a person will take you through it.
       </p>
 
-      <div className="mt-8 space-y-8">
+      <div className="mt-10 space-y-10">
         {clauses.map((c) => (
           <section key={c.heading}>
-            <h2 className="text-lg font-semibold">{c.heading}</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-ink">{c.heading}</h2>
             {c.body.map((p, i) => (
-              <p key={i} className="mt-2 text-sand-800">
+              <p key={i} className="mt-3 text-base leading-relaxed text-sand-800">
                 {p}
               </p>
             ))}
@@ -72,6 +81,8 @@ export function LegalPage({
           {COMPANY.email}
         </a>
       </div>
-    </main>
+      </div>
+      </div>
+    </PublicShell>
   );
 }
