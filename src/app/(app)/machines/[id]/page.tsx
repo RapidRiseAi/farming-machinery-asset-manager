@@ -55,7 +55,6 @@ import { OfflineForm } from "@/components/offline/offline-form";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stat, StatGrid } from "@/components/ui/stat";
 import { Fact, FactList } from "@/components/ui/facts";
-import { Disclosure } from "@/components/ui/disclosure";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { backHref } from "@/components/ui/back-href";
 import { readTab } from "@/components/ui/tabs-url";
@@ -67,22 +66,16 @@ import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
-import { EmptyState, GetStarted } from "@/components/ui/empty-state";
+import { GetStarted } from "@/components/ui/empty-state";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { menuItemClass } from "@/components/ui/menu-item";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import {
-  JobCardsIcon,
-  FaultsIcon,
   MachinesIcon,
-  BellIcon,
   PlusIcon,
-  ChecklistIcon,
-  WorkIcon,
   TrashIcon,
   CheckIcon,
   CloseIcon,
-  PinIcon,
 } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { daysAgo, meterReading, meterUnit, num, relativeDate, shortDate, todayLocal } from "@/lib/format";
@@ -90,6 +83,8 @@ import { SETTING_NUMBERS } from "@/lib/settings";
 import { serviceDueText, worstServiceLine } from "./service-due";
 import { setMachineStatus } from "./status-actions";
 import { Tabs } from "@/components/ui/tabs";
+import { MachineTimeline } from "@/components/machine-timeline";
+import { buildTimeline, readTimelineFilter, type TimelineEvent } from "@/lib/machine-timeline";
 import { ExpiryStatus, FineStatus, WorkStatus, MachineStatus } from "@/components/ui/status";
 import { WorkRequestIntakeForm } from "@/app/(app)/work/work-request-intake-form";
 import {
@@ -152,7 +147,7 @@ export default async function MachineDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; usageDate?: string; tab?: string; from?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; usageDate?: string; tab?: string; from?: string; tl?: string }>;
 }) {
   // Governing plan for entitlement gates (null = rr_admin/workshop bypass).
   const { profile, plan } = await currentPlan();
@@ -424,9 +419,9 @@ export default async function MachineDetailPage({
     ((changeActors as { id: string; name: string }[] | null) ?? []).map((u) => [u.id, u.name])
   );
 
-  // Timeline (merge + sort desc).
-  type Ev = { date: string; kind: "jobcard" | "fault" | "watch" | "checklist" | "work" | "audit"; title: string; sub: string; href?: string; count?: number };
-  const events: Ev[] = [];
+  // Timeline: gathered here; ordered, folded and drawn by lib/machine-timeline and
+  // components/machine-timeline.
+  const events: TimelineEvent[] = [];
   for (const c of recordChanges) {
     // Who, when, and now where. The place is a signal a human reads, never evidence:
     // it comes from request headers and can be forged (see 0510's threat model).
@@ -447,6 +442,7 @@ export default async function MachineDetailPage({
       title: `${t(`jobType.${j.type}`, locale)} · ${t(`jobStatus.${j.status}`, locale)}`,
       sub: costsVisible ? rands(j.total_cents) : "",
       href: `/jobcards/${j.id}`,
+      open: j.status !== "completed" && j.status !== "approved",
     });
   for (const f of faults)
     events.push({
@@ -455,6 +451,7 @@ export default async function MachineDetailPage({
       title: f.description ?? t("machine.evFault", locale),
       sub: `${f.urgency ? t(`urgency.${f.urgency}`, locale) : ""}${f.urgency ? " · " : ""}${t(`faultStatus.${f.status}`, locale)}`,
       href: `/faults#fault-${f.id}`,
+      open: f.status !== "resolved",
     });
   for (const w of watchAll)
     events.push({
@@ -463,6 +460,7 @@ export default async function MachineDetailPage({
       title: w.text,
       sub: t(`watchStatus.${w.status}`, locale),
       href: w.source_job_card_id ? `/jobcards/${w.source_job_card_id}` : undefined,
+      open: w.status === "open",
     });
   for (const c of checklists)
     events.push({
@@ -490,47 +488,22 @@ export default async function MachineDetailPage({
       href: `/work/${w.id}`,
     });
   }
-  events.sort((a, b) => b.date.localeCompare(a.date));
-
-  // Several record edits on one day are one thing to a reader ("changed 3 times"), not
-  // three identical rows. Only neighbouring audit rows on the same day fold together.
-  const timeline: Ev[] = [];
-  for (const e of events) {
-    const prev = timeline[timeline.length - 1];
-    if (e.kind === "audit" && prev?.kind === "audit" && prev.date === e.date) {
-      prev.count = (prev.count ?? 1) + 1;
-      prev.title = t("machine.evAuditMany", locale).replace("{n}", String(prev.count));
-      continue;
-    }
-    timeline.push({ ...e });
+  // The day it was bought starts the line. Pushed last, so on an equal date it sits below
+  // everything else (the timeline's sort is stable). Supplier and price are Professional.
+  if (machine.purchase_date) {
+    events.push({
+      date: machine.purchase_date,
+      kind: "origin",
+      title: t("machine.evBought", locale),
+      sub: costsVisible
+        ? [machine.supplier, machine.purchase_price_cents != null ? rands(machine.purchase_price_cents) : null]
+            .filter(Boolean)
+            .join(" · ")
+        : "",
+    });
   }
-  const TIMELINE_ROWS = 15;
-  const timelineRecent = timeline.slice(0, TIMELINE_ROWS);
-  const timelineOlder = timeline.slice(TIMELINE_ROWS);
-
-  const evIcon = (k: Ev["kind"]) =>
-    k === "jobcard" ? <JobCardsIcon /> : k === "fault" ? <FaultsIcon /> : k === "checklist" ? <ChecklistIcon /> : k === "work" ? <WorkIcon /> : k === "audit" ? <PinIcon /> : <BellIcon />;
-  const renderEvent = (e: Ev, i: number) => {
-    const body = (
-      <div className="flex gap-3 py-2.5">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sand-100 text-base text-sand-500">
-          {evIcon(e.kind)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-sm font-medium text-sand-900">{e.title}</span>
-            <span className="shrink-0 text-xs tabular-nums text-sand-500">{shortDate(e.date, locale)}</span>
-          </div>
-          {e.sub ? <p className="truncate text-sm text-sand-500">{e.sub}</p> : null}
-        </div>
-      </div>
-    );
-    return (
-      <li key={i} className="border-b border-sand-100 last:border-0">
-        {e.href ? <Link href={e.href} className="focus-ring block rounded-md">{body}</Link> : body}
-      </li>
-    );
-  };
+  const timeline = buildTimeline(events, (n) => t("machine.evAuditMany", locale).replace("{n}", String(n)));
+  const timelineFilter = readTimelineFilter(sp.tl);
 
   // Service-line progress (0..1) and status colour.
   const today = new Date();
@@ -1896,22 +1869,7 @@ export default async function MachineDetailPage({
               {/* Timeline */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.timeline", locale)}</CardTitle></CardHeader>
-                {timeline.length === 0 ? (
-                  <EmptyState title={t("machine.noTimeline", locale)} />
-                ) : (
-                  <>
-                    <ol className="flex flex-col">{timelineRecent.map(renderEvent)}</ol>
-                    {timelineOlder.length > 0 ? (
-                      <Disclosure
-                        variant="inline"
-                        summary={t("machine.timelineOlder", locale).replace("{n}", String(timelineOlder.length))}
-                        className="mt-2"
-                      >
-                        <ol className="flex flex-col">{timelineOlder.map((e, i) => renderEvent(e, i + TIMELINE_ROWS))}</ol>
-                      </Disclosure>
-                    ) : null}
-                  </>
-                )}
+                <MachineTimeline events={timeline} filter={timelineFilter} machineId={machine.id} locale={locale} />
               </Card>
 
               {/* Job cards */}

@@ -1030,7 +1030,27 @@
     "setupTitle": "Voltooi die opstelling van hierdie masjien",
     "setupHint": "'n Diensplan sê wanneer dit diens nodig het. Met sy QR-plakker kan enigiemand op die plaas 'n probleem rapporteer deur dit te skandeer.",
     "setupPlanCta": "Stel sy diensplan op",
-    "setupQrCta": "Druk sy QR-plakker"
+    "setupQrCta": "Druk sy QR-plakker",
+    "evBought": "Gekoop",
+    "tlFilterLabel": "Wys net",
+    "tlFilter": {
+      "all": "Alles",
+      "problems": "Probleme",
+      "service": "Diens",
+      "checks": "Kontrolelyste",
+      "work": "Kontrakteurs",
+      "changes": "Rekordveranderinge"
+    },
+    "tlKind": {
+      "origin": "Gekoop",
+      "jobcard": "Werkkaart",
+      "fault": "Probleem",
+      "watch": "Waaklys",
+      "checklist": "Kontrolelys",
+      "work": "Kontrakteur",
+      "audit": "Rekordverandering"
+    },
+    "tlNoneOfKind": "Nog niks van hierdie soort nie. Kies Alles om alles te sien."
   },
   "admin": {
     "farms": "Plase",

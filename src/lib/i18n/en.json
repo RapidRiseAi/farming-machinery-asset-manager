@@ -1030,7 +1030,27 @@
     "setupTitle": "Finish setting up this machine",
     "setupHint": "A service plan says when it is due. Its QR sticker lets anyone on the farm report a problem by scanning it.",
     "setupPlanCta": "Set up its service plan",
-    "setupQrCta": "Print its QR sticker"
+    "setupQrCta": "Print its QR sticker",
+    "evBought": "Bought",
+    "tlFilterLabel": "Show only",
+    "tlFilter": {
+      "all": "All",
+      "problems": "Problems",
+      "service": "Service",
+      "checks": "Checklists",
+      "work": "Contractors",
+      "changes": "Record changes"
+    },
+    "tlKind": {
+      "origin": "Bought",
+      "jobcard": "Job card",
+      "fault": "Problem",
+      "watch": "Watch item",
+      "checklist": "Checklist",
+      "work": "Contractor",
+      "audit": "Record change"
+    },
+    "tlNoneOfKind": "Nothing of this kind yet. Choose All to see everything."
   },
   "admin": {
     "farms": "Farms",

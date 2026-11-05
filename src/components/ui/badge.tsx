@@ -19,7 +19,7 @@ const NO_WRAP = "shrink-0 whitespace-nowrap";
 export type BadgeTone = "neutral" | "brand" | "ok" | "warning" | "danger" | "info";
 
 // Tint bg + dark text, every pairing clears WCAG-AA on the tint.
-const TONES: Record<BadgeTone, string> = {
+export const TONES: Record<BadgeTone, string> = {
   // bg-sand-100 is 26 30 26 in dark - 1.03:1 against the card, so the chip had
   // no visible ground. --row-hover is a deliberate step in both themes.
   neutral: "bg-surface-hover text-ink-muted",
