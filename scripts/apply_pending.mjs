@@ -49,7 +49,9 @@ const PROBES = {
   // WhatsApp voice notes and photos: the media-aware receiver and the staging table.
   "20261104210000": "select to_regprocedure('public.whatsapp_receive(text,text,text,timestamptz,text,text,text)') is not null and to_regclass('public.whatsapp_media') is not null",
   // The November 2026 price list: the active essential/monthly row carries the five-slot minimum.
-  "20261104200000": "select exists (select 1 from public.billing_price_versions where version_label = 'launch-2026-11' and plan = 'essential' and billing_period = 'monthly' and status = 'active' and min_billed_slots = 5)",
+  // November prices: the five-slot minimum column (an object, so the probe cannot fail on a
+  // database that does not have it yet; the old row probe errored there, 5 November).
+  "20261104200000": "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_price_versions' and column_name = 'min_billed_slots')",
   // Fifth review fixes: "is the current period paid" asked of the latest period invoice (a new helper).
   "20261029160000": "select to_regprocedure('app.billing_latest_period_paid(uuid)') is not null",
   // Fourth review fixes: a charge claim refuses more than is owed (a new refusal in it).
