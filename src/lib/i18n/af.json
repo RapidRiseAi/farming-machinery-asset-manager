@@ -407,7 +407,7 @@
     "forgot": "Wagwoord vergeet?",
     "revealPassword": "Hou vas om wagwoord te wys",
     "sendLink": "Stuur skakel",
-    "checkEmail": "Kyk in jou e-pos vir die aanmeldskakel.",
+    "checkEmail": "Kyk in jou e-pos vir die aanmeldskakel, en maak dit op hierdie toestel en in hierdie blaaier oop: die skakel werk net waar jy daarvoor gevra het.",
     "welcome": "Welkom terug",
     "welcomeSub": "Teken in om jou plaas se masjiene te bestuur.",
     "or": "of",
@@ -427,8 +427,9 @@
     "resume": "Jy het reeds 'n FleetWise-rekening met daardie adres. Teken in en ons neem jou reguit terug na die betaling. Jou plaas en jou faktuur wag.",
     "signedUp": "Jou plaas is opgestel en jou eerste faktuur wag. Meld aan om te betaal en dit oop te maak. Dit vat 'n sekonde.",
     "signInTitle": "Welkom terug",
-    "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons vir dit 'n skakel ge-e-pos om 'n nuwe wagwoord te stel. Kyk in jou gemorspos as dit nie binne 'n paar minute opdaag nie.",
-    "errRapidRiseCheck": "Jou Rapid Rise-toegang kon nie nou bevestig word nie. Probeer oor 'n oomblik weer, of meld af en meld weer aan."
+    "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons 'n skakel gestuur om 'n nuwe wagwoord te stel. Maak die e-pos op hierdie toestel en in hierdie blaaier oop (in dieselfde privaat venster as jy een gebruik): die skakel werk net waar jy daarvoor gevra het. Kyk in jou gemorsvouer as dit nie binne 'n paar minute aankom nie.",
+    "errRapidRiseCheck": "Jou Rapid Rise-toegang kon nie nou bevestig word nie. Probeer oor 'n oomblik weer, of meld af en meld weer aan.",
+    "errOtherBrowser": "Daardie skakel is in 'n ander blaaier of toestel oopgemaak as die een wat daarvoor gevra het, so dit kon jou nie aanmeld nie. Maak die e-pos oop op die toestel en in die blaaier waar jy vir die skakel gevra het (in dieselfde privaat venster as jy een gebruik het), of vra hier vir 'n nuwe skakel en maak dit op hierdie toestel oop."
   },
   "mfa": {
     "verifyTitle": "Tik jou kode in",

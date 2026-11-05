@@ -167,6 +167,8 @@ const CODE_KEYS: Record<string, string> = {
   "enter-a-quote-amount": "errors.needQuote",
   "enter-an-invoice-amount": "errors.needInvoice",
   "need-email": "errors.needEmail",
+  // An emailed link opened in another browser than the one that asked for it (PKCE).
+  "auth-other-browser": "auth.errOtherBrowser",
   "a-valid-email-is-required": "errors.needEmail",
   "a-valid-email-is-required-to-invite": "errors.needEmail",
   "need-description": "errors.needDescription",

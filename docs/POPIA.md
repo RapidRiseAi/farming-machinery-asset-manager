@@ -90,6 +90,9 @@ by adding new records, preserving the trail.
   (`deleted_at`/`deleted_by`), so it can never sign in again;
 - nulls the free-text **name copies** elsewhere (`usage_logs.driver_name`,
   `faults.reporter_name`);
+- removes the **voice notes they recorded** on faults (migration `20261105090000`): the
+  attachments are soft-deleted and the action deletes the audio from the `fault-voice`
+  bucket; the fault, its text and other people's attachments stay;
 - the server action additionally scrubs the residual email in `auth.users` and bans
   re-login;
 - writes a `data_subject_erasure` entry to `audit_log` as proof of the erasure.

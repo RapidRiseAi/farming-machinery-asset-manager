@@ -407,7 +407,7 @@
     "forgot": "Forgot password?",
     "revealPassword": "Hold to show password",
     "sendLink": "Send link",
-    "checkEmail": "Check your email for the sign-in link.",
+    "checkEmail": "Check your email for the sign-in link, and open it on this device and in this browser: the link only works where you asked for it.",
     "welcome": "Welcome back",
     "welcomeSub": "Sign in to manage your farm's machines.",
     "or": "or",
@@ -427,8 +427,9 @@
     "resume": "You already have a FleetWise account with that address. Sign in and we will take you straight back to the payment. Your farm and your invoice are waiting.",
     "signedUp": "Your farm is set up and your first invoice is waiting. Sign in to pay and open it. This takes a second.",
     "signInTitle": "Welcome back",
-    "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Check your spam folder if it does not arrive in a few minutes.",
-    "errRapidRiseCheck": "Your Rapid Rise access could not be confirmed just now. Try again in a moment, or sign out and sign in again."
+    "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Open the email on this device and in this browser (in the same private window, if you are using one): the link only works where you asked for it. Check your spam folder if it does not arrive in a few minutes.",
+    "errRapidRiseCheck": "Your Rapid Rise access could not be confirmed just now. Try again in a moment, or sign out and sign in again.",
+    "errOtherBrowser": "That link was opened in a different browser or device from the one that asked for it, so it could not sign you in. Open the email on the device and in the browser where you asked for the link (in the same private window, if you used one), or ask for a new link here and open it on this device."
   },
   "mfa": {
     "verifyTitle": "Enter your code",

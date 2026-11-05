@@ -52,7 +52,8 @@ const MACHINE_COLUMNS =
  * live in Storage and are served by signed URL; listing their paths without the bytes would
  * be a tease, so the export says so in `notes` rather than pretending.
  */
-const TABLES: Array<{ name: string; source?: string; columns?: string; order?: string; farmColumn?: string }> = [
+/** `key`: the unique column paging ends on, for a table without an `id`. */
+const TABLES: Array<{ name: string; source?: string; columns?: string; order?: string; farmColumn?: string; key?: string }> = [
   { name: "farms", farmColumn: "id" },
   { name: "machines", columns: MACHINE_COLUMNS, order: "name" },
   { name: "meter_readings", order: "reading_date" },
@@ -70,6 +71,34 @@ const TABLES: Array<{ name: string; source?: string; columns?: string; order?: s
   { name: "checklist_instances", order: "created_at" },
   { name: "usage_logs", order: "occurred_on" },
   { name: "billing_invoices", order: "issued_on" },
+  // Added 2026-11-05 (launch tracker "Farm export: finance tables and large farms"): the
+  // finance and lease records, and the operational tables built since this list was made.
+  // Finance rows come back only for a role that may read them (`can_view_farm_finance`);
+  // a manager without that sees the tables named as unavailable rather than empty.
+  { name: "finance_agreements", order: "created_at" },
+  { name: "finance_instalments", order: "due_date" },
+  { name: "asset_contracts", order: "created_at" },
+  { name: "fuel_tanks" },
+  { name: "fuel_dips", order: "created_at" },
+  { name: "meter_replacements", order: "created_at" },
+  { name: "asset_aliases" },
+  { name: "watch_items", order: "created_at" },
+  { name: "stock_movements", source: "stock_movements_visible", order: "created_at" },
+  { name: "service_kits" },
+  { name: "checklist_templates" },
+  // No id column: its key is the (job card, service line) pair.
+  { name: "job_card_service_lines", order: "service_plan_line_id", key: "job_card_id" },
+  { name: "tyres" },
+  { name: "tyre_fitments", order: "created_at" },
+  { name: "tyre_checks", order: "created_at" },
+  { name: "incidents", order: "created_at" },
+  { name: "warranty_claims", order: "created_at" },
+  { name: "fines", order: "created_at" },
+  { name: "driver_credentials" },
+  { name: "driving_sessions", order: "created_at" },
+  { name: "driving_events", order: "occurred_at" },
+  { name: "user_farm_memberships" },
+  { name: "attachments", order: "created_at" },
 ];
 
 export const dynamic = "force-dynamic";
@@ -99,67 +128,86 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
-  const bundle: Record<string, unknown> = {};
-  const truncated: string[] = [];
-  const unavailable: string[] = [];
+  const costsVisible = await canViewFarmCosts(supabase, farmId);
+  const exportedAt = new Date().toISOString();
+  const encoder = new TextEncoder();
 
-  for (const spec of TABLES) {
-    // Every page up to the cap: a single read stops at the API's thousandth row, so the cap
-    // could never be reached and the note below said so while rows were missing.
-    const { data, error, truncated: cut } = await readAll<Record<string, unknown>>(() => {
-      const query = supabase
-        .from(spec.source ?? spec.name)
-        .select(spec.columns ?? "*")
-        .eq(spec.farmColumn ?? "farm_id", farmId);
-      return spec.order ? query.order(spec.order, { ascending: true }) : query;
-    }, { maxRows: CAP });
-    if (error) {
-      // A table this deployment does not have, or one this role cannot read at all. Named
-      // rather than silently absent, so nobody reads a missing section as "we had none".
-      unavailable.push(spec.name);
-      continue;
-    }
-    bundle[spec.name] = data ?? [];
-    if (cut) truncated.push(spec.name);
-  }
+  /*
+    Streamed, one table at a time, one row per line. The whole bundle used to be built as a
+    single pretty-printed string in memory and sent as one response, and a large enough farm
+    passes the platform's response limit, which a streamed response does not have. The
+    file is still one JSON document: the notes, which depend on what was read, close it.
+  */
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const write = (text: string) => controller.enqueue(encoder.encode(text));
+      const truncated: string[] = [];
+      const unavailable: string[] = [];
+      try {
+        write(`{"exported_at":${JSON.stringify(exportedAt)},"farm_id":${JSON.stringify(farmId)},` +
+          `"exported_by":${JSON.stringify(profile.id)},"data":{`);
+        let firstTable = true;
+        for (const spec of TABLES) {
+          // Every page up to the cap: a single read stops at the API's thousandth row.
+          const { data, error, truncated: cut } = await readAll<Record<string, unknown>>(() => {
+            const query = supabase
+              .from(spec.source ?? spec.name)
+              .select(spec.columns ?? "*")
+              .eq(spec.farmColumn ?? "farm_id", farmId);
+            return spec.order ? query.order(spec.order, { ascending: true }) : query;
+          }, { maxRows: CAP, key: spec.key });
+          if (error) {
+            // A table this deployment does not have, or one this role cannot read at all.
+            // Named rather than silently absent, so nobody reads it as "we had none".
+            unavailable.push(spec.name);
+            continue;
+          }
+          const rows = data ?? [];
+          if (cut) truncated.push(spec.name);
+          // Purchase and finance figures for a role that may see the farm's costs: they are
+          // not readable from the machines table itself (20260903074350). Ten at a time.
+          if (spec.name === "machines" && rows.length > 0 && costsVisible) {
+            for (let i = 0; i < rows.length; i += 10) {
+              const batch = rows.slice(i, i + 10);
+              const figures = await Promise.all(batch.map((m) => readMachineFinancials(supabase, String(m.id))));
+              batch.forEach((m, j) => {
+                const f = figures[j];
+                if (!f) return;
+                const money: Record<string, unknown> = { ...f };
+                delete money.machine_id;
+                delete money.farm_id;
+                Object.assign(m, money);
+              });
+            }
+          }
+          write(`${firstTable ? "" : ","}\n${JSON.stringify(spec.name)}:[`);
+          rows.forEach((row, i) => write(`${i ? "," : ""}\n${JSON.stringify(row)}`));
+          write(rows.length ? "\n]" : "]");
+          firstTable = false;
+        }
+        const notes = [
+          "Every table here is scoped by the same row-level security that governs the app, and " +
+            "to this one farm, so it contains exactly what the person who asked for it may read.",
+          "Photos, voice notes and uploaded documents are NOT in this file. They live in " +
+            "storage and are referenced by path (the attachments table); ask " +
+            "team@rapidriseai.com for a copy of the files.",
+          truncated.length
+            ? `Capped at ${CAP} rows: ${truncated.join(", ")}. Ask us for the rest.`
+            : `No table reached the ${CAP}-row cap.`,
+          unavailable.length ? `Not available to this account: ${unavailable.join(", ")}.` : null,
+        ].filter(Boolean);
+        write(`\n},"notes":${JSON.stringify(notes)}}\n`);
+        controller.close();
+      } catch (failure) {
+        // Half a file must not look like a whole one: the stream errors, so the download
+        // fails rather than saving a document that silently stops partway.
+        controller.error(failure);
+      }
+    },
+  });
 
-  // Purchase and finance figures, for a role that may see the farm's costs: they are not
-  // readable from the table itself (20260903074350). Ten machines at a time.
-  const machines = (bundle.machines as Record<string, unknown>[] | undefined) ?? [];
-  if (machines.length > 0 && (await canViewFarmCosts(supabase, farmId))) {
-    for (let i = 0; i < machines.length; i += 10) {
-      const batch = machines.slice(i, i + 10);
-      const figures = await Promise.all(batch.map((m) => readMachineFinancials(supabase, String(m.id))));
-      batch.forEach((m, j) => {
-        const f = figures[j];
-        if (!f) return;
-        const money: Record<string, unknown> = { ...f };
-        delete money.machine_id;
-        delete money.farm_id;
-        Object.assign(m, money);
-      });
-    }
-  }
-
-  const body = {
-    exported_at: new Date().toISOString(),
-    farm_id: farmId,
-    exported_by: profile.id,
-    notes: [
-      "Every table here is scoped by the same row-level security that governs the app, and " +
-        "to this one farm, so it contains exactly what the person who asked for it may read.",
-      "Photos, voice notes and uploaded documents are NOT in this file. They live in " +
-        "storage and are referenced by path; ask team@rapidriseai.com for a copy of the files.",
-      truncated.length
-        ? `Capped at ${CAP} rows: ${truncated.join(", ")}. Ask us for the rest.`
-        : `No table reached the ${CAP}-row cap.`,
-      unavailable.length ? `Not available to this account: ${unavailable.join(", ")}.` : null,
-    ].filter(Boolean),
-    data: bundle,
-  };
-
-  const stamp = new Date().toISOString().slice(0, 10);
-  return new NextResponse(JSON.stringify(body, null, 2), {
+  const stamp = exportedAt.slice(0, 10);
+  return new NextResponse(stream, {
     status: 200,
     headers: {
       "content-type": "application/json; charset=utf-8",

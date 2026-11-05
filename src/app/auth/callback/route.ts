@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { missingCodeVerifier } from "@/lib/auth-callback";
 import { createClient } from "@/lib/supabase/server";
 import { safePath } from "@/lib/safe-path";
 import { syncLocaleOnSignIn } from "@/lib/locale-sync";
@@ -18,6 +20,13 @@ export async function GET(request: Request) {
   const next = safePath(searchParams.get("next"), "/home");
 
   if (code) {
+    // The link only works in the browser that asked for it (src/lib/auth-callback.ts).
+    // Without that browser's verifier cookie, say so rather than "expired": the person
+    // needs to open the email somewhere else, not ask for yet another link here.
+    const names = (await cookies()).getAll().map((c) => c.name);
+    if (missingCodeVerifier(names)) {
+      return NextResponse.redirect(new URL("/login?error=auth-other-browser", origin));
+    }
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {

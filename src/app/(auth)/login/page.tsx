@@ -63,6 +63,8 @@ export default async function LoginPage({
         ? t("auth.errRapidRiseCheck", locale)
         : raw === "auth"
         ? t("auth.errLinkExpired", locale)
+        : raw === "auth-other-browser"
+        ? t("auth.errOtherBrowser", locale)
         : raw === "need-email"
           ? t("auth.errNeedEmail", locale)
           : raw === "need-password"

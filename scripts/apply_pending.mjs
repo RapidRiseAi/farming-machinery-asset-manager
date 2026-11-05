@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Erasure removes the person's voice notes: the function returns their paths.
+  "20261105090000": "select coalesce(pg_get_functiondef(to_regprocedure('public.erase_personal_data(uuid,text)')) like '%voice_note_paths%', false)",
   // Plan boundaries: the book value register asks for the Professional tco entitlement.
   "20261104220000": "select coalesce(pg_get_functiondef(to_regprocedure('public.farm_book_values(uuid,date)')) like '%has_entitlement(m.farm_id, ''tco'')%', false)",
   // WhatsApp voice notes and photos: the media-aware receiver and the staging table.

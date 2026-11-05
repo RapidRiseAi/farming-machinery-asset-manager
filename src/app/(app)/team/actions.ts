@@ -160,8 +160,23 @@ export async function erasePerson(formData: FormData) {
   if (subjectError) redirect(`${back}?error=${errorCode(subjectError, "app/team/actions:erasePerson:subject")}`);
   if (!subject) redirect(`${back}?error=${encodeURIComponent("This account belongs to another primary farm.")}`);
 
-  const { error } = await supabase.rpc("erase_personal_data", { p_user: id, p_reason: reason });
+  const { data: erased, error } = await supabase.rpc("erase_personal_data", { p_user: id, p_reason: reason });
   if (error) redirect(`${back}?error=${errorCode(error, "app/team/actions:erasePerson")}`);
+
+  // The voice notes they recorded (20261105090000): the database has removed the
+  // attachments and handed back their paths; the audio itself goes from storage here.
+  // Soft like the auth scrub below: the erasure stands, and a failure is reported so
+  // somebody finishes it.
+  const voicePaths = ((erased as { voice_note_paths?: unknown } | null)?.voice_note_paths ?? []) as unknown[];
+  const paths = voicePaths.filter((p): p is string => typeof p === "string" && p.length > 0);
+  if (paths.length) {
+    try {
+      const { error: removeError } = await createServiceClient().storage.from("fault-voice").remove(paths);
+      if (removeError) captureError(removeError, { where: "team:erase:voice-notes", extra: { userId: id, count: paths.length } });
+    } catch (removeFailure) {
+      captureError(removeFailure, { where: "team:erase:voice-notes", extra: { userId: id, count: paths.length } });
+    }
+  }
 
   // Belt-and-braces: remove the residual email in auth.users and ban re-login. Soft-fails
   // where Auth admin is unavailable, the DB anonymisation + deactivation already stands.
