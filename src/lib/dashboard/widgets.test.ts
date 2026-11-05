@@ -4,7 +4,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { t } from "@/lib/i18n";
 import { HUES, PALETTES, STATUS, type Swatch } from "./palettes";
-import { CATEGORIES, WIDGETS, WIDGET_BY_TYPE, widgetBlock, type WidgetAccess } from "./widgets";
+import { CATEGORIES, SIZE_PRESETS, WIDGETS, WIDGET_BY_TYPE, widgetBlock, type WidgetAccess } from "./widgets";
+import { sampleData } from "./samples";
 import { defaultLayout } from "./defaults";
 import { cleanSettings, normalizeLayout, storedLayout } from "./schema";
 import { collides } from "./layout";
@@ -117,5 +118,20 @@ test("every chart colour can be seen against the card in both themes (3:1, WCAG 
     // The classic set's own light steps are documented below 3:1 for three slots and ship with
     // visible labels (the legend with values), so only the FleetWise colours are held to it here.
     if (!name.startsWith("classic")) assert.ok(ratio(s.light, "#ffffff") >= 3, `${name} light ${s.light} on white: ${ratio(s.light, "#ffffff").toFixed(2)}`);
+  }
+});
+
+test("every one-tap size fits every widget of its shape", () => {
+  for (const w of WIDGETS) {
+    for (const p of SIZE_PRESETS[w.shape]) {
+      assert.ok(p.w >= w.limits.minW && p.w <= w.limits.maxW && p.h >= w.limits.minH && p.h <= w.limits.maxH,
+        `${w.type} cannot take size ${p.key} (${p.w} x ${p.h})`);
+    }
+  }
+});
+
+test("every widget has a tray preview, in both languages", () => {
+  for (const lang of ["en", "af"] as const) {
+    for (const w of WIDGETS) assert.ok(sampleData(w.type, lang), `${w.type} has no preview (${lang})`);
   }
 });

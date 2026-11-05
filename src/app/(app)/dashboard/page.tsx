@@ -29,12 +29,12 @@ import { SETTING_NUMBERS } from "@/lib/settings";
 import { MODULE_KEYS, moduleOn } from "@/lib/modules";
 import { soft } from "@/lib/supabase/must";
 import { loadDashData, type DashMachine } from "@/lib/dashboard/data";
-import { computeWidget, type WidgetData } from "@/lib/dashboard/compute";
+import { computeWidget } from "@/lib/dashboard/compute";
 import { defaultLayout } from "@/lib/dashboard/defaults";
 import { normalizeLayout } from "@/lib/dashboard/schema";
 import type { LayoutItem } from "@/lib/dashboard/layout";
-import { WIDGETS, WIDGET_BY_TYPE, setting, widgetBlock, type SourceKey, type WidgetAccess, type WidgetDef } from "@/lib/dashboard/widgets";
-import { BreakdownChart, KpiTile, ListWidget, SeriesChart } from "@/components/dashboard/charts";
+import { WIDGETS, WIDGET_BY_TYPE, widgetBlock, type SourceKey, type WidgetAccess } from "@/lib/dashboard/widgets";
+import { WidgetBody } from "@/components/dashboard/widget-body";
 import { CustomiseButton, DashboardGrid, type CatalogEntry, type WidgetFrameInfo } from "@/components/dashboard/dashboard-grid";
 import { AttentionList, buildAttention } from "./attention";
 import { dismissSetupCard, recordDashboardReading, recordDashboardReadings, saveDashboardLayout } from "./actions";
@@ -155,7 +155,7 @@ export default async function DashboardPage({
     }
     const computed = computeWidget(item.type, item.settings, data, { locale, staleDays });
     if (!computed) continue;
-    const body = widgetBody(def, item, computed, locale);
+    const body = <WidgetBody type={item.type} settings={item.settings} data={computed} locale={locale} />;
     contents[item.id] = item.type === "stale_meters" && computed.kind === "list" && computed.rows.length > 0 ? (
       <div className="flex h-full min-h-0 flex-col gap-2">
         <div className="min-h-0 flex-1">{body}</div>
@@ -331,18 +331,6 @@ export default async function DashboardPage({
       )}
     </PageContainer>
   );
-}
-
-/** A widget's body from what it computed and the chart settings the person chose. */
-function widgetBody(def: WidgetDef, item: LayoutItem, data: WidgetData, locale: Lang): ReactNode {
-  const opt = (k: string) => setting(def, item.settings, k);
-  const title = item.settings.title || t(`dash.w.${item.type}.title`, locale);
-  switch (data.kind) {
-    case "kpi": return <KpiTile data={data} colour={opt("colour") || "auto"} locale={locale} />;
-    case "series": return <SeriesChart data={data} chart={opt("chart")} colour={opt("colour")} title={title} locale={locale} />;
-    case "breakdown": return <BreakdownChart data={data} chart={opt("chart")} colours={opt("colours")} title={title} locale={locale} />;
-    case "list": return <ListWidget data={data} locale={locale} />;
-  }
 }
 
 /** Stale meters: the names on the widget, and one dialog to write the numbers down. */

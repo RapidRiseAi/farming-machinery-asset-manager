@@ -91,24 +91,70 @@ function Tip({ children }: { children: ReactNode }) {
 
 // == A number ====================================================================
 
+/**
+ * A big number with what it means: the figure in ink (text never wears a series colour),
+ * a coloured dot for its state beside the line under it, a pill for the change against
+ * last month, and a sparkline of the same measure over earlier periods when there is one.
+ * The widget's colour setting paints the dot and the sparkline; "auto" uses the state.
+ */
 export function KpiTile({ data, colour, locale }: { data: KpiData; colour: string; locale: Lang }) {
-  const accent = hueSwatch(colour, data.tone);
+  const sw = hueSwatch(colour, data.tone);
+  const deltaText = data.delta
+    ? t(data.delta.more ? "dash.deltaMore" : "dash.deltaLess", locale)
+        .replace("{amount}", formatValue(data.delta.amount, data.format, locale))
+        .replace("{month}", data.delta.month)
+    : null;
+  const trend = data.trend && data.trend.some((v) => v > 0) ? data.trend : null;
   return (
-    <div className="flex h-full min-h-0 gap-3">
-      <span aria-hidden="true" className="viz-c viz-bg w-1 shrink-0 rounded-full" style={styled(accent)} />
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
+    // The sparkline sits beside the figure: under it, a two-row tile clipped the line.
+    <div className="flex h-full min-h-0 items-center gap-3">
+      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
         <p className="truncate text-3xl font-bold tabular-nums tracking-tight text-sand-950 xl:text-4xl">
           {formatValue(data.value, data.format, locale)}
         </p>
-        {data.sub ? <p className="mt-1 truncate text-sm text-sand-600">{data.sub}</p> : null}
-        {data.delta ? (
-          <p className={cn("mt-0.5 truncate text-sm font-medium", data.delta.tone === "bad" ? "text-status-overdue" : "text-status-ok")}>
-            {t(data.delta.more ? "dash.deltaMore" : "dash.deltaLess", locale)
-              .replace("{amount}", formatValue(data.delta.amount, data.format, locale))
-              .replace("{month}", data.delta.month)}
-          </p>
+        {data.delta && deltaText ? (
+          <span
+            title={deltaText}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
+              data.delta.tone === "bad" ? "bg-callout-danger-bg text-callout-danger-ink" : "bg-callout-ok-bg text-callout-ok-ink",
+            )}
+          >
+            <span aria-hidden="true">{data.delta.more ? "↑" : "↓"}</span>
+            {compactValue(data.delta.amount, data.format, locale)}
+            <span className="sr-only">{deltaText}</span>
+          </span>
         ) : null}
       </div>
+      {data.sub ? (
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-sand-600">
+          <span aria-hidden="true" className="viz-c viz-bg size-2 shrink-0 rounded-full" style={styled(sw)} />
+          <span className="truncate">{data.sub}</span>
+        </p>
+      ) : null}
+      </div>
+      {trend ? <Sparkline values={trend} sw={sw} className="h-12 w-2/5 max-w-44 shrink-0" /> : null}
+    </div>
+  );
+}
+
+/** A small line of the same measure over time, filled underneath, the latest point marked. */
+export function Sparkline({ values, sw, className }: { values: number[]; sw: Swatch; className?: string }) {
+  const max = Math.max(...values, 1);
+  const x = (i: number) => (values.length === 1 ? 50 : (i / (values.length - 1)) * 100);
+  const y = (v: number) => 92 - (v / max) * 84;
+  const line = values.map((v, i) => `${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(" ");
+  const last = values.length - 1;
+  return (
+    <div className={cn("relative max-h-14", className)} aria-hidden="true">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+        <polygon points={`0,100 ${line} 100,100`} className="viz-c viz-fill" style={styled(sw, { opacity: 0.14 })} />
+        <polyline points={line} fill="none" className="viz-c viz-stroke" strokeWidth={2} vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round" strokeLinecap="round" style={styled(sw)} />
+      </svg>
+      <span className="viz-c viz-bg absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-surface"
+        style={styled(sw, { left: `${x(last)}%`, top: `${y(values[last])}%` })} />
     </div>
   );
 }

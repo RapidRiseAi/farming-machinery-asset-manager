@@ -7311,7 +7311,8 @@
       "fleet": "Fleet",
       "costs": "Costs",
       "fuel": "Fuel",
-      "papers": "Papers and fines"
+      "papers": "Papers and fines",
+      "all": "All"
     },
     "optLabel": {
       "title": "Name (optional)",
@@ -7321,7 +7322,8 @@
       "months": "Period",
       "days": "Period",
       "rows": "Rows",
-      "compare": "Compare with last month"
+      "compare": "Compare with last month",
+      "size": "Size"
     },
     "opt": {
       "colour": {
@@ -7408,8 +7410,8 @@
     "onBoard": "On your board",
     "reset": "Reset to the FleetWise board",
     "resetConfirm": "Your own layout and widget settings are replaced with the FleetWise board.",
-    "editHint": "Drag a widget by its handle to move it and by its corner to resize it. With a keyboard, focus the handle: arrow keys move it, Shift and arrow keys resize it.",
-    "editHintPhone": "Use the arrows on each widget to change the order. Moving and resizing by dragging works on a larger screen.",
+    "editHint": "Drag any widget to move it, and its edge or corner to resize it. Add more from the widget tray. With a keyboard, focus a widget's handle: arrow keys move it, Shift and arrow keys resize it.",
+    "editHintPhone": "Press and hold a widget, then drag it to a new place. The arrows on each widget move it too.",
     "settings": "Widget settings",
     "settingsFor": "Settings: {title}",
     "remove": "Remove {title}",
@@ -7435,6 +7437,22 @@
     "unit": {
       "litres": "L"
     },
-    "editing": "Customising your board"
+    "editing": "Customising your board",
+    "tray": {
+      "title": "Widgets",
+      "search": "Search widgets",
+      "groups": "Widget groups",
+      "hint": "Drag a widget onto your board where you want it, or press Add.",
+      "hintTouch": "Press and hold a widget to place it on your board, or tap Add.",
+      "example": "Example figures",
+      "none": "No widget matches that."
+    },
+    "size": {
+      "s": "Small",
+      "m": "Medium",
+      "l": "Large",
+      "wide": "Wide"
+    },
+    "resetShort": "Reset"
   }
 }

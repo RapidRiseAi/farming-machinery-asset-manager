@@ -158,8 +158,8 @@ export default async function JobCardsPage({
   );
 
   return (
-    // The board of groups uses a PC's width (below); one status's list stays one column.
-    <PageContainer className={sp.status ? undefined : "xl:max-w-none"}>
+    // From 1280px the groups below sit side by side as a board (PageContainer gives the width).
+    <PageContainer>
       <PageHeader title={t("jobcards.title", locale)} infoKey="jobcards" locale={locale}
         actions={creationMachines.length > 0 ? (
           <NewJobCard actorId={profile.id} machines={creationMachines} contractors={contractors} isContractor={profile.role === "workshop"} locale={locale} />

@@ -154,7 +154,7 @@ export default async function SettingsPage({
   return (
     // One column of cards up to a laptop; two from 1280px, where one narrow column left
     // most of a PC screen empty (5 November).
-    <PageContainer size="narrow" className="xl:max-w-6xl">
+    <PageContainer size="narrow" flow="single" className="xl:max-w-none">
       {/* The farm's name is the quiet line, not part of the h1: "Settings, Weltevrede
           Boerdery" wrapped on a phone, and the farm switcher already names it there. */}
       <PageHeader title={t("settings.title", locale)} meta={farm?.name || undefined} infoKey="settings" locale={locale} />

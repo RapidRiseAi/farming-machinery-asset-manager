@@ -134,6 +134,18 @@ export const WIDGETS: WidgetDef[] = [
 ];
 
 export const WIDGET_BY_TYPE: ReadonlyMap<string, WidgetDef> = new Map(WIDGETS.map((w) => [w.type, w]));
+
+/**
+ * One-tap sizes, as on a phone's home screen. Each sits inside every widget of its shape's
+ * limits (`widgets.test.ts`); the corner handle still gives any size in between.
+ */
+export const SIZE_PRESETS: Record<WidgetShape, { key: "s" | "m" | "l" | "wide"; w: number; h: number }[]> = {
+  kpi: [{ key: "s", w: 2, h: 2 }, { key: "m", w: 3, h: 2 }, { key: "l", w: 4, h: 3 }, { key: "wide", w: 6, h: 2 }],
+  series: [{ key: "s", w: 4, h: 3 }, { key: "m", w: 6, h: 4 }, { key: "l", w: 8, h: 5 }, { key: "wide", w: 12, h: 4 }],
+  breakdown: [{ key: "s", w: 3, h: 3 }, { key: "m", w: 4, h: 4 }, { key: "l", w: 6, h: 5 }, { key: "wide", w: 12, h: 4 }],
+  list: [{ key: "s", w: 4, h: 3 }, { key: "m", w: 6, h: 4 }, { key: "l", w: 6, h: 6 }, { key: "wide", w: 12, h: 4 }],
+  attention: [{ key: "s", w: 6, h: 4 }, { key: "m", w: 8, h: 6 }, { key: "l", w: 12, h: 6 }, { key: "wide", w: 12, h: 4 }],
+};
 export const CATEGORIES: WidgetCategory[] = ["attention", "problems", "servicing", "fleet", "costs", "fuel", "papers"];
 
 /** What this person on this farm may have: money, plan features, switched-on modules. */

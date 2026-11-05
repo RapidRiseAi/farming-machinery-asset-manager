@@ -112,3 +112,14 @@ export function newWidgetId(items: LayoutItem[], type: string): string {
     if (!items.some((i) => i.id === id)) return id;
   }
 }
+
+/**
+ * Lay the board out again in this order, each widget keeping its size and taking the first
+ * gap it fits. Reordering on a phone, where the board is one reading order rather than a
+ * grid, ends here: the laptop board follows the new order, packed.
+ */
+export function reflow(order: LayoutItem[], limitsOf: (type: string) => SizeLimits): LayoutItem[] {
+  let out: LayoutItem[] = [];
+  for (const item of order) out = addItem(out, { id: item.id, type: item.type, w: item.w, h: item.h, settings: item.settings }, limitsOf(item.type));
+  return out;
+}

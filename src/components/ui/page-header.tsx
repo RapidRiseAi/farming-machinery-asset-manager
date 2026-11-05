@@ -1,9 +1,13 @@
-import type { ReactNode } from "react";
+import { Children, Fragment, isValidElement, type ReactNode } from "react";
 import Link from "next/link";
 import type { Lang } from "@/lib/i18n";
 import { cn } from "./cn";
 import { ChevronLeftIcon } from "./icons";
 import { PageInfoButton } from "./page-info-button";
+import { Flash } from "./flash";
+import { Tabs } from "./tabs";
+import { FilterBar } from "./filter-bar";
+import { Table } from "./table";
 
 /* ==========================================================================
  * PageContainer: one width convention instead of seven
@@ -25,6 +29,14 @@ import { PageInfoButton } from "./page-info-button";
  * It also owns the vertical rhythm: every direct child is 24px (gap-6) from the next,
  * so `PageHeader` is the same distance from the content on every screen. Do not add a
  * margin under the header or wrap the page in another `space-y-*`.
+ *
+ * == On a PC (1280px and up) =================================================
+ * A narrow or default page used to stay one 672 or 896px column, the rest of a PC
+ * screen empty, which read as "this was made for a phone" (founder, 5 November). From
+ * `xl` such a page is wider and its cards flow in TWO columns, row by row. What must
+ * read across the page spans both: the header, messages, tabs, filters, a form, a
+ * paragraph, anything marked `data-span="full"`, and the page's only card. A page with
+ * its own layout opts out with `flow="single"` (settings, which lays out its sections).
  */
 export type PageWidth = "narrow" | "default" | "wide";
 
@@ -34,16 +46,58 @@ const WIDTH: Record<PageWidth, string> = {
   wide: "",
 };
 
+/** The two-column flow from xl, using the whole width there (each column is still a
+ * comfortable reading width at 1280px and up). */
+const TWO_COLUMN = "xl:grid xl:max-w-none xl:grid-cols-2 xl:items-start";
+
+const FULL_TAGS = new Set(["p", "form", "nav", "h2", "h3", "hr", "table", "header"]);
+const FULL_TYPES: unknown[] = [Flash, Tabs, FilterBar, Link];
+
+/** Whether a child reads across the whole page rather than taking one column. */
+function spansFull(child: ReactNode): boolean {
+  if (!isValidElement(child)) return true;
+  if (child.type === PageHeader || FULL_TYPES.includes(child.type)) return true;
+  if (typeof child.type === "string" && FULL_TAGS.has(child.type)) return true;
+  const props = child.props as Record<string, unknown>;
+  if (props["data-span"] === "full") return true;
+  // A card that holds a table needs the width for its columns (/team was squeezed).
+  return Children.toArray(props.children as ReactNode).some((c) => isValidElement(c) && c.type === Table);
+}
+
 export type PageContainerProps = {
   size?: PageWidth;
+  /** "single" keeps one column on every screen, for a page that lays itself out. */
+  flow?: "auto" | "single";
   className?: string;
   children: ReactNode;
 };
 
-export function PageContainer({ size = "default", className, children }: PageContainerProps) {
+export function PageContainer({ size = "default", flow = "auto", className, children }: PageContainerProps) {
   // min-w-0 so a wide child (a table in its own overflow-x wrapper, a money figure joined
   // with U+00A0) can never widen the page past a 360px phone.
-  return <div className={cn("flex w-full min-w-0 flex-col gap-6", WIDTH[size], className)}>{children}</div>;
+  const base = "flex w-full min-w-0 flex-col gap-6";
+  if (size === "wide" || flow === "single") return <div className={cn(base, WIDTH[size], className)}>{children}</div>;
+
+  // Fragments are flattened so their children take columns of their own.
+  const flat = Children.toArray(children).flatMap((c) =>
+    isValidElement(c) && c.type === Fragment ? Children.toArray((c.props as { children?: ReactNode }).children) : [c],
+  );
+  const body = flat.filter((c) => !spansFull(c));
+  return (
+    <div className={cn(base, WIDTH[size], TWO_COLUMN, "xl:gap-x-6", className)}>
+      {flat.map((c, i) =>
+        spansFull(c) || body.length <= 1 ? (
+          // `contents` below xl leaves the phone and laptop layout exactly as it was; an
+          // empty one (a Flash with nothing to say) takes no row at xl either.
+          <div key={isValidElement(c) && c.key != null ? c.key : `full-${i}`} className="contents min-w-0 empty:hidden xl:col-span-2 xl:block">
+            {c}
+          </div>
+        ) : (
+          c
+        ),
+      )}
+    </div>
+  );
 }
 
 /* ==========================================================================

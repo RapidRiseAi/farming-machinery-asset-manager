@@ -22,7 +22,8 @@ export type ValueFormat = "count" | "rands" | "litres";
 
 /** A change against last month, said in words by the renderer ("R1 200 more than Oct"). */
 export type KpiDelta = { amount: number; more: boolean; month: string; tone: Tone };
-export type KpiData = { kind: "kpi"; value: number; format: ValueFormat; tone: Tone; sub?: string; delta?: KpiDelta };
+/** `trend`: the same measure over earlier periods, oldest first, for a sparkline. */
+export type KpiData = { kind: "kpi"; value: number; format: ValueFormat; tone: Tone; sub?: string; delta?: KpiDelta; trend?: number[] };
 export type SeriesPoint = { key: string; label: string; value: number };
 export type SeriesData = { kind: "series"; points: SeriesPoint[]; format: ValueFormat };
 export type BreakdownItem = { key: string; label: string; value: number; status?: StatusKey; href?: string };
@@ -76,6 +77,13 @@ function monthDelta(thisMonth: number, lastMonth: number, now: Date, locale: Lan
   return { amount: Math.abs(thisMonth - lastMonth), more, month: shortMonth(prev, locale), tone: more === moreIsBad ? "bad" : "ok" };
 }
 
+/** Sum (day, amount) pairs into the given months, oldest first. */
+function perMonth(months: { key: string }[], rows: [string, number][]): number[] {
+  const sums = new Map<string, number>();
+  for (const [day, v] of rows) sums.set(day.slice(0, 7), (sums.get(day.slice(0, 7)) ?? 0) + v);
+  return months.map((m) => sums.get(m.key) ?? 0);
+}
+
 /** Machines and their worst service state: overdue, then due soon, then fine; none = no plan. */
 function worstService(d: DashData, ids: Set<string>): Map<string, "overdue" | "due_soon" | "ok"> {
   const rank = { overdue: 2, due_soon: 1, ok: 0 } as const;
@@ -111,13 +119,20 @@ export function computeWidget(type: string, s: WidgetSettings, d: DashData, ctx:
         kind: "kpi", value: openFaults.length, format: "count",
         tone: stopped > 0 ? "bad" : openFaults.length > 0 ? "warn" : "ok",
         sub: stopped > 0 ? count(stopped, "dash.sub.stoppedOne", "dash.sub.stoppedMany", locale) : t("dash.sub.noneStopped", locale),
+        trend: perMonth(lastMonths(now, 6, locale), d.faults.filter((f) => ids.has(f.machine_id)).map((f) => [saDay(f.created_at), 1])),
       };
     }
     case "new_problems": {
       const days = Number(opt("days"));
       const from = windowStart(now, days).day;
       const n = d.faults.filter((f) => ids.has(f.machine_id) && saDay(f.created_at) >= from).length;
-      return { kind: "kpi", value: n, format: "count", tone: n > 0 ? "warn" : "ok", sub: t(`dash.sub.days${days}`, locale) };
+      const trend = Array.from({ length: 8 }, (_, i) => {
+        const end = new Date(now.getTime() - (7 - i) * days * 86_400_000);
+        const start = windowStart(end, days).day;
+        const stop = saDay(end.toISOString());
+        return d.faults.filter((f) => ids.has(f.machine_id) && saDay(f.created_at) >= start && saDay(f.created_at) <= stop).length;
+      });
+      return { kind: "kpi", value: n, format: "count", tone: n > 0 ? "warn" : "ok", sub: t(`dash.sub.days${days}`, locale), trend };
     }
     case "machines_with_problems": {
       const n = new Set(openFaults.map((f) => f.machine_id)).size;
@@ -274,6 +289,7 @@ export function computeWidget(type: string, s: WidgetSettings, d: DashData, ctx:
       return {
         kind: "kpi", value: a, format: "rands", tone: "neutral", sub: t("dashboard.thisMonth", locale),
         delta: opt("compare") === "on" ? monthDelta(a, b, now, locale, true) : undefined,
+        trend: perMonth(lastMonths(now, 6, locale), d.jobCards.filter((j) => ids.has(j.machine_id) && j.date_out).map((j) => [j.date_out!, j.total_cents ?? 0])),
       };
     }
     case "spend_trend": {
@@ -318,6 +334,7 @@ export function computeWidget(type: string, s: WidgetSettings, d: DashData, ctx:
       return {
         kind: "kpi", value: a, format: money ? "rands" : "litres", tone: "neutral", sub: t("dashboard.thisMonth", locale),
         delta: opt("compare") === "on" ? monthDelta(a, b, now, locale, true) : undefined,
+        trend: perMonth(lastMonths(now, 6, locale), d.fuel.filter(inFleet).map((f) => [f.date, pick(f)])),
       };
     }
     case "fuel_trend": {

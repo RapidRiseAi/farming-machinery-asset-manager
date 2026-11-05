@@ -7311,7 +7311,8 @@
       "fleet": "Vloot",
       "costs": "Koste",
       "fuel": "Brandstof",
-      "papers": "Dokumente en boetes"
+      "papers": "Dokumente en boetes",
+      "all": "Alles"
     },
     "optLabel": {
       "title": "Naam (opsioneel)",
@@ -7321,7 +7322,8 @@
       "months": "Tydperk",
       "days": "Tydperk",
       "rows": "Rye",
-      "compare": "Vergelyk met verlede maand"
+      "compare": "Vergelyk met verlede maand",
+      "size": "Grootte"
     },
     "opt": {
       "colour": {
@@ -7408,8 +7410,8 @@
     "onBoard": "Op jou bord",
     "reset": "Herstel na die FleetWise-bord",
     "resetConfirm": "Jou eie uitleg en legstukinstellings word met die FleetWise-bord vervang.",
-    "editHint": "Sleep 'n legstuk aan sy handvatsel om dit te skuif en aan sy hoek om die grootte te verander. Met 'n sleutelbord: fokus op die handvatsel, pyltjies skuif dit, Shift en pyltjies verander die grootte.",
-    "editHintPhone": "Gebruik die pyltjies op elke legstuk om die volgorde te verander. Skuif en grootte verander deur te sleep werk op 'n groter skerm.",
+    "editHint": "Sleep enige legstuk om dit te skuif, en sy rand of hoek om die grootte te verander. Voeg meer by uit die legstuklaai. Met 'n sleutelbord: fokus op 'n legstuk se handvatsel, pyltjies skuif dit, Shift en pyltjies verander die grootte.",
+    "editHintPhone": "Druk en hou 'n legstuk, en sleep dit dan na 'n nuwe plek. Die pyltjies op elke legstuk skuif dit ook.",
     "settings": "Legstukinstellings",
     "settingsFor": "Instellings: {title}",
     "remove": "Verwyder {title}",
@@ -7435,6 +7437,22 @@
     "unit": {
       "litres": "L"
     },
-    "editing": "Jy pas jou bord aan"
+    "editing": "Jy pas jou bord aan",
+    "tray": {
+      "title": "Legstukke",
+      "search": "Soek legstukke",
+      "groups": "Legstukgroepe",
+      "hint": "Sleep 'n legstuk na jou bord waar jy dit wil hê, of druk Voeg by.",
+      "hintTouch": "Druk en hou 'n legstuk om dit op jou bord te plaas, of tik Voeg by.",
+      "example": "Voorbeeldsyfers",
+      "none": "Geen legstuk pas daarby nie."
+    },
+    "size": {
+      "s": "Klein",
+      "m": "Medium",
+      "l": "Groot",
+      "wide": "Breed"
+    },
+    "resetShort": "Herstel"
   }
 }

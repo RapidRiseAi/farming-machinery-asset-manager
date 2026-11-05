@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addItem, clampBox, collides, compact, newWidgetId, place, readingOrder, removeItem, shiftInOrder, type LayoutItem } from "./layout";
+import { addItem, clampBox, collides, compact, newWidgetId, place, readingOrder, reflow, removeItem, shiftInOrder, type LayoutItem } from "./layout";
 
 const L = { minW: 2, minH: 2, maxW: 12, maxH: 8 };
 const box = (id: string, x: number, y: number, w = 3, h = 2): LayoutItem => ({ id, type: "open_problems", x, y, w, h, settings: {} });
@@ -58,4 +58,13 @@ test("new ids are unique and safe", () => {
   const items = [box("openproblems-1", 0, 0)];
   assert.equal(newWidgetId(items, "open_problems"), "openproblems-2");
   assert.match(newWidgetId([], "spend_trend"), /^[a-z0-9-]+$/);
+});
+
+test("reflowing in a new order keeps every size, packs without overlaps, and reads in that order", () => {
+  const start = compact([box("a", 0, 0, 6, 2), box("b", 6, 0, 3, 2), box("c", 0, 2, 12, 3), box("d", 9, 0, 3, 2)]);
+  const order = ["c", "a", "d", "b"].map((id) => start.find((i) => i.id === id)!);
+  const out = reflow(order, () => L);
+  assert.deepEqual(readingOrder(out).map((i) => i.id), ["c", "a", "d", "b"]);
+  for (const i of out) assert.deepEqual([i.w, i.h], [start.find((s) => s.id === i.id)!.w, start.find((s) => s.id === i.id)!.h]);
+  noOverlap(out);
 });
