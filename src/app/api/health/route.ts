@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { CRON_RPC } from "@/lib/cron/heartbeat";
 import { createServiceClient } from "@/lib/supabase/service";
+import { siteUrlWarning } from "@/lib/site-url-check";
 
 /**
  * Is the product up, and is it running its scheduled work? For an external uptime monitor.
@@ -39,9 +40,14 @@ type CronHealth = {
   hours_since: number | string | null;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const problems: string[] = [];
   const warnings: string[] = [];
+  const siteWarning = siteUrlWarning(
+    process.env.NEXT_PUBLIC_SITE_URL,
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
+  );
+  if (siteWarning) warnings.push(siteWarning);
   let routes: CronHealth[] | null = null;
   try {
     const read = createServiceClient().rpc(CRON_RPC.health);
