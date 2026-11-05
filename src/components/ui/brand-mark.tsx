@@ -46,7 +46,9 @@ export function BrandMark({
 /**
  * The name beside the mark, as the website writes it: "Fleet" in the surrounding ink and
  * "Wise" in the brand colour that reads on that ground (green on a light page, gold on the
- * green sidebar). A white-labelled name (NEXT_PUBLIC_APP_NAME) is shown whole.
+ * green sidebar). Production spells the name "Fleet Wise" (NEXT_PUBLIC_APP_NAME), which
+ * printed FLEET WISE with no green beside the logo, so the match ignores spaces and case:
+ * the mark always reads as the website writes it. Any other name is shown whole.
  */
 export function Wordmark({
   name,
@@ -61,7 +63,7 @@ export function Wordmark({
   caps?: boolean;
   className?: string;
 }) {
-  const split = name === "FleetWise";
+  const split = name.replace(/\s+/g, "").toLowerCase() === "fleetwise";
   const ink = tone === "page" ? "text-ink" : "text-white";
   const wise = tone === "nav" ? "text-nav-accent" : tone === "footer" ? "text-white" : "text-brand-ink";
   return (
