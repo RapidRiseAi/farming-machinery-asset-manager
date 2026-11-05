@@ -490,6 +490,19 @@ request**, asserted on an injected fetch spy, not merely on the return value.
 
 ## 13. Runbook
 
+### Setting up a quoted customer (20261105100000)
+
+`/admin/farms` → **Set up a customer**: farm name, plan, monthly or yearly, vehicle slots
+(at least the plan minimum), the owner's name, email and language. One step creates the
+farm, opens a **pending** subscription with those slots and raises its first invoice
+(`app.admin_open_subscription`, no trial), then invites the owner. The owner signs in from
+the invitation and the gate sends them to `/activate`: they pay by card there, or by EFT
+using the details set under **EFT payment details** on `/admin/billing` (shown beside the
+invoice number as the reference), and Rapid Rise records the transfer with **Record a
+payment**. The subscription is marked `opened_by_staff`, so the nightly sweep of abandoned
+sign-ups never deletes it however long the customer takes to pay. Done-For-You has no list
+price and is not set up this way.
+
 ### An attempt is stuck in `unknown`
 
 That is the system working. It means an HTTP response was lost and the invoice is blocked

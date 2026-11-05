@@ -6,11 +6,11 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { soft } from "@/lib/supabase/must";
 import { sendInviteEmail } from "@/lib/email/invite";
 import { APP_NAME } from "@/lib/env";
 import { isUuid } from "@/lib/ids";
 import { runOnce } from "@/lib/request-claim";
+import { inviteToFarm } from "@/lib/admin-invite";
 import { errorCode } from "@/lib/action-errors";
 import { supportRefusal } from "@/lib/support/refusals";
 
@@ -33,17 +33,6 @@ import { supportRefusal } from "@/lib/support/refusals";
  */
 
 const ROLES = ["owner", "manager", "mechanic", "operator"] as const;
-
-type InviteDecision = {
-  outcome: "none" | "created" | "already" | "switched_off" | "added" | "moved" | "refused";
-  user_id?: string;
-  name?: string;
-  language?: string;
-};
-
-function alreadyRegistered(error: { code?: string; message?: string }): boolean {
-  return error.code === "email_exists" || /already (been )?registered|already exists/i.test(error.message ?? "");
-}
 
 function farmOf(formData: FormData): string {
   const farm = String(formData.get("farm_id") ?? "");
@@ -68,49 +57,13 @@ export async function adminInviteUser(formData: FormData) {
       if (!email || !name) redirect(`${back}?error=admin-invite-fields`);
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) redirect(`${back}?error=need-email`);
 
-      const svc = createServiceClient();
-      const decide = async (): Promise<InviteDecision> => {
-        const { data, error } = await svc.rpc("team_invite_existing", {
-          p_farm: farm,
-          p_actor: admin.id,
-          p_email: email,
-          p_role: role,
-          p_name: name,
-          p_language: language,
-        });
-        if (error) {
-          const fence = /never mix|cannot join a (real|test) (farm|workshop)/i.test(error.message ?? "");
-          redirect(`${back}?error=${fence ? "invite-refused" : error.code === "42501" ? "forbidden" : errorCode(error, "admin:invite", "invite-failed")}`);
-        }
-        return data as InviteDecision;
-      };
-
-      let decision = await decide();
-      if (decision.outcome === "none") {
-        const { error } = await svc.auth.admin.createUser({ email, email_confirm: true, user_metadata: { name } });
-        if (error && !alreadyRegistered(error)) {
-          redirect(`${back}?error=${error.code === "email_address_invalid" ? "need-email" : "invite-failed"}`);
-        }
-        decision = await decide();
-      }
-      if (decision.outcome === "refused") redirect(`${back}?error=invite-refused`);
-      if (decision.outcome === "switched_off") redirect(`${back}?error=invite-switched-off`);
-      if (decision.outcome === "none") redirect(`${back}?error=invite-failed`);
-
-      // On the farm from here on: the email may fail without undoing it.
-      const farmRow = soft(await svc.from("farms").select("name").eq("id", farm).maybeSingle(), "admin:invite:farm-name");
-      const sent = await sendInviteEmail(svc, {
-        email,
-        name: decision.name ?? name,
-        farmId: farm,
-        farmName: (farmRow as { name?: string } | null)?.name ?? APP_NAME,
-        inviterName: null,
-        locale: decision.language === "af" ? "af" : language,
+      const result = await inviteToFarm(createServiceClient(), {
+        adminId: admin.id, farmId: farm, email, name, role, language,
       });
-      if (!sent.ok) console.error(`[admin] invite email not sent: ${sent.reason}${sent.detail ? ` (${sent.detail})` : ""}`);
+      if (!result.ok) redirect(`${back}?error=${result.code}`);
 
       revalidatePath(back);
-      return `${back}?invited=${!sent.ok ? "noemail" : decision.outcome === "already" ? "again" : "1"}`;
+      return `${back}?invited=${!result.emailSent ? "noemail" : result.outcome === "already" ? "again" : "1"}`;
     },
     { whileRunning: `${back}?error=still-saving` },
   );

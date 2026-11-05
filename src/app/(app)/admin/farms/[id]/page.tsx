@@ -100,7 +100,7 @@ export default async function ClientPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; invited?: string; exited?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; invited?: string; exited?: string; onboarded?: string }>;
 }) {
   const profile = await requireRole(["rr_admin"]);
   const locale = profile.lang;
@@ -186,6 +186,18 @@ export default async function ClientPage({
       />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      {/* After "Set up a customer" (20261105100000): what happened, in the order it did. */}
+      {sp.onboarded ? (
+        <Flash
+          tone={sp.onboarded === "1" ? "success" : "warning"}
+          message={t(
+            sp.onboarded === "1" ? "adminHome.onboarded"
+              : sp.onboarded === "noemail" ? "adminHome.onboardedNoEmail"
+              : "adminHome.onboardedInviteFailed",
+            locale,
+          )}
+        />
+      ) : null}
       <Flash
         tone={sp.invited === "noemail" ? "warning" : "success"}
         message={

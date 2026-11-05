@@ -104,6 +104,14 @@ export default async function ActivatePage({
     ? await settlingOnInvoice(svc, farmId, invoice?.id ?? null, "activate:payment-attempt")
     : null;
 
+  // Rapid Rise's EFT details (20261105100000), for a quoted customer who pays by transfer:
+  // shown beside the invoice number as the reference, and only to somebody who may pay. A
+  // failed read shows card payment only rather than an error.
+  const eft = svc && invoice
+    ? ((await svc.from("billing_settings").select("eft_instructions").eq("singleton", true).maybeSingle()).data
+        ?.eft_instructions as string | null | undefined) ?? null
+    : null;
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
       <div className="flex items-center gap-3">
@@ -167,6 +175,16 @@ export default async function ActivatePage({
             </form>
 
             <p className="mt-4 text-xs text-sand-700">{t("activate.note", locale)}</p>
+
+            {eft && invoice ? (
+              <div className="mt-5 border-t border-sand-300 pt-4 text-sm">
+                <p className="font-semibold text-sand-900">{t("activate.eftTitle", locale)}</p>
+                <p className="mt-1 whitespace-pre-line text-sand-700">{eft}</p>
+                <p className="mt-2 text-sand-700">
+                  {t("activate.eftReference", locale).replace("{ref}", invoice.invoice_ref)}
+                </p>
+              </div>
+            ) : null}
           </>
         )}
       </div>

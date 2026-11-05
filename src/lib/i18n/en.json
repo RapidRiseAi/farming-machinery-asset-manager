@@ -5349,7 +5349,8 @@
     "billingServicePrice": "A price must be from R0 to R1 000 000 each.",
     "billingExtendNotOverdue": "Only a paused or overdue farm can be kept open. A farm still waiting for its first payment needs that payment recorded instead.",
     "billingSlotsMinimum": "Your plan is billed for at least five vehicle slots, so the number cannot go below that.",
-    "billingPlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan."
+    "billingPlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan.",
+    "billingEftTooLong": "Keep the EFT details under 1 000 characters."
   },
   "billing": {
     "title": "Billing",
@@ -5753,7 +5754,11 @@
     "serviceSave": "Raise invoice",
     "savedServiceInvoice": "Service invoice raised. It is in the farm's invoices below.",
     "statSuspended": "Paused",
-    "colMinSlots": "Min slots"
+    "colMinSlots": "Min slots",
+    "eftTitle": "EFT payment details",
+    "eftHint": "Shown to customers on the payment page, beside their invoice number as the reference. Leave empty to offer card payment only.",
+    "eftNone": "Not set: customers can pay by card only.",
+    "savedEft": "EFT details saved. Customers see them on the payment page from now on."
   },
   "billingReceipt": {
     "title": "Receipt",
@@ -5830,7 +5835,9 @@
     "settlingInflightTitle": "We are waiting on your bank",
     "settlingInflightBody": "Your payment is going through. Please do not pay again, refresh this page in a moment and it should be done. If it has not cleared in a few minutes, get in touch and we will look it up.",
     "settlingRefresh": "Refresh",
-    "askOwner": "Ask the farm's owner or manager to pay, and the farm opens for everyone."
+    "askOwner": "Ask the farm's owner or manager to pay, and the farm opens for everyone.",
+    "eftTitle": "Prefer to pay by EFT?",
+    "eftReference": "Use {ref} as the reference. Your farm opens as soon as we have recorded the payment, usually within one working day."
   },
   "signup": {
     "title": "Start using FleetWise",
@@ -6831,7 +6838,10 @@
       "inviteFields": "A name and an email address are needed.",
       "userInvalid": "That person is not on this farm, or cannot be changed here.",
       "userSelf": "You cannot switch yourself off."
-    }
+    },
+    "onboarded": "Customer set up: the first invoice is raised and the owner has been emailed a sign-in link. They pay on their first sign-in, by card or EFT.",
+    "onboardedNoEmail": "Customer set up and the owner added, but the sign-in email could not be sent. Use Resend below once email is working.",
+    "onboardedInviteFailed": "The farm and its first invoice are set up, but the owner could not be invited. Invite them below."
   },
   "assetFinance": {
     "nav": "Finance & contracts",

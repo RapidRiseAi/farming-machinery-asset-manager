@@ -5349,7 +5349,8 @@
     "billingServicePrice": "'n Prys moet van R0 tot R1 000 000 elk wees.",
     "billingExtendNotOverdue": "Net 'n onderbreekte of agterstallige plaas kan oopgehou word. Vir 'n plaas wat nog op sy eerste betaling wag, teken eerder daardie betaling aan.",
     "billingSlotsMinimum": "Jou plan word vir minstens vyf voertuigplekke gefaktureer, so die getal kan nie laer as dit wees nie.",
-    "billingPlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan."
+    "billingPlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan.",
+    "billingEftTooLong": "Hou die EFT-besonderhede onder 1 000 karakters."
   },
   "billing": {
     "title": "Rekening",
@@ -5753,7 +5754,11 @@
     "serviceSave": "Stuur faktuur",
     "savedServiceInvoice": "Diensfaktuur geskep. Dit is onder die plaas se fakture.",
     "statSuspended": "Onderbreek",
-    "colMinSlots": "Min. plekke"
+    "colMinSlots": "Min. plekke",
+    "eftTitle": "EFT-betalingsbesonderhede",
+    "eftHint": "Word aan kliënte op die betaalbladsy gewys, langs hul faktuurnommer as die verwysing. Laat leeg om net kaartbetaling aan te bied.",
+    "eftNone": "Nie gestel nie: kliënte kan net per kaart betaal.",
+    "savedEft": "EFT-besonderhede gestoor. Kliënte sien dit van nou af op die betaalbladsy."
   },
   "billingReceipt": {
     "title": "Kwitansie",
@@ -5830,7 +5835,9 @@
     "settlingInflightTitle": "Ons wag op jou bank",
     "settlingInflightBody": "Jou betaling gaan deur. Moet asseblief nie weer betaal nie, herlaai hierdie bladsy oor 'n oomblik en dit behoort klaar te wees. As dit nie binne 'n paar minute deur is nie, laat weet ons en ons kyk dit na.",
     "settlingRefresh": "Herlaai",
-    "askOwner": "Vra die plaas se eienaar of bestuurder om te betaal, dan gaan die plaas vir almal oop."
+    "askOwner": "Vra die plaas se eienaar of bestuurder om te betaal, dan gaan die plaas vir almal oop.",
+    "eftTitle": "Verkies jy om per EFT te betaal?",
+    "eftReference": "Gebruik {ref} as die verwysing. Jou plaas maak oop sodra ons die betaling aangeteken het, gewoonlik binne een werksdag."
   },
   "signup": {
     "title": "Begin met FleetWise",
@@ -6831,7 +6838,10 @@
       "inviteFields": "'n Naam en 'n e-posadres is nodig.",
       "userInvalid": "Daardie persoon is nie op hierdie plaas nie, of kan nie hier verander word nie.",
       "userSelf": "Jy kan nie jouself afskakel nie."
-    }
+    },
+    "onboarded": "Kliënt opgestel: die eerste faktuur is uitgereik en die eienaar het 'n aanmeldskakel per e-pos gekry. Hulle betaal met hul eerste aanmelding, per kaart of EFT.",
+    "onboardedNoEmail": "Kliënt opgestel en die eienaar bygevoeg, maar die aanmeld-e-pos kon nie gestuur word nie. Gebruik Stuur weer hieronder sodra e-pos werk.",
+    "onboardedInviteFailed": "Die plaas en sy eerste faktuur is opgestel, maar die eienaar kon nie genooi word nie. Nooi hulle hieronder."
   },
   "assetFinance": {
     "nav": "Finansiering & kontrakte",

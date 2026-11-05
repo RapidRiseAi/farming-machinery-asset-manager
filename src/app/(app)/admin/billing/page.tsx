@@ -86,7 +86,9 @@ import {
   adminSetDiscount,
   adminSetPlan,
   adminStartSubscription,
+  adminSetEftDetails,
 } from "./actions";
+import { TextareaField } from "@/components/ui/field";
 import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export const dynamic = "force-dynamic";
@@ -152,6 +154,10 @@ export default async function AdminBillingPage({
   // A failed read here showed "no subscriptions" and "no price list", and offered to start
   // a subscription for a farm that already pays.
   mustAll(listResults, "admin-billing:list");
+  // The EFT details customers see on /activate (20261105100000). Read on its own so a
+  // database without the column yet still renders the console.
+  const eftInstructions = ((await supabase.from("billing_settings").select("eft_instructions")
+    .eq("singleton", true).maybeSingle()).data?.eft_instructions as string | null | undefined) ?? null;
   const [{ data: settingsData }, { data: priceData }, { data: subData }, { data: farmData }] = listResults;
 
   // Has the schedule actually been firing? The nightly pass can be inferred from the
@@ -540,6 +546,42 @@ export default async function AdminBillingPage({
 
         </Card>
       ) : null}
+
+      {/* == EFT details customers see on /activate (20261105100000) ============== */}
+      <Card>
+        <CardHeader
+          action={
+            <DialogForm
+              trigger={t("common.edit", locale)}
+              triggerVariant="secondary"
+              triggerSize="sm"
+              title={t("adminBilling.eftTitle", locale)}
+              description={t("adminBilling.eftHint", locale)}
+              closeLabel={t("ui.close", locale)}
+              size="md"
+            >
+              <form action={adminSetEftDetails}>
+                <DialogFields columns={1}>
+                  <TextareaField
+                    id="eft_instructions"
+                    name="eft_instructions"
+                    label={t("adminBilling.eftTitle", locale)}
+                    defaultValue={eftInstructions ?? ""}
+                    rows={5}
+                    maxLength={1000}
+                  />
+                </DialogFields>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton>{t("common.save", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          }
+        >
+          <CardTitle>{t("adminBilling.eftTitle", locale)}</CardTitle>
+        </CardHeader>
+        <p className="whitespace-pre-line text-sm text-sand-700">{eftInstructions || t("adminBilling.eftNone", locale)}</p>
+      </Card>
 
       {/* == The price list. Empty on purpose, and it says so. ================= */}
       <Card flush>

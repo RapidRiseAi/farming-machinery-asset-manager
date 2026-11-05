@@ -1324,6 +1324,9 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "adminBilling.savedCharged", tone: "success" };
     case "subscription":
       return { key: "adminBilling.savedSubscription", tone: "success" };
+    // The EFT details customers see on /activate (20261105100000).
+    case "eft":
+      return { key: "adminBilling.savedEft", tone: "success" };
     case "reconciled-paid":
       return { key: "adminBilling.savedReconciledPaid", tone: "success" };
     case "reconciled-closed":

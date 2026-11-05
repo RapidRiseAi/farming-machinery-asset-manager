@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Staff onboarding: Rapid Rise opens a quoted customer's pending subscription and first invoice.
+  "20261105100000": "select to_regprocedure('public.billing_admin_open_subscription(uuid,farm_plan,billing_period,integer,uuid)') is not null",
   // Erasure removes the person's voice notes: the function returns their paths.
   "20261105090000": "select coalesce(pg_get_functiondef(to_regprocedure('public.erase_personal_data(uuid,text)')) like '%voice_note_paths%', false)",
   // Plan boundaries: the book value register asks for the Professional tco entitlement.

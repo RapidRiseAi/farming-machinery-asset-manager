@@ -6,7 +6,9 @@ import { readAll } from "@/lib/supabase/read-all";
 import { mustAll } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { PLANS } from "@/lib/entitlements";
-import { createFarm } from "./actions";
+import { adminOnboardCustomer, createFarm } from "./actions";
+import { RequestIdInput } from "@/components/ui/request-id-input";
+import { MIN_BILLED_SLOTS, PLAN_PRICING } from "@/lib/entitlements";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { SelectField, TextField } from "@/components/ui/field";
@@ -100,13 +102,52 @@ export default async function AdminFarmsPage({
     </DialogForm>
   );
 
+  // A quoted customer, set up in one step: farm, pending subscription and first invoice
+  // (no trial), and the owner's invitation (20261105100000). Plans with a list price only.
+  const onboard = (
+    <DialogForm
+      trigger="Set up a customer"
+      triggerIcon={<PlusIcon />}
+      title="Set up a quoted customer"
+      description={`Creates the farm, raises its first invoice and invites the owner. No trial: they sign in, pay by card or EFT, then use FleetWise. At least ${MIN_BILLED_SLOTS} vehicle slots.`}
+      closeLabel={t("ui.close", "en")}
+      size="md"
+    >
+      <form action={adminOnboardCustomer}>
+        <RequestIdInput action="admin:onboard" />
+        <DialogFields columns={1}>
+          <TextField name="name" id="onboard-name" label="Farm or business name" required autoComplete="off" />
+          <SelectField name="plan" id="onboard-plan" label="Plan" defaultValue="essential">
+            {PLANS.filter((p) => PLAN_PRICING[p].perVehicleMonthlyCents != null).map((p) => (
+              <option key={p} value={p}>{planLabel(p)}</option>
+            ))}
+          </SelectField>
+          <SelectField name="billing_period" id="onboard-period" label="Billing" defaultValue="monthly">
+            <option value="monthly">Monthly</option>
+            <option value="annual">Yearly (ten months)</option>
+          </SelectField>
+          <TextField name="slots" id="onboard-slots" label="Vehicle slots" type="number" inputMode="numeric" min={MIN_BILLED_SLOTS} defaultValue={String(MIN_BILLED_SLOTS)} required />
+          <TextField name="owner_name" id="onboard-owner-name" label="Owner's name" required autoComplete="off" />
+          <TextField name="owner_email" id="onboard-owner-email" label="Owner's email" type="email" required autoComplete="off" />
+          <SelectField name="language" id="onboard-language" label="Owner's language" defaultValue="af">
+            <option value="af">Afrikaans</option>
+            <option value="en">English</option>
+          </SelectField>
+        </DialogFields>
+        <DialogActions cancelLabel={t("common.cancel", "en")}>
+          <SubmitButton>Set up and invite</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  );
+
   return (
     <PageContainer size="wide">
       <PageHeader
         title="Farms"
         meta={farms.length > 0 ? `${num(customers)} farm${customers === 1 ? "" : "s"}${tests > 0 ? `, plus ${num(tests)} test` : ""}` : undefined}
         lead="Every farm on FleetWise. Open one to change its plan or status, or to help it in support mode."
-        actions={newFarm}
+        actions={<div className="flex flex-wrap gap-2">{onboard}{newFarm}</div>}
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.created ? t("admin.farmCreated", locale) : undefined} />

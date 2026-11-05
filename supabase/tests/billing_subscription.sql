@@ -1325,6 +1325,8 @@ declare
     'billing_reopen_subscription','billing_record_refund',
     -- 20261029160000: "is the current period paid", read off the latest period invoice.
     'billing_latest_period_invoice','billing_latest_period_paid',
+    -- 20261105100000: Rapid Rise opens a quoted customer's subscription and first invoice.
+    'admin_open_subscription',
     -- Support tickets (20260912160000). `support_ticket_evidence` reads five billing
     -- tables and builds an object that LEAVES THE BUILDING, it is posted to the support
     -- dashboard, so it is the most sensitive function in this list. Granted to nobody at
@@ -1377,7 +1379,7 @@ declare
     'billing_quota_quote','billing_change_quota','billing_reopen_subscription',
     'billing_record_refund','open_support_ticket','support_tickets_to_post',
     'record_support_ticket_post','billing_signup_email_taken',
-    'billing_take_signup_slot',
+    'billing_take_signup_slot','billing_admin_open_subscription',
     -- Discounts (20260920150000/160000). All three are service-role only, and that IS the
     -- security property rather than a preference: an authenticated wrapper for the setter
     -- could not defend itself, because under the service client auth.uid() is null and an

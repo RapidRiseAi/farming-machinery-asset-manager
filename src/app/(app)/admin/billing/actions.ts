@@ -15,6 +15,7 @@ import {
 } from "@/lib/billing/service";
 import { reconcileAttemptById, retryInvoiceCharge } from "@/lib/billing/worker";
 import { createServiceClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
 import { isIsoDate, isUuid } from "@/lib/ids";
 import { classifyFailure, errorCode, type DbFailure } from "@/lib/action-errors";
 import { parseRandsToCents } from "@/lib/money";
@@ -630,4 +631,23 @@ export async function adminExtendAccess(formData: FormData): Promise<void> {
 export async function adminBillingState(): Promise<ProviderState> {
   await requireRrAdmin();
   return providerState();
+}
+
+/**
+ * Rapid Rise's EFT banking details, as customers see them on /activate beside their invoice
+ * number (20261105100000). Saved through the admin's own session, so the audit trail names
+ * who changed where customers send money. Empty clears it: card payment only.
+ */
+export async function adminSetEftDetails(formData: FormData): Promise<void> {
+  await requireRrAdmin();
+  const raw = String(formData.get("eft_instructions") ?? "").replace(/\r\n/g, "\n").trim();
+  if (raw.length > 1000) bounce("billing-eft-too-long");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("billing_settings")
+    .update({ eft_instructions: raw || null })
+    .eq("singleton", true);
+  if (error) bounce("billing-save-failed");
+  revalidatePath("/admin/billing");
+  redirect("/admin/billing?saved=eft");
 }
