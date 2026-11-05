@@ -5350,7 +5350,8 @@
     "billingExtendNotOverdue": "Only a paused or overdue farm can be kept open. A farm still waiting for its first payment needs that payment recorded instead.",
     "billingSlotsMinimum": "Your plan is billed for at least five vehicle slots, so the number cannot go below that.",
     "billingPlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan.",
-    "billingEftTooLong": "Keep the EFT details under 1 000 characters."
+    "billingEftTooLong": "Keep the EFT details under 1 000 characters.",
+    "billingDiscountNeedsEnd": "A deal needs an end or review date in the future. For a lifetime deal, pick the date you will review it."
   },
   "billing": {
     "title": "Billing",
@@ -5659,7 +5660,7 @@
     "discountLabelField": "Call it",
     "discountLabelHint": "What the farm sees on their bill, e.g. Founding Farmer.",
     "discountUntilField": "Last day",
-    "discountUntilHint": "Leave blank for as long as they are a customer. That is what “locked for life” means.",
+    "discountUntilHint": "Required for every deal: the date it ends, or the date you will review it. A lifetime deal still gets a review date.",
     "discountSave": "Save their price",
     "discountNote": "Clear both amounts to put them back on the list price. Nothing already invoiced changes either way.",
     "chooseFarmTitle": "Choose a farm",

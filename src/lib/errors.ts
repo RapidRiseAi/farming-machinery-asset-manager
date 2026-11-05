@@ -499,6 +499,7 @@ const CODE_KEYS: Record<string, string> = {
   // Slots and plan are not changed on a paused subscription (round 5, gate-3).
   "billing-change-paused": "errors.billingChangePaused",
   "billing-eft-too-long": "errors.billingEftTooLong",
+  "billing-discount-needs-end": "errors.billingDiscountNeedsEnd",
   // The plan minimum (20261104200000): fewer slots than five, or a plan change onto a
   // price with a minimum the farm's slots do not reach.
   "billing-slots-minimum": "errors.billingSlotsMinimum",

@@ -104,6 +104,11 @@ function randsToCents(raw: string): number | null {
   return cents;
 }
 
+/** Today as YYYY-MM-DD on the farm calendar (Johannesburg). */
+function todayIso(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
 /** Rapid Rise only. Not exported, a `"use server"` file exports only actions. */
 async function requireRrAdmin(): Promise<void> {
   const profile = await requireProfile();
@@ -376,6 +381,12 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
   if (untilRaw !== "") {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(untilRaw)) bounce("billing-discount-bad");
     until = untilRaw;
+  }
+  // A deal always has an end or review date (founder record of 26 October 2026: Founding
+  // Farmer terms are negotiated per farm with a mandatory end or review date). "For life"
+  // is a review date somebody chose, never an empty box. Clearing a deal needs none.
+  if ((percentBps != null || fixedCents != null) && (until == null || until <= todayIso())) {
+    bounce("billing-discount-needs-end");
   }
 
   const supabase = createServiceClient();

@@ -27,13 +27,19 @@ function mockClient(options: { uploadFails?: boolean; attachmentFails?: boolean;
     },
     from(table: string) {
       assert.equal(table, "attachments");
-      return {
-        async insert(row: Record<string, unknown>) {
-          attachments.push(row);
-          if (options.attachmentThrows) throw new Error("connection failed");
-          return { error: options.attachmentFails ? new Error("insert failed") : null };
-        },
+      const write = async (row: Record<string, unknown>) => {
+        attachments.push(row);
+        if (options.attachmentThrows) throw new Error("connection failed");
+        return { error: options.attachmentFails ? new Error("insert failed") : null };
       };
+      // Work-request media is content-addressed: it looks its id up first, then upserts.
+      const lookup = {
+        select: () => lookup,
+        eq: () => lookup,
+        is: () => lookup,
+        maybeSingle: async () => ({ data: null, error: null }),
+      };
+      return { insert: write, upsert: write, ...lookup };
     },
   } as unknown as UploadClient;
   return { client, uploads, removals, attachments };
@@ -50,10 +56,13 @@ for (const [parentType, upload] of [
     assert.equal(await upload(m.client, file(), "photo", "farm", "parent", "user"), true);
     assert.equal(m.uploads.length, 1);
     assert.equal(m.attachments.length, 1);
-    assert.deepEqual(m.attachments[0], {
+    const { id, ...row } = m.attachments[0];
+    assert.deepEqual(row, {
       farm_id: "farm", parent_type: parentType, parent_id: "parent", kind: "photo",
       storage_path: m.uploads[0], created_by: "user",
     });
+    // Work-request media carries the content-addressed id it was looked up by.
+    if (parentType === "work_request") assert.match(String(id), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
     assert.deepEqual(m.removals, []);
   });
 

@@ -49,7 +49,10 @@ export async function signUp(formData: FormData): Promise<void> {
   const vehicles = Number.parseInt(String(formData.get("vehicles") ?? ""), 10);
   // Optional, upper-cased here so "founding20" typed at six in the morning is the code on
   // the offer sheet. Blank means no code and is not an error.
-  const promoCode = String(formData.get("promo_code") ?? "").trim().toUpperCase();
+  // No public promo codes (founder record of 26 October 2026): a Founding Farmer deal is
+  // negotiated with Rapid Rise and set on the farm by staff, never typed in at sign-up.
+  // The database path stays for the codes already issued, but nothing here reads one.
+  const promoCode = "";
 
   if (!email || !email.includes("@")) bounce("signup-email");
   if (password.length < 8) bounce("signup-password");

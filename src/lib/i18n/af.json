@@ -5350,7 +5350,8 @@
     "billingExtendNotOverdue": "Net 'n onderbreekte of agterstallige plaas kan oopgehou word. Vir 'n plaas wat nog op sy eerste betaling wag, teken eerder daardie betaling aan.",
     "billingSlotsMinimum": "Jou plan word vir minstens vyf voertuigplekke gefaktureer, so die getal kan nie laer as dit wees nie.",
     "billingPlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan.",
-    "billingEftTooLong": "Hou die EFT-besonderhede onder 1 000 karakters."
+    "billingEftTooLong": "Hou die EFT-besonderhede onder 1 000 karakters.",
+    "billingDiscountNeedsEnd": "'n Ooreenkoms het 'n eind- of hersieningsdatum in die toekoms nodig. Vir 'n lewenslange ooreenkoms, kies die datum waarop jy dit gaan hersien."
   },
   "billing": {
     "title": "Rekening",
@@ -5659,7 +5660,7 @@
     "discountLabelField": "Noem dit",
     "discountLabelHint": "Wat die plaas op hul rekening sien, bv. Stigterboer.",
     "discountUntilField": "Laaste dag",
-    "discountUntilHint": "Laat leeg vir so lank as wat hulle ’n kliënt is. Dit is wat “lewenslank vasgemaak” beteken.",
+    "discountUntilHint": "Nodig vir elke ooreenkoms: die datum waarop dit eindig, of die datum waarop jy dit gaan hersien. 'n Lewenslange ooreenkoms kry steeds 'n hersieningsdatum.",
     "discountSave": "Stoor hul prys",
     "discountNote": "Maak albei bedrae leeg om hulle terug op die lysprys te sit. Niks wat reeds gefaktureer is, verander nie.",
     "chooseFarmTitle": "Kies 'n plaas",

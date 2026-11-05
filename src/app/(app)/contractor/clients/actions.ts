@@ -393,6 +393,19 @@ export async function syncClientVehicles(formData: FormData) {
     redirect(`/contractor/clients/${clientId}?error=vehicle-limit-client`);
   }
 
+  // THE CLAIM (repeat-tap follow-up). Two presses both read `synced_at` empty above and
+  // both copied the whole fleet. Only the press that sets it first goes on; it is released
+  // again below if anything failed, so the offer reopens for what is left.
+  const { data: claimed, error: claimError } = await supabase
+    .from("partner_clients")
+    .update({ synced_at: new Date().toISOString() })
+    .eq("id", clientId)
+    .is("synced_at", null)
+    .select("id")
+    .maybeSingle();
+  if (claimError) redirect(`/contractor/clients/${clientId}?error=${errorCode(claimError, "app/contractor/clients/actions:syncClientVehicles:claim")}`);
+  if (!claimed) redirect(`/contractor/clients/${clientId}?error=already-synced`);
+
   let copied = 0;
   let failed = 0;
   for (const v of vehicles) {
@@ -440,15 +453,16 @@ export async function syncClientVehicles(formData: FormData) {
    * the rest, a revoked link, a rejected row or a dropped connection would silently cost
    * the partner vehicles they believed they had moved, with no way back to the button.
    */
-  if (failed === 0) {
-    const { error: closeError } = await supabase
+  if (failed > 0) {
+    // Reopen the offer for what did not land (the claim above closed it). Left closed, the
+    // rest would be stranded with no button; reopened, a second press finds only the
+    // vehicles without a trace. One whose trace update also failed would be copied again,
+    // which is why both failures are reported.
+    const { error: reopenError } = await supabase
       .from("partner_clients")
-      .update({ synced_at: new Date().toISOString() })
+      .update({ synced_at: null })
       .eq("id", clientId);
-    // The vehicles did move, so the count stands. Left open, the offer finds only the
-    // vehicles without a trace; one whose trace update also failed above would be copied
-    // again by a second press, which is why both failures are reported.
-    if (closeError) captureError(closeError, { where: "contractor-clients:sync:close" });
+    if (reopenError) captureError(reopenError, { where: "contractor-clients:sync:reopen" });
   }
 
   revalidatePath(`/contractor/clients/${clientId}`);

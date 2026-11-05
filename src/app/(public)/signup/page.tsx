@@ -25,7 +25,6 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Flash } from "@/components/ui/flash";
-import { Disclosure } from "@/components/ui/disclosure";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { PublicShell, Tick } from "@/components/public-shell";
 import { PlanPicker } from "./plan-picker";
@@ -46,10 +45,6 @@ export default async function SignUpPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const sp = await searchParams;
-  // The promo box is folded away (most people have no code, and an open code box makes
-  // them feel they are paying too much), but a bounced code must not hide the field the
-  // error is about.
-  const promoError = (sp.error ?? "").includes("promo");
   // Pre-auth there is no profile to read a language from, so the device decides.
   const locale = await deviceLocale();
 
@@ -193,38 +188,8 @@ export default async function SignUpPage({
             ))}
           </ul>
 
-          {/* Optional, and it looks optional. A code box is the single most reliable way
-              to make somebody who does NOT have a code feel they are paying too much, so
-              it sits below the reassurances rather than beside the price, and the hint
-              says out loud that leaving it blank is normal.
-
-              It is checked before anything is created and taken again under a row lock
-              inside the sign-up transaction, the only window where it can reach the
-              invoice being paid at checkout. `spellCheck` and `autoCapitalize` are off
-              because Android will otherwise help a farmer turn FOUNDING20 into
-              "Founding20" and the code is compared upper-case. */}
-          <Disclosure
-            variant="inline"
-            summary={t("signup.promoOpen", locale)}
-            defaultOpen={promoError}
-            className="mt-3"
-          >
-            <Field
-              label={t("signup.promoCode", locale)}
-              htmlFor="promo_code"
-              hint={t("signup.promoHint", locale)}
-            >
-              <Input
-                id="promo_code"
-                name="promo_code"
-                className="uppercase"
-                autoComplete="off"
-                autoCapitalize="characters"
-                spellCheck={false}
-                maxLength={40}
-              />
-            </Field>
-          </Disclosure>
+          {/* No promo-code box (founder record of 26 October 2026): a Founding Farmer deal is
+              negotiated with Rapid Rise and set on the farm by staff, never typed in here. */}
 
         <input type="hidden" name="terms_version" value={TERMS_VERSION} />
         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-sand-200 bg-sand-50 p-4">

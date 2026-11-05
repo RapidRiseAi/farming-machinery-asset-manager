@@ -454,10 +454,36 @@ test("a quantity too big for the database is refused in its words, not as a fail
 
 test("a fixed deal is read the same way: '1,500' off is R1 500 off", async () => {
   reset();
-  await run(actions.adminSetDiscount, form({ subscription_id: SUBSCRIPTION, rands: "1,500" }));
+  await run(actions.adminSetDiscount, form({ subscription_id: SUBSCRIPTION, rands: "1,500", until: "2099-12-31" }));
   assert.equal(rpcCall()?.p_fixed_cents, 150000);
   reset();
   const url = await run(actions.adminSetDiscount, form({ subscription_id: SUBSCRIPTION, rands: "1,2345" }));
   assert.equal(shown(url).en, t("errors.billingAmountUnclear", "en"));
   assert.equal(count("rpc"), 0);
+});
+
+// == A deal always has an end or review date (founder record, 26 October 2026) =========
+
+test("a discount without an end or review date is refused before anything is saved", async () => {
+  reset();
+  const url = await run(actions.adminSetDiscount, form({ subscription_id: SUBSCRIPTION, percent: "20", label: "Founding Farmer" }));
+  assert.equal(url.searchParams.get("error"), "billing-discount-needs-end");
+  assert.equal(rpcCall(), undefined, "nothing reached the database");
+  assert.notEqual(errorMessage("billing-discount-needs-end", "en"), undefined);
+});
+
+test("a discount ending today or earlier is refused; a future date is saved", async () => {
+  reset();
+  const past = await run(actions.adminSetDiscount, form({ subscription_id: SUBSCRIPTION, rands: "100", until: "2020-01-01" }));
+  assert.equal(past.searchParams.get("error"), "billing-discount-needs-end");
+  reset();
+  const ok = await run(actions.adminSetDiscount, form({ subscription_id: SUBSCRIPTION, percent: "20", until: "2099-12-31" }));
+  assert.equal(ok.searchParams.get("saved"), "discount");
+  assert.equal(rpcCall()?.p_until, "2099-12-31");
+});
+
+test("clearing a discount needs no date", async () => {
+  reset();
+  const url = await run(actions.adminSetDiscount, form({ subscription_id: SUBSCRIPTION }));
+  assert.equal(url.searchParams.get("saved"), "discount-cleared");
 });

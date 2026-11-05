@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { withTab } from "@/components/ui/tabs-url";
 import { errorCode } from "@/lib/action-errors";
+import { todayLocal } from "@/lib/format";
 
 function numOrNull(fd: FormData, k: string): number | null {
   const v = String(fd.get(k) ?? "").trim();
@@ -130,19 +131,25 @@ export async function applyTemplate(formData: FormData) {
   const results = await Promise.all([
     supabase.from("service_templates").select("lines").eq("id", templateId).maybeSingle(),
     supabase.from("machines").select("current_reading").eq("id", machineId).maybeSingle(),
+    // What the machine already has (repeat-tap follow-up): a template applied twice, by a
+    // double tap or on purpose, added every line again. A machine's plan holds one line
+    // per task, so a task already there is skipped.
+    supabase.from("service_plan_lines").select("id, task").eq("machine_id", machineId).is("deleted_at", null).limit(500),
   ]);
   // A failed machine read would seed every line with no last-done reading, so no hour
   // interval would ever fall due.
   const readError = results.find((result) => result.error)?.error;
   if (readError) redirect(withTab(`/machines/${machineId}?error=${errorCode(readError, "machines:apply-template:reads")}`, "servicing"));
-  const [{ data: tpl }, { data: mach }] = results;
+  const [{ data: tpl }, { data: mach }, { data: existingLines }] = results;
+  const existingTasks = new Set(((existingLines ?? []) as { task: string }[]).map((l) => l.task.trim().toLowerCase()));
   const lines = ((tpl as { lines: TemplateLine[] } | null)?.lines ?? []) as TemplateLine[];
   if (lines.length === 0) redirect(withTab(`/machines/${machineId}?error=Template+has+no+lines`, "servicing"));
 
-  const today = new Date().toISOString().slice(0, 10);
+  // The farm's day: before 02:00 in South Africa the UTC date is still yesterday.
+  const today = todayLocal();
   const currentReading = (mach as { current_reading: number | null } | null)?.current_reading ?? null;
 
-  const rows = lines.map((l) => {
+  const rows = lines.filter((l) => !existingTasks.has(String(l.task ?? "").trim().toLowerCase())).map((l) => {
     const interval_hours = l.interval_hours ?? null;
     const interval_months = l.interval_months ?? null;
     const last_done_reading = interval_hours != null ? currentReading : null;
@@ -161,6 +168,8 @@ export async function applyTemplate(formData: FormData) {
     };
   });
 
+  // Everything already on the machine: nothing to add, and saying so is the honest answer.
+  if (rows.length === 0) redirect(withTab(`/machines/${machineId}?saved=template`, "servicing"));
   const { error } = await supabase.from("service_plan_lines").insert(rows);
   if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/service-actions:applyTemplate")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
