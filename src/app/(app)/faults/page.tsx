@@ -23,6 +23,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { filterState } from "@/components/ui/filter-state";
+import { windowStart } from "@/lib/dashboard/compute";
 import { FilteredEmpty } from "@/components/ui/empty-state";
 import { ReportFaultDialog } from "@/components/report-fault-dialog";
 import { num } from "@/lib/format";
@@ -35,11 +36,14 @@ type Fault = {
   resolved_at: string | null;
 };
 type Attach = { id: string; parent_id: string; kind: string; storage_path: string | null };
+const URGENCIES = ["stopped", "limping", "can_work"] as const;
+/** The windows the dashboard links with: its day choices, and 3, 6 and 12 months of 31 days. */
+const SINCE_DAYS = ["1", "7", "30", "93", "186", "372"] as const;
 
 export default async function FaultsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string; page?: string; assigned?: string; machine?: string; report?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; page?: string; assigned?: string; machine?: string; report?: string; urgency?: string; since?: string }>;
 }) {
   const profile = await requireProfile();
   const sp = await searchParams;
@@ -51,10 +55,19 @@ export default async function FaultsPage({
   const columns = "id, machine_id, farm_id, description, category, urgency, status, created_at, reporter_name, job_card_id, assigned_to, lat, lng, resolved_at";
   // "Who has it": mine, or nobody's yet. One single-choice URL param, like /jobcards.
   const assigned = sp.assigned === "mine" || sp.assigned === "nobody" ? sp.assigned : undefined;
+  // From the dashboard's widgets: how urgent, and reported within the last N farm days (the
+  // same window the widget counted, lib/dashboard/compute windowStart). No urgency counts as
+  // "can still work", as everywhere.
+  const urgency = (URGENCIES as readonly string[]).includes(sp.urgency ?? "") ? sp.urgency : undefined;
+  const since = (SINCE_DAYS as readonly string[]).includes(sp.since ?? "") ? sp.since : undefined;
+  const sinceIso = since ? windowStart(new Date(), Number(since)).iso : null;
   const faultQuery = () => {
     let query = supabase.from("faults").select(columns, { count: "exact" }).is("deleted_at", null);
     if (assigned === "mine") query = query.eq("assigned_to", profile.id);
     if (assigned === "nobody") query = query.is("assigned_to", null);
+    if (urgency === "can_work") query = query.or("urgency.eq.can_work,urgency.is.null");
+    else if (urgency) query = query.eq("urgency", urgency);
+    if (sinceIso) query = query.gte("created_at", sinceIso);
     return farmId ? query.eq("farm_id", farmId) : query;
   };
   // PostgreSQL enum order is not lifecycle priority. Never let resolved history
@@ -62,7 +75,8 @@ export default async function FaultsPage({
   const [activeResult, historyResult] = await Promise.all([
     faultQuery().neq("status", "resolved").order("urgency", { ascending: false })
       .order("created_at", { ascending: false }).order("id").range((page - 1) * 50, page * 50 - 1),
-    faultQuery().eq("status", "resolved").order("created_at", { ascending: false }).limit(25),
+    // A "since" view lists what was reported in it, sorted ones too, so it shows more history.
+    faultQuery().eq("status", "resolved").order("created_at", { ascending: false }).limit(since ? 100 : 25),
   ]);
   if (activeResult.error || historyResult.error) throw new Error("Could not load faults.");
   const rawFaults = [...(activeResult.data ?? []), ...(historyResult.data ?? [])] as Fault[];
@@ -144,7 +158,7 @@ export default async function FaultsPage({
   const jobStatus = new Map(((jcData as { id: string; status: string }[] | null) ?? []).map((j) => [j.id, j.status]));
 
   const search = new URLSearchParams(
-    Object.entries({ assigned }).filter((e): e is [string, string] => !!e[1]),
+    Object.entries({ assigned, urgency, since }).filter((e): e is [string, string] => !!e[1]),
   ).toString();
   const filterGroups = [
     {
@@ -156,6 +170,18 @@ export default async function FaultsPage({
         { value: "mine", label: t("faults.mine", locale) },
         { value: "nobody", label: t("faults.unassigned", locale) },
       ],
+    },
+    {
+      paramName: "urgency",
+      label: t("faults.urgencyFilter", locale),
+      current: urgency,
+      options: [{ value: "", label: t("filters.all", locale) }, ...URGENCIES.map((u) => ({ value: u, label: t(`urgency.${u}`, locale) }))],
+    },
+    {
+      paramName: "since",
+      label: t("faults.sinceFilter", locale),
+      current: since,
+      options: [{ value: "", label: t("filters.all", locale) }, ...SINCE_DAYS.map((d) => ({ value: d, label: t(`faults.since.${d}`, locale) }))],
     },
   ];
   const filtered = filterState("/faults", search, filterGroups, { pageParam: "page" });

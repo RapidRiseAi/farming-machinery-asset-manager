@@ -48,7 +48,6 @@ const OPEN_ON_PURPOSE: Record<string, string> = {
 
 /** Single actions that touch no farm data, by "file#action". */
 const OPEN_ACTIONS: Record<string, string> = {
-  "app/(app)/dashboard/actions.ts#saveDashboardPrefs": "a cookie on this browser, no farm data",
 };
 
 /** Authorises a person, but asks nothing about the farm's billing. */

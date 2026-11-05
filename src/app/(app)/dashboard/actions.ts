@@ -1,38 +1,45 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { currentFarmId, effectiveFarmRole, farmIsUsable, requireProfile, requireRole } from "@/lib/auth";
 import { FleetCommandError, recordMeterReading } from "@/lib/domain/fleet-commands";
 import { todayLocal } from "@/lib/format";
-import { DASH_COOKIE, DASH_SECTIONS, serializeDashPrefs, type DashPrefs } from "@/lib/dashboard-prefs";
+import { normalizeLayout, storedLayout } from "@/lib/dashboard/schema";
+import type { LayoutItem } from "@/lib/dashboard/layout";
 import { runOnce } from "@/lib/request-claim";
-import { errorCode } from "@/lib/action-errors";
+import { errorCode, reportUnlessRefused } from "@/lib/action-errors";
 
 /** Who may write a reading down. Same list as the machine page's `addReading`. */
 const READERS = ["rr_admin", "owner", "manager", "mechanic", "operator"];
 
 /**
- * Save which dashboard sections show on this device.
+ * Save this person's board for the farm they are acting in: every drag, resize, added or
+ * removed widget and settings change sends the whole board here.
  *
- * A cookie, not a column: see `dashboard-prefs.ts`. Unticked checkboxes post nothing, so
- * every known section is written explicitly, on or off.
+ * Called from the browser with whatever it sends, so the board is cleaned exactly as a
+ * read one is (lib/dashboard/schema.ts) and written through RLS, which allows only the
+ * person's own row for a farm they can reach. A result, never a redirect: the grid shows
+ * "could not save" and keeps the board on screen.
  */
-export async function saveDashboardPrefs(formData: FormData) {
-  await requireProfile();
-  const prefs = Object.fromEntries(
-    DASH_SECTIONS.map((k) => [k, formData.get(`show_${k}`) === "on"]),
-  ) as DashPrefs;
-  const jar = await cookies();
-  jar.set(DASH_COOKIE, serializeDashPrefs(prefs), {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-    sameSite: "lax",
-    httpOnly: true,
-  });
-  redirect("/dashboard?saved=prefs");
+export async function saveDashboardLayout(items: LayoutItem[]): Promise<{ ok: boolean }> {
+  const profile = await requireProfile();
+  const farmId = await currentFarmId(profile);
+  if (!farmId || profile.role === "workshop") return { ok: false };
+  // The stop gate: a tab left open on a paused farm saves nothing.
+  if (!(await farmIsUsable(farmId, profile))) return { ok: false };
+  const clean = normalizeLayout(storedLayout(Array.isArray(items) ? items : []));
+  if (!clean) return { ok: false };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("dashboard_layouts")
+    .upsert({ user_id: profile.id, farm_id: farmId, layout: storedLayout(clean), updated_at: new Date().toISOString() });
+  if (error) {
+    reportUnlessRefused(error, "app/dashboard/actions:saveDashboardLayout");
+    return { ok: false };
+  }
+  return { ok: true };
 }
 
 /** One validated reading. Throws a short code or the command's own message. */

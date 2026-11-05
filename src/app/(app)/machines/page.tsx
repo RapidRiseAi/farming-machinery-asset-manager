@@ -70,6 +70,7 @@ type SP = {
   cc?: string;
   dept?: string;
   service?: string;
+  problems?: string;
   error?: string;
   saved?: string;
 };
@@ -103,6 +104,9 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const dir = sp.dir === "asc" || sp.dir === "desc" ? sp.dir : sort === "reading" ? "desc" : "asc";
   const service = (SERVICE_FILTERS as readonly string[]).includes(sp.service ?? "") ? sp.service! : "";
   const showRetired = sp.retired === "1";
+  // "With an open problem", the dashboard's "Machines with problems": at least one problem
+  // not yet resolved, the same rule the widget counts by.
+  const problemsOpen = sp.problems === "open";
 
   const supabase = await createClient();
   // Multi-site (F7): scope the list to the farm the user is currently acting in. For a
@@ -165,10 +169,17 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     farmId
       ? supabase.from("farms").select("settings").eq("id", farmId).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    problemsOpen
+      ? readAll(() => {
+          const q = supabase.from("faults").select("machine_id").neq("status", "resolved").is("deleted_at", null);
+          return farmId ? q.eq("farm_id", farmId) : q;
+        })
+      : Promise.resolve({ data: [] as { machine_id: string }[], error: null }),
   ]);
   // A failed read showed a farm with a fleet "add your first machine". Fail honestly instead.
   mustAll(results, "machines:list");
-  const [{ data }, { data: dimData }, { data: splData }, costResult, farmResult] = results;
+  const [{ data }, { data: dimData }, { data: splData }, costResult, farmResult, openFaultResult] = results;
+  const withProblems = new Set(((openFaultResult.data as { machine_id: string }[] | null) ?? []).map((f) => f.machine_id));
   const fetched = (data as MachineRow[] | null) ?? [];
 
   const allRows = (dimData as { id: string; cost_centre: string | null; department: string | null; status: string }[] | null) ?? [];
@@ -202,6 +213,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   // Service filter, in JS on the same map the cells read, so the two cannot disagree.
   const filtered = fetched.filter((m) => {
+    if (problemsOpen && !withProblems.has(m.id)) return false;
     const s = svcByMachine.get(m.id);
     if (service === "due") return s === "overdue" || s === "due_soon";
     if (service === "overdue") return s === "overdue";
@@ -300,6 +312,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   if (sp.cc) currentParams.set("cc", sp.cc);
   if (sp.dept) currentParams.set("dept", sp.dept);
   if (service) currentParams.set("service", service);
+  if (problemsOpen) currentParams.set("problems", "open");
   if (showRetired) currentParams.set("retired", "1");
   if (sort) currentParams.set("sort", sort);
   if (sp.dir === "asc" || sp.dir === "desc") currentParams.set("dir", sp.dir);
@@ -343,6 +356,12 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   ];
   const groups: FilterGroup[] = [
     { paramName: "service", label: t("machines.service", locale), current: service, options: serviceOptions },
+    {
+      paramName: "problems",
+      label: t("machines.problemsFilter", locale),
+      current: problemsOpen ? "open" : undefined,
+      options: [{ value: "", label: t("filters.all", locale) }, { value: "open", label: t("machines.problemsOpen", locale) }],
+    },
     { paramName: "type", label: t("machines.filterType", locale), current: sp.type, options: typeOptions },
     { paramName: "status", label: t("machines.filterStatus", locale), current: sp.status, options: statusOptions },
     ...(costCentres.length > 0

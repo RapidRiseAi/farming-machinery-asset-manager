@@ -647,7 +647,9 @@
     "qrSheetDoneHint": "Once every machine has its sticker, tick this step off your farm set-up list.",
     "readingDate": "Reading date",
     "importAddsOnly": "Import adds new machines; it never changes ones already on FleetWise. Rows whose serial or registration is already on the farm are left out, so importing the same file again adds nothing twice.",
-    "importedSkipped": "Imported {n} machines. {skipped} rows had a problem and were left out: fix them in the sheet and import just those."
+    "importedSkipped": "Imported {n} machines. {skipped} rows had a problem and were left out: fix them in the sheet and import just those.",
+    "problemsFilter": "Problems",
+    "problemsOpen": "With an open problem"
   },
   "machineType": {
     "tractor": "Tractor",
@@ -1620,7 +1622,17 @@
     "savedResolved": "Marked as sorted.",
     "savedAcknowledged": "Marked as seen.",
     "savedStarted": "Marked as being worked on.",
-    "savedAssigned": "Assignment saved."
+    "savedAssigned": "Assignment saved.",
+    "urgencyFilter": "Urgency",
+    "sinceFilter": "Reported",
+    "since": {
+      "1": "Today",
+      "7": "Last 7 days",
+      "30": "Last 30 days",
+      "93": "Last 3 months",
+      "186": "Last 6 months",
+      "372": "Last 12 months"
+    }
   },
   "jobcards": {
     "title": "Job cards",
@@ -7419,6 +7431,10 @@
     "emptyBoard": "Your board is empty. Add a widget to start.",
     "dataTable": "Data",
     "total": "Total",
-    "more": "and {n} more"
+    "more": "and {n} more",
+    "unit": {
+      "litres": "L"
+    },
+    "editing": "Customising your board"
   }
 }

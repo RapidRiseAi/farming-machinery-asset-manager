@@ -112,6 +112,26 @@ export const MoreIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** Six dots: "drag me", on a dashboard widget's handle. */
+export const GripIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="9" cy="6" r="1.4" />
+    <circle cx="15" cy="6" r="1.4" />
+    <circle cx="9" cy="12" r="1.4" />
+    <circle cx="15" cy="12" r="1.4" />
+    <circle cx="9" cy="18" r="1.4" />
+    <circle cx="15" cy="18" r="1.4" />
+  </Svg>
+);
+
+/** A corner with two strokes: "drag to resize". */
+export const ResizeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M20 10 10 20" />
+    <path d="M20 16 16 20" />
+  </Svg>
+);
+
 export const CloseIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M6 6l12 12M18 6 6 18" />

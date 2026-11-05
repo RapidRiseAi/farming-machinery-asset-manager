@@ -42,6 +42,16 @@ const URGENCY_TONE: Record<string, BadgeTone> = { stopped: "danger", limping: "w
 export const saDay = (ts: string) => new Date(Date.parse(ts) + 2 * 3_600_000).toISOString().slice(0, 10);
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
+/**
+ * The start of a window of `days` farm days ending today (1 = today alone): the day, and
+ * the instant it began on the farm. /faults?since= filters with the same function, so the
+ * widget and the list it links to can never disagree about where "the last 7 days" starts.
+ */
+export function windowStart(now: Date, days: number): { day: string; iso: string } {
+  const day = saDay(new Date(now.getTime() - (days - 1) * 86_400_000).toISOString());
+  return { day, iso: new Date(`${day}T00:00:00+02:00`).toISOString() };
+}
+
 /** The last `n` months, oldest first, ending with this one, as YYYY-MM keys with labels. */
 export function lastMonths(now: Date, n: number, locale: Lang): { key: string; label: string }[] {
   return Array.from({ length: n }, (_, i) => {
@@ -105,7 +115,7 @@ export function computeWidget(type: string, s: WidgetSettings, d: DashData, ctx:
     }
     case "new_problems": {
       const days = Number(opt("days"));
-      const from = ymd(new Date(now.getTime() - (days - 1) * 86_400_000 + 2 * 3_600_000));
+      const from = windowStart(now, days).day;
       const n = d.faults.filter((f) => ids.has(f.machine_id) && saDay(f.created_at) >= from).length;
       return { kind: "kpi", value: n, format: "count", tone: n > 0 ? "warn" : "ok", sub: t(`dash.sub.days${days}`, locale) };
     }

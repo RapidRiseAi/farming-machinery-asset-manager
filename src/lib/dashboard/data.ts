@@ -18,6 +18,7 @@ export type DashMachine = {
   id: string; name: string; status: string; meter_type: string;
   current_reading: number | null; current_reading_date: string | null;
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null;
+  assigned_operator_id: string | null;
 };
 export type DashService = { machine_id: string; status: string; task: string; next_due_date: string | null };
 export type DashFault = { id: string; machine_id: string; description: string | null; urgency: string | null; status: string; created_at: string };
@@ -55,7 +56,7 @@ export async function loadDashData(
   const [machines, service, faults, jobCards, fuel, licences, fines] = await Promise.all([
     // Machines are read for every board: retired and sold drop out of every count.
     readAll(() => byFarm(supabase.from("machines")
-      .select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours")
+      .select("id, name, status, meter_type, current_reading, current_reading_date, warranty_expiry_date, warranty_expiry_hours, assigned_operator_id")
       .is("deleted_at", null).order("name"))),
     needed.has("service")
       ? readAll(() => byFarm(supabase.from("service_plan_lines").select("machine_id, status, task, next_due_date").is("deleted_at", null)))

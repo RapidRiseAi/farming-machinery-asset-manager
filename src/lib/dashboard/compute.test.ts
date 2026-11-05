@@ -6,7 +6,7 @@ import type { DashData, DashMachine } from "./data";
 const NOW = new Date("2026-11-05T08:00:00Z");
 const m = (id: string, status = "active", extra: Partial<DashMachine> = {}): DashMachine => ({
   id, name: id.toUpperCase(), status, meter_type: "hours", current_reading: 100, current_reading_date: "2026-11-01",
-  warranty_expiry_date: null, warranty_expiry_hours: null, ...extra,
+  warranty_expiry_date: null, warranty_expiry_hours: null, assigned_operator_id: null, ...extra,
 });
 const base = (): DashData => ({
   now: NOW,
