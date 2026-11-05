@@ -259,6 +259,38 @@ both by `farm_id is not null` in the policy and by a null check inside `app.has_
 case**, G30 and G34 mutation-test all three pairs, and breaking either lock alone changes
 nothing, which is the point.
 
+## 5c-bis. Supabase security advisor, reviewed 2026-11-05
+
+The advisor (Supabase, Advisors, Security) was read on production on 5 November. What it
+reports and why each finding is, or is not, a problem:
+
+- **8 views "SECURITY DEFINER" (level ERROR).** The `*_visible` views (job cards, job card
+  lines, fuel issues and deliveries, parts catalogue, service kit items, stock movements, work
+  requests) mask cost columns for people who may not see costs. They are owned by
+  `fleetwise_cost_reader`, which does NOT bypass RLS, and every base table has FORCE ROW
+  LEVEL SECURITY, so each farm's policies still apply through the view. Tested on production
+  as the demo manager: 7 job cards on 1 farm through the view and through the table, of 11 on
+  2 farms in all. **Safe by design; keep the owner and FORCE RLS if a view is ever rebuilt.**
+- **81 SECURITY DEFINER functions callable by signed-in users (WARN).** These are the app's
+  RPCs; each checks the caller's role and farm itself. Spot-checked on production as a farm
+  manager: `ai_admin_month`, `support_overview`, `support_queue` and `support_staff` all
+  refuse with 42501. The isolation suite (`pnpm db:test`, CI's "RLS isolation tests") is the
+  guard that covers them all and must be green.
+- **12 tables with RLS on and no policy (INFO).** Rate-limit windows, delivery queues,
+  secrets, WhatsApp inbox and the like: reached only by the service role. No policy means no
+  signed-in access, which is the intent.
+- **Leaked password protection off (WARN).** Supabase checks new passwords against Have I Been
+  Pwned once it is switched on (Authentication, Passwords; a Pro plan feature). Founder item.
+- **4 functions with a mutable search_path, 2 extensions in `public` (WARN).** Hardening,
+  not exposure: `app_purchase_order_totals`, `app.stock_needs_reorder`,
+  `app_service_job_source`, `app_job_line_version`; `pg_trgm`, `pg_net`. To be fixed with
+  the isolation suite green, since a pinned search_path changes name resolution.
+
+The performance advisor lists 205 unindexed foreign keys, 22 policies that re-evaluate
+`auth.uid()` per row (wrap it as `(select auth.uid())`) and 24 tables with overlapping
+permissive policies. None affects correctness; the per-row `auth.uid()` is the one that
+costs at scale and is worth doing before large fleets join.
+
 ## 5d. Error reporting (NFR-6)
 
 Errors are reported by speaking Sentry's ingest protocol over `fetch` (`src/lib/observability.ts`),

@@ -1,0 +1,23 @@
+# Weekly dependency updates as pull requests, so a published fix (the Next.js image
+# optimisation advisory of November 2026, say) arrives as a reviewable change instead of
+# waiting for someone to run an audit. Minor and patch updates come grouped in one pull
+# request; a major version comes on its own, since it needs reading. Security updates for a
+# known vulnerability are separate and immediate once "Dependabot security updates" is on
+# (repository Settings, Code security). CI runs on every one of these pull requests.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Johannesburg
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

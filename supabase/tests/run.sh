@@ -35,14 +35,36 @@ else
   RUNNER="direct"
 fi
 
+# psql's messages for the current file, kept so a failure can say what it was.
+ERRLOG="$(mktemp)"
+
 pg() {           # pg <database> ; reads SQL from stdin
-  local db="$1"
+  local db="$1" rc=0
   if [ "$RUNNER" = "su" ]; then
-    su postgres -c "psql -v ON_ERROR_STOP=1 -X -q -d '$db' -f -"
+    su postgres -c "psql -v ON_ERROR_STOP=1 -X -q -d '$db' -f -" 2>"$ERRLOG" || rc=$?
   else
-    psql -v ON_ERROR_STOP=1 -X -q -d "$db" -f -
+    psql -v ON_ERROR_STOP=1 -X -q -d "$db" -f - 2>"$ERRLOG" || rc=$?
+  fi
+  cat "$ERRLOG" >&2
+  return "$rc"
+}
+
+# A failure names itself. CI's log can only be read by the repository's admins, but an
+# annotation is public: the failing step (the migration, or the suite's line here) and the
+# database's own error appear on the run's summary. The suite was red from 28 October to 5
+# November and nobody without admin rights could see why.
+on_fail() {
+  local line="$1" step
+  step="$(sed -n "${line}p" "${BASH_SOURCE[0]}" | sed 's/^ *//')"
+  case "$step" in *'"$f"'*) step="migration $(basename "${f:-?}")" ;; esac
+  local msg
+  msg="$(grep -E 'ERROR|FATAL|psql:' "$ERRLOG" | tail -4 | tr '\n' ' ' | sed 's/%/%25/g')"
+  echo "FAILED at: $step" >&2
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "::error title=Database suite failed::$step :: $msg"
   fi
 }
+trap 'on_fail $LINENO' ERR
 
 echo "==> ensuring local Postgres is up"
 pg_isready -q 2>/dev/null || pg_ctlcluster 16 main start 2>/dev/null || true

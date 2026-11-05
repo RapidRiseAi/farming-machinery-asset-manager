@@ -1,0 +1,69 @@
+name: Uptime
+
+# An outside check on production every 10 minutes, from GitHub's network rather than ours.
+#
+# /api/health answers 503 when the database does not respond or a scheduled job (nightly,
+# billing) has stopped running or hung, which produces no error anywhere else. The sign-in
+# page is checked too, because a broken deploy can leave the health route answering while
+# every page fails. Each probe gets three tries a minute apart, so one slow cold start does
+# not page anybody.
+#
+# A failed scheduled run emails the repository owner (GitHub's notification for scheduled
+# workflows). Health WARNINGS (an error tracker or alert email not set up, say) are shown
+# on the run as annotations and do not fail it: the product is up.
+#
+# This is the free backstop, not the whole answer: GitHub may delay a scheduled run under
+# load, so a dedicated uptime service with SMS belongs on the launch list as well.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  production:
+    name: app.fleet-wise.co.za
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Health check
+        run: |
+          url="https://app.fleet-wise.co.za/api/health"
+          for attempt in 1 2 3; do
+            code=$(curl -s -o health.json -w "%{http_code}" --max-time 20 "$url" || echo 000)
+            [ "$code" = "200" ] && break
+            echo "attempt $attempt: HTTP $code"
+            [ "$attempt" = "3" ] || sleep 60
+          done
+          cat health.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error title=FleetWise is unhealthy::$url answered HTTP $code after three tries"
+            exit 1
+          fi
+          node -e '
+            const h = JSON.parse(require("fs").readFileSync("health.json", "utf8"));
+            for (const w of h.warnings || []) console.log(`::warning title=Health warning::${w}`);
+            if (h.ok !== true) { console.log("::error title=FleetWise is unhealthy::" + (h.problems || []).join("; ")); process.exit(1); }
+          '
+
+      - name: Sign-in page
+        run: |
+          url="https://app.fleet-wise.co.za/login"
+          for attempt in 1 2 3; do
+            code=$(curl -s -o login.html -w "%{http_code}" --max-time 20 "$url" || echo 000)
+            [ "$code" = "200" ] && grep -q 'id="signin-email"' login.html && break
+            echo "attempt $attempt: HTTP $code"
+            [ "$attempt" = "3" ] || sleep 60
+          done
+          if [ "$code" != "200" ] || ! grep -q 'id="signin-email"' login.html; then
+            echo "::error title=Sign-in is down::$url answered HTTP $code or without the sign-in form"
+            exit 1
+          fi
+          echo "sign-in page OK"

@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { CRON_RPC } from "@/lib/cron/heartbeat";
 import { createServiceClient } from "@/lib/supabase/service";
 import { siteUrlWarning } from "@/lib/site-url-check";
+import { deliveryWarnings } from "@/lib/delivery-health";
+import { observabilityEnabled } from "@/lib/observability";
+import { emailConfigProblem } from "@/lib/email/resend";
 
 /**
  * Is the product up, and is it running its scheduled work? For an external uptime monitor.
@@ -19,6 +22,7 @@ import { siteUrlWarning } from "@/lib/site-url-check";
  *
  * Open to anyone, so it says nothing anyone could use: route names, whether each last run
  * finished and succeeded, and hours since it started. No farm, user, count or row content.
+ * The delivery warnings (lib/delivery-health.ts) say only that a piece is missing, as a code.
  */
 
 export const dynamic = "force-dynamic";
@@ -48,6 +52,15 @@ export async function GET(request: Request) {
     request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
   );
   if (siteWarning) warnings.push(siteWarning);
+  // Whether a problem would reach a person at all (error tracker, alert email, sender).
+  warnings.push(
+    ...deliveryWarnings({
+      errorReports: observabilityEnabled(),
+      alertEmail: process.env.OPS_ALERT_EMAIL || process.env.AI_ALERT_EMAIL,
+      emailProblem: emailConfigProblem(),
+      paymentKey: process.env.PAYSTACK_SECRET_KEY,
+    }),
+  );
   let routes: CronHealth[] | null = null;
   try {
     const read = createServiceClient().rpc(CRON_RPC.health);
