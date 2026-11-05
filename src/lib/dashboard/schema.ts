@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { MAX_WIDGETS, clampBox, compact, type LayoutItem, type WidgetSettings } from "./layout";
 import { TITLE_MAX, WIDGET_BY_TYPE } from "./widgets";
+import { isHex } from "./palettes";
 
 export const LAYOUT_VERSION = 1;
 
@@ -35,7 +36,13 @@ export function cleanSettings(type: string, raw: Record<string, string> | undefi
   if (!def || !raw) return out;
   for (const [key, opt] of Object.entries(def.options)) {
     const v = raw[key];
-    if (v !== undefined && opt.choices.includes(v) && v !== opt.default) out[key] = v;
+    if (v === undefined || v === opt.default) continue;
+    if (opt.choices.includes(v) || (opt.custom && isHex(v))) out[key] = opt.custom && isHex(v) ? v.toLowerCase() : v;
+  }
+  // A colour per slice, only for the slices the widget draws.
+  for (const seg of def.segments ?? []) {
+    const v = raw[`c.${seg.key}`];
+    if (isHex(v)) out[`c.${seg.key}`] = v.toLowerCase();
   }
   const title = (raw.title ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, TITLE_MAX);
   if (title) out.title = title;

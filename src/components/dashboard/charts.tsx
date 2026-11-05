@@ -5,7 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { num } from "@/lib/format";
 import { rands } from "@/lib/money";
 import type { BreakdownData, KpiData, ListData, SeriesData, Tone, ValueFormat } from "@/lib/dashboard/compute";
-import { HUES, PALETTES, STATUS, swatchStyle, type HueKey, type PaletteKey, type Swatch } from "@/lib/dashboard/palettes";
+import { PALETTES, STATUS, swatchOf, swatchStyle, type PaletteKey, type Swatch } from "@/lib/dashboard/palettes";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { ChevronRightIcon } from "@/components/ui/icons";
@@ -41,9 +41,9 @@ export function compactValue(n: number, format: ValueFormat, locale: Lang): stri
 
 const TONE_SWATCH: Record<Tone, Swatch> = { ok: STATUS.ok, warn: STATUS.warn, bad: STATUS.bad, neutral: STATUS.neutral };
 
-/** A single colour from a setting: a named hue, or "auto" (the state's own colour). */
+/** A single colour from a setting: a named hue, a picked hex, or "auto" (the state's own). */
 export function hueSwatch(colour: string, tone: Tone = "neutral"): Swatch {
-  return colour in HUES ? HUES[colour as HueKey] : TONE_SWATCH[tone];
+  return swatchOf(colour) ?? TONE_SWATCH[tone];
 }
 
 const styled = (s: Swatch, extra?: CSSProperties) => ({ ...swatchStyle(s), ...extra }) as CSSProperties;
@@ -262,8 +262,12 @@ export function niceCeiling(max: number): number {
 // == Shares ======================================================================
 
 export function BreakdownChart({
-  data: given, chart, colours, title, locale, sort = "value",
-}: { data: BreakdownData; chart: string; colours: string; title: string; locale: Lang; sort?: "value" | "name" }) {
+  data: given, chart, colours, title, locale, sort = "value", overrides = {},
+}: {
+  data: BreakdownData; chart: string; colours: string; title: string; locale: Lang; sort?: "value" | "name";
+  /** Colours picked per slice (settings `c.<key>`): by the slice's key, or by rank (`r1`, `r2` ...). */
+  overrides?: Record<string, string>;
+}) {
   // "A to Z" reorders the slices; colours follow the slice's place, never its rank.
   const data = sort === "name"
     ? { ...given, items: [...given.items].sort((a, b) => a.label.localeCompare(b.label, locale === "af" ? "af" : "en")) }
@@ -273,6 +277,8 @@ export function BreakdownChart({
   const palette = (colours in PALETTES ? colours : "fleetwise") as PaletteKey;
   const swatch = (i: number) => {
     const item = data.items[i];
+    const picked = swatchOf(overrides[item.key] ?? overrides[`r${i + 1}`]);
+    if (picked) return picked;
     if (data.statusColoured && colours === "status" && item.status) return STATUS[item.status];
     const set = PALETTES[palette];
     return set[Math.min(i, set.length - 1)];

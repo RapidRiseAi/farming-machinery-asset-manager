@@ -7365,7 +7365,8 @@
       "figure": "Figure size",
       "trend": "Trend line",
       "labels": "Values on the chart",
-      "sort": "Order"
+      "sort": "Order",
+      "segments": "Colour of each part"
     },
     "opt": {
       "colour": {
@@ -7540,6 +7541,22 @@
       "basics": "Basics",
       "chart": "What it shows",
       "card": "Card"
+    },
+    "colour": {
+      "default": "Default",
+      "lowLight": "Hard to see on a light card.",
+      "lowDark": "Hard to see on a dark card.",
+      "wheel": "Any colour (colour wheel)",
+      "change": "Change",
+      "close": "Done",
+      "changeFor": "Change the colour of {label}"
+    },
+    "rank": {
+      "1": "Costliest",
+      "2": "Second",
+      "3": "Third",
+      "4": "Fourth",
+      "5": "Fifth"
     }
   }
 }

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import type { WidgetData } from "@/lib/dashboard/compute";
 import type { WidgetSettings } from "@/lib/dashboard/layout";
-import { WIDGET_BY_TYPE, setting, type WidgetCategory } from "@/lib/dashboard/widgets";
+import { WIDGET_BY_TYPE, segmentColours, setting, type WidgetCategory } from "@/lib/dashboard/widgets";
 import type { BadgeTone } from "@/components/ui/badge";
 import type { HueKey } from "@/lib/dashboard/palettes";
 import {
@@ -23,7 +23,7 @@ export function WidgetBody({ type, settings, data, locale }: { type: string; set
   switch (data.kind) {
     case "kpi": return <KpiTile data={data} colour={opt("colour") || "auto"} large={opt("figure") === "large"} showTrend={opt("trend") !== "off"} locale={locale} />;
     case "series": return <SeriesChart data={data} chart={opt("chart")} colour={opt("colour")} labels={opt("labels") !== "off"} title={title} locale={locale} />;
-    case "breakdown": return <BreakdownChart data={data} chart={opt("chart")} colours={opt("colours")} sort={opt("sort") === "name" ? "name" : "value"} title={title} locale={locale} />;
+    case "breakdown": return <BreakdownChart data={data} chart={opt("chart")} colours={opt("colours")} sort={opt("sort") === "name" ? "name" : "value"} overrides={segmentColours(def, settings)} title={title} locale={locale} />;
     case "list": return <ListWidget data={data} locale={locale} />;
   }
 }

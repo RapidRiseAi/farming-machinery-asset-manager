@@ -64,6 +64,39 @@ export const STATUS = {
 } as const satisfies Record<string, Swatch>;
 export type StatusKey = keyof typeof STATUS;
 
+/**
+ * More colours to pick from, beyond the named hues: one step each, chosen to stay 3:1
+ * against the card in BOTH themes (palettes test). A preset is stored as its hex, like a
+ * colour picked on the wheel.
+ */
+export const PRESETS: Hex[] = [
+  "#1281c4", "#0f8ca3", "#18907a", "#14875a", "#2f7d3b", "#5f8a12", "#a88a10", "#b5740c",
+  "#a65a2e", "#d4573d", "#c43350", "#c4479a", "#b8399e", "#9d5a98", "#8b50d0", "#5c67dd",
+  "#4a6cbf", "#2d6fb8", "#5a7287", "#6b7383",
+];
+
+const HEX = /^#[0-9a-f]{6}$/i;
+export const isHex = (v: string | undefined | null): v is Hex => !!v && HEX.test(v);
+
+/** A colour setting as a swatch: a named hue (its own dark step) or a hex (both themes). */
+export function swatchOf(value: string | undefined | null): Swatch | null {
+  if (!value) return null;
+  if (value in HUES) return HUES[value as HueKey];
+  return isHex(value) ? { light: value, dark: value } : null;
+}
+
+/** WCAG contrast of a hex against another, for warning when a picked colour will not show. */
+export function contrast(a: string, b: string): number {
+  const lum = (h: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+/** The card surfaces charts sit on (light, dark), for those warnings. */
+export const CARD_SURFACES = { light: "#ffffff", dark: "#1d211d" } as const;
+
 /** More slices than colours fold into "Other" upstream; past the end we never invent a hue. */
 export function slotColour(palette: PaletteKey, index: number): Swatch {
   const set = PALETTES[palette];

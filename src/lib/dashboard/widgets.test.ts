@@ -3,7 +3,7 @@ import test from "node:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { t } from "@/lib/i18n";
-import { HUES, PALETTES, STATUS, type Swatch } from "./palettes";
+import { HUES, PALETTES, PRESETS, STATUS, type Swatch } from "./palettes";
 import { CATEGORIES, SIZE_PRESETS, WIDGETS, WIDGET_BY_TYPE, widgetBlock, type WidgetAccess } from "./widgets";
 import { sampleData } from "./samples";
 import { defaultLayout } from "./defaults";
@@ -133,5 +133,27 @@ test("every one-tap size fits every widget of its shape", () => {
 test("every widget has a tray preview, in both languages", () => {
   for (const lang of ["en", "af"] as const) {
     for (const w of WIDGETS) assert.ok(sampleData(w.type, lang), `${w.type} has no preview (${lang})`);
+  }
+});
+
+test("every preset can be seen against the card in both themes", () => {
+  for (const p of PRESETS) {
+    assert.ok(ratio(p, "#ffffff") >= 3, `${p} on white: ${ratio(p, "#ffffff").toFixed(2)}`);
+    assert.ok(ratio(p, "#1d211d") >= 3, `${p} on the dark card: ${ratio(p, "#1d211d").toFixed(2)}`);
+  }
+});
+
+test("picked colours: a hex where the option allows one, a colour per slice, nothing else", () => {
+  assert.deepEqual(cleanSettings("open_problems", { colour: "#A1B2C3", accent: "#123456", style: "tinted" }), {
+    colour: "#a1b2c3", accent: "#123456", style: "tinted",
+  });
+  assert.deepEqual(cleanSettings("open_problems", { colour: "red; background:url(x)", accent: "#12345" }), {}, "only a real hex");
+  assert.deepEqual(cleanSettings("problems_trend", { chart: "#ff0000" }), {}, "a chart type is never a colour");
+  assert.deepEqual(cleanSettings("fleet_status", { "c.active": "#00FF00", "c.nope": "#00ff00", "c.standby": "blue" }), { "c.active": "#00ff00" });
+});
+
+test("every slice has words in both languages", () => {
+  for (const lang of ["en", "af"] as const) {
+    for (const w of WIDGETS) for (const seg of w.segments ?? []) assert.notEqual(t(seg.labelKey, lang), seg.labelKey, `${lang} ${seg.labelKey}`);
   }
 });

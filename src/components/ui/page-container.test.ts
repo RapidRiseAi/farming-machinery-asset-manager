@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pairRuns } from "./page-header";
+import { groupCards } from "./page-header";
 
-// true = spans the row, false = a card that may share a row.
-test("cards pair off; a card with nothing beside it spans the row", () => {
-  assert.deepEqual(pairRuns([true, false, false, true]), [true, false, false, true], "a pair stays a pair");
-  assert.deepEqual(pairRuns([true, false, true]), [true, true, true], "a lone card spans (/accounting)");
-  assert.deepEqual(pairRuns([false, false, false]), [false, false, true], "of three, the last spans");
-  assert.deepEqual(pairRuns([false, true, false, false]), [true, true, false, false], "runs are counted separately");
-  assert.deepEqual(pairRuns([]), []);
+// true = a card (may share the column flow), false = reads across the page.
+test("runs of cards share the column flow; a lone card and everything else stand alone", () => {
+  assert.deepEqual(groupCards([false, true, true, false]), [0, [1, 2], 3]);
+  assert.deepEqual(groupCards([false, true, false]), [0, 1, 2], "a lone card is not wrapped");
+  assert.deepEqual(groupCards([true, true, true]), [[0, 1, 2]], "three cards balance in two columns");
+  assert.deepEqual(groupCards([true, false, true, true]), [0, 1, [2, 3]]);
+  assert.deepEqual(groupCards([]), []);
 });

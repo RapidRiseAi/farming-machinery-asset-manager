@@ -95,7 +95,7 @@ export default async function SettingsPage({
     </option>
   ));
   const heading = (id: string, key: string) => (
-    <h2 id={id} className="pt-2 text-lg font-semibold tracking-tight text-ink xl:col-span-2">
+    <h2 id={id} className="pt-2 text-lg font-semibold tracking-tight text-ink xl:[column-span:all]">
       {t(key, locale)}
     </h2>
   );
@@ -190,7 +190,7 @@ export default async function SettingsPage({
       ) : null}
 
       {/* == Money and invoices ================================================ */}
-      <section aria-labelledby="settings-money" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+      <section aria-labelledby="settings-money" className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
         {heading("settings-money", "settings.sectionMoney")}
 
         {/* Without these, an invoice a contractor raises against this farm is not a
@@ -260,7 +260,7 @@ export default async function SettingsPage({
       </section>
 
       {/* == Reminders and alerts ============================================== */}
-      <section aria-labelledby="settings-alerts" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+      <section aria-labelledby="settings-alerts" className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
         {heading("settings-alerts", "settings.sectionAlerts")}
 
         {group({
@@ -370,7 +370,8 @@ export default async function SettingsPage({
       </section>
 
       {/* == Menus: module switches and simple mode for drivers (H9) ============ */}
-      <section aria-labelledby="settings-menus" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+      {/* One card: the full width, not half of two columns. */}
+      <section aria-labelledby="settings-menus" className="flex flex-col gap-4">
         {heading("settings-menus", "settings.sectionMenus")}
 
         {group({
@@ -416,7 +417,7 @@ export default async function SettingsPage({
       </section>
 
       {/* == Workflow and reports ============================================== */}
-      <section aria-labelledby="settings-workflow" className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+      <section aria-labelledby="settings-workflow" className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
         {heading("settings-workflow", "settings.sectionWorkflow")}
 
         {group({

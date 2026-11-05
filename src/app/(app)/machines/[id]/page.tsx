@@ -937,13 +937,13 @@ export default async function MachineDetailPage({
               key: "overview",
               label: t("machine.tabOverview", locale),
               content: (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
-              <div className="xl:col-span-2">
+                <div className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
+              <div className="xl:[column-span:all]">
                 <MachineDashboard {...dashboardProps} />
               </div>
               {/* A machine with no plan yet: the two jobs that make it useful, until done. */}
               {canEdit && planLines.length === 0 ? (
-                <div className="xl:col-span-2">
+                <div className="xl:[column-span:all]">
                 <GetStarted
                   title={t("machine.setupTitle", locale)}
                   hint={t("machine.setupHint", locale)}
@@ -1326,10 +1326,10 @@ export default async function MachineDetailPage({
               key: "servicing",
               label: t("machine.tabServicing", locale),
               content: (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+                // Two cards, each the full width: in two columns the kit was left alone in half.
+                <div className="flex flex-col gap-4">
               {/* Service plan */}
-              {/* The plan's table needs the full width. */}
-              <Card className="xl:col-span-2">
+              <Card>
                 <CardHeader
                   action={canJob ? (
                     <NewJobCard {...jobCreation} defaultType="scheduled_service" triggerVariant="secondary" triggerSize="sm" />
@@ -1689,9 +1689,9 @@ export default async function MachineDetailPage({
               key: "costs",
               label: t("machine.tabCosts", locale),
               content: (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+                <div className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
               {!analyticsVisible ? (
-                <div className="xl:col-span-2">
+                <div className="xl:[column-span:all]">
                 <UpgradeNotice
                   feature="tco"
                   requiredPlan="professional"
@@ -1709,8 +1709,10 @@ export default async function MachineDetailPage({
                 {/* Three money tiles, one per row on a phone: `rands` is one unbreakable
                     token, so "R1 500 000,00" in a two-column tile at 360px forced the page
                     wider. The two counts that sat here (job cards, open faults) are not
-                    costs: job cards are on History, open faults are in the header. */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    costs: job cards are on History, open faults are in the header. From xl
+                    the card is half the width, so three side by side broke the total
+                    mid-number at 1440; they stack until there is room for three. */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1 min-[1700px]:grid-cols-3">
                   <Stat size="md" label={t("machine.tco", locale)} value={rands(tco)} valueClassName="text-xl" />
                   <Stat size="md" label={perMeterLabel} value={perMeter != null ? rands(perMeter) : "-"} valueClassName="text-xl" />
                   <Stat size="md" label={t("machine.maintenanceSpend", locale)} value={rands(totalSpend)} valueClassName="text-xl" />
@@ -1920,7 +1922,7 @@ export default async function MachineDetailPage({
               key: "history",
               label: t("machine.tabHistory", locale),
               content: (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+                <div className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
               {/* Timeline */}
               <Card>
                 <CardHeader><CardTitle>{t("machine.timeline", locale)}</CardTitle></CardHeader>
@@ -2192,7 +2194,7 @@ export default async function MachineDetailPage({
               key: "papers",
               label: t("machine.tabPapers", locale),
               content: (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+                <div className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
               {/* The machine's own record, stated as facts. Reg no, purchase, supplier and
                   notes could only be read inside the edit form's input boxes. */}
               {details.length > 0 || canEdit ? (

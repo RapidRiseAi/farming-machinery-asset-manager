@@ -10,7 +10,7 @@ import {
   type LayoutItem, type SizeLimits, type WidgetSettings,
 } from "@/lib/dashboard/layout";
 import { CATEGORIES, SIZE_PRESETS, TITLE_MAX, WIDGET_BY_TYPE, type WidgetCategory } from "@/lib/dashboard/widgets";
-import { HUES, swatchStyle, type HueKey } from "@/lib/dashboard/palettes";
+import { CARD_SURFACES, HUES, HUE_KEYS as HUE_KEY_LIST, PALETTES, PRESETS, STATUS, contrast, swatchOf, swatchStyle, type HueKey, type PaletteKey, type Swatch } from "@/lib/dashboard/palettes";
 import { sampleData } from "@/lib/dashboard/samples";
 import { Button } from "@/components/ui/button";
 import { TONES, type BadgeTone } from "@/components/ui/badge";
@@ -492,12 +492,12 @@ export function DashboardGrid({
               const name = title(item);
               const small = def?.shape === "kpi";
               // Card colour and style (settings): the chosen hue, or the group's own.
-              const chosen = item.settings.accent && item.settings.accent in HUES ? (item.settings.accent as HueKey) : null;
+              const chosen = swatchOf(item.settings.accent);
               const cardStyle = item.settings.style ?? "plain";
               const style = {
                 "--x": item.x + 1, "--y": item.y + 1, "--w": item.w, "--h": item.h,
                 "--hm": small ? 2 : Math.min(item.h, def?.shape === "attention" ? 8 : 5),
-                ...swatchStyle(HUES[chosen ?? look.hue]),
+                ...swatchStyle(chosen ?? HUES[look.hue]),
               } as CSSProperties;
               const placement = cn(
                 small ? "col-span-1" : "col-span-2",
@@ -849,6 +849,10 @@ function WidgetSettingsForm({
   const apply = () => {
     const out: WidgetSettings = {};
     for (const [k, o] of Object.entries(def.options)) if (values[k] && values[k] !== o.default) out[k] = values[k];
+    for (const seg of def.segments ?? []) {
+      const v = values[`c.${seg.key}`];
+      if (v && /^#[0-9a-f]{6}$/i.test(v)) out[`c.${seg.key}`] = v;
+    }
     const name = (values.title ?? "").trim().slice(0, TITLE_MAX);
     if (name) out.title = name;
     onSave(out, size);
@@ -858,8 +862,23 @@ function WidgetSettingsForm({
     on ? "border-brand-600 bg-brand-600 text-white" : "border-sand-300 bg-surface text-sand-800 hover:bg-surface-hover",
   );
   const CARD_KEYS = ["accent", "style"];
+  const look = CATEGORY_LOOK[def.category];
   const optionGroup = (keys: string[]) => keys.map((key) => {
     const opt = def.options[key];
+    if (key === "colour" || key === "accent") {
+      const auto = key === "colour" && opt.choices.includes("auto") ? "auto" : key === "accent" ? "group" : null;
+      return (
+        <ColourPicker
+          key={key}
+          label={t(`dash.optLabel.${key}`, locale)}
+          value={values[key] ?? opt.default}
+          onChange={(v) => setValues({ ...values, [key]: v })}
+          auto={auto ? { key: auto, label: t(`dash.opt.${key}.${auto}`, locale), swatch: key === "accent" ? HUES[look.hue] : null } : null}
+          fallback={auto ? null : HUES[opt.default as HueKey] ?? null}
+          locale={locale}
+        />
+      );
+    }
     return (
       <fieldset key={key} className="flex flex-col gap-1.5">
         <legend className="mb-1.5 text-sm font-medium text-sand-800">{t(`dash.optLabel.${key}`, locale)}</legend>
@@ -879,6 +898,21 @@ function WidgetSettingsForm({
     );
   });
   const chartKeys = Object.keys(def.options).filter((k) => !CARD_KEYS.includes(k));
+  const palette = (values.colours && values.colours in PALETTES ? values.colours : "fleetwise") as PaletteKey;
+  const segmentDefault = (i: number, status?: string) =>
+    values.colours === "status" && status ? STATUS[status as keyof typeof STATUS] : PALETTES[palette][Math.min(i, PALETTES[palette].length - 1)];
+  const segmentPickers = (def.segments ?? []).map((seg, i) => (
+    <ColourPicker
+      key={seg.key}
+      label={t(seg.labelKey, locale)}
+      value={values[`c.${seg.key}`] ?? ""}
+      onChange={(v) => setValues({ ...values, [`c.${seg.key}`]: v })}
+      auto={{ key: "", label: t("dash.colour.default", locale), swatch: segmentDefault(i, seg.status) }}
+      fallback={null}
+      locale={locale}
+      small
+    />
+  ));
   const section = (title: string, children: ReactNode) => (
     <section className="flex flex-col gap-4 border-t border-sand-100 pt-4 first:border-t-0 first:pt-0">
       <h3 className="text-base font-bold text-sand-900">{title}</h3>
@@ -916,6 +950,7 @@ function WidgetSettingsForm({
       </fieldset>
       </>)}
       {chartKeys.length > 0 ? section(t("dash.section.chart", locale), optionGroup(chartKeys)) : null}
+      {segmentPickers.length > 0 ? section(t("dash.optLabel.segments", locale), <div className="flex flex-col gap-2">{segmentPickers}</div>) : null}
       {section(t("dash.section.card", locale), optionGroup(CARD_KEYS))}
       <div className="sticky bottom-0 -mx-1 flex justify-end gap-2 border-t border-sand-100 bg-surface px-1 pt-4">
         <Button type="button" variant="ghost" onClick={onCancel}>{t("common.cancel", locale)}</Button>
@@ -937,4 +972,106 @@ function SizeGlyph({ w, h }: { w: number; h: number }) {
 function ColourDot({ hue }: { hue: string }) {
   const s = HUES[hue as HueKey];
   return s ? <span aria-hidden="true" className="viz-c viz-bg size-3 shrink-0 rounded-full" style={swatchStyle(s) as CSSProperties} /> : null;
+}
+
+/**
+ * Pick a colour: the current one as a swatch; open, the named hues (each with its own dark
+ * step), the presets, and the colour wheel (the browser's own picker, so it works on every
+ * device). A colour picked off the wheel can be hard to see against the card, so it says
+ * when it is under 3:1 on the light or the dark card. `auto` is the choice that is not a
+ * colour (by state, the group's colour, the palette's default).
+ */
+function ColourPicker({
+  label, value, onChange, auto, fallback, locale, small = false,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  auto: { key: string; label: string; swatch: Swatch | null } | null;
+  fallback: Swatch | null; locale: Lang; small?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const picked = swatchOf(value);
+  const isAuto = !!auto && (value === auto.key || (!picked && value === ""));
+  const shown = picked ?? (isAuto ? auto?.swatch ?? null : fallback);
+  const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : shown?.light ?? "#2a8a5f";
+  const name = value in HUES ? t(`dash.opt.colour.${value}`, locale) : picked ? value.toUpperCase() : isAuto ? auto?.label ?? "" : "";
+  const low = picked && value.startsWith("#")
+    ? [
+        contrast(value, CARD_SURFACES.light) < 3 ? t("dash.colour.lowLight", locale) : null,
+        contrast(value, CARD_SURFACES.dark) < 3 ? t("dash.colour.lowDark", locale) : null,
+      ].filter(Boolean)
+    : [];
+  const dot = (sw: Swatch | null, extra?: string) => (
+    <span aria-hidden="true" className={cn("viz-c viz-bg block rounded-full ring-1 ring-black/10", extra)} style={sw ? (swatchStyle(sw) as CSSProperties) : undefined} />
+  );
+  const options = [
+    ...HUE_KEY_LIST.map((h) => ({ v: h as string, sw: HUES[h] as Swatch, label: t(`dash.opt.colour.${h}`, locale) })),
+    ...PRESETS.map((p) => ({ v: p as string, sw: { light: p, dark: p } as Swatch, label: p.toUpperCase() })),
+  ];
+  return (
+    <div className={cn("rounded-xl border border-sand-200", small ? "px-3 py-2" : "p-3")}>
+      <div className="flex items-center gap-3">
+        {dot(shown, small ? "size-6" : "size-8")}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-sand-900">{label}</p>
+          <p className="truncate text-sm text-sand-600">{name}</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant={open ? "primary" : "secondary"}
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={t("dash.colour.changeFor", locale).replace("{label}", label)}
+        >
+          {t(open ? "dash.colour.close" : "dash.colour.change", locale)}
+        </Button>
+      </div>
+      {open ? (
+        <div className="mt-3 flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
+            {auto ? (
+              <button
+                type="button"
+                onClick={() => onChange(auto.key)}
+                aria-pressed={isAuto}
+                className={cn(
+                  "focus-ring inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-semibold",
+                  isAuto ? "border-brand-600 bg-brand-600 text-white" : "border-sand-300 text-sand-800 hover:bg-surface-hover",
+                )}
+              >
+                {auto.swatch ? dot(auto.swatch, "size-4") : null}
+                {auto.label}
+              </button>
+            ) : null}
+            {options.map((c) => {
+              const on = value.toLowerCase() === c.v.toLowerCase();
+              return (
+                <button
+                  key={c.v}
+                  type="button"
+                  onClick={() => onChange(c.v)}
+                  aria-pressed={on}
+                  aria-label={c.label}
+                  title={c.label}
+                  className={cn("focus-ring size-9 rounded-full p-0.5 transition", on ? "ring-2 ring-brand-600 ring-offset-2 ring-offset-surface" : "hover:scale-110")}
+                >
+                  {dot(c.sw, "size-full")}
+                </button>
+              );
+            })}
+            {/* The colour wheel: any colour at all. */}
+            <label
+              title={t("dash.colour.wheel", locale)}
+              className="relative size-9 cursor-pointer overflow-hidden rounded-full ring-1 ring-black/10 focus-within:ring-2 focus-within:ring-brand-600"
+              style={{ background: "conic-gradient(#e53935, #fdd835, #43a047, #00acc1, #1e88e5, #8e24aa, #e53935)" }}
+            >
+              <span className="sr-only">{t("dash.colour.wheel", locale)}</span>
+              <input type="color" value={hex} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+            </label>
+          </div>
+          {low.length > 0 ? <p className="text-sm font-medium text-status-due">{low.join(" ")}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }

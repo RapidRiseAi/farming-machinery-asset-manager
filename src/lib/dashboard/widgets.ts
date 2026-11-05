@@ -18,7 +18,11 @@ import { HUE_KEYS, PALETTE_KEYS } from "./palettes";
 export type WidgetShape = "kpi" | "series" | "breakdown" | "list" | "attention";
 export type WidgetCategory = "attention" | "problems" | "servicing" | "fleet" | "costs" | "fuel" | "papers";
 
-export type WidgetOption = { choices: readonly string[]; default: string };
+/** `custom`: a hex colour (a preset or the colour wheel) is accepted besides the choices. */
+export type WidgetOption = { choices: readonly string[]; default: string; custom?: true };
+
+/** A data range a person may colour on its own (a breakdown's slice), and its label key. */
+export type Segment = { key: string; labelKey: string; status?: "ok" | "warn" | "bad" | "neutral" };
 
 /** The data each widget reads; the page fetches only what the board on screen needs. */
 export type SourceKey = "machines" | "service" | "faults" | "jobCards" | "fuel" | "licences" | "fines";
@@ -34,11 +38,13 @@ export type WidgetDef = {
   sources: SourceKey[];
   /** The screen that shows this data, with the filter that matches the widget. */
   href: (s: WidgetSettings) => string;
+  /** The slices of a breakdown, each colourable in settings (`c.<key>`). */
+  segments?: Segment[];
 };
 
 // == Shared option sets =========================================================
-const KPI_COLOUR: WidgetOption = { choices: ["auto", ...HUE_KEYS], default: "auto" };
-const LINE_COLOUR: WidgetOption = { choices: HUE_KEYS, default: "green" };
+const KPI_COLOUR: WidgetOption = { choices: ["auto", ...HUE_KEYS], default: "auto", custom: true };
+const LINE_COLOUR: WidgetOption = { choices: HUE_KEYS, default: "green", custom: true };
 const SERIES_CHART: WidgetOption = { choices: ["bar", "line", "area"], default: "bar" };
 const BREAKDOWN_CHART: WidgetOption = { choices: ["donut", "pie", "bars", "list"], default: "donut" };
 const STATUS_COLOURS: WidgetOption = { choices: ["status", ...PALETTE_KEYS], default: "status" };
@@ -121,7 +127,7 @@ export const WIDGETS: WidgetDef[] = [
     needs: { feature: "fuel", module: "fuel" }, sources: ["machines", "fuel"], href: () => "/fuel" },
   { type: "fuel_spend_month", category: "fuel", ...KPI, options: { compare: COMPARE, colour: KPI_COLOUR },
     needs: { costs: true, feature: "fuel", module: "fuel" }, sources: ["machines", "fuel"], href: () => "/fuel" },
-  { type: "fuel_trend", category: "fuel", ...SERIES, options: { months: MONTHS, chart: SERIES_CHART, colour: { choices: HUE_KEYS, default: "gold" } },
+  { type: "fuel_trend", category: "fuel", ...SERIES, options: { months: MONTHS, chart: SERIES_CHART, colour: { choices: HUE_KEYS, default: "gold", custom: true } },
     needs: { feature: "fuel", module: "fuel" }, sources: ["machines", "fuel"], href: () => "/reports?tab=fuel&period=thisYear" },
   { type: "fuel_flags", category: "fuel", ...KPI, options: { colour: KPI_COLOUR },
     needs: { feature: "fuel", module: "fuel" }, sources: ["machines", "fuel"], href: () => "/fuel" },
@@ -149,10 +155,36 @@ for (const w of WIDGETS) {
   w.options = {
     ...w.options,
     ...extra,
-    accent: { choices: ["group", ...HUE_KEYS], default: "group" },
+    accent: { choices: ["group", ...HUE_KEYS], default: "group", custom: true },
     style: { choices: ["plain", "tinted", "outline"], default: "plain" },
   };
 }
+
+// The slices each breakdown draws, so each can be given its own colour.
+const SEG: Record<string, Segment[]> = {
+  problems_by_urgency: [
+    { key: "stopped", labelKey: "urgency.stopped", status: "bad" },
+    { key: "limping", labelKey: "urgency.limping", status: "warn" },
+    { key: "can_work", labelKey: "urgency.can_work", status: "ok" },
+  ],
+  service_status: [
+    { key: "overdue", labelKey: "ui.statusOverdue", status: "bad" },
+    { key: "due_soon", labelKey: "ui.statusDueSoon", status: "warn" },
+    { key: "ok", labelKey: "ui.statusOk", status: "ok" },
+    { key: "none", labelKey: "dash.noPlan", status: "neutral" },
+  ],
+  fleet_status: [
+    { key: "active", labelKey: "machineStatus.active", status: "ok" },
+    { key: "standby", labelKey: "machineStatus.standby", status: "neutral" },
+    { key: "in_workshop", labelKey: "machineStatus.in_workshop", status: "warn" },
+    { key: "out_of_service", labelKey: "machineStatus.out_of_service", status: "bad" },
+  ],
+  job_cards_by_status: ["reported", "open", "in_progress", "waiting_parts"].map((k) => ({ key: k, labelKey: `jobStatus.${k}` })),
+  spend_by_type: [...["scheduled_service", "repair", "inspection"].map((k) => ({ key: k, labelKey: `jobType.${k}` })), { key: "other", labelKey: "dash.other" }],
+  // Machines change; their colours go by rank, largest first.
+  top_cost_machines: [...[1, 2, 3, 4, 5].map((n) => ({ key: `r${n}`, labelKey: `dash.rank.${n}` })), { key: "other", labelKey: "dash.other" }],
+};
+for (const w of WIDGETS) if (SEG[w.type]) w.segments = SEG[w.type];
 
 export const WIDGET_BY_TYPE: ReadonlyMap<string, WidgetDef> = new Map(WIDGETS.map((w) => [w.type, w]));
 
@@ -188,7 +220,18 @@ export function widgetBlock(def: WidgetDef, access: WidgetAccess): "costs" | "pl
 export function setting(def: WidgetDef, s: WidgetSettings, key: string): string {
   const opt = def.options[key];
   const v = s[key];
-  return opt && v !== undefined && opt.choices.includes(v) ? v : (opt?.default ?? "");
+  if (!opt || v === undefined) return opt?.default ?? "";
+  return opt.choices.includes(v) || (opt.custom && /^#[0-9a-f]{6}$/i.test(v)) ? v : opt.default;
+}
+
+/** The colours picked for a breakdown's slices, by slice key. */
+export function segmentColours(def: WidgetDef, s: WidgetSettings): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const seg of def.segments ?? []) {
+    const v = s[`c.${seg.key}`];
+    if (v && /^#[0-9a-f]{6}$/i.test(v)) out[seg.key] = v;
+  }
+  return out;
 }
 
 /** Custom titles are short and plain. */

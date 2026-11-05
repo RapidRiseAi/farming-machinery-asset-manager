@@ -169,7 +169,9 @@ export function MachineDashboard(p: MachineDashboardProps) {
       ) : null}
 
       {/* The months behind the tiles. */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+      {/* Balanced columns, not rows: a short chart sits under another, never beside the tall
+          history card with a hole under it. */}
+      <div className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
         {p.cost && p.cost.monthly.some((m) => m.value > 0) ? (
           <ChartCard icon={<CashIcon />} tone="ok" title={L("machine.dash.costByMonth")} href={p.cost.fullHref} more={L("machine.dash.fullCosts")}>
             <SeriesChart data={{ kind: "series", format: "rands", points: p.cost.monthly }} chart="bar" colour="green" title={L("machine.dash.costByMonth")} locale={locale} />

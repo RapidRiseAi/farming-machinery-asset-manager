@@ -7365,7 +7365,8 @@
       "figure": "Syfergrootte",
       "trend": "Neigingslyn",
       "labels": "Waardes op die grafiek",
-      "sort": "Volgorde"
+      "sort": "Volgorde",
+      "segments": "Kleur van elke deel"
     },
     "opt": {
       "colour": {
@@ -7540,6 +7541,22 @@
       "basics": "Basies",
       "chart": "Wat dit wys",
       "card": "Kaart"
+    },
+    "colour": {
+      "default": "Verstek",
+      "lowLight": "Moeilik om op 'n ligte kaart te sien.",
+      "lowDark": "Moeilik om op 'n donker kaart te sien.",
+      "wheel": "Enige kleur (kleurwiel)",
+      "change": "Verander",
+      "close": "Klaar",
+      "changeFor": "Verander die kleur van {label}"
+    },
+    "rank": {
+      "1": "Duurste",
+      "2": "Tweede",
+      "3": "Derde",
+      "4": "Vierde",
+      "5": "Vyfde"
     }
   }
 }

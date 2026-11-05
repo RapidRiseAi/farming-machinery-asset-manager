@@ -32,12 +32,13 @@ import { Table } from "./table";
  * == On a PC (1280px and up) =================================================
  * A narrow or default page used to stay one 672 or 896px column, the rest of a PC
  * screen empty, which read as "this was made for a phone" (founder, 5 November). From
- * `xl` such a page fills the width and its CARDS (Card, Disclosure) flow in two columns,
- * row by row. Everything else is the page's own structure (a header, a row of stats, a
- * heading, a grid, a form, a table) and spans the whole width: pairing those off made odd
- * gaps (/sites, 5 November). A card holding a table, the page's only card, and anything
- * marked `data-span="full"` span too; `data-span="half"` asks for a column. A page with
- * its own layout opts out with `flow="single"` (settings, which lays out its sections).
+ * `xl` such a page fills the width and each run of CARDS (Card, Disclosure) flows down two
+ * balanced columns, so cards of different heights leave no holes. Everything else is the
+ * page's own structure (a header, a row of stats, a heading, a grid, a form, a table) and
+ * spans the whole width: splitting those made odd gaps (/sites, 5 November). A card
+ * holding a table, a lone card, and anything marked `data-span="full"` span too;
+ * `data-span="half"` joins the column flow. A page with its own layout opts out with
+ * `flow="single"` (settings, which lays out its sections).
  */
 export type PageWidth = "narrow" | "default" | "wide";
 
@@ -47,9 +48,14 @@ const WIDTH: Record<PageWidth, string> = {
   wide: "",
 };
 
-/** The two-column flow from xl, using the whole width there (each column is still a
- * comfortable reading width at 1280px and up). */
-const TWO_COLUMN = "xl:grid xl:max-w-none xl:grid-cols-2 xl:items-start";
+/**
+ * A run of cards on a PC: two balanced columns that the cards flow down (CSS columns), so
+ * a short card sits under the one above it instead of beside a tall one with a hole under
+ * it (the "weird spacing", 5 November). Below xl the wrapper is `display: contents` and
+ * the cards stack exactly as they always did.
+ */
+const CARD_COLUMNS =
+  "contents xl:-mb-6 xl:block xl:columns-2 xl:gap-6 xl:[&>*]:mb-6 xl:[&>*]:break-inside-avoid";
 
 const HALF_TYPES: unknown[] = [Card, Disclosure];
 
@@ -64,19 +70,20 @@ function spansFull(child: ReactNode): boolean {
 }
 
 /**
- * Which children span the row, given which ask to (`true`): cards pair off within each
- * run of consecutive cards, and an odd run's last card spans, so none is left alone.
+ * Group children into what reads across the page and runs of cards: a lone card stands as
+ * it is (full width), two or more consecutive cards share the column flow. `half` marks
+ * the cards. Returns indexes: a number for a child on its own, an array for a run.
  */
-export function pairRuns(spans: boolean[]): boolean[] {
-  const full = [...spans];
-  for (let i = 0; i < full.length; ) {
-    if (full[i]) { i++; continue; }
+export function groupCards(half: boolean[]): (number | number[])[] {
+  const out: (number | number[])[] = [];
+  for (let i = 0; i < half.length; ) {
+    if (!half[i]) { out.push(i++); continue; }
     let j = i;
-    while (j < full.length && !full[j]) j++;
-    if ((j - i) % 2 === 1) full[j - 1] = true;
+    while (j < half.length && half[j]) j++;
+    out.push(j - i === 1 ? i : Array.from({ length: j - i }, (_, k) => i + k));
     i = j;
   }
-  return full;
+  return out;
 }
 
 export type PageContainerProps = {
@@ -97,21 +104,14 @@ export function PageContainer({ size = "default", flow = "auto", className, chil
   const flat = Children.toArray(children).flatMap((c) =>
     isValidElement(c) && c.type === Fragment ? Children.toArray((c.props as { children?: ReactNode }).children) : [c],
   );
-  // Cards pair off two by two within each run of consecutive cards. A run with an odd count
-  // lets its last card span the row, so no card is ever left alone in half the width with
-  // nothing beside it (/accounting, 5 November).
-  const full = pairRuns(flat.map(spansFull));
+  const groups = groupCards(flat.map((ch) => !spansFull(ch)));
   return (
-    <div className={cn(base, WIDTH[size], TWO_COLUMN, "xl:gap-x-6", className)}>
-      {flat.map((c, i) =>
-        full[i] ? (
-          // `contents` below xl leaves the phone and laptop layout exactly as it was; an
-          // empty one (a Flash with nothing to say) takes no row at xl either.
-          <div key={isValidElement(c) && c.key != null ? c.key : `full-${i}`} className="contents min-w-0 empty:hidden xl:col-span-2 xl:block">
-            {c}
-          </div>
+    <div className={cn(base, WIDTH[size], "xl:max-w-none", className)}>
+      {groups.map((g) =>
+        Array.isArray(g) ? (
+          <div key={`cards-${g[0]}`} className={CARD_COLUMNS}>{g.map((i) => flat[i])}</div>
         ) : (
-          c
+          flat[g]
         ),
       )}
     </div>
