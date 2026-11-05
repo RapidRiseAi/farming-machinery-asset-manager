@@ -28,3 +28,26 @@ test("the callback checks for the verifier before the exchange, and says 'other 
   assert.match(t("auth.resetSent", "en"), /same private window/);
   assert.match(t("auth.checkEmail", "en"), /this browser/);
 });
+
+test("the email-me-a-link button signs in existing accounts only, back to the configured address", () => {
+  const actions = readFileSync(join(process.cwd(), "src/app/(auth)/login/actions.ts"), "utf8");
+  const fn = actions.slice(
+    actions.indexOf("export async function signInWithMagicLink"),
+    actions.indexOf("function noSuchAccount"),
+  );
+  // A typo must not open an account and email a stranger (5 November).
+  assert.match(fn, /^\s+shouldCreateUser: false,$/m, "the option itself, not a comment naming it");
+  // The link goes in an email: configuration, never the caller's Origin header.
+  assert.match(fn, /const origin = siteUrl\(\);/);
+  assert.doesNotMatch(fn, /get\("origin"\)/);
+  // "No such account" reads as sent, like a reset: no account-enumeration oracle.
+  assert.match(t("auth.checkEmail", "en"), /^If that address has a FleetWise account/);
+  assert.match(t("auth.checkEmail", "af"), /^As daardie adres 'n FleetWise-rekening het/);
+});
+
+test("a sign-in link that lands on the front page still finishes signing in", () => {
+  const page = readFileSync(join(process.cwd(), "src/app/page.tsx"), "utf8");
+  const forward = page.indexOf("redirect(`/auth/callback?code=${encodeURIComponent(code)}`)");
+  const sessionCheck = page.indexOf('redirect("/home")');
+  assert.ok(forward > 0 && sessionCheck > forward, "the code is forwarded before the signed-in shortcut");
+});

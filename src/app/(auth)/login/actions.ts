@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -65,19 +64,43 @@ export async function sendPasswordReset(formData: FormData) {
   redirect("/login?reset=1");
 }
 
+/**
+ * Email a sign-in link to an EXISTING account.
+ *
+ * `shouldCreateUser: false` because Supabase's default opens a new account for any address
+ * typed here, with no plan, no terms and no farm, and emails it. On 5 November a demo
+ * address typed back to front (`owner+therandomneon@gmail.com`) did exactly that, and the
+ * link went to the stranger at `owner@gmail.com`. Accounts start at /signup.
+ *
+ * Like a reset, the screen says "sent" whether or not the address has an account; only a
+ * rate limit or a real failure is reported.
+ */
 export async function signInWithMagicLink(formData: FormData) {
   const next=safePath(String(formData.get("next")??""),"/home");
   const email = String(formData.get("email") ?? "").trim();
   if (!email) redirect(`/login?error=need-email&next=${encodeURIComponent(next)}`);
+
+  // Configuration only, this URL goes in an email. See `siteUrl()`. It used to come from
+  // the request's Origin header, and a request from the old Vercel address asked Supabase
+  // to send people there; Supabase refused it and fell back to the bare front page.
+  const origin = siteUrl();
+  if (!origin) redirect(`/login?error=email-not-configured&next=${encodeURIComponent(next)}`);
+
   const supabase = await createClient();
-  const origin =
-    (await headers()).get("origin") ??
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    "";
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safePath(String(formData.get("next") ?? ""), "/home"))}` },
+    options: {
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      shouldCreateUser: false,
+    },
   });
-  if (error) redirect(`/login?error=${errorCode(error, "auth/login/actions:signInWithMagicLink")}&next=${encodeURIComponent(next)}`);
+  if (error && !noSuchAccount(error)) {
+    redirect(`/login?error=${errorCode(error, "auth/login/actions:signInWithMagicLink")}&next=${encodeURIComponent(next)}`);
+  }
   redirect(`/login?sent=1&next=${encodeURIComponent(next)}`);
+}
+
+/** What Supabase answers when `shouldCreateUser: false` meets an unknown address. */
+function noSuchAccount(error: { code?: string; message: string }): boolean {
+  return error.code === "otp_disabled" || /signups? not allowed/i.test(error.message);
 }

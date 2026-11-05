@@ -33,7 +33,17 @@ import { PublicShell, Tick } from "@/components/public-shell";
  * The price is real and read from the same catalogue the invoice is priced from, because a
  * landing page quoting a figure the checkout contradicts is worse than quoting none.
  */
-export default async function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
+  // A sign-in link whose return address Supabase would not accept lands HERE, on its Site
+  // URL, carrying the one-time code. Nothing on this page reads it, so the person arrived
+  // signed out (5 November). Hand it to the callback, which knows what to do with it.
+  const { code } = await searchParams;
+  if (code) redirect(`/auth/callback?code=${encodeURIComponent(code)}`);
+
   const store = await cookies();
   // @supabase/ssr stores the session as `sb-<project-ref>-auth-token`, sometimes split
   // across `.0` / `.1` chunks when it outgrows a single cookie.
