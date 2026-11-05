@@ -1290,7 +1290,28 @@
     "quietWindow": "Non-urgent alerts wait",
     "languageFact": "New people start in",
     "languageHint": "Your own language is in Your account and preferences.",
-    "apiLink": "Connect your own systems to this farm with an API token."
+    "apiLink": "Connect your own systems to this farm with an API token.",
+    "sectionMenus": "Menus",
+    "modulesTitle": "What shows in your menus",
+    "modulesHint": "Switch off what your farm does not use, so everyone's menus stay short. Nothing is deleted: switch a module back on and everything is still there.",
+    "modulesOn": "Shown",
+    "modulesOff": "Switched off",
+    "modulesShow": "Show in the menus",
+    "module": {
+      "fuel": "Fuel & diesel",
+      "tyres": "Tyres",
+      "parts": "Parts and stock",
+      "checklists": "Checklists",
+      "incidents": "Accidents & claims",
+      "fines": "Traffic fines",
+      "finance": "Finance and contracts",
+      "partners": "Partners and workshops",
+      "calendar": "Calendar",
+      "driver_activity": "Driver activity"
+    },
+    "driversTitle": "Drivers",
+    "simpleDriverMode": "Simple mode for drivers",
+    "simpleDriverModeHint": "Drivers see only their home screen, help and the Report button. Their home already has their machines, hours, problems and diesel."
   },
   "apiTokens": {
     "title": "API access",

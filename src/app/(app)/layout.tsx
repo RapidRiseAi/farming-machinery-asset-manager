@@ -12,6 +12,7 @@ import {
   checkWorkshopEntitlement,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
+import { hiddenMenuHrefs } from "@/lib/modules";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { mfaGate } from "@/lib/mfa";
@@ -196,6 +197,12 @@ export default async function AppLayout({
   // must use that same context rather than the profile's primary-farm role and ID.
   const canUseInbox = currentRole === "owner" || currentRole === "manager";
   const countsClient = await createClient();
+  // The selected farm's module switches and simple mode for drivers (H9,
+  // src/lib/modules.ts). A failed read trims nothing: the full menu is the safe direction.
+  const farmSettings = currentFarm && !isWorkshop && !isAdmin
+    ? (((await countsClient.from("farms").select("settings").eq("id", currentFarm).maybeSingle()).data
+        ?.settings as Record<string, unknown> | null | undefined) ?? null)
+    : null;
   const [alertsUnread, inboxDecisions, supportWaiting] = await Promise.all([
     countInboxUnread(countsClient, profile.id),
     canUseInbox ? countInboxDecisions(countsClient, currentFarm) : Promise.resolve(0),
@@ -360,7 +367,7 @@ export default async function AppLayout({
   // Drivers: Faults is NOT a tab. The permanent green Report button beside the tabs goes
   // to the same page, so two of five slots opened /faults. Fuel takes the slot when the
   // plan has it; otherwise the bar has one fewer, wider tab. Faults stays in More.
-  const defaultTabs: NavItemData[] = isWorkshop
+  const allDefaultTabs: NavItemData[] = isWorkshop
     ? [contractor, clients, work, documents]
     : isOperator
       ? [driverHome, machines, ...(fuelAllowed ? [fuel] : [])]
@@ -417,7 +424,7 @@ export default async function AppLayout({
     screens mixed in and a "Farm" group for a business that is not a farm: what they sell,
     the books (only when entitled), the workshop, and their business settings.
   */
-  const groups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
+  const allGroups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
     ? [
         { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
         { key: "fleet", label: t("nav.theFleet", locale), items: [machines, driverActivity, ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
@@ -499,7 +506,7 @@ export default async function AppLayout({
    * `isOwner ? [billing]` and `isAdmin ? [..., billing]`, and got the same
    * destination twice in one group.
    */
-  const tailGroups: { key: string; label: string; items: NavItemData[] }[] = [
+  const allTailGroups: { key: string; label: string; items: NavItemData[] }[] = [
     { key: "tail", label: t("nav.everythingElse", locale), items: tailRest },
     { key: "account", label: t("nav.groupAccount", locale), items: tailAccount },
     { key: "help", label: t("nav.groupHelp", locale), items: tailHelp },
@@ -509,6 +516,19 @@ export default async function AppLayout({
       items: g.items.filter((i, n) => g.items.findIndex((o) => o.href === i.href) === n),
     }))
     .filter((g) => g.items.length > 0);
+
+  // What this farm chose to leave out of its menus (H9): switched-off modules, and for a
+  // driver in simple mode everything but home, help and install. The pages still open
+  // from a link; this is a simpler menu, not a permission.
+  const menuHrefs = [...allGroups, ...allTailGroups].flatMap((g) => g.items.map((i) => i.href));
+  const hiddenHrefs = hiddenMenuHrefs(farmSettings, { isOperator, isWorkshop, isAdmin }, menuHrefs);
+  const shown = (i: NavItemData) => !hiddenHrefs.has(i.href);
+  const trim = (gs: typeof allGroups) =>
+    gs.map((g) => ({ ...g, items: g.items.filter(shown) })).filter((g) => g.items.length > 0);
+  const groups = trim(allGroups);
+  const tailGroups = trim(allTailGroups);
+  // The first tab is home and is never a module; the rest follow the switches.
+  const defaultTabs = allDefaultTabs.filter((i, n) => n === 0 || shown(i));
 
   // Everything this role may open in the nav, the catalogue both the pinned tabs and the
   // active-state exclusions are checked against.

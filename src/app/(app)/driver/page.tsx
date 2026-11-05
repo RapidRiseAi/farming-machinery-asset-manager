@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Photo } from "@/components/ui/photo";
 import { redirect } from "next/navigation";
 import { requireProfile, currentFarmId, effectiveFarmRole, checkEntitlement, homePathFor } from "@/lib/auth";
+import { moduleOn } from "@/lib/modules";
 import { createClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 import { meterReading, relativeDate } from "@/lib/format";
@@ -147,7 +148,14 @@ export default async function DriverHomePage({
     }
   }
 
-  const fuelAllowed = (await checkEntitlement("fuel", profile)).allowed;
+  // The farm's module switches (H9, src/lib/modules.ts): a farm without a diesel tank or
+  // without driver logs does not show those to its drivers. A failed read shows both.
+  const farmSettings = farmId
+    ? (((await supabase.from("farms").select("settings").eq("id", farmId).maybeSingle()).data
+        ?.settings as Record<string, unknown> | null | undefined) ?? null)
+    : null;
+  const fuelAllowed = (await checkEntitlement("fuel", profile)).allowed && moduleOn(farmSettings, "fuel");
+  const activityOn = moduleOn(farmSettings, "driver_activity");
 
   const sastHour = new Date(Date.now() + 2 * 3_600_000).getUTCHours();
   const firstName = profile.name.trim().split(/\s+/)[0] || profile.name;
@@ -185,7 +193,9 @@ export default async function DriverHomePage({
         locale={locale}
       />
 
-      <Link href="/driver/activity" className={buttonVariants({variant:"primary",size:"lg",fullWidth:true})}>{t("driving.title",locale)}</Link>
+      {activityOn ? (
+        <Link href="/driver/activity" className={buttonVariants({variant:"primary",size:"lg",fullWidth:true})}>{t("driving.title",locale)}</Link>
+      ) : null}
       {machines.length > 0 ? (
         <section id="assigned-machines" aria-labelledby="driver-machines" className="scroll-mt-24">
           <h2 id="driver-machines" className="text-lg font-bold text-sand-900">{t("driver.whichMachine", locale)}</h2>

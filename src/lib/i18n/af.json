@@ -1290,7 +1290,28 @@
     "quietWindow": "Nie-dringende waarskuwings wag",
     "languageFact": "Nuwe mense begin in",
     "languageHint": "Jou eie taal is in Jou rekening en voorkeure.",
-    "apiLink": "Koppel jou eie stelsels aan dié plaas met 'n API-bewys."
+    "apiLink": "Koppel jou eie stelsels aan dié plaas met 'n API-bewys.",
+    "sectionMenus": "Spyskaarte",
+    "modulesTitle": "Wat in jou spyskaarte wys",
+    "modulesHint": "Skakel af wat jou plaas nie gebruik nie, sodat almal se spyskaarte kort bly. Niks word uitgevee nie: skakel 'n module weer aan en alles is nog daar.",
+    "modulesOn": "Gewys",
+    "modulesOff": "Afgeskakel",
+    "modulesShow": "Wys in die spyskaarte",
+    "module": {
+      "fuel": "Brandstof en diesel",
+      "tyres": "Bande",
+      "parts": "Onderdele en voorraad",
+      "checklists": "Kontrolelyste",
+      "incidents": "Ongelukke en eise",
+      "fines": "Verkeersboetes",
+      "finance": "Finansiering en kontrakte",
+      "partners": "Vennote en werkswinkels",
+      "calendar": "Kalender",
+      "driver_activity": "Bestuurderaktiwiteit"
+    },
+    "driversTitle": "Bestuurders",
+    "simpleDriverMode": "Eenvoudige modus vir bestuurders",
+    "simpleDriverModeHint": "Bestuurders sien net hul tuisskerm, hulp en die Meld-knoppie. Hul tuisskerm het reeds hul masjiene, ure, probleme en diesel."
   },
   "apiTokens": {
     "title": "API-toegang",

@@ -24,6 +24,7 @@
  */
 
 import { OWNED_FIELD, ownedKeys, ownsAny, type FormLike } from "./partial-form";
+import { MODULE_SETTING_DEFAULTS } from "./modules";
 
 // Re-exported so existing call sites and tests keep one import.
 export { OWNED_FIELD, ownedKeys };
@@ -68,10 +69,12 @@ function inRange(key: string, n: number): boolean {
   return n >= r.min && (r.max == null || n <= r.max);
 }
 
-export const SETTING_BOOLEANS = {
+export const SETTING_BOOLEANS: Record<string, boolean> = {
   approval_required: false,
   cost_visible_to_operators: false,
-} as const;
+  // Module switches (on by default) and simple mode for drivers (off): src/lib/modules.ts.
+  ...MODULE_SETTING_DEFAULTS,
+};
 
 /** The billing identity fields, which live in real columns rather than the blob. */
 export const BILLING_FIELDS = [

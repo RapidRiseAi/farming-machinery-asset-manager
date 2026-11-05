@@ -24,6 +24,7 @@ import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-
 import { VatRateField } from "@/components/vat-rate-field";
 import { SupportVisits } from "@/components/support/support-visits";
 import { OWNED_FIELD } from "@/lib/settings";
+import { MODULE_KEYS, moduleOn, moduleSettingKey, simpleDriverMode } from "@/lib/modules";
 
 type Settings = Record<string, unknown>;
 
@@ -362,6 +363,52 @@ export default async function SettingsPage({
                 </Select>
               </Field>
             </>
+          ),
+        })}
+      </section>
+
+      {/* == Menus: module switches and simple mode for drivers (H9) ============ */}
+      <section aria-labelledby="settings-menus" className="flex flex-col gap-4">
+        {heading("settings-menus", "settings.sectionMenus")}
+
+        {group({
+          title: t("settings.modulesTitle", locale),
+          hint: t("settings.modulesHint", locale),
+          owns: [...MODULE_KEYS.map(moduleSettingKey), "simple_driver_mode"],
+          facts: (
+            <>
+              <Fact
+                label={t("settings.modulesOn", locale)}
+                value={MODULE_KEYS.filter((m) => moduleOn(s, m)).map((m) => t(`settings.module.${m}`, locale)).join(", ") || "-"}
+              />
+              {MODULE_KEYS.some((m) => !moduleOn(s, m)) ? (
+                <Fact
+                  label={t("settings.modulesOff", locale)}
+                  value={MODULE_KEYS.filter((m) => !moduleOn(s, m)).map((m) => t(`settings.module.${m}`, locale)).join(", ")}
+                />
+              ) : null}
+              <Fact label={t("settings.simpleDriverMode", locale)} value={yesNo(simpleDriverMode(s))} />
+            </>
+          ),
+          fields: (
+            <div className="flex flex-col">
+              <p className="mb-1 text-sm font-medium text-sand-800">{t("settings.modulesShow", locale)}</p>
+              {MODULE_KEYS.map((m) => (
+                <Checkbox
+                  key={m}
+                  name={moduleSettingKey(m)}
+                  defaultChecked={moduleOn(s, m)}
+                  label={t(`settings.module.${m}`, locale)}
+                />
+              ))}
+              <p className="mb-1 mt-4 text-sm font-medium text-sand-800">{t("settings.driversTitle", locale)}</p>
+              <Checkbox
+                name="simple_driver_mode"
+                defaultChecked={simpleDriverMode(s)}
+                label={t("settings.simpleDriverMode", locale)}
+              />
+              <p className="mt-1 text-xs text-sand-600">{t("settings.simpleDriverModeHint", locale)}</p>
+            </div>
           ),
         })}
       </section>
