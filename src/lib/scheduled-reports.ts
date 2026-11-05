@@ -214,7 +214,7 @@ export function reportEmailBody(run: ClaimedRun, opts: { empty: boolean; files: 
   // styles, no flexbox, no webfont, no remote image, plain text always sent alongside.
   const html = `<div style="background:#faf9f7;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e9e5dd;border-radius:12px;overflow:hidden;">
-    <tr><td style="background:#15803d;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:700;">${esc(run.schedule_name)}</td></tr>
+    <tr><td style="background:#00572c;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:700;">${esc(run.schedule_name)}</td></tr>
     <tr><td style="padding:24px;">
       <p style="margin:0 0 16px;color:#26221c;font-size:15px;line-height:1.55;">${esc(t("reportEmail.greeting", lang))}</p>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top:1px solid #e9e5dd;border-bottom:1px solid #e9e5dd;margin:0 0 18px;">

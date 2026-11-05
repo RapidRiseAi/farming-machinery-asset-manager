@@ -37,6 +37,32 @@ Two anchors cannot do the job the brand assigns them, at an accessible contrast:
 A darker shade of an anchor is not a new accent. Nothing here introduces a hue
 that isn't in the palette, with one deliberate exception noted in §4.
 
+### The logo, the typeface and where the brand shows
+
+- **The logo** is the founder's file, a green F and a gold W on black, the same PNG as
+  the website (`public/brand/fleetwise-logo.png`). It is never traced, redrawn or
+  recoloured. `public/brand/fleetwise-mark.png` is that file cropped to the mark with
+  its own black around it; render it with `<BrandMark>` (`components/ui/brand-mark.tsx`).
+  The app icons (32, 180, 192, 512, maskable 512) are drawn from it on black; the
+  maskable one keeps the mark inside the 80% safe circle. The notification badge is the
+  mark's shape in white, because Android draws a badge from its alpha channel only.
+- **The wordmark** is "Fleet" in the surrounding ink and "Wise" in the brand colour that
+  reads there: green on a light page, gold on the green sidebar (`<Wordmark>`).
+- **The typeface** is DM Sans, as on the website, self-hosted through `next/font`.
+- **The sidebar** is FleetWise Green as a large section (`bg-nav`, brand-700 light,
+  brand-900 dark; tokens and ratios in `globals.css` `--nav*`). Its selected row is
+  white on a lighter green with a gold notch; its badges are gold with black text; its
+  focus ring is gold, because the green ring disappears on green.
+- **Selected states are gold**: the notch in the sidebar, the bar over the active phone
+  tab, the underline of the selected tab. Each sits beside a second cue (white or green
+  text, `aria-current`/`aria-selected`), never alone.
+- **Page titles are green** (`text-brand-ink`), as the palette assigns headings.
+- **One gold button per screen**, at most: the machine banner's "Start a job card" is
+  the model, gold on the green banner.
+- **Sign-in** pairs the form with a FleetWise Black panel on a wide screen
+  (`<BrandPanel>`): the mark, the brand's first message, three things the product
+  really does. No invented numbers or endorsements, as the brand guide says.
+
 ---
 
 ## 2. Neutral ramp, what each step is *allowed* to do

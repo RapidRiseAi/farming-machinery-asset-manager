@@ -3,7 +3,7 @@ import Link from "next/link";
 import { APP_NAME } from "@/lib/env";
 import { COMPANY } from "@/lib/legal";
 import { t, localeOf, type Lang } from "@/lib/i18n";
-import { MachinesIcon } from "@/components/ui/icons";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { DeviceLanguageSwitcher } from "@/components/ui/device-language-switcher";
 
 /**
@@ -42,10 +42,8 @@ export function PublicShell({
     <div className="flex min-h-dvh flex-col bg-sand-50">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 py-5">
         <Link href="/" className="focus-ring flex min-h-[48px] items-center gap-2.5 rounded-lg" aria-label={APP_NAME}>
-          <span className="flex size-9 items-center justify-center rounded-xl bg-brand-600 text-white">
-            <MachinesIcon className="size-5" />
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-sand-900">{APP_NAME}</span>
+          <BrandMark priority />
+          <Wordmark name={APP_NAME} />
         </Link>
         {/* The switcher shows the LANGUAGE choice, which is independent of tone, an
             af-pro reader must see AF selected, not "af-pro". `localeOf` is the same
@@ -83,6 +81,36 @@ export function PublicShell({
         </div>
       </footer>
     </div>
+  );
+}
+
+/**
+ * The brand beside a sign-in form on a wide screen: FleetWise Black (the palette's ground
+ * for "premium sections, logo background", so the logo's own black runs into it), the
+ * mark large, the brand's first message, and three things the product really does, with
+ * gold ticks. Nothing here is a claim the product cannot back (BRAND.md: no invented
+ * counts or endorsements). Hidden on a phone, where the form comes first.
+ */
+export function BrandPanel({ locale }: { locale: Lang }) {
+  return (
+    <aside className="relative hidden overflow-hidden rounded-3xl bg-black p-10 text-white shadow-soft lg:flex lg:min-h-[32rem] lg:flex-col lg:justify-between">
+      {/* A low green glow from one corner, so the black has depth and reads as FleetWise. */}
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-32 -right-24 size-96 rounded-full bg-brand-600/40 blur-3xl" />
+      <BrandMark size="lg" className="relative" />
+      <div className="relative">
+        <p className="max-w-sm text-3xl font-bold leading-tight tracking-tight">{t("auth.brandTitle", locale)}</p>
+        <ul className="mt-6 flex flex-col gap-3 text-base text-white/85">
+          {(["brandPoint1", "brandPoint2", "brandPoint3"] as const).map((k) => (
+            <li key={k} className="flex items-start gap-3">
+              {/* The gold fill colour, on black (9.89:1), not on cream. */}
+              <Tick className="mt-0.5 text-accent" />
+              <span>{t(`auth.${k}`, locale)}</span>
+            </li>
+          ))}
+        </ul>
+        <span aria-hidden="true" className="mt-8 block h-1 w-16 rounded-full bg-gold-500" />
+      </div>
+    </aside>
   );
 }
 

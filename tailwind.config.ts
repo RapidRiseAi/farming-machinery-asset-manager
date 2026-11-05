@@ -86,6 +86,15 @@ const config: Config = {
           /** Chip / callout ground that follows the theme. */
           tint: "rgb(var(--brand-tint) / <alpha-value>)",
         },
+        // == The sidebar's own ground and inks (globals.css: --nav*). Green as a large
+        //    section, gold for the selected row. Values and ratios in globals.css.
+        nav: {
+          DEFAULT: "rgb(var(--nav) / <alpha-value>)",
+          ink: "rgb(var(--nav-ink) / <alpha-value>)",
+          muted: "rgb(var(--nav-muted) / <alpha-value>)",
+          heading: "rgb(var(--nav-heading) / <alpha-value>)",
+          accent: "rgb(var(--nav-accent) / <alpha-value>)",
+        },
         // == Accent: FleetWise Gold. 500 is the exact brand hex and is a FILL
         //    ONLY (1.92:1, never text on a light ground). 600+ are the text
         //    shades. Keep gold deliberate: CTAs, key figures, selected states.
@@ -246,7 +255,10 @@ const config: Config = {
         },
       },
       fontFamily: {
+        // DM Sans, the brand's typeface (fleetwise-website docs/brand/BRAND.md), self-hosted
+        // by next/font in the root layout; the system stack is its fallback.
         sans: [
+          "var(--font-sans)",
           "ui-sans-serif",
           "system-ui",
           "-apple-system",

@@ -849,8 +849,9 @@ export default async function MachineDetailPage({
         actions={
           <>
 
+            {/* The page's one gold button (the brand's call to action), on the green banner. */}
             {canJob ? (
-              <NewJobCard {...jobCreation} triggerVariant="secondary" />
+              <NewJobCard {...jobCreation} triggerVariant="accent" />
             ) : null}
             {isOutOfService && canEdit ? (
               <form action={returnMachineToService}>

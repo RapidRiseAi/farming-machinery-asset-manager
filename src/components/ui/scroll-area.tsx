@@ -31,6 +31,7 @@ export function ScrollArea({
   label,
   rememberKey,
   revealActive = false,
+  thumb = "sand",
 }: {
   children: ReactNode;
   className?: string;
@@ -52,6 +53,8 @@ export function ScrollArea({
    * is restored when that offset would leave the active row hidden.
    */
   revealActive?: boolean;
+  /** The scrollbar thumb: grey on a page or card, a lighter green on the green sidebar. */
+  thumb?: "sand" | "nav";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [top, setTop] = useState(false);
@@ -99,9 +102,10 @@ export function ScrollArea({
           "h-full overflow-y-auto overscroll-contain",
           // A visible track beats an overlay scrollbar that only appears once you have
           // already guessed you can scroll.
-          "[scrollbar-color:theme(colors.sand.300)_transparent] [scrollbar-width:thin]",
-          "[&::-webkit-scrollbar]:w-1.5",
-          "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-sand-300",
+          thumb === "nav"
+            ? "[scrollbar-color:theme(colors.brand.400)_transparent] [&::-webkit-scrollbar-thumb]:bg-brand-400"
+            : "[scrollbar-color:theme(colors.sand.300)_transparent] [&::-webkit-scrollbar-thumb]:bg-sand-300",
+          "[scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full",
           "[&::-webkit-scrollbar-track]:bg-transparent",
           className,
         )}

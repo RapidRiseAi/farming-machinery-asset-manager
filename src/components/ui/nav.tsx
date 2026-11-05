@@ -36,12 +36,26 @@ function isNavItemActive(pathname: string, item: Pick<NavItemData, "href" | "exc
  * Small count pill shown on a nav item. Caps at 99+ in the sidebar and at 9+ on the
  * phone tab bar, where a three-digit number would not fit over a 20px icon.
  */
-function Badge({ count, className, cap = 99 }: { count: number; className?: string; cap?: number }) {
+function Badge({
+  count,
+  className,
+  cap = 99,
+  tone = "green",
+}: {
+  count: number;
+  className?: string;
+  cap?: number;
+  /** Gold on the green sidebar, where a green pill would disappear (black on gold 9.89:1). */
+  tone?: "green" | "gold";
+}) {
   if (!count || count <= 0) return null;
   return (
     <span
       className={cn(
-        "inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-brand-600 px-1 text-2xs font-bold leading-none text-white",
+        "inline-flex min-w-[1.05rem] items-center justify-center rounded-full px-1 text-2xs font-bold leading-none",
+        tone === "gold"
+          ? "bg-gold-500 text-accent-on-fill"
+          : "bg-brand-600 text-white",
         className,
       )}
     >
@@ -49,6 +63,10 @@ function Badge({ count, className, cap = 99 }: { count: number; className?: stri
     </span>
   );
 }
+
+/** The gold bar over the active phone tab: the brand's selected-state colour, as a shape. */
+const TAB_MARK =
+  "before:absolute before:inset-x-3 before:top-0 before:h-[3px] before:rounded-b-full before:bg-gold-500";
 
 function useIsActive(item: NavItemData) {
   const pathname = usePathname();
@@ -80,7 +98,7 @@ export function NavLink({
           // `min-w-0`: a flex item's automatic minimum is its content, so without it a
           // long label refuses to truncate and widens the whole bar past the viewport.
           "focus-ring relative flex min-h-[56px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 text-2xs font-medium",
-          active ? "text-brand-ink" : "text-ink-muted",
+          active ? `text-brand-ink ${TAB_MARK}` : "text-ink-muted",
         )}
       >
         <span className="relative">
@@ -97,15 +115,17 @@ export function NavLink({
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "focus-ring flex min-h-[48px] items-center gap-3 rounded-lg px-3 sm:min-h-[44px] text-sm font-medium transition-colors",
+        "focus-ring relative flex min-h-[48px] items-center gap-3 rounded-lg px-3 sm:min-h-[44px] text-sm font-medium transition-colors",
+        // The selected row: white text on a lighter green and a gold notch at its left
+        // edge (the brand's colour for a selected state), with aria-current.
         active
-          ? "bg-brand-tint text-brand-ink"
-          : "text-ink-muted hover:bg-surface-sunken hover:text-ink",
+          ? "bg-white/10 text-nav-ink before:absolute before:inset-y-2.5 before:left-0 before:w-1 before:rounded-r-full before:bg-nav-accent"
+          : "text-nav-muted hover:bg-white/[0.06] hover:text-nav-ink",
       )}
     >
-      <Icon name={item.icon} className="text-xl" />
+      <Icon name={item.icon} className={cn("text-xl", active && "text-nav-accent")} />
       <span className="truncate">{item.label}</span>
-      {item.badge ? <Badge count={item.badge} className="ml-auto" /> : null}
+      {item.badge ? <Badge count={item.badge} tone="gold" className="ml-auto" /> : null}
     </Link>
   );
 }
@@ -169,7 +189,7 @@ export function MoreMenu({
         aria-expanded={open}
         className={cn(
           "focus-ring relative flex min-h-[56px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 text-2xs font-medium",
-          active || open ? "text-brand-ink" : "text-sand-500",
+          active || open ? `text-brand-ink ${TAB_MARK}` : "text-sand-500",
         )}
       >
         <span className="relative">

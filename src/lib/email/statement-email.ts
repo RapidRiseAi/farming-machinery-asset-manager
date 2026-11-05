@@ -1,7 +1,7 @@
 import "server-only";
 
 import { rands } from "@/lib/money";
-import { onBrand } from "@/lib/branding";
+import { onBrand, DEFAULT_BRAND_PRIMARY } from "@/lib/branding";
 import type { StatementData } from "@/lib/pdf/statement";
 import { statementTotals, AGEING_BUCKETS } from "@/lib/statement";
 
@@ -58,7 +58,7 @@ export function statementEmailText(data: StatementData, message?: string | null)
 
 export function statementEmailHtml(data: StatementData, message?: string | null): string {
   const totals = statementTotals(data.rows);
-  const accent = data.brand.brand_primary || "#15803d";
+  const accent = data.brand.brand_primary || DEFAULT_BRAND_PRIMARY;
   const ink = onBrand(accent);
   const overdue = AGEING_BUCKETS.filter((b) => b.key !== "current" && data.ageing[b.field] > 0);
 

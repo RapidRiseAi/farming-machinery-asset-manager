@@ -404,6 +404,12 @@ const CONTRACT = [
   ["status-due on cream", "#8a5e05", BRAND.cream, 4.5],
   ["status-overdue on cream", "#b3201f", BRAND.cream, 4.5],
   ["status-ok on cream", BRAND.green, BRAND.cream, 4.5],
+  // The green sidebar (globals.css --nav*): every ink it carries, on its ground.
+  ["sidebar row text on the nav ground", "#c9e2d5", "#014524", 4.5],
+  ["sidebar heading on the nav ground", "#97c8ad", "#014524", 4.5],
+  ["sidebar selected text on the nav ground", BRAND.white, "#014524", 4.5],
+  ["sidebar gold notch on the nav ground", "#eeb423", "#014524", 3.0],
+  ["black on the gold nav badge", BRAND.black, BRAND.gold, 4.5],
 
   // == The dark theme ========================================================
   //
@@ -447,6 +453,9 @@ const CONTRACT = [
   ["dark: status-ok as text on surface", dk("status-ok"), dk("surface"), 4.5],
   ["dark: status-due as text on surface", dk("status-due"), dk("surface"), 4.5],
   ["dark: status-overdue as text on surface", dk("status-overdue"), dk("surface"), 4.5],
+  ["dark: sidebar row text on the nav ground", dk("nav-muted"), dk("nav"), 4.5],
+  ["dark: sidebar heading on the nav ground", dk("nav-heading"), dk("nav"), 4.5],
+  ["dark: sidebar gold notch on the nav ground", dk("nav-accent"), dk("nav"), 3.0],
 ];
 const contrastFails = CONTRACT.filter(([, a, b, need]) => ratio(a, b) < need);
 

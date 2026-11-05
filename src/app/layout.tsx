@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
 import { BOOT_GUARD } from "@/components/ui/boot-guard";
@@ -12,6 +13,11 @@ import { TEXT_SIZE_BOOTSTRAP } from "@/components/preferences/text-size";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FleetWise";
 
+// The brand's typeface, as on fleet-wise.co.za. next/font downloads it at build time and
+// serves it from this app (no request to Google from a farmer's phone), with a metric-
+// matched fallback so text does not jump when it arrives.
+const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+
 export const metadata: Metadata = {
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
   description: "Farm machinery & vehicle manager for South African farms.",
@@ -20,7 +26,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
@@ -66,7 +72,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // choice into the same cookie, so the two agree. Audit bug 2.
   const locale = await deviceLocale();
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} className={dmSans.variable} suppressHydrationWarning>
       <head>
         {/* Buttons load until they work: marks the page as starting before first paint
             and holds taps on controls until <BootReady/> sees them attached. First, so

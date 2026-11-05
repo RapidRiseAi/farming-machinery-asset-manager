@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadDocument } from "@/lib/document-load";
-import { brandingFrom, brandingOf, onBrand } from "@/lib/branding";
+import { brandingFrom, brandingOf, onBrand, DEFAULT_BRAND_PRIMARY } from "@/lib/branding";
 import { resolveLayout, documentTitle } from "@/lib/doc-layout";
 import { rands } from "@/lib/money";
 import { vatPercent, shortDate } from "@/lib/format";
@@ -61,7 +61,7 @@ export default async function PublicDocumentPage({
   }
 
   const brand = brandingOf(doc.issuer_snapshot as never, brandingFrom(loaded.workshop as never));
-  const accent = brand.brand_primary || "#15803d";
+  const accent = brand.brand_primary || DEFAULT_BRAND_PRIMARY;
   const ink = onBrand(accent);
 
   // The layout the partner chose, resolved from the letterhead FROZEN onto the document at

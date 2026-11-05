@@ -10,9 +10,13 @@
 
 import type { IssuerSnapshot } from "@/lib/partner-docs";
 
-/** FleetWise's own green, the fallback letterhead colour, and the PDF wordmark colour. */
-export const DEFAULT_BRAND_PRIMARY = "#166534";
-export const DEFAULT_BRAND_SECONDARY = "#1f2937";
+/**
+ * FleetWise Green and Charcoal from the official palette: the fallback letterhead colours
+ * and the PDF wordmark colour. They were #166534 and #1f2937, stock Tailwind values.
+ * (A partner's own saved colours are theirs and are not touched by this.)
+ */
+export const DEFAULT_BRAND_PRIMARY = "#00572c";
+export const DEFAULT_BRAND_SECONDARY = "#242824";
 
 /** The `workshops` columns branding needs. Select these when you need a letterhead. */
 export const BRANDING_COLUMNS =
@@ -120,7 +124,7 @@ export function normaliseHex(value: string | null | undefined): string | null {
   return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null;
 }
 
-/** `#166534` → `{ r: 0.086, g: 0.396, b: 0.204 }` for pdf-lib's `rgb()`. */
+/** `#00572c` → `{ r: 0, g: 0.341, b: 0.173 }` for pdf-lib's `rgb()`. */
 export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
   const h = normaliseHex(hex) ?? DEFAULT_BRAND_PRIMARY;
   return {

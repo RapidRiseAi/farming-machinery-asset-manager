@@ -435,6 +435,18 @@ export function DashboardGrid({
 
   const shown = preview ?? items;
   const order = useMemo(() => readingOrder(shown), [shown]);
+  // On a phone two number widgets share a row; one with no number widget beside it takes
+  // the whole row, so a short tile never leaves half the screen empty next to it.
+  const phoneFull = useMemo(() => {
+    const kpi = (i: number) => WIDGET_BY_TYPE.get(order[i]?.type ?? "")?.shape === "kpi";
+    const full = new Set<string>();
+    for (let i = 0; i < order.length; i++) {
+      if (!kpi(i)) continue;
+      if (kpi(i + 1)) i++;
+      else full.add(order[i].id);
+    }
+    return full;
+  }, [order]);
   const bottom = shown.reduce((m, i) => Math.max(m, i.y + i.h), 0);
   const settingsItem = settingsFor ? items.find((i) => i.id === settingsFor) ?? null : null;
   const finish = () => { setEditing(false); setTrayOpen(false); };
@@ -500,7 +512,7 @@ export function DashboardGrid({
                 ...swatchStyle(chosen ?? HUES[look.hue]),
               } as CSSProperties;
               const placement = cn(
-                small ? "col-span-1" : "col-span-2",
+                small && !phoneFull.has(item.id) ? "col-span-1" : "col-span-2",
                 "[grid-row:span_var(--hm)] lg:[grid-column:var(--x)/span_var(--w)] lg:[grid-row:var(--y)/span_var(--h)]",
               );
               // Where a lifted widget will land: the others have already made room around it.

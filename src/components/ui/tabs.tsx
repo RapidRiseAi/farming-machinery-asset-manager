@@ -205,10 +205,13 @@ export function Tabs({ tabs, defaultTab, param, printAll = false, className }: T
               tabIndex={selected ? 0 : -1}
               onClick={() => select(t.key)}
               className={cn(
-                "focus-ring -mb-px min-h-[48px] shrink-0 whitespace-nowrap sm:min-h-[44px] border-b-2 px-3.5 text-sm font-medium transition-colors",
+                "focus-ring -mb-px min-h-[48px] shrink-0 whitespace-nowrap sm:min-h-[44px] border-b-[3px] px-3.5 text-sm font-medium transition-colors",
+                // Gold underline for the selected tab (the brand's selected-state colour)
+                // beside the green label and aria-selected; the weight stays the same so
+                // the row does not shift when the selection moves.
                 selected
-                  ? "border-brand-600 text-brand-ink"
-                  : "border-transparent text-sand-500 hover:text-sand-800",
+                  ? "border-gold-500 text-brand-ink"
+                  : "border-transparent text-sand-500 hover:border-sand-200 hover:text-sand-800",
               )}
             >
               {t.label}

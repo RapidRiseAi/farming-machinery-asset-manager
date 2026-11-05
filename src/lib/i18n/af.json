@@ -429,7 +429,11 @@
     "signInTitle": "Welkom terug",
     "resetSent": "As daardie adres 'n FleetWise-rekening het, het ons 'n skakel gestuur om 'n nuwe wagwoord te stel. Maak die e-pos op hierdie toestel en in hierdie blaaier oop (in dieselfde privaat venster as jy een gebruik): die skakel werk net waar jy daarvoor gevra het. Kyk in jou gemorsvouer as dit nie binne 'n paar minute aankom nie.",
     "errRapidRiseCheck": "Jou Rapid Rise-toegang kon nie nou bevestig word nie. Probeer oor 'n oomblik weer, of meld af en meld weer aan.",
-    "errOtherBrowser": "Daardie skakel is in 'n ander blaaier of toestel oopgemaak as die een wat daarvoor gevra het, so dit kon jou nie aanmeld nie. Maak die e-pos oop op die toestel en in die blaaier waar jy vir die skakel gevra het (in dieselfde privaat venster as jy een gebruik het), of vra hier vir 'n nuwe skakel en maak dit op hierdie toestel oop."
+    "errOtherBrowser": "Daardie skakel is in 'n ander blaaier of toestel oopgemaak as die een wat daarvoor gevra het, so dit kon jou nie aanmeld nie. Maak die e-pos oop op die toestel en in die blaaier waar jy vir die skakel gevra het (in dieselfde privaat venster as jy een gebruik het), of vra hier vir 'n nuwe skakel en maak dit op hierdie toestel oop.",
+    "brandTitle": "Jou hele vloot, saam op een plek.",
+    "brandPoint1": "Dienste, foute en werkkaarte vir elke masjien",
+    "brandPoint2": "Wat elke masjien jou kos, tot op die rand",
+    "brandPoint3": "Werk op die land sonder sein, in Engels en Afrikaans"
   },
   "mfa": {
     "verifyTitle": "Tik jou kode in",

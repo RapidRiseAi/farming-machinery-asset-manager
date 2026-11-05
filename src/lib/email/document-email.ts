@@ -2,7 +2,7 @@ import "server-only";
 
 import { rands } from "@/lib/money";
 import type { Branding } from "@/lib/branding";
-import { onBrand } from "@/lib/branding";
+import { onBrand, DEFAULT_BRAND_PRIMARY } from "@/lib/branding";
 import type { DocKind } from "@/lib/partner-docs";
 
 /**
@@ -80,7 +80,7 @@ export function documentEmailText(input: DocumentEmailInput): string {
 export function documentEmailHtml(input: DocumentEmailInput): string {
   const { kind, number, brand, customerName, totalCents, dueDate, publicUrl, message, vehicle } = input;
   const owed = input.outstandingCents ?? totalCents;
-  const accent = brand.brand_primary || "#15803d";
+  const accent = brand.brand_primary || DEFAULT_BRAND_PRIMARY;
   const onAccent = onBrand(accent);
 
   const row = (label: string, value: string) => `

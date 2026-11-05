@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
-import { PublicShell } from "@/components/public-shell";
+import { BrandPanel, PublicShell } from "@/components/public-shell";
 
 /**
  * Sign in.
@@ -78,7 +78,10 @@ export default async function LoginPage({
                   : t("auth.errGeneric", locale);
 
   return (
-    <PublicShell locale={locale}>
+    <PublicShell locale={locale} width="wide">
+      {/* The form in its usual column, the brand beside it on a wide screen. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
+      <div className="mx-auto w-full max-w-md lg:mx-0">
       <div className="pt-4 sm:pt-10">
         <h1 className="text-2xl font-bold tracking-tight text-ink">
           {t("auth.signInTitle", locale)}
@@ -135,6 +138,11 @@ export default async function LoginPage({
           {t("auth.startTrial", locale)}
         </Link>
       </p>
+      </div>
+      <div className="lg:pt-10">
+        <BrandPanel locale={locale} />
+      </div>
+      </div>
     </PublicShell>
   );
 }

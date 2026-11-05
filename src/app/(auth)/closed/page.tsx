@@ -9,13 +9,13 @@ import { must } from "@/lib/supabase/must";
 import { farmBillingGate } from "@/lib/billing/service";
 import { errorMessage } from "@/lib/errors";
 import { Flash } from "@/components/ui/flash";
-import { MachinesIcon } from "@/components/ui/icons";
 import { signOut } from "@/app/(app)/actions";
 import { reopenFarm } from "./actions";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { SwitchFarm } from "@/components/billing/switch-farm";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { isUuid } from "@/lib/ids";
 
 /**
@@ -95,8 +95,8 @@ export default async function ClosedPage({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
       <div className="flex items-center gap-3">
-        <MachinesIcon className="size-8 text-brand-ink" aria-hidden="true" />
-        <span className="text-xl font-semibold text-brand-ink">{APP_NAME}</span>
+        <BrandMark />
+        <Wordmark name={APP_NAME} className="text-xl" />
       </div>
 
       <div className="rounded-2xl border border-sand-300 bg-surface p-6">

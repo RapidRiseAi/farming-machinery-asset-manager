@@ -429,7 +429,11 @@
     "signInTitle": "Welcome back",
     "resetSent": "If that address has a FleetWise account, we have emailed it a link for setting a new password. Open the email on this device and in this browser (in the same private window, if you are using one): the link only works where you asked for it. Check your spam folder if it does not arrive in a few minutes.",
     "errRapidRiseCheck": "Your Rapid Rise access could not be confirmed just now. Try again in a moment, or sign out and sign in again.",
-    "errOtherBrowser": "That link was opened in a different browser or device from the one that asked for it, so it could not sign you in. Open the email on the device and in the browser where you asked for the link (in the same private window, if you used one), or ask for a new link here and open it on this device."
+    "errOtherBrowser": "That link was opened in a different browser or device from the one that asked for it, so it could not sign you in. Open the email on the device and in the browser where you asked for the link (in the same private window, if you used one), or ask for a new link here and open it on this device.",
+    "brandTitle": "Your whole fleet, together in one place.",
+    "brandPoint1": "Services, faults and job cards for every machine",
+    "brandPoint2": "What each machine costs you, down to the rand",
+    "brandPoint3": "Works in the field without signal, in English and Afrikaans"
   },
   "mfa": {
     "verifyTitle": "Enter your code",

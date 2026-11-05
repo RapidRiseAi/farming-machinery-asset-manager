@@ -249,13 +249,13 @@ export function PageHeader({
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {menu ? (
             <div className="flex min-w-0 items-start justify-between gap-3">
-              <h1 id={titleId} className="min-w-0 break-words text-2xl font-bold tracking-tight text-ink">
+              <h1 id={titleId} className="min-w-0 break-words text-2xl font-bold tracking-tight text-brand-ink">
                 {title}
               </h1>
               <div className="shrink-0">{menu}</div>
             </div>
           ) : (
-            <h1 id={titleId} className="min-w-0 break-words text-2xl font-bold tracking-tight text-ink">
+            <h1 id={titleId} className="min-w-0 break-words text-2xl font-bold tracking-tight text-brand-ink">
               {title}
             </h1>
           )}

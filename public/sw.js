@@ -2,17 +2,17 @@
  * FleetWise service worker, hand-rolled, no dependencies.
  *
  * Strategy:
- *   - Immutable build assets (/_next/static, /icon.svg): cache-first.
+ *   - Immutable build assets (/_next/static, /icon-192.png): cache-first.
  *   - Navigations (HTML): network-first, falling back to the last cached view of that
  *     URL, then to the /offline page. This lets the app open and render the last-viewed
  *     data with the network disabled.
  *   - Other same-origin GETs (JSON/images): stale-while-revalidate.
  *   - Never touches POST or /api/*, mutations flow through the IndexedDB sync queue.
  */
-const VERSION = "fleetwise-v6-downloads";
+const VERSION = "fleetwise-v7-brand";
 const SHELL_CACHE = VERSION + "-shell";
 const DATA_CACHE = VERSION + "-data";
-const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -232,7 +232,7 @@ self.addEventListener("fetch", (event) => {
   // the stale-first rule below would otherwise hand back an old copy of the same report.
   if (request.headers.get("x-fw-download") === "1") return;
 
-  if (url.pathname.startsWith("/_next/static/") || url.pathname === "/icon.svg") {
+  if (url.pathname.startsWith("/_next/static/") || url.pathname === "/icon-192.png") {
     event.respondWith(cacheFirst(request, SHELL_CACHE));
     return;
   }
@@ -267,8 +267,8 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body || "",
     tag: data.tag || undefined,
-    icon: "/icon.svg",
-    badge: "/icon.svg",
+    icon: "/icon-192.png",
+    badge: "/badge-96.png",
     data: { url: data.url || "/notifications" },
   };
   event.waitUntil(self.registration.showNotification(title, options));

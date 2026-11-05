@@ -13,10 +13,10 @@ import { SettlingNotice } from "@/components/billing/settling-notice";
 import { signOut } from "@/app/(app)/actions";
 import { Flash } from "@/components/ui/flash";
 import { errorMessage } from "@/lib/errors";
-import { MachinesIcon } from "@/components/ui/icons";
 import { beginCheckoutAction } from "./actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { isUuid } from "@/lib/ids";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { SwitchFarm } from "@/components/billing/switch-farm";
 
 /**
@@ -115,8 +115,8 @@ export default async function ActivatePage({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
       <div className="flex items-center gap-3">
-        <MachinesIcon className="size-8 text-brand-ink" aria-hidden="true" />
-        <span className="text-xl font-semibold text-brand-ink">{APP_NAME}</span>
+        <BrandMark />
+        <Wordmark name={APP_NAME} className="text-xl" />
       </div>
 
       <div className="rounded-2xl border border-sand-300 bg-surface p-6">

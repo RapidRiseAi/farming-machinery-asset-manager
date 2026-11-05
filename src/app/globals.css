@@ -132,6 +132,21 @@
   --danger-solid-hover: 158 28 27;
   --danger-solid-ink: 255 255 255;
   --tabbar-h: 4rem;
+
+  /*
+   * == The sidebar: FleetWise Green as a large section ======================
+   * The palette gives green to "navigation, large sections", so the desktop
+   * sidebar is a green ground of its own rather than a white panel: brand-700,
+   * a shade of #00572C deep enough for small text (the exact green leaves the
+   * group headings at 4.66:1). Measured on it: white 11.18:1, nav-muted 8.16:1,
+   * nav-heading 5.95:1, nav-accent 5.96:1. Gold marks the selected row (the
+   * brand's "selected states"), always beside white text and a heavier weight.
+   */
+  --nav: 1 69 36; /* brand-700 #014524 */
+  --nav-ink: 255 255 255; /* the selected and hovered row */
+  --nav-muted: 201 226 213; /* brand-100, every other row        8.16:1 */
+  --nav-heading: 151 200 173; /* brand-200, group headings         5.95:1 */
+  --nav-accent: 238 180 35; /* gold-400, the selected row's notch 5.96:1 */
 }
 
 /*
@@ -213,6 +228,14 @@
     --danger-solid-hover: 224 138 136;
     --danger-solid-ink: 0 0 0;
     --ring: 95 170 132; /* brand-300, the deep green is invisible here */
+
+    /* Deeper in the dark theme so the sidebar sits back from the content: brand-900,
+       white 16.10:1, nav-muted 11.74:1, nav-heading 8.57:1, nav-accent 8.58:1. */
+    --nav: 1 39 24;
+    --nav-ink: 255 255 255;
+    --nav-muted: 201 226 213;
+    --nav-heading: 151 200 173;
+    --nav-accent: 238 180 35;
   }
 }
 
@@ -283,6 +306,19 @@
   --danger-solid-ink: 0 0 0;
 
   --ring: 95 170 132;
+
+  /* Deeper in the dark theme so the sidebar sits back from the content: brand-900,
+     white 16.10:1, nav-muted 11.74:1, nav-heading 8.57:1, nav-accent 8.58:1. */
+  --nav: 1 39 24;
+  --nav-ink: 255 255 255;
+  --nav-muted: 201 226 213;
+  --nav-heading: 151 200 173;
+  --nav-accent: 238 180 35;
+}
+
+::selection {
+  background: rgb(var(--accent));
+  color: rgb(0 0 0);
 }
 
 html,

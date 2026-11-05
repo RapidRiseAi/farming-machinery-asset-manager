@@ -29,13 +29,13 @@ import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import {
   BellIcon,
-  MachinesIcon,
   SignOutIcon,
   FaultsIcon,
   ChevronUpIcon,
   SettingsIcon,
 } from "@/components/ui/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { menuItemClass } from "@/components/ui/menu-item";
 // Direct, not the barrel: see the note above. The palette is the only new
@@ -621,9 +621,16 @@ export default async function AppLayout({
     dark: t("nav.themeDark", locale),
   };
 
-  const brandMark = (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-xl text-white shadow-xs">
-      <MachinesIcon />
+  // The founder's logo (green F, gold W on black), the same file as the website's.
+  const brandMark = <BrandMark priority />;
+
+  // On the green sidebar: white initials on a lighter green, not the cream chip.
+  const navAvatar = (
+    <span
+      aria-hidden
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-nav-ink"
+    >
+      {initials(profile.name)}
     </span>
   );
 
@@ -778,10 +785,12 @@ export default async function AppLayout({
       {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
 
       {/* ---- Desktop sidebar (>=1024px) ---- */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-edge-soft bg-surface shadow-soft lg:flex">
-        <div className="flex h-16 items-center gap-2.5 px-4">
-          {brandMark}
-          <span className="text-lg font-bold tracking-tight text-sand-900">{appName}</span>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-nav text-nav-muted shadow-soft [--ring:238_180_35] lg:flex">
+        <div className="flex h-16 items-center px-3">
+          <Link href={logoHref} className="focus-ring flex min-h-[48px] items-center gap-2.5 rounded-lg px-1">
+            {brandMark}
+            <Wordmark name={appName} tone="nav" />
+          </Link>
         </div>
         {showSwitcher && (
           <div className="px-3 pb-2">
@@ -805,7 +814,8 @@ export default async function AppLayout({
         <ScrollArea
           label={t("nav.menu", locale)}
           className="px-3"
-          fadeClassName="from-surface"
+          fadeClassName="from-nav"
+          thumb="nav"
           rememberKey="nav-sidebar"
           revealActive
         >
@@ -824,7 +834,7 @@ export default async function AppLayout({
                   `-mx-3 px-6` bleeds it to the panel edges so rows pass BEHIND it
                   rather than beside it.
                 */}
-                <p className="sticky top-0 z-10 -mx-3 bg-surface px-6 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-sand-600">
+                <p className="sticky top-0 z-10 -mx-3 bg-nav px-6 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-nav-heading">
                   {g.label}
                 </p>
                 {g.items.map((item) => (
@@ -844,27 +854,27 @@ export default async function AppLayout({
           behind the row that names you, which is where every other product keeps them,
           and the nav gets the height back.
         */}
-        <div className="border-t border-edge-soft p-2">
+        <div className="border-t border-white/10 p-2">
           <ActionMenu
             title={profile.name}
             label={`${accountLabel}: ${profile.name}`}
             closeLabel={t("ui.close", locale)}
             triggerLook="bare"
-            triggerClassName="focus-ring flex min-h-[48px] w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-sunken"
+            triggerClassName="focus-ring flex min-h-[48px] w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/10"
             trigger={
               <>
-                {avatar}
+                {navAvatar}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-sand-900">
+                  <span className="block truncate text-sm font-semibold text-nav-ink">
                     {profile.name}
                   </span>
                   {/* The role in words, at the selected farm. It printed the raw enum
                       ("Rr_admin", "Workshop"), in English for an Afrikaans user. */}
-                  <span className="block truncate text-xs text-sand-500">
+                  <span className="block truncate text-xs text-nav-muted">
                     {roleLabel(currentRole ?? profile.role, locale)}
                   </span>
                 </span>
-                <ChevronUpIcon className="shrink-0 text-lg text-sand-400" />
+                <ChevronUpIcon className="shrink-0 text-lg text-nav-heading" />
               </>
             }
           >
@@ -891,9 +901,7 @@ export default async function AppLayout({
             {brandMark}
             {showSwitcher ? null : (
               // The wordmark only where there is room for it; the mark is the home link.
-              <span className="hidden min-w-0 truncate text-lg font-bold tracking-tight text-sand-900 min-[400px]:inline">
-                {appName}
-              </span>
+              <Wordmark name={appName} className="hidden min-w-0 truncate min-[400px]:inline" />
             )}
           </Link>
           {showSwitcher ? (

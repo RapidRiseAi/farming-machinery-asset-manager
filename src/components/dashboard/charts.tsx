@@ -132,7 +132,8 @@ export function KpiTile({
       {data.sub ? (
         <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-sand-600">
           <span aria-hidden="true" className="viz-c viz-bg size-2 shrink-0 rounded-full" style={styled(sw)} />
-          <span className="truncate">{data.sub}</span>
+          {/* Two lines before it gives up: in half a phone, "2 standing still" read "2 stan…". */}
+          <span className="line-clamp-2">{data.sub}</span>
         </p>
       ) : null}
       </div>
