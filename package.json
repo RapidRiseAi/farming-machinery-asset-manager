@@ -28,7 +28,7 @@
     "@supabase/supabase-js": "^2.48.1",
     "ai": "^7.0.138",
     "microsoft-cognitiveservices-speech-sdk": "^1.51.0",
-    "next": "^15.5.29",
+    "next": "^16.4.4",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
