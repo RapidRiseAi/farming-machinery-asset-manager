@@ -18,6 +18,14 @@ values ('e3200000-0000-4000-9000-000000000001', 'e3100000-0000-4000-9000-0000000
 insert into public.recurring_invoice_lines (recurring_id, workshop_id, description, qty, unit_price_cents)
 values ('e3200000-0000-4000-9000-000000000001', 'e3100000-0000-4000-9000-000000000001', 'Service plan', 1, 50000);
 
+-- The nightly path raises EVERY due schedule in the database, and the suites before this one
+-- leave schedules of their own behind (one long overdue, which catches up a period per run).
+-- Counting those made this test fail from 28 October with made=2 second=1 docs=1 while this
+-- schedule had raised exactly once. Park the others for this transaction (rolled back below)
+-- so the counts are this schedule's alone and the nightly path is still the one tested.
+update public.recurring_invoices set active = false
+ where id <> 'e3200000-0000-4000-9000-000000000001';
+
 do $t$
 declare made int; second int; docs int; def text;
 begin
