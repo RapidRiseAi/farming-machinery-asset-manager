@@ -12,6 +12,7 @@ import {
   checkWorkshopEntitlement,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
+import { featureOn } from "@/lib/features";
 import { hiddenMenuHrefs } from "@/lib/modules";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
@@ -203,6 +204,8 @@ export default async function AppLayout({
     ? (((await countsClient.from("farms").select("settings").eq("id", currentFarm).maybeSingle()).data
         ?.settings as Record<string, unknown> | null | undefined) ?? null)
     : null;
+  // A feature in testing appears only where Rapid Rise has turned it on (/admin/features).
+  const mapOn = !isWorkshop && !isAdmin && (await featureOn("map", currentFarm));
   const [alertsUnread, inboxDecisions, supportWaiting] = await Promise.all([
     countInboxUnread(countsClient, profile.id),
     canUseInbox ? countInboxDecisions(countsClient, currentFarm) : Promise.resolve(0),
@@ -346,6 +349,7 @@ export default async function AppLayout({
   // manager recording it for someone. Every farm role it admits, from the nav, not only
   // from links inside other pages.
   const driverActivity: NavItemData = { href: "/driver/activity", label: t("nav.driverActivity", locale), icon: "pin" };
+  const map: NavItemData = { href: "/map", label: t("nav.map", locale), icon: "pin" };
   // The Rapid Rise console's own sections. They used to be one "Admin" row filed under
   // Account plus an English-only text subnav inside the page; now they are one group.
   // Rapid Rise's own dashboard (/admin, 2026-10-28): the overview first, then the support
@@ -355,8 +359,9 @@ export default async function AppLayout({
   const admin: NavItemData = { href: "/admin/farms", label: t("adminHome.navClients", locale), icon: "admin" };
   const adminDriverIntegrations: NavItemData = { href: "/admin/driver-integrations", label: t("adminHome.navDriverIntegrations", locale), icon: "pin" };
   const adminPartners: NavItemData = { href: "/admin/partners", label: t("nav.adminPartners", locale), icon: "partners" };
+  const adminFeatures: NavItemData = { href: "/admin/features", label: t("nav.adminFeatures", locale), icon: "settings" };
   const adminTemplates: NavItemData = { href: "/admin/templates", label: t("nav.adminTemplates", locale), icon: "documents" };
-  const rapidRiseItems: NavItemData[] = [adminOverview, adminSupport, admin, adminBilling, adminAi, adminPartners, adminTemplates, adminDriverIntegrations];
+  const rapidRiseItems: NavItemData[] = [adminOverview, adminSupport, admin, adminBilling, adminAi, adminPartners, adminFeatures, adminTemplates, adminDriverIntegrations];
   // Reached from the account menu and the palette, not listed in the sidebar: the menu
   // on the row that names you is where people look for their own account.
   const yourAccount: NavItemData = { href: "/account", label: t("nav.account", locale), icon: "settings" };
@@ -427,7 +432,7 @@ export default async function AppLayout({
   const allGroups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
     ? [
         { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
-        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, driverActivity, ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
+        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, driverActivity, ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
       ]
     : isWorkshop
     ? [
@@ -444,7 +449,7 @@ export default async function AppLayout({
         {
           key: "fleet",
           label: t("nav.theFleet", locale),
-          items: [machines, ...(isAdmin ? [] : [driverActivity]), ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
+          items: [machines, ...(isAdmin ? [] : [driverActivity]), ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
         },
         {
           key: "farm",

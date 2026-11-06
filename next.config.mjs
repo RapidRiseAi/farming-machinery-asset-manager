@@ -19,7 +19,7 @@ const contentSecurityPolicy = [
   `img-src 'self' data: blob: ${supabaseOrigin}`,
   `media-src 'self' blob: ${supabaseOrigin}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://*.speech.microsoft.com wss://*.speech.microsoft.com`,
+  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://tiles.openfreemap.org https://*.speech.microsoft.com wss://*.speech.microsoft.com`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "frame-ancestors 'none'",

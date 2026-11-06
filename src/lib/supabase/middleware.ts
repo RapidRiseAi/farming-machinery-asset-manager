@@ -26,6 +26,7 @@ const PROTECTED_PREFIXES = [
   "/install",
   "/jobcards",
   "/machines",
+  "/map",
   "/money",
   "/notifications",
   "/onboarding",

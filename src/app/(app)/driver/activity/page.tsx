@@ -18,6 +18,8 @@ import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { DrivingLocation } from "@/components/driving-location";
+import { RouteRecorder } from "@/components/map/route-recorder";
+import { featureOn } from "@/lib/features";
 import { recordActivity } from "./actions";
 import { isUuid } from "@/lib/ids";
 
@@ -60,6 +62,7 @@ export default async function ActivityPage({
   );
   const manage = role === "owner" || role === "manager";
   const locale = profile.lang;
+  const mapOn = await featureOn("map", farm);
   const db = await createClient();
   const page = Math.max(
     0,
@@ -270,6 +273,18 @@ export default async function ActivityPage({
               </h2>
             )}
             <section className="flex flex-col gap-3 rounded-xl border border-sand-200 bg-surface p-4">
+              {mapOn && !s.ended_at && s.driver_id === profile.id ? (
+                <RouteRecorder
+                  sessionId={s.id}
+                  labels={{
+                    start: t("map.recordStart", locale),
+                    stop: t("map.recordStop", locale),
+                    recording: t("map.recording", locale),
+                    keepOpen: t("map.keepOpen", locale),
+                    denied: t("map.recordDenied", locale),
+                  }}
+                />
+              ) : null}
               <h3 className="text-lg font-semibold">
                 {name(drivers, s.driver_id)} · {name(machines, s.machine_id)}
               </h3>

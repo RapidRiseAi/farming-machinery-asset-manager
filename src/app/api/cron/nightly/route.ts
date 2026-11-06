@@ -148,6 +148,8 @@ export async function GET(request: Request) {
   // Files a permanent closure could not remove, then what five years have released.
   await step("closure_files", () => finishClosureFiles(supabase));
   await run("closure_purge", "purge_expired_closures");
+  // Route trails older than six months (20261107120000).
+  await run("positions_purge", "cron_purge_positions");
 
   await step("ai_fx_rate", () => refreshFxRate(supabase));
   await step("ai_prices", () => refreshPrices(supabase));

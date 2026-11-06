@@ -93,7 +93,9 @@
     "adminAi": "AI and voice costs",
     "aiUsage": "AI and voice",
     "driverActivity": "Driver activity",
-    "sites": "Your {{orgs}}"
+    "sites": "Your {{orgs}}",
+    "map": "Map",
+    "adminFeatures": "Features in testing"
   },
   "assistant": {
     "title": "Voice assistant",
@@ -7854,5 +7856,24 @@
     "cameFrom": "This {{asset}} came from another site.",
     "seeEarlier": "See its earlier history",
     "failed": "That could not be moved. Check that you run both sites and that the other site has a free slot."
+  },
+  "map": {
+    "title": "Map",
+    "lead": "Where your {{assets}} were last seen, the faults reported, and the routes they took.",
+    "testing": "In testing",
+    "emptyTitle": "Nothing on the map yet",
+    "emptyHint": "Positions appear when a driver saves their location, records a route, or reports a fault with their location on.",
+    "recentTrips": "Recent trips",
+    "noTrips": "No trips recorded yet.",
+    "seeRoute": "See the route",
+    "backToFleet": "Back to the fleet",
+    "routeKm": "About {km} km along the recorded route.",
+    "noRoute": "No route was recorded for this trip.",
+    "stop": "Stop",
+    "recordStart": "Record my route",
+    "recordStop": "Stop recording",
+    "recording": "Recording.",
+    "keepOpen": "Keep this screen open: a phone stops recording when the screen locks.",
+    "recordDenied": "This phone is not sharing its location. Allow it in your browser's settings."
   }
 }

@@ -93,7 +93,9 @@
     "adminAi": "AI- en stemkoste",
     "aiUsage": "AI en stem",
     "driverActivity": "Bestuurderaktiwiteit",
-    "sites": "Jou {{orgs}}"
+    "sites": "Jou {{orgs}}",
+    "map": "Kaart",
+    "adminFeatures": "Funksies in toetsing"
   },
   "assistant": {
     "title": "Stemassistent",
@@ -7854,5 +7856,24 @@
     "cameFrom": "Hierdie {{asset}} kom van 'n ander perseel.",
     "seeEarlier": "Sien sy vroeëre geskiedenis",
     "failed": "Dit kon nie geskuif word nie. Kyk of jy albei persele bestuur en of die ander perseel 'n vrye gleuf het."
+  },
+  "map": {
+    "title": "Kaart",
+    "lead": "Waar jou {{assets}} laas gesien is, die foute wat aangemeld is, en die roetes wat hulle gery het.",
+    "testing": "In toetsing",
+    "emptyTitle": "Nog niks op die kaart nie",
+    "emptyHint": "Posisies verskyn wanneer 'n bestuurder sy ligging stoor, 'n roete opneem, of 'n fout met sy ligging aan aanmeld.",
+    "recentTrips": "Onlangse ritte",
+    "noTrips": "Nog geen ritte aangeteken nie.",
+    "seeRoute": "Sien die roete",
+    "backToFleet": "Terug na die vloot",
+    "routeKm": "Sowat {km} km langs die aangetekende roete.",
+    "noRoute": "Geen roete is vir hierdie rit aangeteken nie.",
+    "stop": "Stop",
+    "recordStart": "Neem my roete op",
+    "recordStop": "Stop opname",
+    "recording": "Neem tans op.",
+    "keepOpen": "Hou hierdie skerm oop: 'n foon hou op opneem wanneer die skerm sluit.",
+    "recordDenied": "Hierdie foon deel nie sy ligging nie. Laat dit toe in jou blaaier se instellings."
   }
 }

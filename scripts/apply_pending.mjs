@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Features in testing, and vehicle positions.
+  "20261107120000": "select to_regclass('public.feature_flags') is not null and to_regclass('public.asset_positions') is not null",
   // Handing over a business, and moving a vehicle between sites.
   "20261107110000": "select to_regclass('public.farm_ownership_transfers') is not null and to_regprocedure('public.move_machine_to_site(uuid,uuid,uuid)') is not null",
   // Permanent closure.
