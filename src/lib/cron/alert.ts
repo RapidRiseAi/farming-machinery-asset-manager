@@ -19,7 +19,7 @@ export async function alertCronFailure(route: string, steps: Record<string, stri
   const failed = Object.entries(steps).filter(([, outcome]) => outcome.startsWith("error"));
   if (!to || failed.length === 0 || !emailConfigured()) return false;
   const lines = [
-    `FleetWise ${route} finished with ${failed.length} failed step${failed.length === 1 ? "" : "s"}:`,
+    `FLEETWISE ${route} finished with ${failed.length} failed step${failed.length === 1 ? "" : "s"}:`,
     "",
     ...failed.map(([step, outcome]) => `${step}: ${outcome}`),
     "",
@@ -31,7 +31,7 @@ export async function alertCronFailure(route: string, steps: Record<string, stri
       scope: "platform",
       to,
       from: process.env.EMAIL_FROM || "documents@fleetwise.app",
-      subject: `FleetWise: ${route} had ${failed.length} failed step${failed.length === 1 ? "" : "s"}`,
+      subject: `FLEETWISE: ${route} had ${failed.length} failed step${failed.length === 1 ? "" : "s"}`,
       text,
       html: `<pre>${text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] ?? c)}</pre>`,
     });

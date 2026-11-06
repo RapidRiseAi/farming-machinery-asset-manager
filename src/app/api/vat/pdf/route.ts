@@ -81,7 +81,7 @@ export async function GET(request: Request) {
 
   pdf.text(
     "Prepared on the invoice basis: VAT is declared in the period an invoice was issued, not when it was paid. " +
-    "Figures come from the documents and supplier invoices captured in FleetWise for this period.",
+    "Figures come from the documents and supplier invoices captured in FLEETWISE for this period.",
   );
 
   return pdfResponse(await pdf.save(), `vat-return-${from}-to-${to}.pdf`);

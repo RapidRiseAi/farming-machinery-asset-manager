@@ -105,7 +105,7 @@ import { mustAll } from "@/lib/supabase/must";
 export const dynamic = "force-dynamic";
 
 /**
- * What FleetWise costs this farm, how it gets paid, and every bill and receipt.
+ * What FLEETWISE costs this farm, how it gets paid, and every bill and receipt.
  *
  * == WHO MAY OPEN IT ==========================================================
  * The owner and Rapid Rise, and nobody else. `requireRole` bounces everyone else to

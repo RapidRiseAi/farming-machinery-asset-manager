@@ -25,5 +25,5 @@ export async function GET() {
       f.runningCostCents === null ? "" : (f.runningCostCents / 100).toFixed(2),
     ]);
   }
-  return csvResponse(`fleetwise-farms-${monthStart()}.csv`, toCsv(out));
+  return csvResponse(`fleetwise-sites-${monthStart()}.csv`, toCsv(out));
 }

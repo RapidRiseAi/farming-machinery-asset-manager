@@ -17,7 +17,7 @@ import { captureError } from "@/lib/observability";
 import type { AssistantMachine } from "./types";
 
 /**
- * The farm records the assistant's AI may read, as finished numbers.
+ * The records the assistant's AI may read, as finished numbers.
  *
  * Every read here runs on the person's own session (`supabase` is the request's client,
  * never the service role), so row policies decide what is visible exactly as they do on
@@ -36,7 +36,7 @@ export type FarmDataScope = {
   role: Role;
   /** The fleet this person can see (loadAssistantMachines): the only machines named. */
   machines: AssistantMachine[];
-  /** app.can_view_farm_costs for this person on this farm. */
+  /** app.can_view_farm_costs for this person on this business. */
   costsVisible: boolean;
 };
 
@@ -231,7 +231,7 @@ async function tankBalances(scope: FarmDataScope) {
 
 /**
  * Diesel drawn in a period: totals, per month, per machine (with litres per hour or per
- * 100 km where metered draws allow), draws booked to no machine, and, for the whole farm,
+ * 100 km where metered draws allow), draws booked to no machine, and, for the whole business,
  * each tank's balance and last dip.
  */
 export async function fuelSummary(
@@ -323,7 +323,7 @@ export async function fuelSummary(
 }
 
 /**
- * Diesel BOUGHT in the period (deliveries into the farm's tanks), beside the diesel the
+ * Diesel BOUGHT in the period (deliveries into the business's tanks), beside the diesel the
  * machines USED above. A delivery is tank stock, not a machine's cost (0241), so the two
  * differ by what the tanks gained or lost; a farmer asking "what did we spend on diesel"
  * may mean either, and without this the assistant could only ever answer the second.
@@ -416,7 +416,7 @@ export async function costSummary(
 ) {
   const period = normalisePeriod(input.from, input.to, today, 12);
   if (!scope.costsVisible) {
-    return { period, costsVisible: false, note: "This person's role may not see costs on this farm. Say so; never estimate." };
+    return { period, costsVisible: false, note: "This person's role may not see costs on this business. Say so; never estimate." };
   }
   const pick = pickMachine(scope, input.machine);
   if (pick && !pick.ok) return { period, ...machineNotResolved(pick) };
@@ -485,7 +485,7 @@ export async function servicePlan(scope: FarmDataScope, input: { machine?: strin
   const pick = pickMachine(scope, input.machine);
   if (pick && !pick.ok) return machineNotResolved(pick);
   if (!pick?.ok && !scope.machines.length) return { lines: [] };
-  // Every page of the farm's plan, kept to the machines in scope here rather than by an id
+  // Every page of the business's plan, kept to the machines in scope here rather than by an id
   // list in the URL, which grows with the fleet until the request is refused.
   const { data, error } = await readAll(() => {
     let query = scope.supabase

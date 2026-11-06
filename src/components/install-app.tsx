@@ -19,7 +19,7 @@ type Platform = "installable" | "installed" | "ios" | "other";
 /**
  * The "download it" button.
  *
- * FleetWise already works offline, a service worker caches the shell and the last
+ * FLEETWISE already works offline, a service worker caches the shell and the last
  * views, and mutations go into an IndexedDB queue that drains when the signal comes
  * back, but nothing on any screen ever offered to install it, so that whole capability
  * was invisible unless you knew to dig through a browser menu.

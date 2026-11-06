@@ -13,13 +13,13 @@
  *
  * FAIL CLOSED means: a missing or unreadable value is "not configured", and "not
  * configured" is a returned reason, never a thrown error. Nothing in this file can stop
- * the rest of FleetWise from working, and nothing in it can accidentally enable a charge.
+ * the rest of FLEETWISE from working, and nothing in it can accidentally enable a charge.
  *
  * NOTHING HERE EVER RETURNS OR LOGS THE SECRET. `paystackConfig()` hands the key to the
  * adapter and to nobody else; `redact()` exists so a provider's own words can be stored
  * on an attempt row without carrying a credential or a customer's email address with it.
  *
- * SCOPE: this is farms paying Rapid Rise for FleetWise. It has no relationship to
+ * SCOPE: this is farms paying Rapid Rise for FLEETWISE. It has no relationship to
  * `src/lib/payments/*` (the dormant partner-side PayFast seam) and must never read a
  * `PAYFAST_*` variable.
  */

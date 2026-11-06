@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 
   if (!saved) {
     // This document was already issued elsewhere. Preserve its printed number and
-    // leave FleetWise's supplier numbering sequence for documents authored here.
+    // leave FLEETWISE's supplier numbering sequence for documents authored here.
     const { error } = await supabase.from("partner_documents").insert({
       ...receipt, status: "draft", subtotal_cents: exVat,
       vat_cents: totalIncl - exVat, vat_rate_bps: vatBps, issuer_snapshot: snapshotOf(brand),

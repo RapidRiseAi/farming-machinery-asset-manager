@@ -29,7 +29,7 @@
  * price-on-application plan arrives as `null` and can never be auto-invoiced, which is
  * the correct behaviour for a negotiated price, not a gap.
  *
- * SCOPE: farms paying Rapid Rise for FleetWise. Nothing to do with `partner_documents`.
+ * SCOPE: farms paying Rapid Rise for FLEETWISE. Nothing to do with `partner_documents`.
  */
 
 import { ANNUAL_MONTHS_CHARGED, type BillingPeriod, type Plan } from "@/lib/entitlements";

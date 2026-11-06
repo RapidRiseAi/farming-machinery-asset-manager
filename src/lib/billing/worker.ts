@@ -85,7 +85,7 @@ export const CHARGE_CONCURRENCY = 6;
  * `settleBillingAttempt` returns `{ error }` and all sixteen call sites in this codebase
  * ignored it (S6). That matters most in the success branch: settling `succeeded` is the
  * ONLY thing that inserts a `billing_payments` row, so a failure there means Paystack has
- * charged the customer's card and FleetWise has recorded nothing, while the worker
+ * charged the customer's card and FLEETWISE has recorded nothing, while the worker
  * returns `succeeded` and the nightly summary calls the pass healthy.
  *
  * == Why the non-success callers deliberately do not act on the return =========

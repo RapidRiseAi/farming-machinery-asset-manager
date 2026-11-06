@@ -1,7 +1,7 @@
 // Small, dependency-free CSV parser + machine-row validator, shared by the client
 // preview and the server insert action so both agree on what's valid.
 
-import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
+import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES, defaultMeterFor as defaultMeterOf } from "@/lib/machine-options";
 
 export const IMPORT_COLUMNS = [
   "name",
@@ -139,7 +139,7 @@ export function parseReadingDate(raw: string): string | null {
 
 /** The meter a machine type normally has, the same default the Add machine form uses. */
 export function defaultMeterFor(type: string): "hours" | "km" {
-  return type === "bakkie" || type === "truck" ? "km" : "hours";
+  return defaultMeterOf(type) === "km" ? "km" : "hours";
 }
 
 /** Parse + validate a machines CSV. Returns per-row results for the preview and

@@ -1,5 +1,6 @@
 "use server";
 
+import { isCompanyType } from "@/lib/i18n";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +22,21 @@ import { errorCode } from "@/lib/action-errors";
  * tested in `src/lib/settings.test.ts`, including the case that motivated it: saving
  * quiet hours must not reset the farm's VAT rate.
  */
+/** What kind of business this is. It changes the words everyone here sees, at once. */
+export async function setCompanyType(formData: FormData) {
+  const profile = await requireRole(["owner", "manager"]);
+  if (!profile.farm_id) redirect("/settings?error=No+farm");
+  const type = String(formData.get("company_type") ?? "");
+  if (!isCompanyType(type)) redirect("/settings?error=signup-company");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_company_type", { p_farm: profile.farm_id, p_type: type });
+  if (error) redirect(`/settings?error=${errorCode(error, "app/settings/actions:setCompanyType")}`);
+
+  revalidatePath("/", "layout");
+  redirect("/settings?saved=1");
+}
+
 export async function updateSettings(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
   if (!profile.farm_id) redirect("/settings?error=No+farm");

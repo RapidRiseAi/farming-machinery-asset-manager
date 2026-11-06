@@ -1,5 +1,5 @@
 /**
- * FleetWise plans & feature entitlements, the SINGLE SOURCE OF TRUTH.
+ * FLEETWISE plans & feature entitlements, the SINGLE SOURCE OF TRUTH.
  *
  * The Postgres helper `app.has_entitlement` (migration 0251) mirrors this map exactly
  * (same plan ranks, same feature → minimum-plan table). The app enforces gates
@@ -92,7 +92,7 @@ export type PlanPrice = {
 /**
  * THE NOVEMBER 2026 LIST: R49 / R79 / R99, Done-For-You quoted.
  *
- * Founder decisions of 29 October 2026, published on the FleetWise website on
+ * Founder decisions of 29 October 2026, published on the FLEETWISE website on
  * 4 November 2026 and seeded as the `launch-2026-11` generation by migration
  * 20261104200000. The launch list (R44 / R73 / R89 / R250, 4 September 2026) is retired
  * and still prices the agreements pinned to it; nobody's price moved.

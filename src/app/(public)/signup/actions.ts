@@ -8,6 +8,7 @@ import { BILLING_RPC } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email/verify";
+import { isCompanyType } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { TERMS_VERSION } from "@/lib/legal";
 import { captureError } from "@/lib/observability";
@@ -44,6 +45,7 @@ export async function signUp(formData: FormData): Promise<void> {
   const password = String(formData.get("password") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const farmName = String(formData.get("farm_name") ?? "").trim();
+  const companyType = String(formData.get("company_type") ?? "");
   const plan = String(formData.get("plan") ?? "") as Plan;
   const period = String(formData.get("billing_period") ?? "monthly") as BillingPeriod;
   const vehicles = Number.parseInt(String(formData.get("vehicles") ?? ""), 10);
@@ -58,6 +60,7 @@ export async function signUp(formData: FormData): Promise<void> {
   if (password.length < 8) bounce("signup-password");
   if (!name) bounce("signup-name");
   if (!farmName) bounce("signup-farm");
+  if (!isCompanyType(companyType)) bounce("signup-company");
   if (!(PLANS as readonly string[]).includes(plan)) bounce("signup-plan");
   if (!(BILLING_PERIODS as readonly string[]).includes(period)) bounce("signup-plan");
   if (!Number.isFinite(vehicles) || vehicles < 1) bounce("signup-vehicles");
@@ -171,6 +174,14 @@ export async function signUp(formData: FormData): Promise<void> {
     if (error.message?.includes("SIGNUP_PROMO")) bounce("signup-promo");
     bounce("signup-failed");
   }
+
+  // Their words on every screen from the first one. Not part of the billing transaction, so
+  // a failure here leaves an account with universal wording and nothing worse.
+  const { data: owner, error: ownerError } = await svc.from("users").select("farm_id").eq("id", userId).maybeSingle();
+  const { error: typeError } = ownerError
+    ? { error: ownerError }
+    : await svc.from("farms").update({ company_type: companyType }).eq("id", (owner as { farm_id: string }).farm_id);
+  if (typeError) captureError(typeError, { where: "signup:company-type", extra: { userId } });
 
   // What they agreed to, and when. Written after the farm exists because the user row is
   // created by `billing_create_pending_signup`, and deliberately NOT backfilled onto

@@ -61,13 +61,13 @@ export interface BillingAdapter {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SaaS subscription billing (Paystack), farms paying Rapid Rise for FleetWise
+// SaaS subscription billing (Paystack), farms paying Rapid Rise for FLEETWISE
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // SCOPE BOUNDARY. Everything below is ONE direction: our customer paying us for
 // software. It is not, and must never become, the money that moves between a farm and
 // its contractors, that is `partner_documents` / `partner_payments` (F14/G1-G10), and
-// FleetWise deliberately does not sit in the middle of it. Nothing here may reference
+// FLEETWISE deliberately does not sit in the middle of it. Nothing here may reference
 // `src/lib/payments/*`, `PAYFAST_*`, or `workshops.plan`.
 //
 // WHERE SUBSCRIPTION STATE LIVES. Here, in our database, not at the provider. Paystack
@@ -83,7 +83,7 @@ export interface BillingAdapter {
 // `chargingEnabled` is `enabled && BILLING_CHARGING_ENABLED === "true"`. Default is off,
 // and anything that would create a charge returns `{ ok:false, deferred:true }` while it
 // is. Configuration is read LAZILY inside each call, a missing key never throws at
-// import time and never breaks the rest of FleetWise.
+// import time and never breaks the rest of FLEETWISE.
 
 /**
  * The only channel a subscription may be taken on. A recurring bill needs a REUSABLE

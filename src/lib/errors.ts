@@ -237,6 +237,7 @@ const CODE_KEYS: Record<string, string> = {
   // accusation: the overwhelming majority of people who ever see it are sharing an office
   // connection with somebody else who just signed up, not abusing anything.
   "signup-busy": "errors.signupBusy",
+  "signup-company": "errors.signupCompany",
   "apply-missing": "errors.applyMissing",
   "apply-email": "errors.applyEmail",
   "apply-consent": "errors.applyConsent",

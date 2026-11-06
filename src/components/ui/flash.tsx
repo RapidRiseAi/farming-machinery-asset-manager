@@ -6,7 +6,7 @@ import { ClearResultParams } from "./clear-result-params";
 export type FlashTone = "success" | "error" | "info" | "warning";
 
 /**
- * The four tones, on the FleetWise palette.
+ * The four tones, on the FLEETWISE palette.
  *
  * These were previously stock Tailwind, green-200/red-50/amber-800/blue-700 -
  * four colour families that appear nowhere in the brand, on the most widely

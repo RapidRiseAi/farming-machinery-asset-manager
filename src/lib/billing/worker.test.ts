@@ -1004,7 +1004,7 @@ test("a manual retry is still refused with charging switched off", async () => {
 // `settleBillingAttempt` returns `{ error }` and all sixteen call sites ignored it (S6).
 // The one that costs money is the success branch: settling `succeeded` is the ONLY thing
 // that inserts a `billing_payments` row, so if that RPC fails the provider has taken the
-// customer's money and FleetWise has recorded nothing, while the worker returns
+// customer's money and FLEETWISE has recorded nothing, while the worker returns
 // `succeeded` and the nightly summary calls the pass healthy.
 //
 // The recovery already existed: a failed settle leaves the attempt `pending`, which is

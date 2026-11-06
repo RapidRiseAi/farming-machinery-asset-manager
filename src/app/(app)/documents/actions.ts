@@ -53,7 +53,7 @@ function back(fd: FormData, fallback: string): string {
  * so a customer on 60 days got a 30-day due date depending on which button was pressed.
  * Same class of defect as 0491 (a supplier's filed terms ignored by the forecast).
  *
- * Resolved for BOTH recipient kinds: a client record directly, and a linked FleetWise farm
+ * Resolved for BOTH recipient kinds: a client record directly, and a linked FLEETWISE farm
  * via the client record that points at it (F15 sets `partner_clients.farm_id`). Without the
  * second arm, terms filed against a farm customer would be silently ignored.
  */

@@ -9,10 +9,10 @@ const CONTENT_W = PAGE_W - 2 * MARGIN;
 const INK = rgb(0.15, 0.13, 0.11);
 const MUTED = rgb(0.42, 0.39, 0.34);
 const RULE = rgb(0.9, 0.88, 0.84);
-// FleetWise green, #00572C, from FleetWise_Official_Colour_Palette.pdf and docs/DESIGN.md
+// FLEETWISE green, #00572C, from FleetWise_Official_Colour_Palette.pdf and docs/DESIGN.md
 // §1, the same value `brand-500` resolves to on screen. It used to be rgb(0.08, 0.5,
 // 0.24), roughly #14803D, which is a green that appears in no token file and nowhere in
-// the app: every FleetWise-branded PDF was printing off-brand. Only the FALLBACK moves; a
+// the app: every FLEETWISE-branded PDF was printing off-brand. Only the FALLBACK moves; a
 // partner who has chosen their own colour is untouched.
 const BRAND = rgb(0, 0.3412, 0.1725);
 // A wash of the same green for a panel a reader's eye should land on first.
@@ -43,11 +43,11 @@ type TextOpts = { size?: number; bold?: boolean; color?: RGB; gap?: number };
  * Whose document this is (F14a).
  *
  * A partner's quote or invoice must leave here on THEIR letterhead, their name, their
- * colour, their logo, their footer, not ours. Passing no brand keeps the FleetWise
+ * colour, their logo, their footer, not ours. Passing no brand keeps the FLEETWISE
  * wordmark and green, which is what the job-card and machine-file PDFs still want.
  */
 export type PdfBrand = {
-  /** Wordmark text, the partner's trading name, or "FleetWise". */
+  /** Wordmark text, the partner's trading name, or "FLEETWISE". */
   name: string;
   /** Header colour as `#RRGGBB`. */
   primary?: string | null;
@@ -55,7 +55,7 @@ export type PdfBrand = {
   logo?: { bytes: Uint8Array; contentType: string } | null;
   /** Replaces the generated-on footer stamp when set. */
   footer?: string | null;
-  /** Append the FleetWise credit to the footer. */
+  /** Append the FLEETWISE credit to the footer. */
   poweredBy?: boolean;
   /**
    * How the partner's colour appears (0434 `accent_style`, chosen through a 0505 template).
@@ -111,7 +111,7 @@ export class Pdf {
   }
 
   static async create(title: string, brand?: PdfBrand): Promise<Pdf> {
-    const p = new Pdf(title, brand ?? { name: "FleetWise", poweredBy: false });
+    const p = new Pdf(title, brand ?? { name: "FLEETWISE", poweredBy: false });
     p.doc = await PDFDocument.create();
     p.font = await p.doc.embedFont(StandardFonts.Helvetica);
     p.bold = await p.doc.embedFont(StandardFonts.HelveticaBold);
@@ -343,7 +343,7 @@ export class Pdf {
   private footers() {
     const pages = this.doc.getPages();
     const total = pages.length;
-    const credit = this.brand.poweredBy ? " · powered by FleetWise" : "";
+    const credit = this.brand.poweredBy ? " · powered by FLEETWISE" : "";
     const stamp = this.brand.footer
       ? `${this.brand.footer}${credit}`
       : `${this.brand.name} · generated ${new Date().toISOString().slice(0, 10)}${credit}`;

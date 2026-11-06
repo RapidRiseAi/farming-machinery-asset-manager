@@ -7,7 +7,7 @@ import { readAll } from "@/lib/supabase/read-all";
 import { isUuid } from "@/lib/ids";
 
 /**
- * Everything this farm has put into FleetWise, as one JSON file.
+ * Everything this farm has put into FLEETWISE, as one JSON file.
  *
  * == Why it exists ============================================================
  * Closing a lapsed farm's access is only defensible because their records stay theirs.

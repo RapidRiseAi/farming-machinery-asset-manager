@@ -65,7 +65,7 @@ function json(body: AssistantTurnResponse, status = 200) {
 /**
  * The model an answer on a farm's own key runs on. The key is an OpenAI key, so only an
  * OpenAI model can use it: anything else configured falls back to gpt-5-mini rather than
- * running on the platform's account while the ledger says the farm paid.
+ * running on the platform's account while the ledger says the business paid.
  */
 function ownKeyLlmModel(): string {
   const configured = process.env.ASSISTANT_BYOK_LLM_MODEL?.trim();
@@ -90,14 +90,14 @@ function aiPaused(reason: Exclude<HoldRefusal, "not_member" | "unavailable" | "v
   const af = locale === "af-ZA";
   const message = {
     farm_limit: af
-      ? "AI en stem is gepouseer: jou plaas het sy maandelikse limiet bereik. Tik en die gewone vorms werk steeds."
-      : "AI and voice are paused: your farm has reached its monthly limit. Typing and the normal forms still work.",
+      ? "AI en stem is gepouseer: jou besigheid het sy maandelikse limiet bereik. Tik en die gewone vorms werk steeds."
+      : "AI and voice are paused: your business has reached its monthly limit. Typing and the normal forms still work.",
     member_limit: af
       ? "Jy het jou AI-limiet vir hierdie maand bereik. Tik en die gewone vorms werk steeds."
       : "You have reached your AI limit for this month. Typing and the normal forms still work.",
     ai_off: af
-      ? "AI-hulp is vir hierdie plaas afgeskakel. Tik en die gewone vorms werk steeds."
-      : "AI help is switched off for this farm. Typing and the normal forms still work.",
+      ? "AI-hulp is vir hierdie besigheid afgeskakel. Tik en die gewone vorms werk steeds."
+      : "AI help is switched off for this business. Typing and the normal forms still work.",
     ai_off_for_you: af
       ? "AI-hulp is vir jou afgeskakel. Jy kan dit in die assistent weer aanskakel."
       : "AI help is switched off for you. You can switch it back on in the assistant.",
@@ -107,8 +107,8 @@ function aiPaused(reason: Exclude<HoldRefusal, "not_member" | "unavailable" | "v
       ? "Lees eers die kennisgewing oor AI-hulp: laai die toep weer as jy dit nie sien nie."
       : "Read the note about AI help first: reload the app if you do not see it.",
     own_key_broken: af
-      ? "AI-hulp is gepouseer: die plaas se eie OpenAI-sleutel werk nie. Tik en die gewone vorms werk steeds."
-      : "AI help is paused: the farm's own OpenAI key is not working. Typing and the normal forms still work.",
+      ? "AI-hulp is gepouseer: die besigheid se eie OpenAI-sleutel werk nie. Tik en die gewone vorms werk steeds."
+      : "AI help is paused: the business's own OpenAI key is not working. Typing and the normal forms still work.",
   }[reason];
   return { kind: "error", code: "ai_paused", reason, message };
 }
@@ -237,8 +237,8 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
       message: isOperator
         ? localized(
             body.locale,
-            "No machines are assigned to you on this farm. Ask a manager to assign one first.",
-            "Geen masjiene is op hierdie plaas aan jou toegewys nie. Vra eers ’n bestuurder om een toe te wys.",
+            "No machines are assigned to you on this business. Ask a manager to assign one first.",
+            "Geen masjiene is op hierdie besigheid aan jou toegewys nie. Vra eers ’n bestuurder om een toe te wys.",
           )
         : localized(
             body.locale,
@@ -266,7 +266,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
   let outputTokens: number | null = null;
   let latencyMs: number | null = null;
   let expectedInteractionStatus: "not_required" | "processing" = "not_required";
-  /** A tank the agent heard named for a diesel draw, resolved against the farm's tanks. */
+  /** A tank the agent heard named for a diesel draw, resolved against the business's tanks. */
   let tankQuery: string | null = null;
 
   try {
@@ -488,7 +488,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         if (farmAiError) return { unavailable: json(aiUnavailable(body.locale), 503) };
         if (farmAi?.ai_enabled === false) return { unavailable: json(aiPaused("ai_off", body.locale)) };
         // AI help on: the notice seen (nothing leaves the country before), switched on, not
-        // withdrawn. The hold below applies it again with the farm's switch and limits.
+        // withdrawn. The hold below applies it again with the business's switch and limits.
         // Switched on but never shown the notice: an installed copy of an older build, whose
         // consent card would loop (allow, resubmit, the same card). Only the notice itself,
         // in the current app, unlocks AI for this person, so say that plainly.
@@ -520,15 +520,15 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
             conversationId: interactionId,
             explanation:
               body.locale === "af-ZA"
-                ? "Die plaaslike reëls kon dit nie beantwoord nie. Met jou toestemming kan AI buite Suid-Afrika die woorde lees, en die plaasrekords wat nodig is om te antwoord."
-                : "The local rules could not answer this. With your permission, AI outside South Africa can read the words, and the farm records needed to answer.",
+                ? "Die besigheidlike reëls kon dit nie beantwoord nie. Met jou toestemming kan AI buite Suid-Afrika die woorde lees, en die rekords wat nodig is om te antwoord."
+                : "The local rules could not answer this. With your permission, AI outside South Africa can read the words, and the records needed to answer.",
           });
         }
         // Who pays, with which model: a farm's own OpenAI key runs an OpenAI model at OpenAI
         // directly, on that key (never through the Gateway, which falls back to ours when a
         // key fails); otherwise the platform's model on ours. Resolved before the permit
         // row (which records the model) and the hold (which prices it).
-        // The farm as this person can see it is read alongside the key, not after it: both
+        // The business as this person can see it is read alongside the key, not after it: both
         // are database round trips, and the person is waiting on the slower of the two.
         const agentContextLoad = loadFarmAgentContext(context, machines, body.input, todayInSouthAfrica()).then(
           (value) => ({ ok: true as const, value }),
@@ -547,7 +547,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           return { unavailable: json(aiUnavailable(body.locale), 503) };
         }
         const ownKeyModelId = ownKey ? openAiModelId(requestedModel) : null;
-        // The farm as this person can see it, read before the hold so the hold is sized on
+        // The business as this person can see it, read before the hold so the hold is sized on
         // what will actually be sent (agent.ts). Nothing leaves the server until the permit.
         const loadedContext = await agentContextLoad;
         if (!loadedContext.ok) return { unavailable: json(aiUnavailable(body.locale), 503) };
@@ -626,8 +626,8 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
                 conversationId: consentInteractionId,
                 explanation:
                   body.locale === "af-ZA"
-                    ? "Jou AI-toestemming is nie meer aktief nie. Gee weer toestemming as jy wil hê AI moet moeilike versoeke en vrae oor jou plaas se rekords hanteer."
-                    : "Your AI consent is no longer active. Allow it again if you want AI to handle hard requests and questions about your farm's records.",
+                    ? "Jou AI-toestemming is nie meer aktief nie. Gee weer toestemming as jy wil hê AI moet moeilike versoeke en vrae oor jou besigheid se rekords hanteer."
+                    : "Your AI consent is no longer active. Allow it again if you want AI to handle hard requests and questions about your business's records.",
               });
             }
           }
@@ -679,7 +679,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           }));
           if (error instanceof AssistantAgentInvalidOutput) {
             // The model answered and was paid for, but with nothing usable: its real cost is
-            // recorded, the farm is not billed, and it is not the provider failing.
+            // recorded, the business is not billed, and it is not the provider failing.
             const used = error.usage;
             const measuredUnits = used.inputTokens !== null || used.outputTokens !== null;
             settle([{
@@ -701,7 +701,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
             outcome: failure.outcome,
             errorCode: failure.code,
             // Cut off at the deadline after it was sent: the provider probably charged, so
-            // the held units are recorded as its estimated cost (the farm is not billed).
+            // the held units are recorded as its estimated cost (the business is not billed).
             ...(failure.outcome === "timeout" ? { units: holdUnits, measured: "estimated" as const } : {}),
           }]);
           if (ownKey && failure.outcome === "key_invalid") {
@@ -844,7 +844,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
       if (interactionId) {
         await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
           result_status: "failed",
-          response_text: "The selected-farm role cannot perform this intent.",
+          response_text: "The selected role cannot perform this intent.",
           error_code: "role_forbidden",
           completed_at: new Date().toISOString(),
         }, expectedInteractionStatus).catch(() => undefined);
@@ -900,7 +900,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
     if (match.machine) draft = { ...draft, machineId: match.machine.id, confidence: Math.min(draft.confidence, match.score) };
     else draft = { ...draft, machineId: null };
 
-    // A diesel draw comes from a tank: the one already agreed, the one named, or the farm's
+    // A diesel draw comes from a tank: the one already agreed, the one named, or the business's
     // only tank. With several and none named, it is the next question.
     let tanks: Array<{ id: string; name: string }> = [];
     if (draft.intent === "log_fuel") {
@@ -916,7 +916,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
         if (interactionId) {
           await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
             result_status: "failed",
-            response_text: "The farm has no fuel tank to draw from.",
+            response_text: "The business has no fuel tank to draw from.",
             error_code: "no_fuel_tank",
             completed_at: new Date().toISOString(),
           }, expectedInteractionStatus).catch(() => undefined);
@@ -927,8 +927,8 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
           code: "no_fuel_tank",
           message: localized(
             body.locale,
-            "This farm has no fuel tank yet. Add one on the Fuel page first. Nothing was saved.",
-            "Hierdie plaas het nog nie 'n brandstoftenk nie. Voeg eers een by op die Brandstof-blad. Niks is gestoor nie.",
+            "This business has no fuel tank yet. Add one on the Fuel page first. Nothing was saved.",
+            "Hierdie besigheid het nog nie 'n brandstoftenk nie. Voeg eers een by op die Brandstof-blad. Niks is gestoor nie.",
           ),
           fallbackHref: "/fuel",
         }, 400);

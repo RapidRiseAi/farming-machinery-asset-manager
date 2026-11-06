@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
 import { mustAll } from "@/lib/supabase/must";
-import { t } from "@/lib/i18n";
+import { companyTypes, t } from "@/lib/i18n";
 import { PLANS } from "@/lib/entitlements";
 import { adminOnboardCustomer, createFarm } from "./actions";
 import { RequestIdInput } from "@/components/ui/request-id-input";
@@ -79,16 +79,16 @@ export default async function AdminFarmsPage({
 
   const newFarm = (
     <DialogForm
-      trigger="New farm"
+      trigger="New business"
       triggerIcon={<PlusIcon />}
-      title="New farm"
-      description="The farm starts empty. Invite its owner from the farm's page once it exists."
+      title="New business"
+      description="The business starts empty. Invite its owner from the business's page once it exists."
       closeLabel={t("ui.close", "en")}
       size="md"
     >
       <form action={createFarm}>
         <DialogFields columns={1}>
-          <TextField name="name" id="farm-name" label="Farm name" required autoComplete="off" />
+          <TextField name="name" id="farm-name" label="Business name" required autoComplete="off" />
           <SelectField name="plan" id="farm-plan" label="Plan" defaultValue="essential">
             {PLANS.map((p) => (
               <option key={p} value={p}>{planLabel(p)}</option>
@@ -96,7 +96,7 @@ export default async function AdminFarmsPage({
           </SelectField>
         </DialogFields>
         <DialogActions cancelLabel={t("common.cancel", "en")}>
-          <SubmitButton>Create farm</SubmitButton>
+          <SubmitButton>Create business</SubmitButton>
         </DialogActions>
       </form>
     </DialogForm>
@@ -109,14 +109,19 @@ export default async function AdminFarmsPage({
       trigger="Set up a customer"
       triggerIcon={<PlusIcon />}
       title="Set up a quoted customer"
-      description={`Creates the farm, raises its first invoice and invites the owner. No trial: they sign in, pay by card or EFT, then use FleetWise. At least ${MIN_BILLED_SLOTS} vehicle slots.`}
+      description={`Creates the business, raises its first invoice and invites the owner. No trial: they sign in, pay by card or EFT, then use FLEETWISE. At least ${MIN_BILLED_SLOTS} vehicle slots.`}
       closeLabel={t("ui.close", "en")}
       size="md"
     >
       <form action={adminOnboardCustomer}>
         <RequestIdInput action="admin:onboard" />
         <DialogFields columns={1}>
-          <TextField name="name" id="onboard-name" label="Farm or business name" required autoComplete="off" />
+          <TextField name="name" id="onboard-name" label="Business name" required autoComplete="off" />
+          <SelectField name="company_type" id="onboard-type" label="Kind of business" defaultValue="other">
+            {companyTypes.map((c) => (
+              <option key={c} value={c}>{t(`companyType.${c}`, "en")}</option>
+            ))}
+          </SelectField>
           <SelectField name="plan" id="onboard-plan" label="Plan" defaultValue="essential">
             {PLANS.filter((p) => PLAN_PRICING[p].perVehicleMonthlyCents != null).map((p) => (
               <option key={p} value={p}>{planLabel(p)}</option>
@@ -144,9 +149,9 @@ export default async function AdminFarmsPage({
   return (
     <PageContainer size="wide">
       <PageHeader
-        title="Farms"
+        title="Businesses"
         meta={farms.length > 0 ? `${num(customers)} farm${customers === 1 ? "" : "s"}${tests > 0 ? `, plus ${num(tests)} test` : ""}` : undefined}
-        lead="Every farm on FleetWise. Open one to change its plan or status, or to help it in support mode."
+        lead="Every business on FLEETWISE. Open one to change its plan or status, or to help it in support mode."
         actions={<div className="flex flex-wrap gap-2">{onboard}{newFarm}</div>}
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
@@ -154,13 +159,13 @@ export default async function AdminFarmsPage({
       <Link className="underline" href="/admin/driver-integrations">{t("driving.integrations",locale)}</Link>
 
       {farms.length === 0 ? (
-        <EmptyState title="No farms yet" hint="Create the first one with New farm." />
+        <EmptyState title="No businesses yet" hint="Create the first one with New business." />
       ) : (
         <Card flush>
           <Table>
             <Thead>
               <Tr>
-                <Th>Farm</Th><Th>Plan</Th><Th>Status</Th>
+                <Th>Business</Th><Th>Plan</Th><Th>Status</Th>
                 <Th className="text-right">Machines</Th>
                 <Th className="text-right">Active users</Th>
                 <Th className="text-right">Jobs (mo)</Th>
@@ -177,7 +182,7 @@ export default async function AdminFarmsPage({
                   <Tr key={f.id}>
                     <Td className="font-medium">
                       <Link href={`/admin/farms/${f.id}`} className="focus-ring rounded text-brand-ink hover:underline">{f.name}</Link>
-                      {f.is_test ? <Badge className="ml-2" title="A test farm: left out of the totals">Test</Badge> : null}
+                      {f.is_test ? <Badge className="ml-2" title="A test business: left out of the totals">Test</Badge> : null}
                     </Td>
                     <Td className="text-sand-600">{planLabel(f.plan)}</Td>
                     <Td><StatusBadge tone={look.tone} shape={look.shape} label={statusWord(f.status)} /></Td>

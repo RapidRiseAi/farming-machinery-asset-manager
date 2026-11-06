@@ -21,7 +21,7 @@ export type PageInfoContent = {
  * "What is this page for?", the same affordance in the same place on every screen.
  *
  * The product assumes a farm office already knows what a job card, a watch item or a
- * work request is. Someone opening FleetWise for the first time, often the person who
+ * work request is. Someone opening FLEETWISE for the first time, often the person who
  * did not choose it, had no way to ask what a screen was for without leaving it.
  *
  * A quiet button by the page title, not a tour step and not a tooltip: it is there when

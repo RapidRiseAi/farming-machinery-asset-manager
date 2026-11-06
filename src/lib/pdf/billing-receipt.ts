@@ -6,7 +6,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { shortDate, vatPercent } from "@/lib/format";
 
 /**
- * The receipt a farm gets when their FleetWise subscription is paid.
+ * The receipt a farm gets when their FLEETWISE subscription is paid.
  *
  * == Why this exists at all ===================================================
  * Paystack already emails a receipt, and it is not enough. It carries the payment
@@ -106,7 +106,7 @@ export type BillingReceiptData = {
 };
 
 function sellerName(d: BillingReceiptData): string {
-  return d.seller.tradingName || d.seller.legalName || "FleetWise";
+  return d.seller.tradingName || d.seller.legalName || "FLEETWISE";
 }
 
 /**

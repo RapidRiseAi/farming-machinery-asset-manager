@@ -7,11 +7,11 @@ import { BootReady } from "@/components/ui/boot-ready";
 import { RouteProgress } from "@/components/ui/route-progress";
 import { NoticeHost } from "@/components/ui/notice-host";
 import { ClientErrorReporter } from "@/components/ui/client-error-reporter";
+import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { TEXT_SIZE_BOOTSTRAP } from "@/components/preferences/text-size";
 
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FleetWise";
 
 // The brand's typeface, as on fleet-wise.co.za. next/font downloads it at build time and
 // serves it from this app (no request to Google from a farmer's phone), with a metric-
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // FleetWise Green (Official Colour Palette). Was #166534, while the manifest
+  // FLEETWISE Green (Official Colour Palette). Was #166534, while the manifest
   // said #16a34a, stock Tailwind green, a colour in no token file anywhere, so
   // the address bar, the PWA splash and the app were three different greens.
   themeColor: "#00572c",

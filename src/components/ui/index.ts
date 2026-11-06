@@ -1,5 +1,5 @@
 /**
- * FleetWise UI kit. Import from "@/components/ui".
+ * FLEETWISE UI kit. Import from "@/components/ui".
  * Server-compatible unless a component's file is marked "use client"
  * (Modal, Sheet, Overlay, Toast, Tabs, SubmitButton, NavLink, MoreMenu, PageInfo,
  * ClearResultParams, DialogForm, ActionMenu, ConfirmDialog, CommandPalette,

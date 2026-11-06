@@ -409,7 +409,7 @@ export async function buildReportPdf(
   meta: ReportPdfMeta,
 ): Promise<Uint8Array> {
   const grids = reportGrids(data, key);
-  const pdf = await Pdf.create(`FleetWise report${meta.farmName ? `, ${meta.farmName}` : ""}`);
+  const pdf = await Pdf.create(`FLEETWISE report${meta.farmName ? `, ${meta.farmName}` : ""}`);
   pdf.header(meta.scheduleName || "Fleet report");
 
   pdf.kv("Period", meta.periodFrom && meta.periodTo ? `${meta.periodFrom} to ${meta.periodTo}` : "All time");

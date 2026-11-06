@@ -26,7 +26,7 @@ const base: BillingReceiptData = {
   serviceLines: null,
   discount: null,
   aiUsage: null,
-  seller: { legalName: "Rapid Rise AI (Pty) Ltd", tradingName: "Fleet Wise", regNumber: null, vatRegistered: false, vatNumber: null, address: null, email: null },
+  seller: { legalName: "Rapid Rise AI (Pty) Ltd", tradingName: "FLEETWISE", regNumber: null, vatRegistered: false, vatNumber: null, address: null, email: null },
   billTo: { name: "Test Farm", address: null, email: null },
   payment: null,
   locale: "en",

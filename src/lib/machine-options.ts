@@ -1,4 +1,4 @@
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { companyOf, t, type CompanyType, type Locale, type Lang } from "@/lib/i18n";
 
 export const MACHINE_TYPES = [
   "tractor",
@@ -8,7 +8,44 @@ export const MACHINE_TYPES = [
   "implement",
   "pump_generator",
   "atv_other",
+  "car",
+  "van",
+  "minibus",
+  "bus",
+  "game_viewer",
+  "truck_tractor",
+  "trailer",
+  "motorcycle",
+  "forklift",
+  "earthmoving",
+  "boat",
 ] as const;
+export type MachineType = (typeof MACHINE_TYPES)[number];
+
+/** What each kind of company mostly runs, most likely first. "Other" sees everything. */
+const TYPES_BY_COMPANY: Record<Exclude<CompanyType, "other">, readonly MachineType[]> = {
+  farm: ["tractor", "harvester", "bakkie", "truck", "trailer", "implement", "pump_generator", "atv_other", "car", "motorcycle"],
+  game_drive: ["game_viewer", "bakkie", "car", "minibus", "truck", "trailer", "boat", "pump_generator", "atv_other"],
+  goods_transport: ["truck_tractor", "truck", "trailer", "bakkie", "van", "car", "forklift", "atv_other"],
+  delivery: ["van", "bakkie", "car", "motorcycle", "truck", "trailer", "atv_other"],
+  passenger_transport: ["minibus", "bus", "car", "van", "trailer", "atv_other"],
+  construction: ["earthmoving", "truck", "bakkie", "trailer", "forklift", "pump_generator", "tractor", "car", "atv_other"],
+};
+
+/**
+ * The types to offer this reader. A row's own type stays on the list, so editing an old
+ * vehicle never quietly changes what it is.
+ */
+export function machineTypesFor(lang: Lang, current?: string | null): readonly MachineType[] {
+  const company = companyOf(lang);
+  const list = company && company !== "other" ? TYPES_BY_COMPANY[company] : MACHINE_TYPES;
+  if (current && !(list as readonly string[]).includes(current) && (MACHINE_TYPES as readonly string[]).includes(current)) {
+    return [current as MachineType, ...list];
+  }
+  return list;
+}
+
+const ON_THE_ROAD: readonly string[] = ["bakkie", "truck", "car", "van", "minibus", "bus", "game_viewer", "truck_tractor", "motorcycle"];
 
 export const MACHINE_STATUSES = [
   "active",
@@ -33,8 +70,8 @@ export const METER_TYPES = ["hours", "km", "none"] as const;
  * moment they do.
  */
 export function defaultMeterFor(type: string | null | undefined): (typeof METER_TYPES)[number] {
-  if (type === "bakkie" || type === "truck") return "km";
-  if (type === "implement") return "none";
+  if (type && ON_THE_ROAD.includes(type)) return "km";
+  if (type === "implement" || type === "trailer") return "none";
   return "hours";
 }
 
@@ -53,6 +90,17 @@ export const TYPE_LABELS: Record<string, string> = {
   implement: "Implement",
   pump_generator: "Pump / Generator",
   atv_other: "ATV / Other",
+  car: "Car / SUV",
+  van: "Van",
+  minibus: "Minibus / Shuttle",
+  bus: "Bus",
+  game_viewer: "Game viewer",
+  truck_tractor: "Truck tractor (horse)",
+  trailer: "Trailer",
+  motorcycle: "Motorcycle",
+  forklift: "Forklift",
+  earthmoving: "Earthmoving / Plant",
+  boat: "Boat",
 };
 
 export const STATUS_LABELS: Record<string, string> = {

@@ -714,7 +714,7 @@ export default async function AdminBillingPage({
                     <Tr key={r.sub.id}>
                       <Td className="font-medium text-sand-900">
                         {r.farm?.name ?? "-"}
-                        {r.farm?.is_test ? <Badge className="ml-2" title="A test farm: left out of the totals">Test</Badge> : null}
+                        {r.farm?.is_test ? <Badge className="ml-2" title="A test business: left out of the totals">Test</Badge> : null}
                       </Td>
                       <Td className="text-sand-600">{t(`plan.${r.sub.plan}`, locale)}</Td>
                       <Td>

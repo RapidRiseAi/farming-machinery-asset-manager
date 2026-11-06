@@ -43,7 +43,7 @@ export const WORKSHOP_PLAN_RANK: Record<WorkshopPlan, number> = {
  * updates, notes, quick-contact, business profile & branding, and UPLOADING a quote or
  * invoice produced in the partner's own system.
  *
- *   build_documents , compose a quote/invoice from line items in FleetWise
+ *   build_documents , compose a quote/invoice from line items in FLEETWISE
  *   record_payments , log payments and proofs against an invoice
  *   client_analytics, cross-client performance panel (per-farm/status rollups)
  */

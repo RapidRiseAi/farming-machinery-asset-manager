@@ -30,12 +30,12 @@
  */
 
 /** The wording currently live. Recorded against every sign-up that accepts it. */
-export const TERMS_VERSION = "2026-11-04";
+export const TERMS_VERSION = "2026-11-07";
 
 export const COMPANY = {
   legalName: "Rapid Rise AI (Pty) Ltd",
   regNumber: "K2024727338",
-  tradingAs: "FleetWise",
+  tradingAs: "FLEETWISE",
   address: "363 Cradock Ave, Centurion, Gauteng, South Africa",
   email: "team@rapidriseai.com",
   /** Rapid Rise is not a registered VAT vendor; every price is a final price. */
@@ -48,14 +48,14 @@ export const TERMS: Clause[] = [
   {
     heading: "Who you are contracting with",
     body: [
-      `FleetWise is operated by ${COMPANY.legalName} (registration ${COMPANY.regNumber}), of ${COMPANY.address}. You can reach a person at ${COMPANY.email}.`,
-      "In these terms, “we” and “us” mean Rapid Rise AI, and “you” means the farm or business that holds the FleetWise account.",
+      `FLEETWISE is operated by ${COMPANY.legalName} (registration ${COMPANY.regNumber}), of ${COMPANY.address}. You can reach a person at ${COMPANY.email}.`,
+      "In these terms, “we” and “us” mean Rapid Rise AI, and “you” means the business that holds the FLEETWISE account.",
     ],
   },
   {
     heading: "What the service is",
     body: [
-      "FleetWise is software for keeping track of farm vehicles and machinery: a register, service scheduling, job cards, faults, costs, fuel, compliance dates and reports.",
+      "FLEETWISE is software for keeping track of vehicles and machinery: a register, service scheduling, job cards, faults, costs, fuel, compliance dates and reports.",
       "It is a record-keeping tool. It does not inspect your machines, and it does not decide when something is safe to use. Decisions about your equipment remain yours.",
     ],
   },
@@ -75,21 +75,21 @@ export const TERMS: Clause[] = [
     body: [
       "Moving up a plan, or buying more vehicle slots, happens straight away and you pay the difference for the days left in the period you have already paid for.",
       "Moving down a plan, or giving slots back, takes effect at the end of the period you have already paid for. We do not refund the unused part of a period.",
-      "You cannot reduce your slots below the number of vehicles you are actually running. Retire or sell a vehicle in FleetWise first.",
+      "You cannot reduce your slots below the number of vehicles you are actually running. Retire or sell a vehicle in FLEETWISE first.",
     ],
   },
   {
     heading: "If a payment fails",
     body: [
       "If a payment is missed, you have seven days to pay. A card on file is tried again during those days, and we let you know each time.",
-      "If it is still unpaid after seven days, FleetWise is paused for your farm until it is paid: you can then only pay and download your records. Nothing is deleted while it is paused.",
+      "If it is still unpaid after seven days, FLEETWISE is paused for your business until it is paid: you can then only pay and download your records. Nothing is deleted while it is paused.",
       "Paying what is overdue opens it again straight away, and you are not charged for the time it was paused: if what was overdue was the period you are in, that period starts again on the day you pay; if that period was already paid, it is made longer by the days it was paused.",
     ],
   },
   {
     heading: "Cancelling, and coming back",
     body: [
-      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling takes effect at the end of the period you have already paid for, unless you ask for it to be immediate. While FleetWise is paused for a missed payment, pay what is overdue first, or ask us to close the account.",
+      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling takes effect at the end of the period you have already paid for, unless you ask for it to be immediate. While FLEETWISE is paused for a missed payment, pay what is overdue first, or ask us to close the account.",
       "After a cancelled or unpaid account has been closed, you can reopen it yourself from the screen you land on, and pick up where you left off.",
     ],
   },
@@ -104,7 +104,7 @@ export const TERMS: Clause[] = [
   {
     heading: "Your records stay yours",
     body: [
-      "Everything you put into FleetWise belongs to you. We do not sell it, and we do not use one farm’s data to do anything for another farm.",
+      "Everything you put into FLEETWISE belongs to you. We do not sell it, and we do not use one customer’s data to do anything for another customer.",
       "You can download your records as a file at any time, including after your account has been closed. Photos, voice notes and uploaded documents are not in that file, ask us and we will get them to you.",
       "We do not delete a closed account’s records as a matter of routine. If you want them deleted, ask, and we will do it and tell you when it is done.",
     ],
@@ -112,7 +112,7 @@ export const TERMS: Clause[] = [
   {
     heading: "Using it sensibly",
     body: [
-      "Do not use FleetWise to break the law, to store somebody else’s personal information without a reason to have it, or to attack or overload the service.",
+      "Do not use FLEETWISE to break the law, to store somebody else’s personal information without a reason to have it, or to attack or overload the service.",
       "Keep your sign-in details to yourself. Anything done from your account is treated as done by you, so tell us straight away if you think somebody else has got in.",
       "You are responsible for what your own people do in your account, including the drivers and contractors you give access to.",
     ],
@@ -121,14 +121,14 @@ export const TERMS: Clause[] = [
     heading: "Availability",
     body: [
       "We aim for 99.5% availability each month, and we take daily backups. That is a target we work to, not a guarantee, and we will sometimes take the service down briefly to fix or improve it.",
-      "FleetWise keeps working on a phone with no signal for the things a person does in a field, and sends them up when the signal comes back. Not everything works offline, and the app tells you when it does not.",
+      "FLEETWISE keeps working on a phone with no signal for the things a person does in a field, and sends them up when the signal comes back. Not everything works offline, and the app tells you when it does not.",
     ],
   },
   {
     heading: "If something goes wrong",
     body: [
       "If we fail to provide the service properly, tell us and we will fix it, or refund you.",
-      "We are not liable for money you lose because of a decision you made using, or despite, the records in FleetWise. It is a record-keeping tool, and it is only ever as accurate as what is put into it.",
+      "We are not liable for money you lose because of a decision you made using, or despite, the records in FLEETWISE. It is a record-keeping tool, and it is only ever as accurate as what is put into it.",
       "Nothing in these terms takes away rights you have under the Consumer Protection Act or any other law that applies to you.",
     ],
   },
@@ -152,15 +152,15 @@ export const PRIVACY: Clause[] = [
   {
     heading: "Who is responsible for what",
     body: [
-      "For the information your farm puts into FleetWise about your own people, drivers, mechanics, the staff you invite, YOUR farm is the responsible party under POPIA. We are the operator: we hold and process it for you, on your instructions.",
+      "For the information your business puts into FLEETWISE about your own people, drivers, mechanics, the staff you invite, YOUR business is the responsible party under POPIA. We are the operator: we hold and process it for you, on your instructions.",
       "For your account itself, who signed up, what you pay, what our support team can see, we are the responsible party.",
     ],
   },
   {
     heading: "What we hold",
     body: [
-      "Account and contact details: name, email address, phone number, the farm’s name and address, and the role each person has.",
-      "What your farm records: vehicles, meter readings, services, job cards, faults, costs, fuel, licences and the photos and notes attached to them. Where a person is named, a driver on a usage log, whoever reported a fault, that is personal information too.",
+      "Account and contact details: name, email address, phone number, the business’s name and address, and the role each person has.",
+      "What your business records: vehicles, meter readings, services, job cards, faults, costs, fuel, licences and the photos and notes attached to them. Where a person is named, a driver on a usage log, whoever reported a fault, that is personal information too.",
       "Billing: what you were invoiced, what you paid, and the last four digits and expiry of the card. We never see or store a full card number.",
       "Technical: sign-in times, and an audit record of changes including the IP address and rough location (city level) they came from. Never precise location, we do not ask your browser where you are.",
     ],
@@ -181,18 +181,18 @@ export const PRIVACY: Clause[] = [
       "Vercel, where the application runs.",
       "Paystack, card payments. They see your payment details; we do not.",
       "Resend, the email we send you: receipts, alerts, confirmation links.",
-      "Meta's WhatsApp Business Platform, if you choose to connect WhatsApp. It handles your WhatsApp number, messages and delivery information so FleetWise can receive your requests and send the notifications or replies you selected.",
-      "If your farm turns on the optional voice assistant, Microsoft Azure Speech processes what is said, using the South Africa North region. A further optional step can send transcript TEXT to a language model outside South Africa, and that one only ever runs if the person has explicitly agreed to it and can be switched off again at any time.",
+      "Meta's WhatsApp Business Platform, if you choose to connect WhatsApp. It handles your WhatsApp number, messages and delivery information so FLEETWISE can receive your requests and send the notifications or replies you selected.",
+      "If your business turns on the optional voice assistant, Microsoft Azure Speech processes what is said, using the South Africa North region. A further optional step can send transcript TEXT to a language model outside South Africa, and that one only ever runs if the person has explicitly agreed to it and can be switched off again at any time.",
       "We do not sell your information, and we do not share it with anybody for advertising.",
     ],
   },
   {
     heading: "Optional WhatsApp connection",
     body: [
-      "You choose whether to connect your WhatsApp number to your signed-in FleetWise account, and whether to enable work notifications, the assistant, or both. We record the verified number, linked farm, consent choices, message text and delivery status to provide those features.",
-      "The WhatsApp assistant uses the same farm permissions and AI settings as the app. Requests and relevant farm records can be processed by the configured AI provider to answer you. WhatsApp and AI processing may take place outside South Africa.",
+      "You choose whether to connect your WhatsApp number to your signed-in FLEETWISE account, and whether to enable work notifications, the assistant, or both. We record the verified number, linked farm, consent choices, message text and delivery status to provide those features.",
+      "The WhatsApp assistant uses the same account permissions and AI settings as the app. Requests and relevant records can be processed by the configured AI provider to answer you. WhatsApp and AI processing may take place outside South Africa.",
       "Reply STOP or disconnect from Account > WhatsApp to stop the connection. This stops future processing through the link; it does not erase operational records you already created or messages already delivered to WhatsApp.",
-      "The scheduled cleanup removes message and reply text from FleetWise's WhatsApp delivery queue after 30 days and clears expired conversation context. Delivery identifiers and operational records follow their own retention. You can use the contact details below to request access, correction or deletion.",
+      "The scheduled cleanup removes message and reply text from FLEETWISE's WhatsApp delivery queue after 30 days and clears expired conversation context. Delivery identifiers and operational records follow their own retention. You can use the contact details below to request access, correction or deletion.",
     ],
   },
   {

@@ -4,7 +4,7 @@ import "server-only";
  * Email, through Resend.
  *
  * Until now "send" meant "set a status and write an in-app alert", the customer had to
- * log into FleetWise to discover they had been invoiced. Every tool a partner might use
+ * log into FLEETWISE to discover they had been invoiced. Every tool a partner might use
  * instead emails the document with a link the customer can open without an account.
  *
  * Deliberately a thin fetch against Resend's REST API rather than the SDK: one dependency
@@ -114,7 +114,7 @@ export function emailConfigured(): boolean {
 export function fromAddress(partnerName: string): string {
   const base = process.env.EMAIL_FROM || "documents@fleetwise.app";
   const safe = partnerName.replace(/["\\<>]/g, "").trim().slice(0, 60);
-  return safe ? `${safe} via FleetWise <${base}>` : base;
+  return safe ? `${safe} via FLEETWISE <${base}>` : base;
 }
 
 /** Asks the database whether a scope may email these recipients. */

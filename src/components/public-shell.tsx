@@ -29,7 +29,7 @@ export const SITE_GUTTER = "mx-auto w-full max-w-[1440px] px-6 sm:px-[4%]";
  * A visitor arrives here from fleet-wise.co.za (its "Log in" points at /login), so these
  * pages wear the website's own clothes (fleetwise-website Desktop.module.css): a white
  * header with the logo tile and FLEETWISE in capitals, a link back and a green "Get in
- * touch" button; a FleetWise Black footer; and, on sign in and sign up, the website's
+ * touch" button; a FLEETWISE Black footer; and, on sign in and sign up, the website's
  * contact-page split, a deep green panel beside a cream form. `.site-form` gives the forms
  * the website's taller fields and bold labels (globals.css).
  *

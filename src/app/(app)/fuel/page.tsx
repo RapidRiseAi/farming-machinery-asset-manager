@@ -8,7 +8,7 @@ import { t } from "@/lib/i18n";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { meterLabel } from "@/lib/machine-options";
 import {
-  FUEL_ACTIVITIES,
+  fuelActivitiesFor,
   FUEL_FARM_LEVEL,
   activityLabel,
   computeConsumption,
@@ -310,7 +310,7 @@ export default async function FuelPage({
                   <Field label={t("fuel.activityLabel", locale)} htmlFor="i_activity">
                     <Select id="i_activity" name="activity" defaultValue="">
                       <option value="">{t("fuel.activityNone", locale)}</option>
-                      {FUEL_ACTIVITIES.map((a) => (
+                      {fuelActivitiesFor(locale).map((a) => (
                         <option key={a} value={a}>{activityLabel(a, locale)}</option>
                       ))}
                     </Select>

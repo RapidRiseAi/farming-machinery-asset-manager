@@ -52,7 +52,7 @@ const ALWAYS: SourceKey[] = ["machines", "service", "faults", "licences", "fines
 
 /**
  * The dashboard: a board of widgets each person arranges for themselves, starting from
- * the FleetWise board (lib/dashboard/defaults.ts).
+ * the FLEETWISE board (lib/dashboard/defaults.ts).
  *
  * It is a window onto the other screens, never the only place a number lives: every
  * widget links to the page that shows what it counted (lib/dashboard/widgets.ts). The
@@ -83,7 +83,7 @@ export default async function DashboardPage({
   }
   const supabase = await createClient();
   // Multi-site (F7): every widget reads the farm the person is acting in. rr_admin
-  // (farmId null) keeps its all-farms view, on the FleetWise board, not customisable.
+  // (farmId null) keeps its all-farms view, on the FLEETWISE board, not customisable.
   const farmId = await currentFarmId(profile);
   const role = farmId ? ((await effectiveFarmRole(farmId, profile)) ?? profile.role) : profile.role;
   const isBoss = role === "owner" || role === "manager" || role === "rr_admin";
@@ -100,7 +100,7 @@ export default async function DashboardPage({
   ]);
   const farmRow = farmRes.data as { name: string; settings: Record<string, unknown> | null } | null;
   const settings = farmRow?.settings ?? {};
-  // A board that cannot be read is not a reason to show nothing: the FleetWise board.
+  // A board that cannot be read is not a reason to show nothing: the FLEETWISE board.
   soft(savedRes, "dashboard:layout");
 
   const access: WidgetAccess = {

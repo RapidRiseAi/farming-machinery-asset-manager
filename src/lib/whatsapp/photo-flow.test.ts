@@ -50,7 +50,7 @@ test("the prompts carry the caption and the list, in the person's language", () 
   const list = faultListPrompt("en", [{ id: "a", label: "JD 6120: Hydraulic leak" }]);
   assert.match(list, /\n1\. JD 6120: Hydraulic leak$/);
   assert.equal(faultLabel("JD 6120", "x".repeat(80), "en"), `JD 6120: ${"x".repeat(57)}...`);
-  assert.equal(faultLabel(null, null, "en"), "Machine");
+  assert.equal(faultLabel(null, null, "en"), "Vehicle");
   // The text the assistant gets is bounded well inside its 2000-character input.
   assert.ok(reportInput("y".repeat(5000)).length <= 1900);
 });

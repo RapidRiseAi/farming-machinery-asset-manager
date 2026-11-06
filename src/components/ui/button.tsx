@@ -9,7 +9,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   primary:
     "bg-brand-600 text-white shadow-xs hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-600/50",
   /**
-   * The FleetWise Gold call to action.
+   * The FLEETWISE Gold call to action.
    *
    * Note `text-sand-950` and not white: black on gold is 9.89:1, white on gold
    * is 2.12:1 and fails. That is the ONLY correct way to render a gold button,

@@ -119,7 +119,7 @@ export function statementEmailHtml(data: StatementData, message?: string | null)
     <tr>
       <td style="padding:14px 24px;background:#f4f2ee;color:#9a9083;font-size:12px;line-height:1.5;">
         ${esc(data.brand.footer || data.brand.name)}
-        ${data.brand.show_powered_by !== false ? `<div style="margin-top:4px;">Sent with FleetWise</div>` : ""}
+        ${data.brand.show_powered_by !== false ? `<div style="margin-top:4px;">Sent with FLEETWISE</div>` : ""}
       </td>
     </tr>
   </table>

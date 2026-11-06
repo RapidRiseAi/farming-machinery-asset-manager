@@ -22,8 +22,8 @@ import { createClientRecord } from "./actions";
 /**
  * The partner's own client book (F15).
  *
- * A mechanic's customer list exists before FleetWise does, and most of it is not on
- * FleetWise at all. Until now a partner could only see farms that had already found them
+ * A mechanic's customer list exists before FLEETWISE does, and most of it is not on
+ * FLEETWISE at all. Until now a partner could only see farms that had already found them
  * and connected, which is fine as a growth loop and useless as a management system. This
  * is the whole book: the farms they are connected to, and everybody else, in one list.
  *

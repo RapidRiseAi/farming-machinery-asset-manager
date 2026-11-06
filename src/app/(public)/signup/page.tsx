@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { t } from "@/lib/i18n";
+import { companyTypes, t } from "@/lib/i18n";
 import { TERMS_VERSION } from "@/lib/legal";
 import { deviceLocale } from "@/lib/locale";
 import { errorMessage } from "@/lib/errors";
@@ -21,7 +21,7 @@ import {
  * make the cheapest plan look empty.
  */
 const CORE_FEATURE_KEYS = ["coreRegister", "coreServicing", "coreJobCards", "coreQr"] as const;
-import { Field } from "@/components/ui/field";
+import { Field, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Flash } from "@/components/ui/flash";
@@ -159,6 +159,19 @@ export default async function SignUpPage({
         <section className="rounded-md border border-sand-200 bg-surface p-5 shadow-xs sm:p-6">
           {step(2, t("signup.stepDetails", locale))}
           <div className="mt-4 space-y-4">
+            <SelectField
+              name="company_type"
+              id="company_type"
+              label={t("signup.companyType", locale)}
+              hint={t("signup.companyTypeHint", locale)}
+              required
+              defaultValue=""
+            >
+              <option value="" disabled>{t("signup.companyTypeChoose", locale)}</option>
+              {companyTypes.map((c) => (
+                <option key={c} value={c}>{t(`companyType.${c}`, locale)}</option>
+              ))}
+            </SelectField>
             <Field label={t("signup.farmName", locale)} htmlFor="farm_name">
               <Input id="farm_name" name="farm_name" required autoComplete="organization" />
             </Field>

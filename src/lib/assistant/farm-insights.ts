@@ -17,11 +17,11 @@ import {
 import { readByIds } from "@/lib/supabase/read-all";
 
 /**
- * The rest of the farm's records, for the questions farm-data.ts could not answer.
+ * The rest of the business's records, for the questions farm-data.ts could not answer.
  *
  * Added 2026-10-11 after the assistant was asked what it could not do: how many hours the
  * tractor worked last month, what it costs to run per hour, when the bakkie's licence
- * runs out, which tyres are worn, what is in the parts store, whether the farm is over its
+ * runs out, which tyres are worn, what is in the parts store, whether the business is over its
  * repair budget, what a machine is worth now, which machine breaks down most. None of
  * those records reached the AI before.
  *
@@ -695,7 +695,7 @@ export async function budgetStatus(scope: FarmDataScope, input: { on?: string | 
     const elapsed = Math.min(1, Math.max(0, (daysBetween(String(b.period_start), on) + 1) / (daysBetween(String(b.period_start), String(b.period_end)) + 1)));
     const spentShare = budgetCents > 0 ? spentCents / budgetCents : 0;
     out.push({
-      for: b.machine_id ? names.get(String(b.machine_id)) ?? "Machine" : "whole farm",
+      for: b.machine_id ? names.get(String(b.machine_id)) ?? "Machine" : "whole business",
       category: b.category ?? "all costs",
       period: { type: b.period_type, from: b.period_start, to: b.period_end },
       budgetRand: rand(budgetCents) ?? 0,

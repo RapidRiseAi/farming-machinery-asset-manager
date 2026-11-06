@@ -136,7 +136,7 @@ export function documentEmailHtml(input: DocumentEmailInput): string {
     <tr>
       <td style="padding:14px 24px;background:#f4f2ee;color:#9a9083;font-size:12px;line-height:1.5;">
         ${esc(brand.footer || brand.name)}
-        ${brand.show_powered_by !== false ? `<div style="margin-top:4px;">Sent with FleetWise</div>` : ""}
+        ${brand.show_powered_by !== false ? `<div style="margin-top:4px;">Sent with FLEETWISE</div>` : ""}
       </td>
     </tr>
   </table>

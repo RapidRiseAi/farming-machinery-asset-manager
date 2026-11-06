@@ -32,7 +32,7 @@ export function UpgradeNotice({
    * The viewer can change the farm's plan themselves: the farm OWNER, the only role
    * /billing serves. The notice then points at the plans instead of telling them to
    * "ask your farm owner", who is themselves. Callers pass `canUpgrade={role === "owner"}`.
-   * Ignored on the partner side, whose upgrade is arranged with FleetWise.
+   * Ignored on the partner side, whose upgrade is arranged with FLEETWISE.
    */
   canUpgrade?: boolean;
 }) {
@@ -47,7 +47,7 @@ export function UpgradeNotice({
   const planName = nameOf(requiredPlan);
   const title = t("upgrade.title", locale).replace("{feature}", featureName);
   // Three readers, three sentences: the farm owner (who upgrades from Billing), a partner
-  // (no farm owner to ask, FleetWise arranges it), and anyone else on a farm (who asks
+  // (no farm owner to ask, FLEETWISE arranges it), and anyone else on a farm (who asks
   // the owner).
   const bodyKey = owner ? "upgrade.bodyOwner" : partnerSide ? "upgrade.bodyPartner" : "upgrade.body";
   const hint = t(bodyKey, locale)

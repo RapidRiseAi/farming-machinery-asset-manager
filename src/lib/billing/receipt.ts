@@ -308,7 +308,7 @@ function receiptBody(d: BillingReceiptData, farmName: string): { html: string; t
     "",
     t("billingReceiptEmail.attached", L),
     "",
-    d.seller.tradingName || d.seller.legalName || "FleetWise",
+    d.seller.tradingName || d.seller.legalName || "FLEETWISE",
   ];
   const text = lines.join("\n");
   const html =
@@ -443,7 +443,7 @@ export async function sendDueReceipts(
       const pdf = await buildBillingReceiptPdf(receipt);
       const body = receiptBody(receipt, row.farm_name ?? "");
       const sellerName =
-        receipt.seller.tradingName || receipt.seller.legalName || "FleetWise";
+        receipt.seller.tradingName || receipt.seller.legalName || "FLEETWISE";
 
       const sent = await sendEmail({
         scope: { farmId: row.farm_id },
@@ -536,7 +536,7 @@ export async function sendDueFailureNotices(
       const sent = await sendEmail({
         scope: { farmId: row.farm_id },
         to: row.recipient_email,
-        from: fromLine("FleetWise"),
+        from: fromLine("FLEETWISE"),
         subject: body.subject,
         html: body.html,
         text: body.text,

@@ -2,7 +2,7 @@
  * The SARS diesel-refund logbooks, as rows.
  *
  * `SCOPE.md` §9 sells this module on one promise: the rebate "stands or fall on logbooks",
- * and FleetWise produces the records. What existed was a per-machine CSV whose own comment
+ * and FLEETWISE produces the records. What existed was a per-machine CSV whose own comment
  * calls it the logbook *basis*, litres, spend and consumption, which is a management
  * report, not a logbook. A claim is audited against two trails:
  *
@@ -69,7 +69,7 @@ function sortByDate<T extends { date: string }>(rows: T[]): T[] {
  * The STORAGE logbook: every litre into and out of one tank, with a running balance.
  *
  * The opening balance is zero at the start of the extract, not a guess at what was in the
- * tank before FleetWise: an invented opening figure is the fastest way to make a whole
+ * tank before FLEETWISE: an invented opening figure is the fastest way to make a whole
  * logbook indefensible. The disclaimer line says so.
  */
 export function storageLogbookRows(

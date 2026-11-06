@@ -23,7 +23,7 @@ import { StaffStatusBadge } from "@/components/support/support-parts";
 /**
  * The support queue: every case Rapid Rise has, worked here.
  *
- * Founder default (2026-10-28): the Fleet Wise admin is the system of record. A customer's
+ * Founder default (2026-10-28): the FLEETWISE admin is the system of record. A customer's
  * question, a privacy or export request, a case logged from a phone call, and the card
  * disputes and refunds the billing engine opens all land in one list, ordered by what is
  * due first. Opening one shows the conversation and the client, with reply, note, assign

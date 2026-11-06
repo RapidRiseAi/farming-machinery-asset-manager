@@ -11,7 +11,7 @@ const STORAGE_KEY = "fleetwise:theme";
 /**
  * Light, dark, or follow the device.
  *
- * The palette's FleetWise Black is a sanctioned brand ground, so the dark theme is an
+ * The palette's FLEETWISE Black is a sanctioned brand ground, so the dark theme is an
  * on-brand treatment rather than an inversion. It matters for this product specifically,
  * whose users are in a workshop at night and a cab at noon.
  *

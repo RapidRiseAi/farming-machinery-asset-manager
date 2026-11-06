@@ -136,7 +136,7 @@ test("still resolves a read-only machine for a status question", () => {
 
 test("questions about the records only the AI reads go to the AI, whatever the local reads think", async () => {
   const { detectFarmTopics } = await import("./topics");
-  // Each answered "FleetWise has no record" in production before 2026-10-11, and the
+  // Each answered "FLEETWISE has no record" in production before 2026-10-11, and the
   // drivers' one was taken by the local reader as a search for a machine.
   for (const [said, topic] of [
     ["Do any of our drivers' documents expire soon?", "compliance"],

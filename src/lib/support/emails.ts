@@ -40,7 +40,7 @@ export function supportAlertAddress(): string | null {
 
 function from(): string {
   const base = process.env.EMAIL_FROM || "documents@fleetwise.app";
-  return `Fleet Wise support <${base}>`;
+  return `FLEETWISE support <${base}>`;
 }
 
 /** Placeholders filled with function replacers, so a "$&" in a subject stays literal. */

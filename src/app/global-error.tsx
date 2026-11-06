@@ -16,7 +16,7 @@ import { reportClientError } from "@/lib/client-report";
  * if the layout failed, the stylesheet may be exactly what did not load.
  *
  * Colours are the app's own tokens written out as literals (sand-50 ground, sand-950 ink,
- * status-overdue), so the page still looks like FleetWise with no CSS at all.
+ * status-overdue), so the page still looks like FLEETWISE with no CSS at all.
  */
 export default function GlobalError({
   error,
@@ -56,7 +56,7 @@ export default function GlobalError({
               color: "#dc2626",
             }}
           >
-            FleetWise
+            FLEETWISE
           </p>
           <h1 style={{ margin: ".5rem 0 0", fontSize: "1.35rem", lineHeight: 1.3 }}>
             The app did not start

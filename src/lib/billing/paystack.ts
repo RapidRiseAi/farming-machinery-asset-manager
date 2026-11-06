@@ -1,9 +1,9 @@
 /**
- * The Paystack adapter, the only place in FleetWise that talks to a card processor
+ * The Paystack adapter, the only place in FLEETWISE that talks to a card processor
  * about a SaaS subscription.
  *
  * SCOPE, stated once more because it is the thing most likely to be got wrong later:
- * this is FARMS PAYING RAPID RISE for FleetWise software. One direction. It is not the
+ * this is FARMS PAYING RAPID RISE for FLEETWISE software. One direction. It is not the
  * money between a farm and its contractors (that is `partner_documents` /
  * `partner_payments`), and it must never grow a transfer, a split, a subaccount or a
  * payout. If a later reader finds themselves importing `src/lib/payments/*` from here,
@@ -321,7 +321,7 @@ export class PaystackBillingAdapter implements BillingAdapter, SaasBillingProvid
     }
     return {
       ok: true,
-      note: `${what}: subscription state is held in FleetWise; Paystack holds no plan, price or period`,
+      note: `${what}: subscription state is held in FLEETWISE; Paystack holds no plan, price or period`,
     };
   }
 

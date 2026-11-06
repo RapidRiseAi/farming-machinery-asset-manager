@@ -7,10 +7,10 @@ import { requireProfile, homePathFor, currentPlan } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
-import { t } from "@/lib/i18n";
+import { companyTypes, t } from "@/lib/i18n";
 import { countLabel, hourOfDay, num, quietHoursRange, vatPercent } from "@/lib/format";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
-import { updateSettings } from "./actions";
+import { setCompanyType, updateSettings } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Fact, FactList } from "@/components/ui/facts";
@@ -69,13 +69,13 @@ export default async function SettingsPage({
   const data = must(
     await supabase
       .from("farms")
-      .select("name, settings, trading_name, reg_number, vat_number, billing_address, billing_email")
+      .select("name, settings, company_type, trading_name, reg_number, vat_number, billing_address, billing_email")
       .eq("id", profile.farm_id ?? "")
       .maybeSingle(),
     "settings:farm",
   );
   const farm = data as {
-    name: string; settings: Settings;
+    name: string; settings: Settings; company_type: string;
     trading_name: string | null; reg_number: string | null; vat_number: string | null;
     billing_address: string | null; billing_email: string | null;
   } | null;
@@ -160,6 +160,23 @@ export default async function SettingsPage({
       <PageHeader title={t("settings.title", locale)} meta={farm?.name || undefined} infoKey="settings" locale={locale} />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle as="h3">{t("settings.companyType", locale)}</CardTitle>
+        </CardHeader>
+        <p className="mb-3 text-sm text-sand-600">{t("settings.companyTypeHint", locale)}</p>
+        <form action={setCompanyType} className="flex flex-wrap items-end gap-3">
+          <div className="min-w-0 flex-1 basis-64">
+            <Select name="company_type" aria-label={t("settings.companyType", locale)} defaultValue={farm?.company_type ?? "other"}>
+              {companyTypes.map((c) => (
+                <option key={c} value={c}>{t(`companyType.${c}`, locale)}</option>
+              ))}
+            </Select>
+          </div>
+          <SubmitButton>{t("common.save", locale)}</SubmitButton>
+        </form>
+      </Card>
 
       {/* Personal settings (language, wording, alerts) belong to the person, not the
           farm. They live in Your account and preferences, which every role can open. */}

@@ -1,14 +1,14 @@
 import type { AssistantLocale, AssistantMachine } from "./types";
 
 /**
- * The AI transcription pass: the recording, plus the farm's own machine names as
+ * The AI transcription pass: the recording, plus the business's own machine names as
  * vocabulary, sent to speech models through the Vercel AI Gateway. Measured on 90
  * recordings of mixed Afrikaans/English farm requests (2026-10-03, scored with the app's
  * own matcher, every clip heard by AI):
  *
  *   Azure as configured before, with the old matcher ................... 43%
  *   the same, with the improved matcher and parser ...................... 54%
- *   MAI-Transcribe-2 with the farm's names as a phrase list ............ 96%
+ *   MAI-Transcribe-2 with the business's names as a phrase list ............ 96%
  *   gpt-4o-transcribe with the names in its prompt ..................... 96%
  *   both, each hearing weighed against the other ....................... 99%, none wrong
  *
@@ -28,7 +28,7 @@ type AiHelpProfile = {
  * AI help is on for this person: they have seen the notice (POPIA s18: told before
  * anything leaves the country), it is on, and they have not switched it off. Any consent
  * version counts; the notice is what covers the recording. The database's hold applies
- * the same rule again, and the farm's own switch and limits, on every call.
+ * the same rule again, and the business's own switch and limits, on every call.
  */
 export function aiHelpOn(profile: AiHelpProfile): boolean {
   return Boolean(profile.ai_notice_seen_at && profile.ai_processing_opt_in && !profile.ai_processing_withdrawn_at);
@@ -53,7 +53,7 @@ const GLOSSARY = [
 ];
 
 /**
- * The farm's vocabulary, most identifying first: names and aliases, then makes and
+ * The business's vocabulary, most identifying first: names and aliases, then makes and
  * models, then the glossary. Models do best with a short list (Gemini documents 100 or
  * fewer), so a large fleet keeps its names and drops the generic words.
  */
@@ -98,12 +98,12 @@ export type TranscribeOptions = Record<string, Record<string, unknown>>;
 export function openAiTranscribePrompt(terms: readonly string[], locale?: AssistantLocale): string {
   const names = terms.join(", ").slice(0, 700);
   if (locale === "en-ZA") {
-    return `A South African farmer speaking English, with some Afrikaans machine words. Machine names and words: ${names}.`;
+    return `A South African speaking English, with some Afrikaans machine words. Machine names and words: ${names}.`;
   }
   if (locale === "af-ZA") {
     return `'n Suid-Afrikaanse boer wat Afrikaans praat, met party Engelse woorde. Masjienname en woorde: ${names}.`;
   }
-  return `South African farm voice note, English and Afrikaans mixed. Machine names and words: ${names}.`;
+  return `South African voice note, English and Afrikaans mixed. Machine names and words: ${names}.`;
 }
 
 /** ISO 639-1, as OpenAI's transcription `language` takes it. */

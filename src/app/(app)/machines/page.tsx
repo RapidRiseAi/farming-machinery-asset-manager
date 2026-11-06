@@ -6,13 +6,14 @@ import { readAll } from "@/lib/supabase/read-all";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { sanitiseFilterTerm } from "@/lib/search-filter";
 import { errorMessage } from "@/lib/errors";
-import { t } from "@/lib/i18n";
+import { localeOf, t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { costPerMeter } from "@/lib/cost";
 import { meterReading, meterUnit, relativeDate, num, todayLocal } from "@/lib/format";
 import { SETTING_NUMBERS } from "@/lib/settings";
 import {
   MACHINE_TYPES,
+  machineTypesFor,
   MACHINE_STATUSES,
   typeLabel,
   statusLabel,
@@ -221,7 +222,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
     return true;
   });
 
-  const byName = (a: MachineRow, b: MachineRow) => a.name.localeCompare(b.name, locale === "af" ? "af" : "en");
+  const byName = (a: MachineRow, b: MachineRow) => a.name.localeCompare(b.name, localeOf(locale));
   const attentionRank = (m: MachineRow) => {
     const s = svcByMachine.get(m.id);
     if (m.status === "out_of_service") return 0;
@@ -333,7 +334,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   const typeOptions: ChipOption[] = [
     { value: "", label: t("machines.presetAll", locale) },
-    ...MACHINE_TYPES.map((ty) => ({ value: ty, label: typeLabel(ty, locale) })),
+    ...machineTypesFor(locale).map((ty) => ({ value: ty, label: typeLabel(ty, locale) })),
   ];
   const statusOptions: ChipOption[] = [
     { value: "", label: t("filters.all", locale) },

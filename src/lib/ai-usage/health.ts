@@ -39,12 +39,12 @@ export async function openHealthEvent(
   });
   const to = (process.env.AI_ALERT_EMAIL || process.env.OPS_ALERT_EMAIL || "").trim();
   if (to && emailConfigured()) {
-    const lines = [`FleetWise AI health: ${kind}${subject ? ` for ${subject}` : ""}.`, "", JSON.stringify(detail, null, 2), "", "See /admin/ai."];
+    const lines = [`FLEETWISE AI health: ${kind}${subject ? ` for ${subject}` : ""}.`, "", JSON.stringify(detail, null, 2), "", "See /admin/ai."];
     const sent = await sendEmail({
       scope: "platform",
       to,
       from: process.env.EMAIL_FROM || "documents@fleetwise.app",
-      subject: `FleetWise AI: ${kind.replace(/_/g, " ")}`,
+      subject: `FLEETWISE AI: ${kind.replace(/_/g, " ")}`,
       text: lines.join("\n"),
       html: `<pre>${lines.join("\n").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] ?? c)}</pre>`,
     }).catch(() => null);

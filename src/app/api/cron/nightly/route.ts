@@ -188,7 +188,7 @@ export async function GET(request: Request) {
   // 25 of each at most, and the rest waited for the next night. Push is a no-op while VAPID
   // is unset; email says which part of its configuration is missing rather than "not
   // configured". Email matters because push needs the app installed and WhatsApp is not
-  // live, so for an owner who never opens FleetWise it is the only channel that reaches him.
+  // live, so for an owner who never opens FLEETWISE it is the only channel that reaches him.
   try {
     const drained = await drainNotifications(supabase, NOTIFY_BUDGET_MS);
     const push = drained.push;

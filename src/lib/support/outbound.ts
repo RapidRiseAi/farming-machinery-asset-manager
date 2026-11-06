@@ -8,7 +8,7 @@ import { captureError } from "@/lib/observability";
 /**
  * Posting a copy of a support case to an outside receiver, if one is ever configured.
  *
- * Founder default (2026-10-28): the Fleet Wise admin (/admin/support) is the system of
+ * Founder default (2026-10-28): the FLEETWISE admin (/admin/support) is the system of
  * record and cases are worked there. SUPPORT_WEBHOOK_URL stays unset; this is kept only
  * as an optional mirror, and with it unset the billing cron reports the step as skipped.
  *
@@ -27,7 +27,7 @@ import { captureError } from "@/lib/observability";
  *     "evidence":  { farm, owner, subscription, invoice, payments, card, attempts, … }
  *   }
  *
- * **Upsert on `id`.** FleetWise may post the same case more than once, a webhook
+ * **Upsert on `id`.** FLEETWISE may post the same case more than once, a webhook
  * redelivery, a retry after a failed post, and two posts of one case must be one case
  * there. That is also why this needs no claim/release pair on our side: the receiver makes
  * duplicates harmless, so defending against them here would be machinery for a

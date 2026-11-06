@@ -1,7 +1,7 @@
 import { t, type Locale, type Lang, localeOf } from "./i18n";
 
 /**
- * FleetWise's operating timezone, the same one `todayInSouthAfrica`, the nightly
+ * FLEETWISE's operating timezone, the same one `todayInSouthAfrica`, the nightly
  * cron and API-token expiry already use.
  *
  * Pinned because the process formatting a date is not in South Africa: Vercel
@@ -86,7 +86,7 @@ function toDate(value: string | Date | null | undefined): Date | null {
 
 /** Whole days between two instants, positive when `then` is in the past. */
 /**
- * The calendar day an instant falls on in FleetWise's operating timezone,
+ * The calendar day an instant falls on in FLEETWISE's operating timezone,
  * expressed as a UTC midnight so two days can simply be subtracted.
  *
  * `getDate()` asks the PROCESS what day it is. On Vercel that is UTC, so a

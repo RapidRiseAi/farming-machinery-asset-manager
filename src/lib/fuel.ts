@@ -6,6 +6,7 @@
  * LATER draw's litres to that interval. Lifetime consumption = Σ interval litres ÷ Σ meter
  * delta, L/hr for hours meters, L/100km for km meters (Scope §23).
  */
+import { companyOf } from "@/lib/i18n";
 import { t, type Locale, type Lang } from "@/lib/i18n";
 
 /** Qualifying diesel activities (SARS-style dropdown, Scope §9). */
@@ -117,4 +118,11 @@ export function formatConsumption(c: FuelConsumption, locale: Lang): string {
   const unit = c.meterType === "km" ? t("fuel.perKm", locale) : t("fuel.perHr", locale);
   const v = c.display.toLocaleString("en-ZA", { maximumFractionDigits: 2 });
   return `${v} ${unit}`;
+}
+
+/** Ploughing means nothing to a bus company: only a farm, or an account not yet typed, sees those. */
+const WORK_ON_LAND: readonly string[] = ["ploughing", "planting", "spraying", "harvesting", "irrigation"];
+
+export function fuelActivitiesFor(lang: Lang): readonly (typeof FUEL_ACTIVITIES)[number][] {
+  return companyOf(lang) === "farm" ? FUEL_ACTIVITIES : FUEL_ACTIVITIES.filter((a) => !WORK_ON_LAND.includes(a));
 }

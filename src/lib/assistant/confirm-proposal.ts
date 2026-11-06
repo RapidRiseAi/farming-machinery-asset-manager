@@ -51,19 +51,19 @@ function failureMessage(language: "en" | "af", code: string): string {
     case "stale_proposal":
       return localized(language, "This proposal was already handled or is no longer pending.", "Hierdie voorstel is reeds hanteer of wag nie meer nie.");
     case "farm_context_changed":
-      return localized(language, "The selected farm changed. Start the request again on this farm.", "Die gekose plaas het verander. Begin die versoek weer op hierdie plaas.");
+      return localized(language, "The selected business changed. Start the request again on this business.", "Die gekose besigheid het verander. Begin die versoek weer op hierdie besigheid.");
     case "superseded":
       return localized(language, "This proposal was replaced by a corrected transcript.", "Hierdie voorstel is deur 'n gekorrigeerde transkripsie vervang.");
     case "feature_unavailable":
-      return localized(language, "Voice assistant access is no longer enabled for this farm.", "Stemassistenttoegang is nie meer vir hierdie plaas geaktiveer nie.");
+      return localized(language, "Voice assistant access is no longer enabled for this business.", "Stemassistenttoegang is nie meer vir hierdie besigheid geaktiveer nie.");
     case "forbidden":
-      return localized(language, "Your current farm role cannot apply this proposal.", "Jou huidige plaasrol kan nie hierdie voorstel toepas nie.");
+      return localized(language, "Your current role cannot apply this proposal.", "Jou huidige rol kan nie hierdie voorstel toepas nie.");
     case "invalid_capture":
     case "invalid_proposal":
     case "bad_request":
       return localized(language, "This proposal is incomplete or invalid. Please start again.", "Hierdie voorstel is onvolledig of ongeldig. Begin asseblief weer.");
     default:
-      return localized(language, "FleetWise could not save that change safely. Nothing was applied twice.", "FleetWise kon nie daardie verandering veilig stoor nie. Niks is twee keer toegepas nie.");
+      return localized(language, "FLEETWISE could not save that change safely. Nothing was applied twice.", "FLEETWISE kon nie daardie verandering veilig stoor nie. Niks is twee keer toegepas nie.");
   }
 }
 

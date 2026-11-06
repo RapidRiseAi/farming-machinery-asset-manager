@@ -52,7 +52,7 @@ type MachineRow = { id: string; name: string; meter_type: string; current_readin
  *
  * == Why it is worth a screen =================================================
  * On a truck fleet tyres are the second largest running cost after diesel, and on a farm
- * they are the cost nobody measures. Before this, "tyre" existed in FleetWise only as a
+ * they are the cost nobody measures. Before this, "tyre" existed in FLEETWISE only as a
  * fault category.
  *
  * == Grouped by machine, ordered by position ==================================

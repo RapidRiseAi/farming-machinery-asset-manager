@@ -285,12 +285,12 @@ function gapsSection(pdf: Pdf, gaps: string[], locale: Lang) {
   for (const g of gaps) pdf.text(`- ${g}`);
 }
 
-/** Footer + wordmark: the FARM's document, produced from FleetWise. */
+/** Footer + wordmark: the FARM's document, produced from FLEETWISE. */
 function brandFor(issuer: PackIssuer, locale: Lang) {
   return {
-    name: issuer.farmName || "FleetWise",
+    name: issuer.farmName || "FLEETWISE",
     footer: t("packs.footer", locale)
-      .replace("{farm}", issuer.farmName || "FleetWise")
+      .replace("{farm}", issuer.farmName || "FLEETWISE")
       .replace("{date}", shortDate(issuer.generatedAt, locale)),
     poweredBy: false,
   };

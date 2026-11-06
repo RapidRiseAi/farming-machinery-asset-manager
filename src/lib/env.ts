@@ -24,7 +24,8 @@ export function getServiceRoleKey(): string {
   return key;
 }
 
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FleetWise";
+/** Founder decision, 6 November 2026. A constant: a stale environment variable must not win. */
+export const APP_NAME = "FLEETWISE";
 
 /**
  * Our own origin, from CONFIGURATION ONLY, never from a request header.

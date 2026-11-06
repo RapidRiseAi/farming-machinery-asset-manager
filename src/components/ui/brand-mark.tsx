@@ -2,7 +2,7 @@ import Image from "next/image";
 import { cn } from "./cn";
 
 /**
- * The FleetWise mark: the founder's logo, a green F and a gold W on black.
+ * The FLEETWISE mark: the founder's logo, a green F and a gold W on black.
  *
  * It is the official PNG (public/brand/fleetwise-logo.png, the same file the website
  * uses), never traced or recoloured, as the brand guide asks (fleetwise-website
@@ -46,7 +46,7 @@ export function BrandMark({
 /**
  * The name beside the mark, as the website writes it: "Fleet" in the surrounding ink and
  * "Wise" in the brand colour that reads on that ground (green on a light page, gold on the
- * green sidebar). Production spells the name "Fleet Wise" (NEXT_PUBLIC_APP_NAME), which
+ * green sidebar). Production spells the name "FLEETWISE" (NEXT_PUBLIC_APP_NAME), which
  * printed FLEET WISE with no green beside the logo, so the match ignores spaces and case:
  * the mark always reads as the website writes it. Any other name is shown whole.
  */
@@ -57,7 +57,7 @@ export function Wordmark({
   className,
 }: {
   name: string;
-  /** `footer`: white on FleetWise Black, with "WISE" white too, as the website's footer. */
+  /** `footer`: white on FLEETWISE Black, with "WISE" white too, as the website's footer. */
   tone?: "page" | "nav" | "footer";
   /** The website's capitals, FLEETWISE, for the pages before sign-in. */
   caps?: boolean;

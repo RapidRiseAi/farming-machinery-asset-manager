@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MACHINE_TYPES, METER_TYPES, defaultMeterFor } from "@/lib/machine-options";
+import { machineTypesFor, METER_TYPES, defaultMeterFor } from "@/lib/machine-options";
 import { meterUnit } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
 import { Field } from "@/components/ui/field";
@@ -97,7 +97,7 @@ export function MachineFieldsForm({
         </div>
         <Field label={t("machines.type", locale)} htmlFor="type">
           <Select id="type" name="type" value={type} onChange={(e) => onType(e.target.value)}>
-            {MACHINE_TYPES.map((ty) => (
+            {machineTypesFor(locale, m.type).map((ty) => (
               <option key={ty} value={ty}>
                 {t(`machineType.${ty}`, locale)}
               </option>

@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * Email a document to the customer, with the PDF attached (G2).
  *
  * Before this, "send" set a status and wrote an in-app alert, the customer had to log
- * into FleetWise to discover they had been invoiced. Now they get it where they read
+ * into FLEETWISE to discover they had been invoiced. Now they get it where they read
  * their post, with a link that opens the document without an account.
  *
  * == WHY THE ATTEMPT IS LOGGED EVEN WHEN IT FAILS =============================

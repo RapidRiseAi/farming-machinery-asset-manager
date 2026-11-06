@@ -3,9 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /**
- * The public API is the deliberate exception to FleetWise's usual RLS boundary.
+ * The public API is the deliberate exception to FLEETWISE's usual RLS boundary.
  * API keys are not Supabase user sessions, so every service-role query MUST pass
- * through this module. The credential derives the farm; no public route accepts a
+ * through this module. The credential derives the business; no public route accepts a
  * farm id. Keep this resource map closed and every projection intentionally small.
  */
 
@@ -130,7 +130,7 @@ export type ApiReadingInput = {
 
 const TOKEN_PATTERN = /^fwk_[A-Za-z0-9_-]{20,128}$/;
 // PostgreSQL's uuid type accepts the canonical 8-4-4-4-12 hexadecimal shape
-// without requiring an RFC version/variant nibble. Several legacy FleetWise rows
+// without requiring an RFC version/variant nibble. Several legacy FLEETWISE rows
 // intentionally use zero-filled UUIDs, so validate the database shape exactly.
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const STATUS_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
@@ -147,8 +147,8 @@ function unauthorized(): PublicApiError {
   return new PublicApiError(
     401,
     "invalid_token",
-    "Supply a live FleetWise API token in the Authorization bearer header.",
-    'Bearer realm="FleetWise API", error="invalid_token"',
+    "Supply a live FLEETWISE API token in the Authorization bearer header.",
+    'Bearer realm="FLEETWISE API", error="invalid_token"',
   );
 }
 
@@ -225,7 +225,7 @@ export async function authenticateApiRequest(
     throw new PublicApiError(
       403,
       "api_plan_required",
-      "This farm's current plan does not include public API access.",
+      "This business's current plan does not include public API access.",
     );
   }
 
@@ -243,7 +243,7 @@ export function requireApiScope(context: ApiContext, scope: ApiScope): void {
     403,
     "insufficient_scope",
     `This token requires the ${scope} scope for that operation.`,
-    `Bearer realm="FleetWise API", error="insufficient_scope", scope="${scope}"`,
+    `Bearer realm="FLEETWISE API", error="insufficient_scope", scope="${scope}"`,
   );
 }
 
@@ -321,7 +321,7 @@ export function parseApiListParams(url: URL, resource: ApiResource): ApiListPara
 }
 
 /**
- * The read chokepoint. The farm and soft-delete predicates are applied before a
+ * The read chokepoint. The business and soft-delete predicates are applied before a
  * route can add narrower filters. The caller cannot remove PostgREST filters.
  */
 export function apiSelect(
@@ -527,7 +527,7 @@ export async function insertApiReading(
   if (!error && data) return { data: data as ReadingRow, replayed: false };
   const code = (error as { code?: string } | null)?.code;
   if (code === "23503") {
-    throw new PublicApiError(404, "machine_not_found", "The machine was not found for this token's farm.");
+    throw new PublicApiError(404, "machine_not_found", "The machine was not found for this token's account.");
   }
   if (code !== "23505") {
     throw new PublicApiError(503, "service_unavailable", "The API is temporarily unavailable.");

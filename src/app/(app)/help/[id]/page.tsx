@@ -41,7 +41,7 @@ type HelpThread = {
 /**
  * One request and its conversation, for the person who asked (or their farm's owner or
  * manager). Public messages only: Rapid Rise's internal notes never leave the desk, and
- * Rapid Rise answers as Fleet Wise support, never as a named member of staff
+ * Rapid Rise answers as FLEETWISE support, never as a named member of staff
  * (`my_help_request`, 20261028100900). Anything else, another farm's request included,
  * is "not found".
  */

@@ -129,7 +129,7 @@ export type ThreadMessage = {
 /**
  * One conversation, oldest first. `staffView` shows internal notes (marked), the channel a
  * logged conversation came by, the staff member's name and whether the reply email went.
- * The customer's view names Rapid Rise as Fleet Wise support and never a staff member.
+ * The customer's view names Rapid Rise as FLEETWISE support and never a staff member.
  */
 export function MessageThread({ messages, locale, staffView = false }: { messages: ThreadMessage[]; locale: Lang; staffView?: boolean }) {
   return (

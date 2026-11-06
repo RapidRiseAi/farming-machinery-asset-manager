@@ -4,11 +4,11 @@
  * the same for every farm, and labelled as an example on the tray; the board itself only
  * ever shows the farm's own numbers.
  */
-import { t, type Lang } from "@/lib/i18n";
+import { localeOf, t, type Lang } from "@/lib/i18n";
 import type { WidgetData } from "./compute";
 
 const months = (locale: Lang) => {
-  const tag = locale === "af" ? "af-ZA" : "en-ZA";
+  const tag = localeOf(locale) === "af" ? "af-ZA" : "en-ZA";
   return Array.from({ length: 6 }, (_, i) => new Date(Date.UTC(2026, 5 + i, 15)).toLocaleDateString(tag, { month: "short", timeZone: "UTC" }));
 };
 const series = (locale: Lang, values: number[], format: "count" | "rands" | "litres"): WidgetData => ({

@@ -30,7 +30,7 @@ import {
  * One client in the partner's book (F15).
  *
  * Three states, and the screen says plainly which one you are in:
- *   * not on FleetWise, the partner keeps their own notes and vehicle list here;
+ *   * not on FLEETWISE, the partner keeps their own notes and vehicle list here;
  *   * asked, a request is with the customer, and only the customer can accept it;
  *   * connected, the farm's real fleet is now reachable, and the notebook vehicles can
  *     be copied across in one action.

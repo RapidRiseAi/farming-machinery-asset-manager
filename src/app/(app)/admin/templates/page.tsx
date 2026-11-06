@@ -71,7 +71,7 @@ export default async function TemplatesPage({
       trigger="New template"
       triggerIcon={<PlusIcon />}
       title="New template"
-      description="A global template every farm can apply to a machine."
+      description="A global template every business can apply to a machine."
       closeLabel="Close"
     >
       <form action={createTemplate}>
@@ -96,7 +96,7 @@ export default async function TemplatesPage({
       <PageHeader
         title="Service template library"
         meta={templates.length > 0 ? `${num(templates.length)} template${templates.length === 1 ? "" : "s"}` : undefined}
-        lead="Global templates any farm can apply to a machine, so its service plan starts filled in."
+        lead="Global templates any business can apply to a machine, so its service plan starts filled in."
         actions={newTemplate}
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
@@ -166,10 +166,10 @@ export default async function TemplatesPage({
                       triggerIcon={<TrashIcon />}
                       triggerLabel="Delete template"
                       title={`Delete the “${tpl.name}” service template?`}
-                      intro="This is a Rapid Rise template every farm can apply."
+                      intro="This is a Rapid Rise template every business can apply."
                       consequencesTitle="What happens when you press it"
                       consequences={[
-                        "No farm can apply it to a machine again",
+                        "No business can apply it to a machine again",
                         "Machines that already use it keep their service plans",
                       ]}
                       footnote="Nothing is really erased, it stops showing in the library and stays in the history."

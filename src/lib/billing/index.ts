@@ -9,7 +9,7 @@
  *   paystack , the real one (`./paystack`). Hosted checkout, server-to-server verify,
  *               charge-authorization for renewals, HMAC-SHA512 webhook verification.
  *
- * SCOPE: this is FARMS PAYING RAPID RISE for FleetWise. It is not, and must never become,
+ * SCOPE: this is FARMS PAYING RAPID RISE for FLEETWISE. It is not, and must never become,
  * the money that moves between a farm and its contractors, that is `partner_documents` /
  * `partner_payments`, and its dormant PayFast seam lives in `src/lib/payments/*` and stays
  * inert. Nothing here may import from there.
@@ -27,7 +27,7 @@
  * thirty seconds before somebody hit the switch.
  *
  * Every value is read LAZILY, inside the call (see `./config`), so a missing key can
- * never throw at import time and can never break the rest of FleetWise.
+ * never throw at import time and can never break the rest of FLEETWISE.
  */
 
 import type { BillingAdapter, SaasBillingProvider } from "./types";

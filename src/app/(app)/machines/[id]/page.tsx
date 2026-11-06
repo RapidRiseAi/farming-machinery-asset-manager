@@ -22,7 +22,7 @@ import {
   budgetProgress, budgetTone, budgetPeriodLabel, budgetCategoryLabel,
   BUDGET_PERIODS, type Budget, type BudgetCostRow,
 } from "@/lib/budgets";
-import { computeConsumption, formatConsumption, activityLabel, latestInterval, FUEL_ACTIVITIES } from "@/lib/fuel";
+import { computeConsumption, formatConsumption, activityLabel, latestInterval, fuelActivitiesFor } from "@/lib/fuel";
 import { addFuelIssue } from "@/app/(app)/fuel/actions";
 import { FuelTrend } from "@/components/fuel-trend";
 import { t } from "@/lib/i18n";
@@ -1195,7 +1195,7 @@ export default async function MachineDetailPage({
                           <Field label={t("fuel.activityLabel", locale)} htmlFor="f_activity">
                             <Select id="f_activity" name="activity" defaultValue="">
                               <option value="">-</option>
-                              {FUEL_ACTIVITIES.map((a) => (
+                              {fuelActivitiesFor(locale).map((a) => (
                                 <option key={a} value={a}>{activityLabel(a, locale)}</option>
                               ))}
                             </Select>

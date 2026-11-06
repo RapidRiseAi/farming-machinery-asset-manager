@@ -27,9 +27,11 @@ import {
   type Locale,
   type Tone,
   type Lang,
+  type CompanyType,
   langOf,
   defaultLocale,
   defaultTone,
+  isCompanyType,
   isTone,
 } from "@/lib/i18n";
 import { isLocale } from "@/lib/locale";
@@ -54,6 +56,8 @@ export type Profile = {
   language: Locale;
   /** Their wording register on its own, what the tone switch shows as current. */
   tone: Tone;
+  /** What kind of company they are looking at; null for contractors and Rapid Rise. */
+  company: CompanyType | null;
   /**
    * What to render in: language and tone composed into the single value `t()` takes.
    *
@@ -147,6 +151,25 @@ type LoadedProfile = { profile: Profile | null; lock: string | null };
  * several actions checked only the role and then used the service key, which let a
  * password alone past B9's second factor.
  */
+/**
+ * What kind of company this person is looking at: the words on every screen depend on it.
+ * The site they chose comes first, as in `currentFarmId`; RLS decides whether they may see
+ * it. Unread is not an error worth stopping a page for: it only means universal wording.
+ */
+async function companyTypeFor(
+  supabase: SupabaseClient,
+  row: { farm_id: string | null },
+): Promise<CompanyType | null> {
+  if (!row.farm_id) return null;
+  const chosen = (await cookies()).get(CURRENT_FARM_COOKIE)?.value;
+  const ids = chosen && isUuid(chosen) && chosen !== row.farm_id ? [chosen, row.farm_id] : [row.farm_id];
+  const { data, error } = await supabase.from("farms").select("id, company_type").in("id", ids);
+  if (error) return null;
+  const rows = (data ?? []) as { id: string; company_type: string | null }[];
+  const found = rows.find((r) => r.id === chosen) ?? rows.find((r) => r.id === row.farm_id);
+  return isCompanyType(found?.company_type) ? found.company_type : null;
+}
+
 const loadProfile = cache(async (): Promise<LoadedProfile> => {
   const { supabase, user } = await confirmedAuth();
   const uid = user?.id;
@@ -177,7 +200,15 @@ const loadProfile = cache(async (): Promise<LoadedProfile> => {
   if (!row) return { profile: null, lock: null };
   const language: Locale = isLocale(row.language) ? row.language : defaultLocale;
   const tone: Tone = isTone(row.tone) ? row.tone : defaultTone;
-  const profile: Profile = { ...row, is_test: row.is_test === true, language, tone, lang: langOf(language, tone) };
+  const company = await companyTypeFor(supabase, row);
+  const profile: Profile = {
+    ...row,
+    is_test: row.is_test === true,
+    language,
+    tone,
+    company,
+    lang: langOf(language, tone, company),
+  };
   // Any Rapid Rise profile the database refuses is withheld, a deactivated one included, so
   // no caller has to remember to check `active` before trusting the role. The database is
   // only asked about Rapid Rise accounts.
@@ -540,7 +571,7 @@ export async function requireCurrentFarmRole(
 // == Entitlement gating (F5) ==================================================
 // Feature access is governed by the FARM's subscription plan (src/lib/entitlements.ts,
 // mirrored by app.has_entitlement in SQL). Two roles BYPASS plan gates entirely:
-//   * rr_admin, FleetWise platform staff (cross-tenant; not the billing subject);
+//   * rr_admin, FLEETWISE platform staff (cross-tenant; not the billing subject);
 //   * workshop, external contractors who only ever reach a linked farm's data through
 //     RLS, and whose entitlement is that farm's concern, not their own.
 // Everyone else is gated by their own farm's plan.

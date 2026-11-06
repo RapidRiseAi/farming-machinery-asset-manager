@@ -7,7 +7,7 @@ import { captureError } from "@/lib/observability";
 /**
  * Rapid Rise's own banking details (billing_settings.eft_instructions, 20261105100000).
  *
- * ONLY for money owed to Rapid Rise: a farm's or workshop's FleetWise bill, on the pages and
+ * ONLY for money owed to Rapid Rise: a farm's or workshop's FLEETWISE bill, on the pages and
  * the invoice that collect it. A workshop's invoice to a farm is paid to the workshop, and
  * printing these details on it would send a customer's money to the wrong business, so
  * `eft.test.ts` fails if anything outside the known list reads them.

@@ -11,7 +11,7 @@
 import type { IssuerSnapshot } from "@/lib/partner-docs";
 
 /**
- * FleetWise Green and Charcoal from the official palette: the fallback letterhead colours
+ * FLEETWISE Green and Charcoal from the official palette: the fallback letterhead colours
  * and the PDF wordmark colour. They were #166534 and #1f2937, stock Tailwind values.
  * (A partner's own saved colours are theirs and are not touched by this.)
  */

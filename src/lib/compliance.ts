@@ -94,6 +94,11 @@ export const LICENCE_TYPES = [
   "permit",
   "crossborder",
   "insurance",
+  "cof",
+  "operator_card",
+  "dangerous_goods",
+  "abnormal_load",
+  "operating_licence",
   "other",
 ] as const;
 export type LicenceType = (typeof LICENCE_TYPES)[number];

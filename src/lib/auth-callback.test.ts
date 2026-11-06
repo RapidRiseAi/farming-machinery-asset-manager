@@ -41,8 +41,8 @@ test("the email-me-a-link button signs in existing accounts only, back to the co
   assert.match(fn, /const origin = siteUrl\(\);/);
   assert.doesNotMatch(fn, /get\("origin"\)/);
   // "No such account" reads as sent, like a reset: no account-enumeration oracle.
-  assert.match(t("auth.checkEmail", "en"), /^If that address has a FleetWise account/);
-  assert.match(t("auth.checkEmail", "af"), /^As daardie adres 'n FleetWise-rekening het/);
+  assert.match(t("auth.checkEmail", "en"), /^If that address has a FLEETWISE account/);
+  assert.match(t("auth.checkEmail", "af"), /^As daardie adres 'n FLEETWISE-rekening het/);
 });
 
 test("a sign-in link that lands on the front page still finishes signing in", () => {

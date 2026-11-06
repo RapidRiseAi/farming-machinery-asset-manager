@@ -9,7 +9,7 @@ import { CheckIcon } from "@/components/ui/icons";
 /**
  * "Where do I download it?"
  *
- * FleetWise has worked offline since F2, a service worker caches the shell and the
+ * FLEETWISE has worked offline since F2, a service worker caches the shell and the
  * last views, and captures go into an IndexedDB queue that drains when the signal
  * returns, but there was no install affordance anywhere, so unless someone knew to
  * find it in a browser menu, the whole capability was invisible. Being told the app

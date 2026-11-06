@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // What kind of business an account is, and who may change it.
+  "20261107090000": "select to_regprocedure('public.set_company_type(uuid,text)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'farms' and column_name = 'company_type')",
   // A contractor's one-person link: the table and the function that claims it.
   "20261106110000": "select to_regclass('public.partner_invites') is not null and to_regprocedure('public.partner_invite_redeem(text,text,text)') is not null",
   // Businesses asking to become a partner.

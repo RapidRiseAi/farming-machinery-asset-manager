@@ -11,7 +11,7 @@ import { classifyFailure, errorCode } from "@/lib/action-errors";
 import { captureError } from "@/lib/observability";
 
 /**
- * A partner's own client book, and the road from it to a real FleetWise farm (F15).
+ * A partner's own client book, and the road from it to a real FLEETWISE farm (F15).
  *
  * Everything here is scoped to the caller's own workshop by RLS (0390), so no action
  * needs to prove which workshop it is acting for, the database will not let it act for
@@ -20,7 +20,7 @@ import { captureError } from "@/lib/observability";
  *   requestClientLink, raises a PENDING workshop_link. That grants nothing:
  *     `app.has_farm_access` counts only 'active', and only the farm's own owner/manager
  *     can promote it. It also never tells the partner whether the customer has a
- *     FleetWise account, because "does this address have an account here" is not a
+ *     FLEETWISE account, because "does this address have an account here" is not a
  *     question any partner should be able to ask of the whole customer base. The reply
  *     is the same either way.
  *
@@ -194,7 +194,7 @@ export async function removeClientVehicle(formData: FormData) {
 // == Connect ==================================================================
 
 /**
- * Ask a client to connect their FleetWise farm to this partner.
+ * Ask a client to connect their FLEETWISE farm to this partner.
  *
  * If the email belongs to a farm owner/manager, this raises a PENDING `workshop_link`
  * that appears on their Partners screen for approval. If it does not, nothing is raised
@@ -232,7 +232,7 @@ export async function requestClientLink(formData: FormData) {
     .eq("active", true)
     .is("deleted_at", null)
     .limit(1);
-  // A failed lookup is not "not on FleetWise": the request would never reach a farm that
+  // A failed lookup is not "not on FLEETWISE": the request would never reach a farm that
   // is. Saying so reveals nothing about the address, only that we failed.
   if (userError) redirect(`/contractor/clients/${clientId}?error=${errorCode(userError, "app/contractor/clients/actions:requestClientLink:lookup")}`);
 
@@ -274,7 +274,7 @@ export async function requestClientLink(formData: FormData) {
     // be restarted; the farm still has to approve it.
     //
     // The test fence (20261014120000) refuses a link between a test workshop and a real
-    // farm, or the other way round. To this partner that farm is not on FleetWise: the
+    // farm, or the other way round. To this partner that farm is not on FLEETWISE: the
     // reply is the same "asked" as for an unknown address, since "forbidden" would tell a
     // test account which addresses have real farms, and nothing is reported, because the
     // refusal is the design working. Any other refusal is still an error.
@@ -327,7 +327,7 @@ export async function requestClientLink(formData: FormData) {
     // Without `requested_farm_id` the farm's approval cannot bind this record.
     if (markError) redirect(`/contractor/clients/${clientId}?error=${errorCode(markError, "app/contractor/clients/actions:requestClientLink:mark-farm")}`);
   } else {
-    // Not on FleetWise (or not an owner/manager). Record that we asked, so the partner's
+    // Not on FLEETWISE (or not an owner/manager). Record that we asked, so the partner's
     // own list shows they have chased it, and hand them a link to share.
     const { error: markError } = await supabase
       .from("partner_clients")

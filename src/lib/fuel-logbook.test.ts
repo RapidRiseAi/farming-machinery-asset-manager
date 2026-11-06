@@ -70,7 +70,7 @@ test("a draw with no activity is still listed, with the gap visible", () => {
   // two of our own trails disagreeing is what an audit looks for.
   assert.equal(body.length, issues.length);
   const farmUse = body.find((r) => String(r[0]) === "2026-09-07")!;
-  assert.match(String(farmUse[1]), /no machine named/i);
+  assert.match(String(farmUse[1]), /no vehicle named/i);
   assert.equal(farmUse[3], "", "the missing activity must read as a gap, not be invented");
 });
 

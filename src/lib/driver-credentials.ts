@@ -18,6 +18,9 @@ export const CREDENTIAL_TYPES = [
   "competency",
   "medical",
   "induction",
+  "dangerous_goods_training",
+  "first_aid",
+  "guide_qualification",
   "other",
 ] as const;
 

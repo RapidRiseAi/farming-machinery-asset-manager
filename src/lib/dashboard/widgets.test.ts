@@ -116,7 +116,7 @@ test("every chart colour can be seen against the card in both themes (3:1, WCAG 
   for (const [name, s] of all) {
     assert.ok(ratio(s.dark, "#1d211d") >= 3, `${name} dark ${s.dark} on the dark card: ${ratio(s.dark, "#1d211d").toFixed(2)}`);
     // The classic set's own light steps are documented below 3:1 for three slots and ship with
-    // visible labels (the legend with values), so only the FleetWise colours are held to it here.
+    // visible labels (the legend with values), so only the FLEETWISE colours are held to it here.
     if (!name.startsWith("classic")) assert.ok(ratio(s.light, "#ffffff") >= 3, `${name} light ${s.light} on white: ${ratio(s.light, "#ffffff").toFixed(2)}`);
   }
 });

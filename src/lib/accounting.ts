@@ -41,7 +41,7 @@ import { t, type Lang } from "@/lib/i18n";
 
 // == The chart of accounts ====================================================
 //
-// FleetWise has no chart of accounts and should not invent one it then has to maintain.
+// FLEETWISE has no chart of accounts and should not invent one it then has to maintain.
 // These are a documented DEFAULT in a conventional SA small-business range, emitted by
 // 0510 beside a stable `account_key` that gets translated here for display. The
 // accountant maps them once at import, and /accounting shows the whole map so they can

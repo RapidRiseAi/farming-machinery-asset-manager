@@ -53,7 +53,7 @@ export function SetupForm({ next, locale }: { next: string; locale: Lang }) {
       }
       const { data, error: enrolError } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: `FleetWise ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
+        friendlyName: `FLEETWISE ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
       });
       if (enrolError || !data || data.type !== "totp") {
         if (enrolError) reportClientError(asError(enrolError), "mfa:enrol");

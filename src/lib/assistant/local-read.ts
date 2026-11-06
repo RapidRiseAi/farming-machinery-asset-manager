@@ -504,8 +504,8 @@ export async function answerLocalRead(
   if (request.kind === "quote_boundary") {
     const message = localized(
       locale,
-      "The farm assistant cannot issue a workshop quote. You can create a quote request in Work requests; the linked workshop can then prepare and send the actual quote.",
-      "Die plaasassistent kan nie 'n werkswinkelkwotasie uitreik nie. Jy kan 'n kwotasieversoek by Werkversoeke skep; die gekoppelde werkswinkel kan dan die werklike kwotasie opstel en stuur.",
+      "The assistant cannot issue a workshop quote. You can create a quote request in Work requests; the linked workshop can then prepare and send the actual quote.",
+      "Die assistent kan nie 'n werkswinkelkwotasie uitreik nie. Jy kan 'n kwotasieversoek by Werkversoeke skep; die gekoppelde werkswinkel kan dan die werklike kwotasie opstel en stuur.",
     );
     return { message, speakText: message, navigation: "work" };
   }

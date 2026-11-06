@@ -1,5 +1,6 @@
 "use server";
 
+import { isCompanyType } from "@/lib/i18n";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -54,6 +55,8 @@ export async function adminOnboardCustomer(formData: FormData) {
       const ownerName = String(formData.get("owner_name") ?? "").trim();
       const ownerEmail = String(formData.get("owner_email") ?? "").trim().toLowerCase();
       const language = String(formData.get("language") ?? "en") === "af" ? "af" : "en";
+      const typed = String(formData.get("company_type") ?? "");
+      const companyType = isCompanyType(typed) ? typed : "other";
 
       if (!name) redirect("/admin/farms?error=Name+is+required");
       // Only a plan with a list price: Done-For-You is quoted and set up as an agreement.
@@ -67,7 +70,7 @@ export async function adminOnboardCustomer(formData: FormData) {
       // RLS: farms_ins allows this only for rr_admin.
       const { data: farm, error: farmError } = await supabase
         .from("farms")
-        .insert({ name, plan, billing_period: period, status: "active", billing_email: ownerEmail })
+        .insert({ name, plan, billing_period: period, status: "active", billing_email: ownerEmail, company_type: companyType })
         .select("id")
         .single();
       if (farmError || !farm) redirect(`/admin/farms?error=${errorCode(farmError ?? {}, "app/admin/farms/actions:onboard-farm")}`);

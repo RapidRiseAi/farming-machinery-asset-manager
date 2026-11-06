@@ -142,7 +142,7 @@ export default async function ContractorDashboardPage({
     ),
     // Real money, from the documents that carry it. The analytics used to sum
     // `work_requests.invoice_amount_cents`, the field from before documents existed -
-    // so a partner billing entirely through FleetWise documents saw R0 in the panel they
+    // so a partner billing entirely through FLEETWISE documents saw R0 in the panel they
     // were paying for.
     readAll(() => supabase
       .from("partner_documents")

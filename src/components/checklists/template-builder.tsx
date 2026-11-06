@@ -9,7 +9,7 @@ import {
   DEFAULT_RATING_MAX,
   type ChecklistFieldType,
 } from "@/lib/checklists";
-import { MACHINE_TYPES, typeLabel } from "@/lib/machine-options";
+import { machineTypesFor, typeLabel } from "@/lib/machine-options";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -188,7 +188,7 @@ export function ChecklistTemplateBuilder({
         <Field label={t("checklists.machineType", locale)} htmlFor="tpl-type">
           <Select id="tpl-type" value={machineType} onChange={(e) => setMachineType(e.target.value)}>
             <option value="">{t("checklists.anyType", locale)}</option>
-            {MACHINE_TYPES.map((mt) => (
+            {machineTypesFor(locale, machineType).map((mt) => (
               <option key={mt} value={mt}>
                 {typeLabel(mt, locale)}
               </option>

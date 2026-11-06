@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
-import { t, type Lang } from "@/lib/i18n";
+import { localeOf, t, type Lang } from "@/lib/i18n";
 import { num } from "@/lib/format";
 import { rands } from "@/lib/money";
 import type { BreakdownData, KpiData, ListData, SeriesData, Tone, ValueFormat } from "@/lib/dashboard/compute";
@@ -271,7 +271,7 @@ export function BreakdownChart({
 }) {
   // "A to Z" reorders the slices; colours follow the slice's place, never its rank.
   const data = sort === "name"
-    ? { ...given, items: [...given.items].sort((a, b) => a.label.localeCompare(b.label, locale === "af" ? "af" : "en")) }
+    ? { ...given, items: [...given.items].sort((a, b) => a.label.localeCompare(b.label, localeOf(locale))) }
     : given;
   const total = data.items.reduce((a, i) => a + i.value, 0);
   if (total === 0) return <Empty locale={locale} />;
