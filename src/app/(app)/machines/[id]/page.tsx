@@ -827,6 +827,8 @@ export default async function MachineDetailPage({
           typeLabel(machine.type, locale),
           machine.make ? `${machine.make} ${machine.model ?? ""}`.trim() : null,
           machine.reg_no,
+          // What a parts shop came for. Otherwise it is only under Papers, off a phone's screen.
+          machine.serial_no ? `${t("machines.serialNo", locale)} ${machine.serial_no}` : null,
           machine.year ? String(machine.year) : null,
           machine.location,
         ].filter(Boolean).join(" · ")}

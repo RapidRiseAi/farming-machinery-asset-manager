@@ -285,7 +285,7 @@ export async function createPartnerInvite(formData: FormData) {
       // The only moment the link and code exist in the clear.
       await setPartnerLink({ pid: partnerId, url: inviteUrl(origin, secrets.token), code: secrets.code });
       revalidatePath("/partners");
-      return "/partners";
+      return "/partners?linkready=1";
     },
     { whileRunning: "/partners?error=still-saving" },
   );

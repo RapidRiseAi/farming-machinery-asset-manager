@@ -2566,11 +2566,11 @@
     "cancelLinkBody": "The link for {name} will stop working. Nobody has used it yet.",
     "linkCancelledFlash": "Link cancelled.",
     "linkReadyFor": "Access link for {name}",
-    "linkReadyHint": "Send them the message below. This is the only time you will see the code, and the link works for one person only.",
+    "linkReadyHint": "Send it with one of the buttons below. This is the only time you will see the code, and the link works for one person only.",
     "linkLabel": "Link",
     "codeLabel": "Code",
     "copyMessage": "Copy the message",
-    "linkWaiting": "Link sent, not used yet. Ends {date}.",
+    "linkWaiting": "Link made, not used yet. Ends {date}.",
     "linkUsedBy": "Link used by {email} on {date}.",
     "sendLoginHint": "We will email {name} a sign-in link at the address on their login."
   },

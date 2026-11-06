@@ -2566,11 +2566,11 @@
     "cancelLinkBody": "Die skakel vir {name} sal ophou werk. Niemand het dit nog gebruik nie.",
     "linkCancelledFlash": "Skakel gekanselleer.",
     "linkReadyFor": "Toegangskakel vir {name}",
-    "linkReadyHint": "Stuur vir hulle die boodskap hieronder. Jy sien die kode net hierdie keer, en die skakel werk net vir een persoon.",
+    "linkReadyHint": "Stuur dit met een van die knoppies hieronder. Jy sien die kode net hierdie keer, en die skakel werk net vir een persoon.",
     "linkLabel": "Skakel",
     "codeLabel": "Kode",
     "copyMessage": "Kopieer die boodskap",
-    "linkWaiting": "Skakel gestuur, nog nie gebruik nie. Verval {date}.",
+    "linkWaiting": "Skakel gemaak, nog nie gebruik nie. Verval {date}.",
     "linkUsedBy": "Skakel gebruik deur {email} op {date}.",
     "sendLoginHint": "Ons e-pos 'n aanmeldskakel aan {name}, na die adres op hul aanmelding."
   },
