@@ -12,7 +12,7 @@ import {
   type UserPermission,
 } from "@/lib/permissions";
 import { t } from "@/lib/i18n";
-import { inviteUser, setUserActive, erasePerson, setUserPermissions } from "./actions";
+import { cancelOwnershipOffer, inviteUser, offerOwnership, setUserActive, erasePerson, setUserPermissions } from "./actions";
 import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Field } from "@/components/ui/field";
@@ -60,7 +60,7 @@ const ROLE_ORDER: Record<TeamUser["role"], number> = { owner: 0, manager: 1, mec
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; invited?: string; saved?: string; erased?: string; permissionSaved?: string }>;
+  searchParams: Promise<{ error?: string; invited?: string; saved?: string; erased?: string; permissionSaved?: string; handover?: string }>;
 }) {
   const profile = await requireProfile();
   if (profile.role === "rr_admin") redirect("/admin/farms");
@@ -73,6 +73,22 @@ export default async function TeamPage({
   const farmId = permissionState.farmId;
   const canManage = permissionState.role === "owner" || permissionState.role === "manager";
   if (!farmId || !canManage) redirect(`${homePathFor(profile.role)}?denied=1`);
+
+  // An offer still waiting for its answer: only the owner sees it here, or can take it back.
+  const offerData = permissionState.role === "owner"
+    ? must(
+        await createServiceClient()
+          .from("farm_ownership_transfers")
+          .select("id, users:users!farm_ownership_transfers_to_user_fkey(name)")
+          .eq("farm_id", farmId)
+          .eq("status", "pending")
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle(),
+        "team:offer",
+      )
+    : null;
+  const offerRow = offerData as unknown as { id: string; users: { name: string } | null } | null;
+  const openOffer = offerRow ? { id: offerRow.id, name: offerRow.users?.name ?? "" } : null;
 
   const supabase = await createClient();
   const results = await Promise.all([
@@ -246,6 +262,18 @@ export default async function TeamPage({
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="warning" message={warning} />
       <Flash tone="success" message={success} />
+      <Flash tone="success" message={sp.handover === "offered" ? t("handover.offeredFlash", locale) : sp.handover === "cancelled" ? t("handover.cancelledFlash", locale) : undefined} />
+      {openOffer ? (
+        <Card>
+          <p className="text-sm text-sand-700">
+            {t("handover.waiting", locale).replace("{name}", () => openOffer.name)}
+          </p>
+          <form action={cancelOwnershipOffer} className="mt-3">
+            <input type="hidden" name="id" value={openOffer.id} />
+            <SubmitButton variant="secondary" size="sm">{t("handover.cancel", locale)}</SubmitButton>
+          </form>
+        </Card>
+      ) : null}
       <Link className="underline" href="/driver/activity">{t("driving.title",locale)}</Link>
 
       {/* Two different questions about the same people: who may sign in (this page), and
@@ -418,6 +446,27 @@ export default async function TeamPage({
                             >
                               <input type="hidden" name="id" value={u.id} />
                               <input type="hidden" name="back" value="/team" />
+                            </ConfirmDialog>
+                          ) : null}
+
+                          {permissionState.role === "owner" && !isMe && u.active ? (
+                            <ConfirmDialog
+                              action={offerOwnership}
+                              triggerLook="menuItem"
+                              triggerLabel={t("handover.menuItem", locale)}
+                              title={t("handover.confirmTitle", locale).replace("{name}", () => label)}
+                              intro={t("handover.confirmIntro", locale)}
+                              consequences={[
+                                t("handover.confirm1", locale),
+                                t("handover.confirm2", locale),
+                                t("handover.confirm3", locale),
+                              ]}
+                              confirmLabel={t("handover.confirmYes", locale)}
+                              cancelLabel={cancelLabel}
+                              closeLabel={closeLabel}
+                              tone="brand"
+                            >
+                              <input type="hidden" name="user_id" value={u.id} />
                             </ConfirmDialog>
                           ) : null}
 

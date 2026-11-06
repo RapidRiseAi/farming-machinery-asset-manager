@@ -1,5 +1,6 @@
 "use server";
 
+import { createServiceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -443,4 +444,24 @@ export async function importMachines(formData: FormData) {
     },
     { whileRunning: "/machines?error=still-saving" },
   );
+}
+
+/** Start this vehicle's next record at another of your sites. See 20261107110000. */
+export async function moveMachineToSite(formData: FormData) {
+  const profile = await requireRole(["owner", "manager"]);
+  const id = String(formData.get("id") ?? "");
+  const to = String(formData.get("to") ?? "");
+  if (!id || !to) redirect(`/machines/${id}?error=missing`);
+
+  const { error } = await createServiceClient().rpc("move_machine_to_site", {
+    p_machine: id,
+    p_to: to,
+    p_by: profile.id,
+  });
+  if (error) {
+    redirect(`/machines/${id}?error=${errorCode(error, "app/machines/actions:moveMachineToSite", "machine-move-failed")}`);
+  }
+  revalidatePath("/machines");
+  revalidatePath(`/machines/${id}`);
+  redirect(`/machines/${id}?moved=1`);
 }

@@ -1,10 +1,11 @@
 "use server";
 
+import { sendOwnershipOffer } from "@/lib/email/handover";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createClient } from "@/lib/supabase/server";
-import { homePathFor, requireProfile, requireUsableFarm, type Role } from "@/lib/auth";
+import { homePathFor, requireProfile, requireUsableFarm, type Role, requireRole } from "@/lib/auth";
 import {
   farmPermissionState,
   isUserPermission,
@@ -366,4 +367,50 @@ export async function setUserPermissions(formData: FormData) {
 
   revalidatePath(back);
   redirect(`${back}?permissionSaved=1`);
+}
+
+/** Offer the business to somebody on the team. Nothing changes until they accept. */
+export async function offerOwnership(formData: FormData) {
+  const profile = await requireRole(["owner"]);
+  const farmId = profile.farm_id;
+  const to = String(formData.get("user_id") ?? "");
+  if (!farmId || !to) redirect("/team?error=missing");
+
+  const svc = createServiceClient();
+  const { error } = await svc.rpc("offer_ownership", { p_farm: farmId, p_from: profile.id, p_to: to });
+  if (error) redirect(`/team?error=${errorCode(error, "app/team/actions:offerOwnership", "handover-ended")}`);
+
+  const { data: person, error: personError } = await svc.from("users").select("email, language").eq("id", to).maybeSingle();
+  const { data: farm, error: farmError } = await svc.from("farms").select("name").eq("id", farmId).maybeSingle();
+  if (personError || farmError) captureError(personError ?? farmError, { where: "team:offer-read" });
+  const email = (person as { email?: string | null } | null)?.email;
+  if (email) {
+    const language = (person as { language?: string | null } | null)?.language;
+    const mail = await sendOwnershipOffer({
+      email,
+      fromName: profile.name,
+      businessName: (farm as { name?: string } | null)?.name ?? "",
+      farmId,
+      locale: language === "af" ? "af" : "en",
+    });
+    if (!mail.ok) captureError(new Error("handover: offer email not sent"), { where: "team:offer-mail" });
+  }
+  revalidatePath("/team");
+  redirect("/team?handover=offered");
+}
+
+/** Take an offer back before it is answered. */
+export async function cancelOwnershipOffer(formData: FormData) {
+  const profile = await requireRole(["owner"]);
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/team?error=missing");
+  const { error } = await createServiceClient()
+    .from("farm_ownership_transfers")
+    .update({ status: "cancelled", decided_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("from_user", profile.id)
+    .eq("status", "pending");
+  if (error) redirect(`/team?error=${errorCode(error, "app/team/actions:cancelOwnershipOffer")}`);
+  revalidatePath("/team");
+  redirect("/team?handover=cancelled");
 }

@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Handing over a business, and moving a vehicle between sites.
+  "20261107110000": "select to_regclass('public.farm_ownership_transfers') is not null and to_regprocedure('public.move_machine_to_site(uuid,uuid,uuid)') is not null",
   // Permanent closure.
   "20261107100000": "select to_regclass('public.farm_closures') is not null and to_regprocedure('public.close_farm_permanently(uuid,uuid)') is not null",
   // What kind of business an account is, and who may change it.

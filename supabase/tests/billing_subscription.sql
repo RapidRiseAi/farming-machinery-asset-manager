@@ -1369,6 +1369,7 @@ declare
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
   v_rpc_fns text[] := array[
+    'close_farm_permanently','purge_expired_closures',
     'billing_due_charges','billing_claim_charge','billing_settle_attempt',
     'billing_generate_invoices','billing_start_subscription',
     'billing_claim_receipt','billing_release_receipt','billing_claim_failure_notice',

@@ -238,6 +238,8 @@ const CODE_KEYS: Record<string, string> = {
   // connection with somebody else who just signed up, not abusing anything.
   "signup-busy": "errors.signupBusy",
   "signup-company": "errors.signupCompany",
+  "handover-ended": "handover.errors.ended",
+  "machine-move-failed": "machineMove.failed",
   "closure-owner-only": "closure.errors.ownerOnly",
   "closure-understood": "closure.errors.understood",
   "closure-export-first": "closure.errors.exportFirst",

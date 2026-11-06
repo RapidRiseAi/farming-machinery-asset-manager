@@ -2,7 +2,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
-import { currentPlan, effectiveFarmRole, farmAllows } from "@/lib/auth";
+import { accessibleFarms, currentPlan, effectiveFarmRole, farmAllows } from "@/lib/auth";
 import { planAllows, requiredPlan } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
@@ -31,7 +31,7 @@ import { MachineFields, type OperatorOption } from "@/components/machine-fields"
 import { MachinePhotos } from "@/components/machine-photos";
 import { DocumentPacks } from "@/components/machines/document-packs";
 import { MeterGraph } from "./meter-graph";
-import { updateMachine, returnMachineToService } from "../actions";
+import { moveMachineToSite, updateMachine, returnMachineToService } from "../actions";
 import { addReading, correctReading, replaceMeter } from "./reading-actions";
 import { setWatchStatus } from "./watch-actions";
 import { addServiceLine, updateServiceLine, deleteServiceLine, applyTemplate } from "./service-actions";
@@ -102,6 +102,7 @@ import { isIsoDate, isUuid } from "@/lib/ids";
 type Machine = {
   id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null;
   year: number | null; serial_no: string | null; reg_no: string | null; meter_type: string;
+  previous_machine_id: string | null; moved_to_machine_id: string | null;
   current_reading: number | null; current_reading_date: string | null; status: string;
   purchase_date: string | null; purchase_price_cents: number | null; supplier: string | null;
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null; location: string | null; notes: string | null;
@@ -150,7 +151,7 @@ export default async function MachineDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; usageDate?: string; tab?: string; from?: string; tl?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; moved?: string; usageDate?: string; tab?: string; from?: string; tl?: string }>;
 }) {
   // Governing plan for entitlement gates (null = rr_admin/workshop bypass).
   const { profile, plan } = await currentPlan();
@@ -167,7 +168,7 @@ export default async function MachineDetailPage({
   // A failed read is the error screen, not "this machine does not exist".
   const data = must(await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, previous_machine_id, moved_to_machine_id")
     .eq("id", id)
     .maybeSingle(), "machine:machine");
   const machineBase = data as Omit<Machine, "purchase_price_cents" | "supplier" | "finance_provider" | "finance_total_cents" | "finance_monthly_cents" | "finance_term_months" | "finance_interest_bps"> | null;
@@ -179,6 +180,8 @@ export default async function MachineDetailPage({
     ? "workshop"
     : await effectiveFarmRole(machineBase.farm_id, profile);
   const canEdit = resourceRole === "owner" || resourceRole === "manager";
+  // The database checks the person runs both ends; this only decides whether to offer it.
+  const otherSites = canEdit ? (await accessibleFarms(profile)).filter((f) => f.id !== machine.farm_id) : [];
   const canAddReading = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
   // The same rule /faults uses to offer this machine in its report dialog.
   const canReportFault = resourceRole != null &&
@@ -897,6 +900,32 @@ export default async function MachineDetailPage({
                   </form>
                 </DialogForm>
               ) : null}
+              {canEdit && otherSites.length > 0 && !machine.moved_to_machine_id ? (
+                <DialogForm
+                  triggerLook="menuItem"
+                  trigger={t("machineMove.menuItem", locale)}
+                  title={t("machineMove.menuItem", locale)}
+                  description={t("machineMove.hint", locale)}
+                  closeLabel={closeLabel}
+                  size="md"
+                >
+                  <form action={moveMachineToSite}>
+                    <input type="hidden" name="id" value={machine.id} />
+                    <DialogFields columns={1}>
+                      <Field label={t("machineMove.to", locale)} htmlFor="mv-to">
+                        <Select id="mv-to" name="to" required defaultValue={otherSites[0]?.id}>
+                          {otherSites.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </DialogFields>
+                    <DialogActions cancelLabel={cancelLabel}>
+                      <SubmitButton variant="primary">{t("machineMove.go", locale)}</SubmitButton>
+                    </DialogActions>
+                  </form>
+                </DialogForm>
+              ) : null}
               {canFill ? (
                 <Link href={`/machines/${machine.id}/checklists/new`} className={menuItemClass()}>
                   {t("checklists.newChecklist", locale)}
@@ -925,6 +954,19 @@ export default async function MachineDetailPage({
       />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      <Flash tone="success" message={sp.moved ? t("machineMove.done", locale) : undefined} />
+      {machine.moved_to_machine_id ? (
+        <p className="text-sm text-sand-700">
+          {t("machineMove.movedAway", locale)}{" "}
+          <Link href={`/machines/${machine.moved_to_machine_id}`} className="underline">{t("machineMove.seeNow", locale)}</Link>
+        </p>
+      ) : null}
+      {machine.previous_machine_id ? (
+        <p className="text-sm text-sand-700">
+          {t("machineMove.cameFrom", locale)}{" "}
+          <Link href={`/machines/${machine.previous_machine_id}`} className="underline">{t("machineMove.seeEarlier", locale)}</Link>
+        </p>
+      ) : null}
       <Flash tone="success" message={sp.saved ? t(savedMsg[sp.saved] ?? financeSavedKey(sp.saved) ?? "ui.saved", locale) : undefined} />
 
       {/*

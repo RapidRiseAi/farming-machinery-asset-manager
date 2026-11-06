@@ -7811,5 +7811,48 @@
       "name": "Dit is nie die naam van hierdie besigheid nie. Tik dit presies soos dit gewys word.",
       "failed": "Dit het nie gewerk nie en niks is uitgevee nie. Probeer asseblief weer."
     }
+  },
+  "handover": {
+    "title": "Oorname van 'n besigheid",
+    "none": "Geen aanbiedinge wag vir jou nie.",
+    "menuItem": "Dra eienaarskap oor",
+    "confirmTitle": "Bied die besigheid aan {name} aan?",
+    "confirmIntro": "Niks verander voordat hulle aanvaar nie. Jy kan die aanbod tot dan terugneem.",
+    "confirm1": "Hulle word die eienaar en neem die rekening oor",
+    "confirm2": "Jy bly aan as bestuurder",
+    "confirm3": "Jou gestoorde kaart word van die rekening afgehaal, sodat hulle hul eie kan byvoeg",
+    "confirmYes": "Stuur die aanbod",
+    "offeredFlash": "Aanbod gestuur. Dit hou 14 dae.",
+    "cancelledFlash": "Aanbod teruggeneem.",
+    "waiting": "Wag vir {name} om jou aanbod van eienaarskap te aanvaar.",
+    "cancel": "Neem die aanbod terug",
+    "offerTitle": "{from} bied {business} aan jou aan",
+    "means1": "Jy word die eienaar en neem die rekening oor",
+    "means2": "{{Org}}-rekords bly presies soos hulle is",
+    "means3": "Die gestoorde kaart word afgehaal, so jy sal jou eie moet byvoeg voor die volgende betaling",
+    "ends": "Hierdie aanbod eindig {date}.",
+    "accept": "Aanvaar",
+    "decline": "Weier",
+    "mail": {
+      "subject": "{from} bied {business} op {app} aan jou aan",
+      "body": "{from} wil {business} op {app} aan jou oordra.",
+      "what": "As jy aanvaar, word jy die eienaar en neem jy die rekening oor. Meld aan om te antwoord. Die aanbod hou 14 dae.",
+      "button": "Sien die aanbod"
+    },
+    "errors": {
+      "ended": "Daardie aanbod het geëindig of is nie vir jou nie."
+    }
+  },
+  "machineMove": {
+    "menuItem": "Skuif na 'n ander perseel",
+    "hint": "Dit begin 'n nuwe rekord by die ander perseel, met sy diensplan, lisensies en QR-plakker. Sy geskiedenis bly hier en bly gekoppel.",
+    "to": "Skuif na",
+    "go": "Skuif dit",
+    "done": "Geskuif. Skakel oor na die ander perseel om daarmee voort te gaan.",
+    "movedAway": "Hierdie {{asset}} het na 'n ander perseel geskuif. Dit is sy geskiedenis hier.",
+    "seeNow": "Sien dit nou",
+    "cameFrom": "Hierdie {{asset}} kom van 'n ander perseel.",
+    "seeEarlier": "Sien sy vroeëre geskiedenis",
+    "failed": "Dit kon nie geskuif word nie. Kyk of jy albei persele bestuur en of die ander perseel 'n vrye gleuf het."
   }
 }

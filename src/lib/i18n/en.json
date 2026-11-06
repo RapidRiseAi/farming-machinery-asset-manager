@@ -7811,5 +7811,48 @@
       "name": "That is not the name of this business. Type it exactly as it is shown.",
       "failed": "That did not work and nothing was deleted. Please try again."
     }
+  },
+  "handover": {
+    "title": "Taking over a business",
+    "none": "No offers are waiting for you.",
+    "menuItem": "Hand over ownership",
+    "confirmTitle": "Offer the business to {name}?",
+    "confirmIntro": "Nothing changes until they accept. You can take the offer back until then.",
+    "confirm1": "They become the owner and take over the bill",
+    "confirm2": "You stay on as a manager",
+    "confirm3": "Your saved card is taken off the account, so they add their own",
+    "confirmYes": "Send the offer",
+    "offeredFlash": "Offer sent. It lasts 14 days.",
+    "cancelledFlash": "Offer taken back.",
+    "waiting": "Waiting for {name} to accept your offer of ownership.",
+    "cancel": "Take the offer back",
+    "offerTitle": "{from} is offering you {business}",
+    "means1": "You become the owner and take over the bill",
+    "means2": "{{Org}} records stay exactly as they are",
+    "means3": "The saved card comes off, so you will need to add your own before the next payment",
+    "ends": "This offer ends {date}.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "mail": {
+      "subject": "{from} is offering you {business} on {app}",
+      "body": "{from} wants to hand {business} over to you on {app}.",
+      "what": "If you accept, you become the owner and take over the bill. Sign in to answer. The offer lasts 14 days.",
+      "button": "See the offer"
+    },
+    "errors": {
+      "ended": "That offer has ended or is not for you."
+    }
+  },
+  "machineMove": {
+    "menuItem": "Move to another site",
+    "hint": "It starts a new record at the other site, with its service plan, licences and QR sticker. Its history stays here and stays linked.",
+    "to": "Move to",
+    "go": "Move it",
+    "done": "Moved. Switch to the other site to carry on with it.",
+    "movedAway": "This {{asset}} has moved to another site. This is its history here.",
+    "seeNow": "See it now",
+    "cameFrom": "This {{asset}} came from another site.",
+    "seeEarlier": "See its earlier history",
+    "failed": "That could not be moved. Check that you run both sites and that the other site has a free slot."
   }
 }
