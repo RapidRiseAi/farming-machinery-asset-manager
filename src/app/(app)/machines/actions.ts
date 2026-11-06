@@ -10,6 +10,7 @@ import {
   requireCurrentFarmRole,
   requireFarmRole,
   requireProfile,
+  requireRole,
 } from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
 import { uploadMachinePhotoDataUrl } from "@/lib/machine-photo";
