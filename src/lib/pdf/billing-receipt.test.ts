@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildBillingReceiptPdf, type BillingReceiptData } from "./billing-receipt";
+import { buildBillingReceiptPdf, eftLines, type BillingReceiptData } from "./billing-receipt";
 
 const base: BillingReceiptData = {
   kind: "invoice",
@@ -59,4 +59,16 @@ test("an Afrikaans service receipt renders", async () => {
     amountPaidCents: 186000,
     serviceLines: [{ description: "Opleiding", qty: 2, totalInclCents: 186000 }],
   })));
+});
+
+test("EFT details print only on an invoice still asking for money", async () => {
+  const details = "Bank Name: Test Bank\nAccount Number: 123";
+  const owed = eftLines({ ...base, eft: details }, 186000);
+  assert.deepEqual(owed.slice(1, 3), ["Bank Name: Test Bank", "Account Number: 123"]);
+  assert.ok(owed[3].includes("RR-TEST-0001"), "the invoice number is the reference");
+
+  assert.deepEqual(eftLines({ ...base, eft: details }, 0), [], "a settled invoice asks for nothing");
+  assert.deepEqual(eftLines({ ...base, kind: "receipt", eft: details }, 186000), [], "a receipt asks for nothing");
+  assert.deepEqual(eftLines({ ...base, eft: null }, 186000), [], "no details set");
+  assert.ok((await buildBillingReceiptPdf({ ...base, eft: details })).length > 1000);
 });

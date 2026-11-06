@@ -21,6 +21,8 @@ import {
 import { errorMessage } from "@/lib/errors";
 import { COMPANY } from "@/lib/legal";
 import { Flash } from "@/components/ui/flash";
+import { EftDetails } from "@/components/billing/eft-details";
+import { rapidRiseEft } from "@/lib/billing/eft";
 import { signOut } from "@/app/(app)/actions";
 import { payOverdueAction } from "./actions";
 import { DownloadLink } from "@/components/ui/download-link";
@@ -64,6 +66,7 @@ export default async function SuspendedPage({
   // was offered Pay now with no amount (review finding app-9). An operator still reads none
   // of it and gets the general sentence instead of the farm's commercial position.
   const bill = canPay ? await payNowFor(createServiceClient(), farmId) : null;
+  const eft = bill?.paying && !bill.settling ? await rapidRiseEft(createServiceClient()) : null;
   // Other invoices still keep the farm paused after this payment: say so, and do not
   // promise that everything comes back with this one (review finding app-4).
   const more = bill !== null && bill.stillOverdueCents > 0;
@@ -123,7 +126,14 @@ export default async function SuspendedPage({
           </form>
         )}
 
-        {canPay ? (
+        {eft && bill?.paying ? (
+          <EftDetails
+            className="mt-4"
+            details={eft}
+            title={t("activate.eftTitle", locale)}
+            reference={t("suspended.eftReference", locale).replace("{ref}", bill.paying.invoice_ref)}
+          />
+        ) : canPay ? (
           <p className="mt-3 text-sm text-sand-700">{t("suspended.eft", locale).replace("{email}", COMPANY.email)}</p>
         ) : null}
 

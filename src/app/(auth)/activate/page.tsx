@@ -12,6 +12,8 @@ import { settlingOnInvoice } from "@/lib/billing/stopped-farm";
 import { SettlingNotice } from "@/components/billing/settling-notice";
 import { signOut } from "@/app/(app)/actions";
 import { Flash } from "@/components/ui/flash";
+import { EftDetails } from "@/components/billing/eft-details";
+import { rapidRiseEft } from "@/lib/billing/eft";
 import { errorMessage } from "@/lib/errors";
 import { beginCheckoutAction } from "./actions";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -107,10 +109,7 @@ export default async function ActivatePage({
   // Rapid Rise's EFT details (20261105100000), for a quoted customer who pays by transfer:
   // shown beside the invoice number as the reference, and only to somebody who may pay. A
   // failed read shows card payment only rather than an error.
-  const eft = svc && invoice
-    ? ((await svc.from("billing_settings").select("eft_instructions").eq("singleton", true).maybeSingle()).data
-        ?.eft_instructions as string | null | undefined) ?? null
-    : null;
+  const eft = svc && invoice ? await rapidRiseEft(svc) : null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6">
@@ -177,13 +176,12 @@ export default async function ActivatePage({
             <p className="mt-4 text-xs text-sand-700">{t("activate.note", locale)}</p>
 
             {eft && invoice ? (
-              <div className="mt-5 border-t border-sand-300 pt-4 text-sm">
-                <p className="font-semibold text-sand-900">{t("activate.eftTitle", locale)}</p>
-                <p className="mt-1 whitespace-pre-line text-sand-700">{eft}</p>
-                <p className="mt-2 text-sand-700">
-                  {t("activate.eftReference", locale).replace("{ref}", invoice.invoice_ref)}
-                </p>
-              </div>
+              <EftDetails
+                className="mt-5"
+                details={eft}
+                title={t("activate.eftTitle", locale)}
+                reference={t("activate.eftReference", locale).replace("{ref}", invoice.invoice_ref)}
+              />
             ) : null}
           </>
         )}

@@ -5626,7 +5626,8 @@
     "slotsMinimum": "This plan is billed for at least {n} vehicle slots.",
     "atMinimum": "Billed at the plan minimum of {n} slots. You can add vehicles up to {n} at no extra cost.",
     "quoteSlotsMinimum": "Your plan is billed for at least five vehicle slots, so the number cannot go below that.",
-    "quotePlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan."
+    "quotePlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan.",
+    "eftReference": "Use {ref} as the reference. We record the payment on your account, usually within one working day."
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -5881,7 +5882,9 @@
     "howToPayCard": "Sign in to FleetWise, open Billing and press Pay now. It goes through on a card and takes about a minute. Your farm stays open while you sort it out.",
     "questionsAbout": "Any question about this invoice, or a different way to pay it: {email}",
     "keepThisInvoice": "Keep this invoice for your records.",
-    "colQty": "Quantity"
+    "colQty": "Quantity",
+    "howToPayEft": "Or pay by EFT:",
+    "eftReference": "Use {ref} as the reference."
   },
   "billingReceiptEmail": {
     "subject": "Receipt {ref}, {amount} received",
@@ -7229,7 +7232,8 @@
     "leadMany": "More than one payment is over seven days overdue, so the app is paused until they are all paid. Everything comes back once the last one is.",
     "owedInvoice": "{amount} is unpaid on invoice {ref}, due since {date}.",
     "moreOverdue": "After this payment, {amount} is still overdue on other invoices, so the farm stays paused until that is paid too.",
-    "payAmount": "Pay {amount} now"
+    "payAmount": "Pay {amount} now",
+    "eftReference": "Use {ref} as the reference. Your farm opens again as soon as we have recorded the payment, usually within one working day."
   },
   "sites": {
     "title": "Your farms",

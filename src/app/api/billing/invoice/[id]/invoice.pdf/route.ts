@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
 import { loadReceipt } from "@/lib/billing/receipt";
+import { rapidRiseEft } from "@/lib/billing/eft";
 import { buildBillingReceiptPdf } from "@/lib/pdf/billing-receipt";
 import { pdfResponse } from "@/lib/pdf/doc";
 import { isUuid } from "@/lib/ids";
@@ -87,6 +88,7 @@ export async function GET(
   const doc = await loadReceipt(supabase, invoice.id, profile.lang, "invoice");
   if (!doc) return NextResponse.json({ error: "not-found" }, { status: 404 });
 
-  const pdf = await buildBillingReceiptPdf(doc);
+  // Rapid Rise's own bill, so its bank details belong here (lib/billing/eft.ts).
+  const pdf = await buildBillingReceiptPdf({ ...doc, eft: await rapidRiseEft(supabase) });
   return pdfResponse(pdf, `${invoice.invoice_ref}.pdf`);
 }

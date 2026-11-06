@@ -5626,7 +5626,8 @@
     "slotsMinimum": "Hierdie plan word vir minstens {n} voertuigplekke gefaktureer.",
     "atMinimum": "Gefaktureer teen die planminimum van {n} plekke. Jy kan tot {n} voertuie byvoeg sonder ekstra koste.",
     "quoteSlotsMinimum": "Jou plan word vir minstens vyf voertuigplekke gefaktureer, so die getal kan nie laer as dit wees nie.",
-    "quotePlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan."
+    "quotePlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan.",
+    "eftReference": "Gebruik {ref} as die verwysing. Ons teken die betaling op jou rekening aan, gewoonlik binne een werksdag."
   },
   "adminBilling": {
     "title": "Intekeninge",
@@ -5881,7 +5882,9 @@
     "howToPayCard": "Meld by FleetWise aan, maak Rekening oop en druk Betaal nou. Dit gaan met 'n kaart deur en vat omtrent 'n minuut. Jou plaas bly oop terwyl jy dit uitsorteer.",
     "questionsAbout": "Enige navraag oor hierdie faktuur, of 'n ander manier om dit te betaal: {email}",
     "keepThisInvoice": "Hou hierdie faktuur vir jou rekords.",
-    "colQty": "Hoeveelheid"
+    "colQty": "Hoeveelheid",
+    "howToPayEft": "Of betaal per EFT:",
+    "eftReference": "Gebruik {ref} as die verwysing."
   },
   "billingReceiptEmail": {
     "subject": "Kwitansie {ref}, {amount} ontvang",
@@ -7229,7 +7232,8 @@
     "leadMany": "Meer as een betaling is langer as sewe dae agterstallig, so die toep is onderbreek totdat almal betaal is. Alles is terug sodra die laaste een betaal is.",
     "owedInvoice": "{amount} is onbetaald op faktuur {ref}, betaalbaar sedert {date}.",
     "moreOverdue": "Ná hierdie betaling is {amount} nog agterstallig op ander fakture, so die plaas bly onderbreek totdat dit ook betaal is.",
-    "payAmount": "Betaal nou {amount}"
+    "payAmount": "Betaal nou {amount}",
+    "eftReference": "Gebruik {ref} as die verwysing. Jou plaas maak weer oop sodra ons die betaling aangeteken het, gewoonlik binne een werksdag."
   },
   "sites": {
     "title": "Jou plase",

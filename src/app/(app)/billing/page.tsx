@@ -54,6 +54,8 @@ import {
 } from "@/lib/billing/view";
 
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { EftDetails } from "@/components/billing/eft-details";
+import { rapidRiseEft } from "@/lib/billing/eft";
 import { Stat } from "@/components/ui/stat";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
@@ -375,6 +377,9 @@ export default async function BillingPage({
   const expiry = cardExpiryState(card, sub, new Date().toISOString().slice(0, 10));
   const payable = payableInvoice(invoices);
   const offer = retryOffer(payable, attempts);
+  // Only with a bill to pay, so the invoice number can be the reference, and never while a
+  // card payment is in flight, which could end in paying it twice.
+  const eft = offer.kind === "offer" ? await rapidRiseEft(supabase) : null;
 
   // The three tiles at the top of the page. Each only CHOOSES between figures worked out
   // above, the estimate, the retry offer, the billed units, the expiry reading, and the
@@ -1255,6 +1260,15 @@ export default async function BillingPage({
             ) : null}
           </div>
         </PendingGroup>
+
+        {offer.kind === "offer" && eft ? (
+          <EftDetails
+            className="mt-5"
+            details={eft}
+            title={t("activate.eftTitle", locale)}
+            reference={t("billing.eftReference", locale).replace("{ref}", offer.invoice.invoice_ref)}
+          />
+        ) : null}
       </Card>
 
       {/* == Bills and receipts =============================================== */}

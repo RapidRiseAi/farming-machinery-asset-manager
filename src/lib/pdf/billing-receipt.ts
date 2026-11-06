@@ -100,11 +100,26 @@ export type BillingReceiptData = {
     reference: string | null;
     channel: string | null;
   } | null;
+  /** Rapid Rise's banking details, on an invoice only. Null when none are set. */
+  eft?: string | null;
   locale: Lang;
 };
 
 function sellerName(d: BillingReceiptData): string {
   return d.seller.tradingName || d.seller.legalName || "FleetWise";
+}
+
+/**
+ * What "How to pay" prints for EFT: nothing on a receipt, a settled invoice or with no
+ * details set, because a document that is not asking for money must not say where to send it.
+ */
+export function eftLines(d: BillingReceiptData, owedCents: number): string[] {
+  if (d.kind !== "invoice" || owedCents <= 0 || !d.eft) return [];
+  return [
+    t("billingReceipt.howToPayEft", d.locale),
+    ...d.eft.split("\n"),
+    t("billingReceipt.eftReference", d.locale).replace("{ref}", d.invoiceRef),
+  ];
 }
 
 export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uint8Array> {
@@ -314,14 +329,15 @@ export async function buildBillingReceiptPdf(d: BillingReceiptData): Promise<Uin
   }
 
   // == How to pay it =========================================================
-  // Only on an invoice with money still owed, and deliberately WITHOUT bank details: Rapid
-  // Rise collects by card through Paystack and has no account for this, so printing one
-  // would be inventing a payment route that does not exist. What it does instead is name
-  // the two-minute path and the address to write to for anything else.
+  // Only on an invoice with money still owed: the two-minute card path, Rapid Rise's bank
+  // details when they are set (the invoice number is the reference), and the address to
+  // write to for anything else. A receipt or a settled invoice asks for nothing.
   if (isInvoice && outstandingCents > 0) {
     pdf.hr();
     pdf.heading(t("billingReceipt.howToPay", L));
-    pdf.text(t("billingReceipt.howToPayCard", L));
+    pdf.text(t("billingReceipt.howToPayCard", L), { gap: 6 });
+    const eft = eftLines(d, outstandingCents);
+    eft.forEach((line, i) => pdf.text(line, { bold: i === 0, gap: i === eft.length - 1 ? 6 : 0 }));
     if (d.seller.email) {
       pdf.text(t("billingReceipt.questionsAbout", L).replace("{email}", d.seller.email));
     }
