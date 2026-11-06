@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Permanent closure.
+  "20261107100000": "select to_regclass('public.farm_closures') is not null and to_regprocedure('public.close_farm_permanently(uuid,uuid)') is not null",
   // What kind of business an account is, and who may change it.
   "20261107090000": "select to_regprocedure('public.set_company_type(uuid,text)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'farms' and column_name = 'company_type')",
   // A contractor's one-person link: the table and the function that claims it.

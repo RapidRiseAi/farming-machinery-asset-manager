@@ -1,3 +1,4 @@
+import { finishClosureFiles } from "@/lib/farm-closure";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { captureError } from "@/lib/observability";
@@ -144,6 +145,10 @@ export async function GET(request: Request) {
       captureError(err, { where: `cron:${name}` });
     }
   };
+  // Files a permanent closure could not remove, then what five years have released.
+  await step("closure_files", () => finishClosureFiles(supabase));
+  await run("closure_purge", "purge_expired_closures");
+
   await step("ai_fx_rate", () => refreshFxRate(supabase));
   await step("ai_prices", () => refreshPrices(supabase));
   await step("ai_gateway_credits", () => checkGatewayCredits(supabase));

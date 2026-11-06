@@ -515,6 +515,13 @@ export default async function SettingsPage({
         })}
       </section>
 
+      {profile.role === "owner" ? (
+        <p className="text-sm text-sand-600">
+          {t("closure.settingsLine", locale)}{" "}
+          <Link href="/settings/close" className="font-medium text-status-due underline">{t("closure.settingsLink", locale)}</Link>
+        </p>
+      ) : null}
+
       {/* Rapid Rise's support visits to this farm, with the reason given: the owner's. */}
       {profile.role === "owner" && profile.farm_id ? <SupportVisits farmId={profile.farm_id} locale={locale} /> : null}
     </PageContainer>

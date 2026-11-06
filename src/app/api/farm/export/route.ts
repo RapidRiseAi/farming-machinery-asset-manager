@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 import { getProfile, currentFarmId, effectiveFarmRole, accessibleFarms } from "@/lib/auth";
 import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
+import { captureError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { readAll } from "@/lib/supabase/read-all";
 import { isUuid } from "@/lib/ids";
 
@@ -197,6 +199,14 @@ export async function GET(request: Request) {
           unavailable.length ? `Not available to this account: ${unavailable.join(", ")}.` : null,
         ].filter(Boolean);
         write(`\n},"notes":${JSON.stringify(notes)}}\n`);
+        // What lets an owner go on to close the account: a whole file, taken by them.
+        if (role === "owner" && truncated.length === 0) {
+          const { error: stampError } = await createServiceClient()
+            .from("farms")
+            .update({ last_export_at: new Date().toISOString() })
+            .eq("id", farmId);
+          if (stampError) captureError(stampError, { where: "export:stamp" });
+        }
         controller.close();
       } catch (failure) {
         // Half a file must not look like a whole one: the stream errors, so the download
