@@ -29,6 +29,8 @@ const ALLOWED = new Set([
   "app/(app)/billing/page.tsx",
   "app/(auth)/suspended/page.tsx",
   "app/api/billing/invoice/[id]/invoice.pdf/route.ts",
+  // The payment-failed email, about a FleetWise subscription charge.
+  "lib/billing/receipt.ts",
 ]);
 
 const readers = () =>

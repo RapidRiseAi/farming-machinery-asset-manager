@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { emailConfigProblem, sendEmail } from "@/lib/email/resend";
+import { rapidRiseEft } from "./eft";
 import {
   buildBillingReceiptPdf,
   type BillingDocumentKind,
@@ -319,9 +320,11 @@ function receiptBody(d: BillingReceiptData, farmName: string): { html: string; t
   return { html, text };
 }
 
-function failureBody(
+export function failureBody(
   row: FailureRow,
   locale: Lang,
+  /** Rapid Rise's banking details, for someone whose card has just failed. */
+  eft: string | null = null,
 ): { html: string; text: string; subject: string } {
   const L = locale;
   const amount = rands(row.amount_incl_cents);
@@ -338,6 +341,15 @@ function failureBody(
       : "",
     "",
     t("billingFailureEmail.whatToDo", L),
+    // Without an invoice number there is no reference to pay against, so no details.
+    ...(eft && row.invoice_ref
+      ? [
+          "",
+          t("activate.eftTitle", L),
+          ...eft.split("\n"),
+          t("billing.eftReference", L).replace("{ref}", row.invoice_ref),
+        ]
+      : []),
   ].filter((l, i, a) => !(l === "" && a[i - 1] === ""));
   const text = lines.join("\n");
   const html =
@@ -497,6 +509,7 @@ export async function sendDueFailureNotices(
 
   const rows = (data ?? []) as FailureRow[];
   const out: NoticeSummary = { considered: rows.length, sent: 0, skipped: 0, failed: 0, reasons: [] };
+  const eft = rows.length > 0 ? await rapidRiseEft(supabase) : null;
 
   for (const row of rows) {
     if (!row.recipient_email) {
@@ -519,7 +532,7 @@ export async function sendDueFailureNotices(
 
     try {
       const locale = await farmLocale(supabase, row.farm_id);
-      const body = failureBody(row, locale);
+      const body = failureBody(row, locale, eft);
       const sent = await sendEmail({
         scope: { farmId: row.farm_id },
         to: row.recipient_email,

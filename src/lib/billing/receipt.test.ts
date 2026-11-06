@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendDueReceipts, sendDueFailureNotices } from "./receipt";
+import { failureBody, sendDueReceipts, sendDueFailureNotices } from "./receipt";
 
 /** Any use of this is a test failure: nothing should be queried before the config check. */
 const NO_DATABASE = new Proxy(
@@ -72,5 +72,32 @@ test("a missing FROM address is named too, it was never checked at all", async (
       assert.equal(receipts.skipped, 1);
       assert.match(receipts.reasons[0] ?? "", /EMAIL_FROM is not set/);
     },
+  );
+});
+
+test("the payment-failed email gives the EFT details, with the invoice as the reference", () => {
+  const row = {
+    attempt_id: "a",
+    invoice_id: "i",
+    farm_id: "f",
+    invoice_ref: "FW-2026-000123",
+    amount_incl_cents: 39500,
+    failure_reason: null,
+    recipient_email: "owner@example.test",
+    farm_name: "Test Farm",
+    next_retry_on: null,
+    grace_ends_on: null,
+  };
+  const details = "Bank Name: Test Bank\nAccount Number: 123";
+
+  const body = failureBody(row, "en", details);
+  assert.ok(body.text.includes("Account Number: 123"));
+  assert.ok(body.text.includes("FW-2026-000123"));
+  assert.ok(body.html.includes("Bank Name: Test Bank"));
+
+  assert.ok(!failureBody(row, "en").text.includes("Bank Name"), "no details set");
+  assert.ok(
+    !failureBody({ ...row, invoice_ref: null }, "en", details).text.includes("Bank Name"),
+    "no invoice number means nothing to pay against",
   );
 });
