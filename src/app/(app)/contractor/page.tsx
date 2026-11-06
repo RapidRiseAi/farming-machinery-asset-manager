@@ -5,6 +5,7 @@ import { requireProfile, workshopPlan } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll, readByIds } from "@/lib/supabase/read-all";
 import { must, mustAll } from "@/lib/supabase/must";
+import { APP_NAME } from "@/lib/env";
 import { rands } from "@/lib/money";
 import { ledgerSign, isNote } from "@/lib/partner-docs";
 import { t } from "@/lib/i18n";
@@ -600,6 +601,17 @@ export default async function ContractorDashboardPage({
           </div>
         </div>
       )}
+
+      {/* A contractor let in by one farmer has seen what this does. Worth one quiet card. */}
+      {plan === "portal" ? (
+        <Card>
+          <CardHeader><CardTitle>{t("contractor.partnerTitle", locale).replaceAll("{app}", () => APP_NAME)}</CardTitle></CardHeader>
+          <p className="text-sm text-sand-600">{t("contractor.partnerBody", locale)}</p>
+          <Link href="/become-a-partner" className={`mt-3 ${buttonVariants({ variant: "secondary", size: "sm" })}`}>
+            {t("contractor.partnerCta", locale)}
+          </Link>
+        </Card>
+      ) : null}
     </PageContainer>
   );
 }

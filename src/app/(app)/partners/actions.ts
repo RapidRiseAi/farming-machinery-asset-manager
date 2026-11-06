@@ -1,12 +1,14 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { farmPermissionState } from "@/lib/permissions";
+import { mintSignIn, sendContractorSignIn } from "@/lib/email/partner-access";
+import { siteUrl } from "@/lib/env";
+import { inviteExpiry, inviteUrl, newInviteSecrets } from "@/lib/partner-invites";
 import { setPartnerLink, clearPartnerLink } from "@/lib/partner-link";
 import { partnerMatchKey } from "@/lib/partner-match";
 import { runOnce } from "@/lib/request-claim";
@@ -35,7 +37,7 @@ async function requireConnectionManager() {
     redirect(`${homePathFor(profile.role)}?denied=1`);
   }
   await requireUsableFarm(state.farmId, profile);
-  return { farmId: state.farmId };
+  return { farmId: state.farmId, profile };
 }
 
 const KINDS = [
@@ -171,205 +173,155 @@ export async function adoptSuggested(formData: FormData) {
   redirect("/partners?added=1");
 }
 
-// == Invite / connect a contractor ============================================
-// Turns a farm-owned partner into an authenticated, role-based `workshop`:
-//   1. create (or reuse) a `workshop` carrying the partner's kind + contacts,
-//   2. an ACTIVE `workshop_link` to this farm (the multi-farm access spine),
-//   3. a `workshop`-role user for the contractor's email,
-//   4. a magic login URL to hand over (deep-links straight into the app),
-// then stamps partner.workshop_id. All privileged writes go through the service
-// role (workshops/users are RR-admin-only under RLS), exactly the 0-team pattern.
-// RLS invariants are untouched: the contractor reaches ONLY farms with an active
-// link to their workshop; no guessable bypass is created.
+// == Giving a contractor access ===============================================
+// The farmer makes a link and a code and sends them however they like; the contractor proves
+// their own email address on /join (lib/partner-invites.ts has the rules). Connecting happens
+// there, through the service role, exactly the 0-team pattern. RLS invariants are untouched:
+// a contractor reaches only farms with an active link to their workshop.
+//
+// Nothing in this section ever gives a farmer a way to sign in as somebody. It used to: an
+// address typed here was turned into a working sign-in link and shown on screen, for any
+// account on the platform. A sign-in link now only ever goes by email to its own address.
 
-async function siteOrigin(): Promise<string> {
-  return (
-    (await headers()).get("origin") ??
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    ""
-  );
+function grantsFrom(fd: FormData) {
+  return {
+    see_all_vehicles: fd.get("see_all_vehicles") != null,
+    see_service_history: fd.get("see_service_history") != null,
+    see_costs: fd.get("see_costs") != null,
+    see_team: fd.get("see_team") != null,
+  };
 }
 
-/** Generate a magic login URL for an existing/created contractor user. */
-async function issueLoginUrl(
-  svc: ReturnType<typeof createServiceClient>,
-  email: string,
-  origin: string
-): Promise<{ url: string | null; userId: string | null; error?: string }> {
-  // Land the invited contractor on their aggregated contractor dashboard (F12c).
-  const redirectTo = `${origin}/auth/callback?next=/contractor`;
-  const { data, error } = await svc.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo },
-  });
-  if (error || !data) {
-    // Both callers say "no login link" to the farmer; we hear of it unless Auth refused the
-    // request itself (a 4xx: a malformed address, too many emails). The status and code
-    // only: GoTrue's message can quote the email address.
-    const status = (error as { status?: number } | null)?.status;
-    if (!(typeof status === "number" && status >= 400 && status < 500)) {
-      captureError(new Error(`partners:login-link failed (${(error as { code?: string } | null)?.code ?? status ?? "no data"})`), { where: "partners:login-link" });
-    }
-    return { url: null, userId: null, error: error?.message };
-  }
-  const url = (data.properties as { action_link?: string } | null)?.action_link ?? null;
-  return { url, userId: data.user?.id ?? null };
-}
-
-export async function inviteContractor(formData: FormData) {
+/** Make a link for a contractor, adding them to the directory first if they are new. */
+export async function createPartnerInvite(formData: FormData) {
   return runOnce(
     formData,
-    "partners:invite",
+    "partners:access-link",
     async () => {
-      const { farmId } = await requireConnectionManager();
-      const partnerId = String(formData.get("id") ?? "");
-      const email = String(formData.get("email") ?? "").trim().toLowerCase();
-      if (!partnerId) redirect("/partners?error=Missing+partner");
-      if (!email || !email.includes("@")) redirect("/partners?error=A+valid+email+is+required+to+invite");
+      const { farmId, profile } = await requireConnectionManager();
+      const origin = siteUrl();
+      if (!origin) redirect("/partners?linkerror=1");
 
-      // Load the partner through RLS (guarantees it belongs to this farm).
       const rls = await createClient();
-      const { data: partner, error: partnerError } = await rls
-        .from("partners")
-        .select("id, farm_id, name, kind, phone, whatsapp, email, area, workshop_id")
-        .eq("id", partnerId)
-        .maybeSingle();
-      if (partnerError) redirect(`/partners?error=${errorCode(partnerError, "app/partners/actions:inviteContractor:partner")}`);
-      if (!partner || partner.farm_id !== farmId) {
-        redirect("/partners?error=Partner+not+found");
+      let partnerId = String(formData.get("id") ?? "");
+      if (partnerId) {
+        // Through RLS: this is what proves the row is this farm's.
+        const { data: partner, error } = await rls
+          .from("partners")
+          .select("id, farm_id")
+          .eq("id", partnerId)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:createPartnerInvite:partner")}`);
+        if (!partner || partner.farm_id !== farmId) redirect("/partners?error=Partner+not+found");
+      } else {
+        const name = s(formData, "name");
+        if (!name) redirect("/partners?error=partner-name-needed");
+        const { data: own, error: ownError } = await rls
+          .from("partners")
+          .select("id, name, phone")
+          .eq("farm_id", farmId)
+          .is("deleted_at", null);
+        // Unread is not "no match": adding on it would file a duplicate contractor.
+        if (ownError) redirect(`/partners?error=${errorCode(ownError, "app/partners/actions:createPartnerInvite:own")}`);
+        const key = partnerMatchKey(name, null);
+        const match = ((own ?? []) as { id: string; name: string; phone: string | null }[]).find(
+          (p) => partnerMatchKey(p.name, null) === key,
+        );
+        if (match) {
+          partnerId = match.id;
+        } else {
+          const { data: added, error } = await rls
+            .from("partners")
+            .insert({ farm_id: farmId, is_suggested: false, name, kind: kindOf(formData), created_by: profile.id })
+            .select("id")
+            .single();
+          if (error || !added) redirect(`/partners?error=${errorCode(error, "app/partners/actions:createPartnerInvite:add", "partner-name-needed")}`);
+          partnerId = added.id as string;
+        }
       }
 
       const svc = createServiceClient();
-      const name = partner.name as string;
-
-      // 1) Workshop, reuse the linked one, or create it with the partner's classification.
-      let workshopId = partner.workshop_id as string | null;
-      if (workshopId) {
-        const { error: refreshError } = await svc
-          .from("workshops")
-          .update({
-            name,
-            kind: partner.kind,
-            phone: partner.phone,
-            whatsapp: partner.whatsapp,
-            email,
-            area: partner.area,
-          })
-          .eq("id", workshopId);
-        // Nothing new exists yet, so a redirect is safe: the retry runs this again.
-        if (refreshError) redirect(`/partners?error=${errorCode(refreshError, "app/partners/actions:inviteContractor:workshop")}`);
-      } else {
-        // The new workshop takes the farm's test mark (20261014120000): a test farm's contractor
-        // is a test workshop, which the fence then lets it link with.
-        const { data: farmMark, error: markError } = await svc.from("farms").select("is_test").eq("id", farmId).maybeSingle();
-        // A failed read would mark a test farm's contractor as real, across the fence.
-        if (markError) redirect(`/partners?error=${errorCode(markError, "app/partners/actions:inviteContractor:test-mark")}`);
-        const { data: ws, error: wErr } = await svc
-          .from("workshops")
-          .insert({
-            is_test: (farmMark as { is_test?: boolean } | null)?.is_test === true,
-            name,
-            kind: partner.kind,
-            phone: partner.phone,
-            whatsapp: partner.whatsapp,
-            email,
-            area: partner.area,
-            contact: partner.phone ?? email,
-          })
-          .select("id")
-          .single();
-        if (wErr || !ws) redirect(`/partners?error=${errorCode(wErr, "app/partners/actions:inviteContractor", "Could not create workshop")}`);
-        workshopId = ws.id;
-        // Stamped at once, before anything below can stop the run: an unstamped partner's
-        // next "Connect" makes a second workshop for the same contractor, so every later
-        // early return (an unread link, an unread profile) must find the stamp already done.
-        const { error: stampError } = await svc.from("partners").update({ workshop_id: workshopId }).eq("id", partnerId);
-        if (stampError) captureError(stampError, { where: "partners:invite:stamp" });
-      }
-
-      // 2) Active workshop_link farm ↔ workshop (idempotent; re-activate if revoked).
-      const { data: existingLink, error: existingError } = await svc
-        .from("workshop_links")
-        .select("id, status")
-        .eq("workshop_id", workshopId)
-        .eq("farm_id", farmId)
+      const { data: stamped, error: stampedError } = await svc
+        .from("partners")
+        .select("workshop_id")
+        .eq("id", partnerId)
         .maybeSingle();
-      // The workshop may exist from here on: return, never redirect.
-      if (existingError) return `/partners?error=${errorCode(existingError, "app/partners/actions:inviteContractor:link-read")}`;
-      if (!existingLink) {
-        const { error: lErr } = await svc
+      if (stampedError) return `/partners?error=${errorCode(stampedError, "app/partners/actions:createPartnerInvite:stamped")}`;
+      if (stamped?.workshop_id) {
+        const { data: active, error: activeError } = await svc
           .from("workshop_links")
-          .insert({ workshop_id: workshopId, farm_id: farmId, status: "active" });
-        // The workshop exists from here on: return (runOnce records it), never redirect.
-        if (lErr) return `/partners?error=${errorCode(lErr, "app/partners/actions:inviteContractor")}`;
-      } else if (existingLink.status !== "active") {
-        const { error: reactivateError } = await svc.from("workshop_links").update({ status: "active" }).eq("id", existingLink.id);
-        // Still revoked, the contractor would get a login to a farm they cannot see.
-        if (reactivateError) return `/partners?error=${errorCode(reactivateError, "app/partners/actions:inviteContractor:reactivate")}`;
+          .select("id")
+          .eq("workshop_id", stamped.workshop_id)
+          .eq("farm_id", farmId)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (activeError) return `/partners?error=${errorCode(activeError, "app/partners/actions:createPartnerInvite:active")}`;
+        if (active) return "/partners?error=partner-connected";
       }
 
-      // 3) Contractor auth user (confirmed) + a workshop-role profile. createUser fails
-      //    harmlessly if the email already exists; the magic link still works either way.
-      const origin = await siteOrigin();
-      const created = await svc.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: { name },
+      // One live link per contractor, and a new one retires any earlier one, claimed or not.
+      const now = new Date().toISOString();
+      const { error: retireError } = await svc
+        .from("partner_invites")
+        .update({ revoked_at: now })
+        .eq("partner_id", partnerId)
+        .is("revoked_at", null);
+      if (retireError) return `/partners?error=${errorCode(retireError, "app/partners/actions:createPartnerInvite:retire")}`;
+
+      const secrets = newInviteSecrets();
+      const { error: inviteError } = await svc.from("partner_invites").insert({
+        farm_id: farmId,
+        partner_id: partnerId,
+        token_hash: secrets.tokenHash,
+        code_hash: secrets.codeHash,
+        ...grantsFrom(formData),
+        expires_at: inviteExpiry(),
+        created_by: profile.id,
       });
-      const { url, userId, error: linkErr } = await issueLoginUrl(svc, email, origin);
-      const uid = created.data?.user?.id ?? userId;
-      if (uid) {
-        const { data: prof, error: profReadError } = await svc.from("users").select("id").eq("id", uid).maybeSingle();
-        // Unread is not "no profile": say the login could not be made, as for a failed insert.
-        if (profReadError) {
-          captureError(profReadError, { where: "partners:invite:profile-read" });
-          revalidatePath("/partners");
-          return "/partners?linkerror=1";
-        }
-        if (!prof) {
-          const { error: profileError } = await svc.from("users").insert({
-            id: uid,
-            workshop_id: workshopId,
-            role: "workshop",
-            name,
-            email,
-            active: true,
-          });
-          // Without a profile the login link opens an account that is bounced straight back
-          // to /login: the connection stands, but say the login could not be made.
-          if (profileError) {
-            captureError(profileError, { where: "partners:invite:profile" });
-            revalidatePath("/partners");
-            return "/partners?linkerror=1";
-          }
-        }
-      }
+      if (inviteError) return `/partners?error=${errorCode(inviteError, "app/partners/actions:createPartnerInvite:insert")}`;
 
-      // 4) Hand back the login URL (the partner was stamped with its workshop in step 1).
+      // The only moment the link and code exist in the clear.
+      await setPartnerLink({ pid: partnerId, url: inviteUrl(origin, secrets.token), code: secrets.code });
       revalidatePath("/partners");
-      // The connection stands either way; `linkerror` says only that no login link could be
-      // made, and the page says so in the farmer's language rather than in Auth's.
-      if (linkErr || !url) return "/partners?linkerror=1";
-      // The login URL is a bearer credential, it never travels in a query string.
-      await setPartnerLink({ pid: partnerId, url });
-      return "/partners?connected=1";
+      return "/partners";
     },
     { whileRunning: "/partners?error=still-saving" },
   );
 }
 
-/** Re-issue a fresh magic login URL for an already-connected contractor. */
-export async function sendLoginUrl(formData: FormData) {
+/** Cancel a link nobody has used yet. */
+export async function revokePartnerInvite(formData: FormData) {
+  const { farmId } = await requireConnectionManager();
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/partners?error=missing");
+
+  const { error } = await createServiceClient()
+    .from("partner_invites")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("farm_id", farmId)
+    .is("revoked_at", null);
+  if (error) redirect(`/partners?error=${errorCode(error, "app/partners/actions:revokePartnerInvite")}`);
+
+  await clearPartnerLink();
+  revalidatePath("/partners");
+  redirect("/partners?cancelled=1");
+}
+
+/**
+ * Email a connected contractor a sign-in link. To the address on their own login: the farmer
+ * chooses who, never where, and never sees the link.
+ */
+export async function emailPartnerSignIn(formData: FormData) {
   return runOnce(
     formData,
-    "partners:login-url",
+    "partners:sign-in-email",
     async () => {
-      const { farmId } = await requireConnectionManager();
+      const { farmId, profile } = await requireConnectionManager();
       const partnerId = String(formData.get("id") ?? "");
-      const email = String(formData.get("email") ?? "").trim().toLowerCase();
       if (!partnerId) redirect("/partners?error=Missing+partner");
-      if (!email || !email.includes("@")) redirect("/partners?error=A+valid+email+is+required");
 
       const rls = await createClient();
       const { data: partner, error: partnerError } = await rls
@@ -377,17 +329,14 @@ export async function sendLoginUrl(formData: FormData) {
         .select("id, farm_id, workshop_id")
         .eq("id", partnerId)
         .maybeSingle();
-      if (partnerError) redirect(`/partners?error=${errorCode(partnerError, "app/partners/actions:sendLoginUrl")}`);
+      if (partnerError) redirect(`/partners?error=${errorCode(partnerError, "app/partners/actions:emailPartnerSignIn")}`);
       if (!partner || partner.farm_id !== farmId || !partner.workshop_id) {
         redirect("/partners?error=This+partner+is+not+connected+yet");
       }
 
       const svc = createServiceClient();
-      // A workshop on the partner is not a connection: an invite that stopped after making
-      // the workshop (its link or the contractor's profile failed), or a farm that has since
-      // disconnected them, leaves the stamp without an active link. A login link then opens
-      // an account that can see nothing, so the farmer is sent back to the invite instead,
-      // which finishes the connection and reuses the workshop.
+      // A workshop on the partner is not a connection: a farm that has disconnected them
+      // leaves the stamp without an active link, and a sign-in would open an empty account.
       const { data: activeLink, error: activeError } = await svc
         .from("workshop_links")
         .select("id")
@@ -396,26 +345,48 @@ export async function sendLoginUrl(formData: FormData) {
         .eq("status", "active")
         .is("deleted_at", null)
         .maybeSingle();
-      if (activeError) redirect(`/partners?error=${errorCode(activeError, "app/partners/actions:sendLoginUrl:link")}`);
+      if (activeError) redirect(`/partners?error=${errorCode(activeError, "app/partners/actions:emailPartnerSignIn:link")}`);
       if (!activeLink) redirect("/partners?error=This+partner+is+not+connected+yet");
 
-      const origin = await siteOrigin();
-      const { url, error } = await issueLoginUrl(svc, email, origin);
-      if (error || !url) redirect("/partners?linkerror=1");
-      // The login URL is a bearer credential, it never travels in a query string.
-      await setPartnerLink({ pid: partnerId, url });
-      // `sent`, not `connected`: they were connected already, this is only a fresh link.
+      const { data: login, error: loginError } = await svc
+        .from("users")
+        .select("email, name")
+        .eq("workshop_id", partner.workshop_id)
+        .eq("role", "workshop")
+        .eq("active", true)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (loginError) redirect(`/partners?error=${errorCode(loginError, "app/partners/actions:emailPartnerSignIn:login")}`);
+      if (!login?.email) redirect("/partners?error=partner-no-login");
+
+      const signIn = await mintSignIn(svc, login.email as string);
+      if (!signIn.tokenHash) redirect("/partners?linkerror=1");
+
+      const { data: farm, error: farmError } = await svc.from("farms").select("name").eq("id", farmId).maybeSingle();
+      if (farmError) captureError(farmError, { where: "partners:sign-in-email:farm" });
+      const mail = await sendContractorSignIn({
+        email: login.email as string,
+        name: (login.name as string | null) ?? "",
+        farmId,
+        farmName: (farm as { name?: string } | null)?.name ?? "",
+        tokenHash: signIn.tokenHash,
+        locale: profile.language,
+      });
+      if (!mail.ok) {
+        captureError(new Error(`partners: sign-in email not sent (${mail.reason})`), { where: "partners:sign-in-email" });
+        redirect("/partners?linkerror=1");
+      }
       return "/partners?sent=1";
     },
     { whileRunning: "/partners?error=still-saving" },
   );
 }
 
-
 /**
- * Drop the pending login link once the farmer has passed it on. The cookie expires on
- * its own after ten minutes; this is the explicit "I'm done with it" path so the
- * credential is not sitting there while the phone is handed around a workshop.
+ * Drop the pending link and code once the farmer has passed them on. The cookie expires on
+ * its own after ten minutes; this is the explicit "I'm done with it" path, so they are not
+ * sitting there while the phone is handed around a workshop.
  */
 export async function dismissLoginUrl() {
   await requireConnectionManager();

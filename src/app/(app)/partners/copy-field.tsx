@@ -1,10 +1,41 @@
 "use client";
 
 import { useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { CopyIcon, CheckIcon } from "@/components/ui/icons";
 
+/** Copies text that is too long to show in a field, such as the message to send. */
+export function CopyButton({
+  value,
+  label,
+  copiedLabel,
+}: {
+  value: string;
+  label: string;
+  copiedLabel: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Ignore: the link and the code are still on screen to copy by hand.
+    }
+  }
+
+  return (
+    <button type="button" onClick={copy} className={buttonVariants({ variant: "primary", size: "sm" })}>
+      {copied ? <CheckIcon className="text-base" /> : <CopyIcon className="text-base" />}
+      {copied ? copiedLabel : label}
+    </button>
+  );
+}
+
 /**
- * Read-only value (a generated login URL) with a copy-to-clipboard button. Client
+ * Read-only value (an access link or its code) with a copy-to-clipboard button. Client
  * component, clipboard access needs the browser. Falls back to selecting the text
  * if the Clipboard API is unavailable.
  */

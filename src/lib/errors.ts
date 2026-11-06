@@ -237,6 +237,24 @@ const CODE_KEYS: Record<string, string> = {
   // accusation: the overwhelming majority of people who ever see it are sharing an office
   // connection with somebody else who just signed up, not abusing anything.
   "signup-busy": "errors.signupBusy",
+  "apply-missing": "errors.applyMissing",
+  "apply-email": "errors.applyEmail",
+  "apply-consent": "errors.applyConsent",
+  "apply-busy": "errors.applyBusy",
+  "apply-failed": "errors.applyFailed",
+  "join-code": "errors.joinCode",
+  "join-email": "errors.joinEmail",
+  "join-email-taken": "errors.joinEmailTaken",
+  "join-used": "errors.joinUsed",
+  "join-busy": "errors.joinBusy",
+  "join-failed": "errors.joinFailed",
+  "join-mail-failed": "errors.joinMailFailed",
+  "partner-name-needed": "errors.partnerNameNeeded",
+  "partner-connected": "errors.partnerConnected",
+  "partner-no-login": "errors.partnerNoLogin",
+  "application-missing": "errors.applicationMissing",
+  "application-email-taken": "errors.applicationEmailTaken",
+  "application-failed": "errors.applicationFailed",
   // One sentence for every reason a promo code did not work, unknown, switched off,
   // expired, or all taken. Saying which would tell a stranger trying codes that a
   // particular one exists, and the visitor's next move is the same either way.

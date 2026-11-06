@@ -135,6 +135,7 @@ export function PublicShell({
             <h2 className="mb-3 text-sm font-semibold text-white">{t("publicNav.goodToKnow", locale)}</h2>
             <Link href="/login" className={footerLink}>{t("publicNav.signIn", locale)}</Link>
             <Link href="/signup" className={footerLink}>{t("auth.startTrial", locale)}</Link>
+            <Link href="/become-a-partner" className={footerLink}>{t("publicNav.becomePartner", locale)}</Link>
             <a href={WEBSITE} className={footerLink}>
               {t("publicNav.website", locale)}
               <ArrowUpRightIcon className="text-sm" />

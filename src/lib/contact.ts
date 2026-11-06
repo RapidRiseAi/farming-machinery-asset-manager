@@ -44,6 +44,21 @@ export function waHref(
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
+/** WhatsApp's own "choose a chat" link, for sending a message to a number we do not hold. */
+export function waShareHref(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+/**
+ * `mailto:` link for a written message, with or without an address. Encoded by hand: a
+ * URLSearchParams body shows its spaces as plus signs in some mail apps.
+ */
+export function shareMailHref(email: string | null | undefined, subject: string, body: string): string {
+  const addr = (email ?? "").trim();
+  const to = addr.includes("@") ? addr : "";
+  return `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 /** `mailto:` link with optional subject/body, or null when there is no address. */
 export function mailtoHref(
   email: string | null | undefined,

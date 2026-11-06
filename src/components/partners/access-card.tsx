@@ -111,6 +111,29 @@ export function PartnerAccessDialog({
   );
 }
 
+/**
+ * What a new link will open, chosen before it is sent. "Your whole fleet" starts ticked: the
+ * usual reason for a link is a parts shop that needs a machine's VIN, and with nothing ticked
+ * a contractor with no jobs yet would open an empty page. The farmer sees it and can untick.
+ */
+export function PartnerInviteGrants({ locale, idPrefix }: { locale: Lang; idPrefix: string }) {
+  const none = { workshop_id: "", farm_id: "", name: "", see_all_vehicles: true, see_service_history: false, see_costs: false, see_team: false };
+  return (
+    <>
+      {grantsOf(none).map((g) => (
+        <Checkbox
+          key={g.name}
+          id={`${idPrefix}_${g.name}`}
+          name={g.name}
+          defaultChecked={g.on}
+          label={t(`access.${g.key}`, locale)}
+          hint={t(`access.${g.key}Hint`, locale)}
+        />
+      ))}
+    </>
+  );
+}
+
 /** Disconnect, as the last row in the partner's ActionMenu. Access stops at once. */
 export function PartnerDisconnect({
   access,

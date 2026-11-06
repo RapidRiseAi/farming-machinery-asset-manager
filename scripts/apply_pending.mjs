@@ -38,6 +38,10 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // A contractor's one-person link: the table and the function that claims it.
+  "20261106110000": "select to_regclass('public.partner_invites') is not null and to_regprocedure('public.partner_invite_redeem(text,text,text)') is not null",
+  // Businesses asking to become a partner.
+  "20261106100000": "select to_regclass('public.partner_applications') is not null",
   // Each person's own dashboard board: the table, fenced.
   "20261105120000": "select to_regclass('public.dashboard_layouts') is not null and exists (select 1 from pg_trigger where tgname = 'dashboard_layouts_test_fence')",
   // Staff onboarding: Rapid Rise opens a quoted customer's pending subscription and first invoice.

@@ -11,8 +11,8 @@ import {
   isWorkshopPlan,
   workshopPlanNameKey,
 } from "@/lib/contractor-plan";
-import { num } from "@/lib/format";
-import { setPartnerPlan } from "./actions";
+import { num, shortDate } from "@/lib/format";
+import { approveApplication, deleteApplication, reviewApplication, setPartnerPlan } from "./actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { SelectField } from "@/components/ui/field";
@@ -20,6 +20,9 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Flash } from "@/components/ui/flash";
 import { ActionMenu } from "@/components/ui/action-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/ui/field";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Disclosure } from "@/components/ui/disclosure";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
@@ -46,10 +49,176 @@ type Row = {
   created_at: string;
 };
 
+type Application = {
+  id: string;
+  business_name: string;
+  kind: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  area: string;
+  website: string | null;
+  offer: string;
+  vouch: string | null;
+  plan_interest: string | null;
+  status: string;
+  review_notes: string | null;
+  created_at: string;
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  new: "New",
+  talking: "Talking",
+  approved: "Approved",
+  declined: "Declined",
+};
+
+/** One request. Everything in it was typed by a stranger, so it is shown as plain text. */
+function ApplicationRow({ a, locale }: { a: Application; locale: "en" }) {
+  const close = t("ui.close", "en");
+  const cancel = t("common.cancel", "en");
+  const interest = a.plan_interest && isWorkshopPlan(a.plan_interest) ? t(workshopPlanNameKey(a.plan_interest), "en") : "Not sure yet";
+  const facts: [string, string | null][] = [
+    ["Contact", a.contact_name],
+    ["Email", a.email],
+    ["Phone", a.phone],
+    ["Where they work", a.area],
+    ["Website", a.website],
+    ["What they offer", a.offer],
+    ["Reviews or who can vouch", a.vouch],
+    ["Interested in", interest],
+  ];
+  return (
+    <Tr>
+      <Td>
+        <span className="font-medium text-sand-900">{a.business_name}</span>
+        <span className="block text-xs text-sand-500">{a.area}</span>
+      </Td>
+      <Td>
+        <Badge tone="neutral">{t(`partnerKind.${a.kind}`, "en")}</Badge>
+      </Td>
+      <Td>
+        <span className="block">{a.contact_name}</span>
+        <span className="block break-all text-xs text-sand-500">{a.email}</span>
+      </Td>
+      <Td className="tnum">{shortDate(a.created_at, locale)}</Td>
+      <Td>
+        <Badge tone={a.status === "approved" ? "ok" : a.status === "new" ? "brand" : "neutral"}>
+          {STATUS_LABEL[a.status] ?? a.status}
+        </Badge>
+      </Td>
+      <Td className="text-right">
+        <ActionMenu title={a.business_name} label={`Actions for ${a.business_name}`} closeLabel={close}>
+          <DialogForm triggerLook="menuItem" trigger="Review" title={a.business_name} closeLabel={close} size="md">
+            <dl className="flex flex-col gap-2 text-sm">
+              {facts.map(([label, value]) =>
+                value ? (
+                  <div key={label}>
+                    <dt className="font-medium text-sand-900">{label}</dt>
+                    <dd className="whitespace-pre-wrap break-words text-sand-600">{value}</dd>
+                  </div>
+                ) : null,
+              )}
+            </dl>
+            {a.status === "approved" ? null : (
+              <form action={reviewApplication} className="mt-4">
+                <input type="hidden" name="id" value={a.id} />
+                <DialogFields columns={1}>
+                  <SelectField name="status" id={`st-${a.id}`} label="Where it stands" defaultValue={a.status}>
+                    <option value="new">New</option>
+                    <option value="talking">Talking</option>
+                    <option value="declined">Declined</option>
+                  </SelectField>
+                  <Field label="Your notes" htmlFor={`rn-${a.id}`}>
+                    <Textarea id={`rn-${a.id}`} name="review_notes" rows={3} defaultValue={a.review_notes ?? ""} />
+                  </Field>
+                </DialogFields>
+                <DialogActions cancelLabel={cancel}>
+                  <SubmitButton>{t("common.save", "en")}</SubmitButton>
+                </DialogActions>
+              </form>
+            )}
+          </DialogForm>
+
+          {a.status === "approved" ? null : (
+            <DialogForm
+              triggerLook="menuItem"
+              trigger="Approve"
+              title={`Approve ${a.business_name}`}
+              description="This makes their account and emails them a sign-in link. Agree the terms with them first."
+              closeLabel={close}
+              size="md"
+            >
+              <form action={approveApplication}>
+                <input type="hidden" name="id" value={a.id} />
+                <DialogFields columns={1}>
+                  <SelectField
+                    name="plan"
+                    id={`ap-${a.id}`}
+                    label="Product"
+                    defaultValue={a.plan_interest ?? "portal"}
+                    hint="What you agreed with them. It charges nobody, and you can change it later."
+                  >
+                    {WORKSHOP_PLANS.map((plan) => (
+                      <option key={plan} value={plan}>{t(workshopPlanNameKey(plan), "en")}</option>
+                    ))}
+                  </SelectField>
+                </DialogFields>
+                <DialogActions cancelLabel={cancel}>
+                  <SubmitButton>Approve and email them</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          )}
+
+          {a.status === "approved" || a.status === "declined" ? (
+            <ConfirmDialog
+              action={deleteApplication}
+              triggerLook="menuItem"
+              triggerLabel={t("common.delete", "en")}
+              title={`Delete the request from ${a.business_name}`}
+              intro="This removes what they sent, including anyone they named. An approved partner keeps their account."
+              confirmLabel={t("common.delete", "en")}
+              cancelLabel={cancel}
+              closeLabel={close}
+            >
+              <input type="hidden" name="id" value={a.id} />
+            </ConfirmDialog>
+          ) : null}
+        </ActionMenu>
+      </Td>
+    </Tr>
+  );
+}
+
+function ApplicationTable({ rows }: { rows: Application[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <Thead>
+          <Tr>
+            <Th>Business</Th>
+            <Th>Trade</Th>
+            <Th>Contact</Th>
+            <Th>Asked</Th>
+            <Th>Status</Th>
+            <Th><span className="sr-only">{t("common.actions", "en")}</span></Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {rows.map((a) => (
+            <ApplicationRow key={a.id} a={a} locale="en" />
+          ))}
+        </Tbody>
+      </Table>
+    </div>
+  );
+}
+
 export default async function AdminPartnersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; approved?: string; removed?: string }>;
 }) {
   // The profile was discarded here, so this page had no locale to translate with.
   const profile = await requireRole(["rr_admin"]);
@@ -67,10 +236,17 @@ export default async function AdminPartnersPage({
       .is("deleted_at", null)
       .order("created_at", { ascending: false })),
     readAll<Activity>(() => supabase.rpc("admin_partner_activity"), { key: "workshop_id" }),
+    readAll(() => supabase
+      .from("partner_applications")
+      .select("id, business_name, kind, contact_name, email, phone, area, website, offer, vouch, plan_interest, status, review_notes, created_at")
+      .order("created_at", { ascending: false })),
   ]);
   // A failed read showed "No partners yet", or every partner with no clients or documents.
   mustAll(results, "admin-partners:list");
-  const [{ data: wData }, { data: activityData }] = results;
+  const [{ data: wData }, { data: activityData }, { data: applicationData }] = results;
+  const applications = (applicationData as Application[] | null) ?? [];
+  const openRequests = applications.filter((a) => a.status === "new" || a.status === "talking");
+  const decidedRequests = applications.filter((a) => a.status === "approved" || a.status === "declined");
 
   const partners = (wData as Row[] | null) ?? [];
   const activity = (activityData as Activity[] | null) ?? [];
@@ -101,6 +277,25 @@ export default async function AdminPartnersPage({
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved ? t("ui.saved", locale) : undefined} />
+      <Flash tone="success" message={sp.approved === "1" ? "Approved. They have been emailed a sign-in link." : sp.removed ? "Request deleted." : undefined} />
+      <Flash
+        tone="error"
+        message={sp.approved === "nomail" ? "Approved, but the email did not go. They can ask for a sign-in link on the sign-in page, using the address they applied with." : undefined}
+      />
+
+      <Card>
+        <CardHeader><CardTitle>Partner requests</CardTitle></CardHeader>
+        {openRequests.length === 0 ? (
+          <p className="text-sm text-sand-500">No open requests. Businesses ask at /become-a-partner.</p>
+        ) : (
+          <ApplicationTable rows={openRequests} />
+        )}
+      </Card>
+      {decidedRequests.length > 0 ? (
+        <Disclosure summary={`Decided requests (${num(decidedRequests.length)})`} variant="card">
+          <ApplicationTable rows={decidedRequests} />
+        </Disclosure>
+      ) : null}
 
       <StatGrid columns={3}>
         <Stat label="Partners" value={num(partners.length)} size="md" />

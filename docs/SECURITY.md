@@ -169,6 +169,35 @@ server route/action that first validates the token**, then writes on the worker'
 A leaked or guessed URL can only reach the one machine its token addresses, and only
 through the narrow validated actions, never the database directly.
 
+### 5-bis. Contractor access links, and who may hold a sign-in link
+
+`/join/[token]` follows the same shape: the token is matched by its hash through the service
+role. A farmer sends a contractor a link and a six-digit code; opening the link changes
+nothing, because WhatsApp previews and mail scanners open every link they see. The rules live
+in `partner_invite_redeem` (20261106110000), under a row lock:
+
+- **One person.** The first person with the right code claims the link for their email
+  address. Anyone else is refused, even holding the code, and hears the same answer whatever
+  they typed.
+- **Five wrong codes lock it.** It ends after seven days, and the farmer can cancel it.
+- **The link signs nobody in.** It sends a sign-in email to the address given, so a claim only
+  ever helps the owner of that inbox. An address on a farmer's or staff login is refused.
+- **It cannot be replayed.** Using it again only repeats the email: it never restores or
+  widens access. Disconnecting the contractor or removing the partner kills it, in a trigger
+  so that no later way of disconnecting can forget.
+- **A link cannot join somebody else's business.** Everyone in a workshop sees all of that
+  workshop's customers, so a new login joins an existing workshop only if nobody is in it yet.
+
+**A sign-in link only ever goes by email to the address it opens.** Until 6 November 2026 the
+partner invite minted one for whatever address a farmer typed and showed it on screen, which
+let any owner or manager sign in as any other account. No farm existed in production when this
+was found and removed. `sign-in-links.test.ts` lists every file allowed to mint one and fails
+on a new one, so adding one means answering who ends up holding what it makes.
+
+`/become-a-partner` writes a request and nothing else: no account exists until Rapid Rise
+approves it. Only Rapid Rise can read these (`partner_applications`), and the alert email names
+the business but not the applicant's details or the people they listed.
+
 ## 5b. The public API, the one path RLS does not judge
 
 This section exists because §1 says row-level security is the sole guarantor, and the public

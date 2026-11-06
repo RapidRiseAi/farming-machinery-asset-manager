@@ -3,9 +3,11 @@ import { errorMessage } from "@/lib/errors";
 import { farmPermissionState } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
+import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
-import { telHref, waHref, mailtoHref } from "@/lib/contact";
+import { telHref, waHref, waShareHref, mailtoHref, shareMailHref } from "@/lib/contact";
+import { shortDate } from "@/lib/format";
 import { partnerMatchKey } from "@/lib/partner-match";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,15 +21,16 @@ import { Flash } from "@/components/ui/flash";
 import { Disclosure } from "@/components/ui/disclosure";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { buttonVariants } from "@/components/ui/button";
-import { CheckIcon, PhoneIcon, ChatIcon, MailIcon, LinkIcon, PlusIcon, TrashIcon, WarningIcon } from "@/components/ui/icons";
+import { CheckIcon, PhoneIcon, ChatIcon, MailIcon, LinkIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ActionMenu } from "@/components/ui/action-menu";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
-import { CopyField } from "./copy-field";
+import { CopyButton, CopyField } from "./copy-field";
 import {
   PartnerAccessDialog,
   PartnerAccessSummary,
   PartnerDisconnect,
+  PartnerInviteGrants,
   type PartnerAccess,
 } from "@/components/partners/access-card";
 import { readPartnerLink } from "@/lib/partner-link";
@@ -38,8 +41,9 @@ import {
   deletePartner,
   dismissLoginUrl,
   adoptSuggested,
-  inviteContractor,
-  sendLoginUrl,
+  createPartnerInvite,
+  revokePartnerInvite,
+  emailPartnerSignIn,
   approveLinkRequest,
   declineLinkRequest,
 } from "./actions";
@@ -81,7 +85,7 @@ type SP = {
   added?: string;
   removed?: string;
   already?: string;
-  connected?: string;
+  cancelled?: string;
   sent?: string;
   accepted?: string;
   declined?: string;
@@ -180,12 +184,10 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
     p.farm_id == null ? isAdmin : canManageDirectory && p.farm_id === viewingFarmId;
 
   /*
-    Freshly-issued login URL to hand to a contractor. It arrives in a short-lived,
-    httpOnly, SameSite=Strict cookie rather than the query string it used to ride in -
-    see lib/partner-link.ts for why a magic `action_link` must never touch a URL.
+    A fresh access link and code to send a contractor. They arrive in a short-lived,
+    httpOnly, SameSite=Strict cookie, never a query string: see lib/partner-link.ts.
   */
   const pendingLink = await readPartnerLink();
-  const loginUrl = pendingLink?.url ?? null;
 
   /*
     Contractors asking to be connected (F15). A partner who has this farm in their own
@@ -226,6 +228,35 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         "partners:access",
       )
     : null;
+
+  // Each contractor's latest link, so the row can say where it stands. Unread would hide a
+  // link that is still open, and the way to cancel it.
+  type InviteRow = {
+    id: string;
+    partner_id: string;
+    expires_at: string;
+    redeemed_at: string | null;
+    redeemed_email: string | null;
+  };
+  const inviteData = canInvite && viewingFarmId
+    ? must(
+        await supabase
+          .from("partner_invites")
+          .select("id, partner_id, expires_at, redeemed_at, redeemed_email")
+          .eq("farm_id", viewingFarmId)
+          .is("revoked_at", null)
+          .order("created_at", { ascending: false }),
+        "partners:invites",
+      )
+    : null;
+  const inviteByPartner = new Map<string, InviteRow>();
+  const nowIso = new Date().toISOString();
+  for (const row of (inviteData ?? []) as InviteRow[]) {
+    if (inviteByPartner.has(row.partner_id)) continue;
+    // An unused link past its date is simply gone; a used one still says who used it.
+    if (!row.redeemed_at && row.expires_at <= nowIso) continue;
+    inviteByPartner.set(row.partner_id, row);
+  }
 
   const accessRows: PartnerAccess[] = ((accessData ?? []) as unknown as {
     workshop_id: string; farm_id: string;
@@ -270,9 +301,19 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
       shop: Array.isArray(r.workshops) ? (r.workshops[0] ?? null) : r.workshops,
     }))
     .filter((r) => r.shop);
-  const loginPartner = pendingLink?.pid ? all.find((p) => p.id === pendingLink.pid) : undefined;
-  const loginMsg = t("contact.loginMsg", locale);
-  const loginShareText = loginUrl ? `${loginMsg} ${loginUrl}` : "";
+  const linkPartner = pendingLink?.pid ? all.find((p) => p.id === pendingLink.pid) : undefined;
+  // The message names the farm, so it is read only when there is a message to write.
+  const farmRow = pendingLink && viewingFarmId
+    ? must(await supabase.from("farms").select("name").eq("id", viewingFarmId).maybeSingle(), "partners:farm-name")
+    : null;
+  const farmName = (farmRow as { name?: string } | null)?.name ?? "";
+  const shareText = pendingLink
+    ? t("contact.accessMsg", locale)
+        .replaceAll("{app}", () => APP_NAME)
+        .replace("{farm}", () => farmName)
+        .replace("{url}", () => pendingLink.url)
+        .replace("{code}", () => pendingLink.code)
+    : "";
 
   // One sentence per outcome, each saying what actually happened.
   const success = sp.added
@@ -283,8 +324,8 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         ? t("access.saved", locale)
         : sp.saved
           ? t("ui.saved", locale)
-          : sp.connected
-            ? t("partners.connectedFlash", locale)
+          : sp.cancelled
+            ? t("partners.linkCancelledFlash", locale)
             : sp.sent
               ? t("partners.loginSentFlash", locale)
               : sp.accepted
@@ -296,7 +337,9 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                     : undefined;
 
   // A pending request is the decision on this screen, so it takes the one filled button.
-  const addVariant = requests.length > 0 ? "secondary" : "primary";
+  // Otherwise that is giving somebody access, the reason most people open this page.
+  const canGiveAccess = canInvite && !!viewingFarmId;
+  const addVariant = requests.length > 0 || canGiveAccess ? "secondary" : "primary";
 
   const addPartner = canManageDirectory || isAdmin ? (
     <DialogForm
@@ -335,6 +378,41 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         </DialogFields>
         <DialogActions cancelLabel={cancelLabel}>
           <SubmitButton variant="primary">{t("partners.add", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  ) : null;
+
+  const giveAccess = canGiveAccess ? (
+    <DialogForm
+      trigger={t("partners.giveAccess", locale)}
+      triggerIcon={<LinkIcon />}
+      triggerVariant={requests.length > 0 ? "secondary" : "primary"}
+      title={t("partners.giveAccess", locale)}
+      description={t("partners.giveAccessHint", locale)}
+      closeLabel={closeLabel}
+      size="md"
+    >
+      <form action={createPartnerInvite}>
+        <RequestIdInput action="partners:access-link" />
+        <DialogFields columns={1}>
+          <Field label={t("partners.name", locale)} htmlFor="ga_name">
+            <Input id="ga_name" name="name" required placeholder={t("partners.namePlaceholder", locale)} />
+          </Field>
+          <Field label={t("partners.kind", locale)} htmlFor="ga_kind">
+            <KindSelect locale={locale} />
+          </Field>
+        </DialogFields>
+        <p className="mb-1 mt-4 text-sm font-medium text-sand-800">{t("partners.giveAccessSee", locale)}</p>
+        <p className="text-sm text-sand-500">{t("access.baseline", locale)}</p>
+        <DialogFields columns={1} className="mt-2 gap-1">
+          <PartnerInviteGrants locale={locale} idPrefix="ga" />
+        </DialogFields>
+        <p className="mt-3 text-sm text-sand-500">{t("access.neverPartners", locale)}</p>
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary" leftIcon={<LinkIcon className="text-base" />}>
+            {t("partners.makeLink", locale)}
+          </SubmitButton>
         </DialogActions>
       </form>
     </DialogForm>
@@ -444,7 +522,14 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         lead={t("partners.subtitle", locale)}
         infoKey="partners"
         locale={locale}
-        actions={addPartner}
+        actions={
+          giveAccess || addPartner ? (
+            <div className="flex flex-wrap gap-2">
+              {giveAccess}
+              {addPartner}
+            </div>
+          ) : null
+        }
       />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
@@ -452,46 +537,41 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
       <Flash tone="info" message={sp.already ? t("partners.alreadyFlash", locale) : undefined} />
       <Flash tone="success" message={success} />
 
-      {/* Freshly generated login URL */}
-      {loginUrl ? (
+      {/* A fresh access link. Shown once: the database keeps only its hashes. */}
+      {pendingLink ? (
         <Card className="border-brand-200 bg-brand-tint/40">
           <CardHeader>
             <CardTitle>
-              {loginPartner
-                ? t("partners.loginUrlTitleFor", locale).replace("{name}", loginPartner.name)
-                : t("partners.loginUrlTitle", locale)}
+              {t("partners.linkReadyFor", locale).replace("{name}", () => linkPartner?.name ?? t("partners.thisContractor", locale))}
             </CardTitle>
           </CardHeader>
-          <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-status-due/40 bg-callout-warn-bg p-3">
-            <WarningIcon className="mt-0.5 shrink-0 text-lg text-status-due" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-sand-900">{t("partners.loginUrlWarnTitle", locale)}</p>
-              <p className="mt-0.5 text-sm leading-relaxed text-sand-700">
-                {t("partners.loginUrlWarn", locale).replace("{name}", loginPartner?.name ?? t("partners.thisContractor", locale))}
-              </p>
+          <p className="mb-3 text-sm text-sand-600">{t("partners.linkReadyHint", locale)}</p>
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="mb-1 text-sm font-medium text-sand-800">{t("partners.linkLabel", locale)}</p>
+              <CopyField value={pendingLink.url} copyLabel={t("partners.copy", locale)} copiedLabel={t("partners.copied", locale)} />
+            </div>
+            <div>
+              <p className="mb-1 text-sm font-medium text-sand-800">{t("partners.codeLabel", locale)}</p>
+              <CopyField value={pendingLink.code} copyLabel={t("partners.copy", locale)} copiedLabel={t("partners.copied", locale)} />
             </div>
           </div>
-          <p className="mb-3 text-sm text-sand-600">{t("partners.loginUrlHint", locale)}</p>
-          <CopyField value={loginUrl} copyLabel={t("partners.copy", locale)} copiedLabel={t("partners.copied", locale)} />
           <div className="mt-3 flex flex-wrap gap-2">
-            {loginPartner && waHref(loginPartner.whatsapp ?? loginPartner.phone, loginShareText) ? (
-              <a
-                href={waHref(loginPartner.whatsapp ?? loginPartner.phone, loginShareText)!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonVariants({ variant: "secondary", size: "sm" })}
-              >
-                <ChatIcon className="text-base" /> {t("partners.loginUrlShareWa", locale)}
-              </a>
-            ) : null}
-            {loginPartner && mailtoHref(loginPartner.email, t("contact.loginSubject", locale), loginShareText) ? (
-              <a
-                href={mailtoHref(loginPartner.email, t("contact.loginSubject", locale), loginShareText)!}
-                className={buttonVariants({ variant: "secondary", size: "sm" })}
-              >
-                <MailIcon className="text-base" /> {t("partners.loginUrlShareEmail", locale)}
-              </a>
-            ) : null}
+            <CopyButton value={shareText} label={t("partners.copyMessage", locale)} copiedLabel={t("partners.copied", locale)} />
+            <a
+              href={waHref(linkPartner?.whatsapp ?? linkPartner?.phone, shareText) ?? waShareHref(shareText)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              <ChatIcon className="text-base" /> {t("partners.loginUrlShareWa", locale)}
+            </a>
+            <a
+              href={shareMailHref(linkPartner?.email, t("contact.accessSubject", locale).replace("{farm}", () => farmName), shareText)}
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              <MailIcon className="text-base" /> {t("partners.loginUrlShareEmail", locale)}
+            </a>
             <form action={dismissLoginUrl}>
               <SubmitButton variant="ghost">{t("partners.loginUrlDone", locale)}</SubmitButton>
             </form>
@@ -561,13 +641,13 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {yours.map((p) => {
               const access = p.workshop_id ? accessByWorkshop.get(p.workshop_id) : undefined;
-              // Connected means an active link, not only a workshop on the row: an invite
-              // that stopped after making the workshop, or a farm that has disconnected
-              // them, leaves the stamp, and only the invite can finish or restore the link
-              // (it reuses the workshop). Where the links are not read (no invite rights),
-              // the stamp is all there is to go on.
+              const invite = inviteByPartner.get(p.id);
+              // Connected means an active link, not only a workshop on the row: a farm that
+              // has disconnected them leaves the stamp, and only a new access link restores
+              // it. Where the links are not read (no invite rights), the stamp is all there
+              // is to go on.
               const connected = !!p.workshop_id && (canInvite && viewingFarmId ? !!access : true);
-              const loginLabel = connected ? t("partners.sendLogin", locale) : t("partners.invite", locale);
+              const linkLabel = invite && !invite.redeemed_at ? t("partners.newLink", locale) : t("partners.invite", locale);
               return (
                 <li key={p.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-sand-200 p-3.5">
                   <div className="flex items-start justify-between gap-2">
@@ -581,6 +661,15 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                       </div>
                       {p.area ? <p className="mt-0.5 text-xs text-sand-500">{p.area}</p> : null}
                       {access ? <PartnerAccessSummary access={access} locale={locale} className="mt-1 text-sm text-sand-600" /> : null}
+                      {invite ? (
+                        <p className="mt-1 break-words text-sm text-sand-600">
+                          {invite.redeemed_at
+                            ? t("partners.linkUsedBy", locale)
+                                .replace("{email}", () => invite.redeemed_email ?? "")
+                                .replace("{date}", () => shortDate(invite.redeemed_at, locale))
+                            : t("partners.linkWaiting", locale).replace("{date}", () => shortDate(invite.expires_at, locale))}
+                        </p>
+                      ) : null}
                       {p.notes ? <p className="mt-1 break-words text-sm text-sand-600">{p.notes}</p> : null}
                     </div>
 
@@ -592,33 +681,67 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                     */}
                     {canInvite || canEditRow(p) ? (
                       <ActionMenu title={p.name} label={actionsLabel} closeLabel={closeLabel}>
-                        {canInvite ? (
+                        {canInvite && connected ? (
                           <DialogForm
                             triggerLook="menuItem"
-                            trigger={loginLabel}
-                            triggerIcon={<LinkIcon className="text-base" />}
-                            title={loginLabel}
-                            description={connected ? p.name : t("partners.inviteHint", locale)}
+                            trigger={t("partners.sendLogin", locale)}
+                            triggerIcon={<MailIcon className="text-base" />}
+                            title={t("partners.sendLogin", locale)}
+                            description={t("partners.sendLoginHint", locale).replace("{name}", () => p.name)}
                             closeLabel={closeLabel}
                             size="md"
                           >
-                            {/* Two different actions behind one row: a connected partner gets
-                                a login link, an unconnected one gets an invitation. */}
-                            <form action={connected ? sendLoginUrl : inviteContractor}>
-                              <RequestIdInput action={connected ? "partners:login-url" : "partners:invite"} />
+                            <form action={emailPartnerSignIn}>
+                              <RequestIdInput action="partners:sign-in-email" />
                               <input type="hidden" name="id" value={p.id} />
-                              <DialogFields columns={1}>
-                                <Field label={t("partners.inviteEmail", locale)} htmlFor={`iv_${p.id}`}>
-                                  <Input id={`iv_${p.id}`} name="email" type="email" defaultValue={p.email ?? ""} required />
-                                </Field>
-                              </DialogFields>
                               <DialogActions cancelLabel={cancelLabel}>
-                                <SubmitButton variant="primary" leftIcon={<LinkIcon className="text-base" />}>
-                                  {loginLabel}
+                                <SubmitButton variant="primary" leftIcon={<MailIcon className="text-base" />}>
+                                  {t("partners.sendLogin", locale)}
                                 </SubmitButton>
                               </DialogActions>
                             </form>
                           </DialogForm>
+                        ) : null}
+
+                        {canInvite && !connected ? (
+                          <DialogForm
+                            triggerLook="menuItem"
+                            trigger={linkLabel}
+                            triggerIcon={<LinkIcon className="text-base" />}
+                            title={linkLabel}
+                            description={invite ? t("partners.newLinkHint", locale) : t("access.baseline", locale)}
+                            closeLabel={closeLabel}
+                            size="md"
+                          >
+                            <form action={createPartnerInvite}>
+                              <RequestIdInput action="partners:access-link" />
+                              <input type="hidden" name="id" value={p.id} />
+                              <DialogFields columns={1} className="gap-1">
+                                <PartnerInviteGrants locale={locale} idPrefix={`iv_${p.id}`} />
+                              </DialogFields>
+                              <p className="mt-3 text-sm text-sand-500">{t("access.neverPartners", locale)}</p>
+                              <DialogActions cancelLabel={cancelLabel}>
+                                <SubmitButton variant="primary" leftIcon={<LinkIcon className="text-base" />}>
+                                  {t("partners.makeLink", locale)}
+                                </SubmitButton>
+                              </DialogActions>
+                            </form>
+                          </DialogForm>
+                        ) : null}
+
+                        {canInvite && invite && !invite.redeemed_at ? (
+                          <ConfirmDialog
+                            action={revokePartnerInvite}
+                            triggerLook="menuItem"
+                            triggerLabel={t("partners.cancelLink", locale)}
+                            title={t("partners.cancelLink", locale)}
+                            intro={t("partners.cancelLinkBody", locale).replace("{name}", () => p.name)}
+                            confirmLabel={t("partners.cancelLink", locale)}
+                            cancelLabel={t("confirm.keepIt", locale)}
+                            closeLabel={closeLabel}
+                          >
+                            <input type="hidden" name="id" value={invite.id} />
+                          </ConfirmDialog>
                         ) : null}
 
                         {access ? (
