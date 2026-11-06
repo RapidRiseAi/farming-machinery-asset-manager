@@ -180,18 +180,35 @@ export function captureError(err: unknown, ctx: ErrorContext = {}): void {
     extra: ctx.extra,
   };
 
-  void fetch(`https://${target.host}/api/${target.projectId}/store/`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-sentry-auth": `Sentry sentry_version=7, sentry_key=${target.publicKey}, sentry_client=fleetwise/1.0`,
-    },
-    body: JSON.stringify(event),
-    // Never let reporting hold a response open.
-    signal: AbortSignal.timeout(3000),
-  }).catch((e) => {
-    console.error("[observability] could not report:", e instanceof Error ? e.message : e);
-  });
+  keepAlive(
+    fetch(`https://${target.host}/api/${target.projectId}/store/`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-sentry-auth": `Sentry sentry_version=7, sentry_key=${target.publicKey}, sentry_client=fleetwise/1.0`,
+      },
+      body: JSON.stringify(event),
+      // Never let reporting hold a response open.
+      signal: AbortSignal.timeout(3000),
+    }).catch((e) => {
+      console.error("[observability] could not report:", e instanceof Error ? e.message : e);
+    }),
+  );
+}
+
+type VercelContext = { get?: () => { waitUntil?: (task: Promise<unknown>) => void } | undefined };
+
+/**
+ * Let a report finish after the response has gone. Vercel can freeze a function the moment
+ * it answers, so an unwatched fetch could die half way and the crash report with it, on the
+ * very requests that failed. The response still does not wait: `waitUntil` only keeps the
+ * function alive behind it. Read from Vercel's request context, as `@vercel/functions` and
+ * Sentry's own SDK do, so it costs no dependency. Off Vercel there is no context and nothing
+ * to do: a local server stays alive anyway.
+ */
+function keepAlive(task: Promise<unknown>): void {
+  const holder = globalThis as unknown as Record<symbol, VercelContext | undefined>;
+  holder[Symbol.for("@vercel/request-context")]?.get?.()?.waitUntil?.(task);
 }
 
 /**

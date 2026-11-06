@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { asReportable } from "./observability";
+import { asReportable, captureError } from "./observability";
 
 test("a PostgREST error keeps its code, not '[object Object]'", () => {
   const error = asReportable({ code: "23505", message: 'duplicate key value violates unique constraint "x"', details: "Key (email)=(a@b.c)", hint: null });
@@ -46,4 +46,35 @@ test("a database that could not be reached says how, in the library's own words"
 
 test("a codeless message that is not the library's fetch text is still not sent", () => {
   assert.equal(asReportable({ code: "", message: "someone@farm.co.za said hello" }).message, "no code");
+});
+
+test("a report is kept alive past the response, on Vercel and off it", async (t) => {
+  const key = Symbol.for("@vercel/request-context");
+  const holder = globalThis as unknown as Record<symbol, unknown>;
+  const realFetch = globalThis.fetch;
+  const sent: string[] = [];
+  const kept: Promise<unknown>[] = [];
+  process.env.SENTRY_DSN = "https://publickey@ingest.example.test/42";
+  globalThis.fetch = (async (url: string) => {
+    sent.push(String(url));
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+  t.after(() => {
+    globalThis.fetch = realFetch;
+    delete holder[key];
+    delete process.env.SENTRY_DSN;
+  });
+
+  // On Vercel: the delivery is handed to waitUntil, so a frozen function cannot lose it.
+  holder[key] = { get: () => ({ waitUntil: (task: Promise<unknown>) => kept.push(task) }) };
+  captureError(new Error("on Vercel"), { where: "test" });
+  assert.equal(kept.length, 1);
+  await Promise.all(kept);
+  assert.deepEqual(sent, ["https://ingest.example.test/api/42/store/"]);
+
+  // Off Vercel: no request context, and reporting still goes out without throwing.
+  delete holder[key];
+  assert.doesNotThrow(() => captureError(new Error("local"), { where: "test" }));
+  assert.equal(sent.length, 2);
+  assert.equal(kept.length, 1);
 });
