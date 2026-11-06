@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Trips, loads, proof of delivery and what a trip earned.
+  "20261107130000": "select to_regclass('public.trips') is not null and to_regprocedure('public.trip_finish(uuid,numeric)') is not null",
   // Features in testing, and vehicle positions.
   "20261107120000": "select to_regclass('public.feature_flags') is not null and to_regclass('public.asset_positions') is not null",
   // Handing over a business, and moving a vehicle between sites.

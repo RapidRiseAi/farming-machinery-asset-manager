@@ -10,22 +10,32 @@ const owner = { isOperator: false, isWorkshop: false, isAdmin: false };
 const driver = { isOperator: true, isWorkshop: false, isAdmin: false };
 const menu = ["/driver", "/machines", "/faults", "/fuel", "/driver/activity", "/help", "/install", "/tyres"];
 
-test("a farm that never touched the setting sees every module, and drivers their full menu", () => {
-  assert.deepEqual([...hiddenMenuHrefs(null, owner, menu)], []);
-  assert.deepEqual([...hiddenMenuHrefs({}, driver, menu)], []);
-  for (const m of MODULE_KEYS) assert.equal(moduleOn({}, m), true);
+test("an account that never touched the setting sees every module but trips", () => {
+  assert.deepEqual([...hiddenMenuHrefs(null, owner, menu)], ["/trips"]);
+  assert.deepEqual([...hiddenMenuHrefs({}, driver, menu)], ["/trips"]);
+  for (const m of MODULE_KEYS) assert.equal(moduleOn({}, m), m !== "trips");
   assert.equal(simpleDriverMode({}), false);
+});
+
+test("trips start on only for a business whose work is trips, and the owner's choice wins", () => {
+  assert.equal(moduleOn({}, "trips", "goods_transport"), true);
+  assert.equal(moduleOn({}, "trips", "game_drive"), true);
+  assert.equal(moduleOn({}, "trips", "farm"), false);
+  assert.equal(moduleOn({}, "trips", "other"), false);
+  assert.equal(moduleOn({ module_trips: true }, "trips", "farm"), true);
+  assert.equal(moduleOn({ module_trips: false }, "trips", "delivery"), false);
+  assert.deepEqual([...hiddenMenuHrefs({}, { ...owner, company: "delivery" }, menu)], []);
 });
 
 test("a switched-off module leaves the menus; nothing else does", () => {
   const hidden = hiddenMenuHrefs({ module_fuel: false, module_tyres: false }, owner, menu);
-  assert.deepEqual([...hidden].sort(), ["/fuel", "/tyres"]);
+  assert.deepEqual([...hidden].sort(), ["/fuel", "/trips", "/tyres"]);
 });
 
 test("simple mode leaves a driver home, help and install, and changes nothing for owners", () => {
   const hidden = hiddenMenuHrefs({ simple_driver_mode: true }, driver, menu);
   assert.deepEqual(menu.filter((h) => !hidden.has(h)), ["/driver", "/help", "/install"]);
-  assert.deepEqual([...hiddenMenuHrefs({ simple_driver_mode: true }, owner, menu)], []);
+  assert.deepEqual([...hiddenMenuHrefs({ simple_driver_mode: true }, owner, menu)], ["/trips"]);
 });
 
 test("Rapid Rise staff and workshops are never trimmed by one farm's choice", () => {

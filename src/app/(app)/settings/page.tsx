@@ -399,12 +399,12 @@ export default async function SettingsPage({
             <>
               <Fact
                 label={t("settings.modulesOn", locale)}
-                value={MODULE_KEYS.filter((m) => moduleOn(s, m)).map((m) => t(`settings.module.${m}`, locale)).join(", ") || "-"}
+                value={MODULE_KEYS.filter((m) => moduleOn(s, m, profile.company)).map((m) => t(`settings.module.${m}`, locale)).join(", ") || "-"}
               />
-              {MODULE_KEYS.some((m) => !moduleOn(s, m)) ? (
+              {MODULE_KEYS.some((m) => !moduleOn(s, m, profile.company)) ? (
                 <Fact
                   label={t("settings.modulesOff", locale)}
-                  value={MODULE_KEYS.filter((m) => !moduleOn(s, m)).map((m) => t(`settings.module.${m}`, locale)).join(", ")}
+                  value={MODULE_KEYS.filter((m) => !moduleOn(s, m, profile.company)).map((m) => t(`settings.module.${m}`, locale)).join(", ")}
                 />
               ) : null}
               <Fact label={t("settings.simpleDriverMode", locale)} value={yesNo(simpleDriverMode(s))} />
@@ -417,7 +417,7 @@ export default async function SettingsPage({
                 <Checkbox
                   key={m}
                   name={moduleSettingKey(m)}
-                  defaultChecked={moduleOn(s, m)}
+                  defaultChecked={moduleOn(s, m, profile.company)}
                   label={t(`settings.module.${m}`, locale)}
                 />
               ))}

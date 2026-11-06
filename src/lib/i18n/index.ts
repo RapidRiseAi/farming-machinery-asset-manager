@@ -95,6 +95,23 @@ const WORDS: Record<Locale, Record<WordSet, Words>> = {
   },
 };
 
+/** The work itself: a game lodge runs drives and takes bookings, a courier does rounds of deliveries. */
+type WorkWords = { trip: string; trips: string; load: string; loads: string };
+const WORK_WORDS: Record<Locale, { base: WorkWords } & Partial<Record<CompanyType, WorkWords>>> = {
+  en: {
+    base: { trip: "trip", trips: "trips", load: "load", loads: "loads" },
+    delivery: { trip: "run", trips: "runs", load: "delivery", loads: "deliveries" },
+    passenger_transport: { trip: "trip", trips: "trips", load: "booking", loads: "bookings" },
+    game_drive: { trip: "drive", trips: "drives", load: "booking", loads: "bookings" },
+  },
+  af: {
+    base: { trip: "rit", trips: "ritte", load: "vrag", loads: "vragte" },
+    delivery: { trip: "rondte", trips: "rondtes", load: "aflewering", loads: "aflewerings" },
+    passenger_transport: { trip: "rit", trips: "ritte", load: "bespreking", loads: "besprekings" },
+    game_drive: { trip: "rit", trips: "ritte", load: "bespreking", loads: "besprekings" },
+  },
+};
+
 function wordSetOf(company: CompanyType | null): WordSet {
   if (company === "farm") return "farm";
   if (company === "construction") return "plant";
@@ -105,9 +122,11 @@ function wordSetOf(company: CompanyType | null): WordSet {
 /** Fill the {{org}}-style words for this reader. Universal when the company is not known. */
 export function wordsFor(text: string, lang: Lang): string {
   if (!text.includes("{{")) return text;
-  const words = WORDS[localeOf(lang)][wordSetOf(companyOf(lang))];
+  const company = companyOf(lang);
+  const work = WORK_WORDS[localeOf(lang)];
+  const words = { ...WORDS[localeOf(lang)][wordSetOf(company)], ...((company && work[company]) || work.base) };
   return text.replace(/\{\{(\w+)\}\}/g, (whole, name: string) => {
-    const word = words[name.toLowerCase() as keyof Words];
+    const word = words[name.toLowerCase() as keyof typeof words];
     if (word === undefined) return whole;
     return name[0] === name[0].toUpperCase() ? word[0].toUpperCase() + word.slice(1) : word;
   });

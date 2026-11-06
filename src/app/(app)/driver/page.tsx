@@ -17,8 +17,7 @@ import { FaultStatus } from "@/components/ui/status";
 import { ReportFaultDialog } from "@/components/report-fault-dialog";
 import { mustAll, soft } from "@/lib/supabase/must";
 import {
-  MachinesIcon, FaultsIcon, FuelIcon, JobCardsIcon, SignOutIcon, ChevronRightIcon, CheckIcon,
-} from "@/components/ui/icons";
+  MachinesIcon, FaultsIcon, FuelIcon, JobCardsIcon, SignOutIcon, ChevronRightIcon, CheckIcon, WorkIcon } from "@/components/ui/icons";
 
 type MachineRow = {
   id: string;
@@ -167,6 +166,9 @@ export default async function DriverHomePage({
     ...(machines.length > CARD_LIMIT
       ? [
           { href: "/machines", icon: <MachinesIcon />, title: t("driver.tilePick", locale), hint: t("driver.tilePickHint", locale) },
+          ...(moduleOn(farmSettings, "trips", profile.company)
+            ? [{ href: "/trips", icon: <WorkIcon />, title: t("driver.tileTrips", locale), hint: t("driver.tileTripsHint", locale) }]
+            : []),
           { href: "/faults?report=1", icon: <FaultsIcon />, title: t("driver.tileFault", locale), hint: t("driver.tileFaultHint", locale) },
         ]
       : []),

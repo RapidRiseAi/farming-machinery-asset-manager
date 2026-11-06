@@ -39,6 +39,7 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/statements",
   "/suppliers",
+  "/trips",
   "/team",
   "/vat",
   "/work",

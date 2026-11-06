@@ -350,6 +350,7 @@ export default async function AppLayout({
   // from links inside other pages.
   const driverActivity: NavItemData = { href: "/driver/activity", label: t("nav.driverActivity", locale), icon: "pin" };
   const map: NavItemData = { href: "/map", label: t("nav.map", locale), icon: "pin" };
+  const trips: NavItemData = { href: "/trips", label: t("nav.trips", locale), icon: "work" };
   // The Rapid Rise console's own sections. They used to be one "Admin" row filed under
   // Account plus an English-only text subnav inside the page; now they are one group.
   // Rapid Rise's own dashboard (/admin, 2026-10-28): the overview first, then the support
@@ -432,7 +433,7 @@ export default async function AppLayout({
   const allGroups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
     ? [
         { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
-        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, driverActivity, ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
+        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, trips, driverActivity, ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
       ]
     : isWorkshop
     ? [
@@ -449,7 +450,7 @@ export default async function AppLayout({
         {
           key: "fleet",
           label: t("nav.theFleet", locale),
-          items: [machines, ...(isAdmin ? [] : [driverActivity]), ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
+          items: [machines, ...(isAdmin ? [] : [trips, driverActivity]), ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
         },
         {
           key: "farm",
@@ -526,7 +527,7 @@ export default async function AppLayout({
   // driver in simple mode everything but home, help and install. The pages still open
   // from a link; this is a simpler menu, not a permission.
   const menuHrefs = [...allGroups, ...allTailGroups].flatMap((g) => g.items.map((i) => i.href));
-  const hiddenHrefs = hiddenMenuHrefs(farmSettings, { isOperator, isWorkshop, isAdmin }, menuHrefs);
+  const hiddenHrefs = hiddenMenuHrefs(farmSettings, { isOperator, isWorkshop, isAdmin, company: profile.company }, menuHrefs);
   const shown = (i: NavItemData) => !hiddenHrefs.has(i.href);
   const trim = (gs: typeof allGroups) =>
     gs.map((g) => ({ ...g, items: g.items.filter(shown) })).filter((g) => g.items.length > 0);

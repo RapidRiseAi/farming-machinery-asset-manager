@@ -46,6 +46,10 @@ export const SETTING_NUMBERS = {
   repair_replace_pct: 60,
   utilisation_hours_per_day: 10,
   utilisation_km_per_day: 200,
+  // The company's own fatigue policy: South Africa sets no number (src/lib/driver-hours.ts).
+  driver_max_hours_day: 12,
+  driver_max_hours_week: 60,
+  driver_min_rest_hours: 8,
 } as const;
 
 /**
@@ -62,6 +66,9 @@ export const SETTING_RANGES: Partial<Record<keyof typeof SETTING_NUMBERS, { min:
   repair_replace_pct: { min: 1 },
   utilisation_hours_per_day: { min: 1, max: 24 },
   utilisation_km_per_day: { min: 1 },
+  driver_max_hours_day: { min: 1, max: 24 },
+  driver_max_hours_week: { min: 1, max: 168 },
+  driver_min_rest_hours: { min: 1, max: 24 },
 };
 
 function inRange(key: string, n: number): boolean {

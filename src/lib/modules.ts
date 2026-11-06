@@ -18,6 +18,8 @@
  * that never opens the setting sees exactly what it saw before.
  */
 
+import type { CompanyType } from "@/lib/i18n";
+
 /** The optional modules, each with the menu destinations it owns. Core screens are not switchable. */
 export const FARM_MODULES = {
   fuel: ["/fuel"],
@@ -30,6 +32,7 @@ export const FARM_MODULES = {
   partners: ["/partners"],
   calendar: ["/calendar"],
   driver_activity: ["/driver/activity"],
+  trips: ["/trips"],
 } as const;
 
 export type FarmModule = keyof typeof FARM_MODULES;
@@ -40,12 +43,21 @@ export const moduleSettingKey = (m: FarmModule) => `module_${m}`;
 
 /** The keys `mergeSettings` knows, with their defaults: every module on, simple mode off. */
 export const MODULE_SETTING_DEFAULTS: Record<string, boolean> = {
-  ...Object.fromEntries(MODULE_KEYS.map((m) => [moduleSettingKey(m), true])),
+  ...Object.fromEntries(MODULE_KEYS.filter((m) => m !== "trips").map((m) => [moduleSettingKey(m), true])),
   simple_driver_mode: false,
 };
 
-export function moduleOn(settings: Record<string, unknown> | null | undefined, m: FarmModule): boolean {
-  return settings?.[moduleSettingKey(m)] !== false;
+/** Most modules start on. Trips start on only for a business whose work is trips. */
+const TRIP_COMPANIES: readonly string[] = ["game_drive", "goods_transport", "delivery", "passenger_transport"];
+
+export function moduleOn(
+  settings: Record<string, unknown> | null | undefined,
+  m: FarmModule,
+  company?: CompanyType | null,
+): boolean {
+  const chosen = settings?.[moduleSettingKey(m)];
+  if (m === "trips" && chosen === undefined) return !!company && TRIP_COMPANIES.includes(company);
+  return chosen !== false;
 }
 
 export function simpleDriverMode(settings: Record<string, unknown> | null | undefined): boolean {
@@ -62,13 +74,13 @@ export const SIMPLE_DRIVER_HREFS = ["/driver", "/help", "/install"] as const;
  */
 export function hiddenMenuHrefs(
   settings: Record<string, unknown> | null | undefined,
-  who: { isOperator: boolean; isWorkshop: boolean; isAdmin: boolean },
+  who: { isOperator: boolean; isWorkshop: boolean; isAdmin: boolean; company?: CompanyType | null },
   allHrefs: readonly string[] = [],
 ): Set<string> {
   const hidden = new Set<string>();
   if (who.isWorkshop || who.isAdmin) return hidden;
   for (const m of MODULE_KEYS) {
-    if (!moduleOn(settings, m)) for (const href of FARM_MODULES[m]) hidden.add(href);
+    if (!moduleOn(settings, m, who.company)) for (const href of FARM_MODULES[m]) hidden.add(href);
   }
   if (who.isOperator && simpleDriverMode(settings)) {
     for (const href of allHrefs) {
