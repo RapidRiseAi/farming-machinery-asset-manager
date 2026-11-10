@@ -36,7 +36,15 @@ Everything in the product is tenant-isolated by `farm_id` and Row-Level Security
 | `partners`, `workshops` | Contractor `phone`/`whatsapp`/`email`/`area`/`contact` | Contractors | No (business contact data) |
 | **Error reports** (NFR-6), *transmitted, never stored by us* | Stack trace, route path, and the acting user's and farm's **opaque uuids**. Deliberately never: name, email, phone, row content, or query strings. | The acting user | No, see §5.1 |
 
-**Not collected (Scope §13, hard out of scope):** GPS/telemetry tracking, biometric
+**Vehicle positions (in testing, 6 November 2026).** The map (`asset_positions`, migration
+`20261107120000`) records a vehicle's route from a driver's phone while their screen is open, and
+from trackers later. It is behind a feature switch and reaches only businesses Rapid Rise has
+turned it on for, for testing. Before it is released to everyone, the privacy notice must say
+so and the lawyer must confirm the basis (legitimate interest with openness is the likely one).
+A driver sees only their own trips, an owner or manager the fleet; points are deleted after
+180 days, and with the account on closure.
+
+**Not collected otherwise (Scope §13):** continuous tracking outside the map above, biometric
 identifiers, ID/passport numbers, banking/card data (billing is deferred; when it lands
 it runs through Paystack, card data never touches our servers), and any
 crop/livestock/labour records.
