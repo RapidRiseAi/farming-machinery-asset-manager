@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Closure switches the guards off with SET LOCAL, which the hosted database allows.
+  "20261110090000": "select bool_and(p.prosrc like '%set local session_replication_role%') and count(*) = 2 from pg_proc p where p.oid in ('public.close_farm_permanently(uuid,uuid)'::regprocedure, 'public.purge_expired_closures()'::regprocedure)",
   // One bill for several sites, usage at cost plus markup, and Done-For-You quotes.
   "20261107150000": "select to_regprocedure('public.billing_record_dfy_quote(uuid,text,integer,integer,billing_period,date,text,uuid)') is not null and to_regclass('public.usage_rates') is not null",
   // Fuel card statements.
