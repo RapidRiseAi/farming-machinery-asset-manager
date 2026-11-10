@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // One bill for several sites, usage at cost plus markup, and Done-For-You quotes.
+  "20261107150000": "select to_regprocedure('public.billing_record_dfy_quote(uuid,text,integer,integer,billing_period,date,text,uuid)') is not null and to_regclass('public.usage_rates') is not null",
   // Fuel card statements.
   "20261107140000": "select to_regclass('public.fuel_card_transactions') is not null",
   // Trips, loads, proof of delivery and what a trip earned.

@@ -96,7 +96,8 @@
     "sites": "Your {{orgs}}",
     "map": "Map",
     "adminFeatures": "Features in testing",
-    "trips": "{{Trips}}"
+    "trips": "{{Trips}}",
+    "adminUsage": "Usage"
   },
   "assistant": {
     "title": "Voice assistant",
@@ -8036,5 +8037,13 @@
       "columns": "That file needs columns for the date, litres and amount.",
       "empty": "No fills could be read from that file."
     }
+  },
+  "adminArrangements": {
+    "failed": "That could not be saved. Please try again.",
+    "ownSubscription": "This site has its own subscription. Cancel it before billing it through another site.",
+    "mainUnpaid": "The main site has no running subscription to bill through.",
+    "dfyBad": "Check the quote: a reference, a price, a whole number of vehicles and a date.",
+    "usageBad": "That could not be worked out. Please try again.",
+    "usageNothing": "There is nothing to charge for that business this month."
   }
 }

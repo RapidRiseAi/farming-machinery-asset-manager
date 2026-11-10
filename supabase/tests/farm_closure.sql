@@ -49,9 +49,9 @@ select 'e6400000-0000-4000-9000-000000000001', 'e6300000-0000-4000-9000-00000000
        'invoice', 'Closing Farm', 'INV-1' from closing;
 
 insert into storage.objects (bucket_id, name, metadata)
-select 'machine-photos', id::text || '/a/photo.jpg', '{"size": 10}' from closing
-union all select 'partner-docs', id::text || '/doc/invoice.pdf', '{"size": 20}' from closing
-union all select 'machine-photos', 'e6000000-0000-4000-9000-000000000002/b/photo.jpg', '{"size": 30}';
+select 'machine-photos', id::text || '/a/photo.jpg', '{"size": 10}'::jsonb from closing
+union all select 'partner-docs', id::text || '/doc/invoice.pdf', '{"size": 20}'::jsonb from closing
+union all select 'machine-photos', 'e6000000-0000-4000-9000-000000000002/b/photo.jpg', '{"size": 30}'::jsonb;
 
 do $t$
 declare

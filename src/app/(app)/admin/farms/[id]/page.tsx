@@ -28,6 +28,7 @@ import { ActionMenu } from "@/components/ui/action-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PlusIcon } from "@/components/ui/icons";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { BillingArrangements } from "./arrangements";
 import { Fact, FactList } from "@/components/ui/facts";
 import { Stat, StatGrid } from "@/components/ui/stat";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
@@ -601,6 +602,7 @@ export default async function ClientPage({
           )}
         </Card>
       </div>
+      <BillingArrangements farmId={id} />
     </PageContainer>
   );
 }

@@ -96,7 +96,8 @@
     "sites": "Jou {{orgs}}",
     "map": "Kaart",
     "adminFeatures": "Funksies in toetsing",
-    "trips": "{{Trips}}"
+    "trips": "{{Trips}}",
+    "adminUsage": "Gebruik"
   },
   "assistant": {
     "title": "Stemassistent",
@@ -8036,5 +8037,13 @@
       "columns": "Daardie lêer het kolomme vir die datum, liter en bedrag nodig.",
       "empty": "Geen vullings kon uit daardie lêer gelees word nie."
     }
+  },
+  "adminArrangements": {
+    "failed": "Dit kon nie gestoor word nie. Probeer asseblief weer.",
+    "ownSubscription": "Hierdie perseel het sy eie intekening. Kanselleer dit voordat dit deur 'n ander perseel gefaktureer word.",
+    "mainUnpaid": "Die hoofperseel het geen lopende intekening om deur te faktureer nie.",
+    "dfyBad": "Gaan die kwotasie na: 'n verwysing, 'n prys, 'n heel getal voertuie en 'n datum.",
+    "usageBad": "Dit kon nie uitgewerk word nie. Probeer asseblief weer.",
+    "usageNothing": "Daar is niks om hierdie maand vir daardie besigheid te hef nie."
   }
 }
