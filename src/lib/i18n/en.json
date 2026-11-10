@@ -659,7 +659,9 @@
     "importAddsOnly": "Import adds new {{assets}}; it never changes ones already on FLEETWISE. Rows whose serial or registration is already {{on}} the {{org}} are left out, so importing the same file again adds nothing twice.",
     "importedSkipped": "Imported {n} {{assets}}. {skipped} rows had a problem and were left out: fix them in the sheet and import just those.",
     "problemsFilter": "Problems",
-    "problemsOpen": "With an open problem"
+    "problemsOpen": "With an open problem",
+    "tankLitres": "Fuel tank size (litres)",
+    "tankLitresHint": "Used to spot a fuel card fill that is more than the tank holds."
   },
   "machineType": {
     "tractor": "Tractor",
@@ -7878,7 +7880,8 @@
     "recordStop": "Stop recording",
     "recording": "Recording.",
     "keepOpen": "Keep this screen open: a phone stops recording when the screen locks.",
-    "recordDenied": "This phone is not sharing its location. Allow it in your browser's settings."
+    "recordDenied": "This phone is not sharing its location. Allow it in your browser's settings.",
+    "fault": "Fault"
   },
   "trips": {
     "title": "{{Trips}}",
@@ -7999,5 +8002,39 @@
     "emptyHint": "This fills in once {{trips}} are finished with their income added.",
     "count": "{{Trips}}",
     "perKm": "Per km after expenses"
+  },
+  "fuelCards": {
+    "title": "Fuel cards",
+    "lead": "Bring in a card statement and see what looks wrong before you pay it.",
+    "back": "Back to fuel",
+    "bringIn": "Bring in a statement",
+    "bringInHint": "Download the statement from your bank as a CSV file. It needs a date, litres and an amount; a registration lets us match each fill to a {{asset}}. Bringing in the same statement twice adds nothing.",
+    "file": "CSV file",
+    "import": "Bring it in",
+    "imported": "{added} new fills added. {skipped} rows could not be read.",
+    "emptyTitle": "No fuel card fills yet",
+    "emptyHint": "Bring in your first statement above.",
+    "statFills": "Fills",
+    "statSpent": "Spent",
+    "statCheck": "To check",
+    "date": "Date",
+    "vehicle": "{{Asset}}",
+    "litres": "Litres",
+    "amount": "Amount",
+    "where": "Where",
+    "check": "Check",
+    "fine": "Looks fine",
+    "markChecked": "Mark as checked",
+    "flag": {
+      "unknown_vehicle": "Unknown {{asset}}",
+      "over_tank": "More than the tank holds",
+      "too_soon": "Too soon after the last fill",
+      "odometer_back": "Odometer went backwards"
+    },
+    "errors": {
+      "file": "That file could not be read. Use a CSV file smaller than 2 MB.",
+      "columns": "That file needs columns for the date, litres and amount.",
+      "empty": "No fills could be read from that file."
+    }
   }
 }

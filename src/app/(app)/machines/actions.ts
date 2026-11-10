@@ -131,6 +131,12 @@ function extraFields(fd: FormData, mode: "create" | "update") {
   };
 }
 
+/** Blank is fine: a vehicle with no tank size simply skips the over-tank check. */
+function tankLitres(formData: FormData): number | null {
+  const n = Number(String(formData.get("fuel_tank_litres") ?? "").trim());
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export async function createMachine(formData: FormData) {
   return runOnce(
     formData,
@@ -176,6 +182,7 @@ export async function createMachine(formData: FormData) {
           model: str(formData, "model"),
           year: intOrNull(formData, "year"),
           serial_no: str(formData, "serial_no"),
+          fuel_tank_litres: tankLitres(formData),
           reg_no: str(formData, "reg_no"),
           meter_type,
           current_reading,
@@ -254,6 +261,7 @@ export async function updateMachine(formData: FormData) {
       model: str(formData, "model"),
       year: intOrNull(formData, "year"),
       serial_no: str(formData, "serial_no"),
+      fuel_tank_litres: tankLitres(formData),
       reg_no: str(formData, "reg_no"),
       meter_type,
       status,

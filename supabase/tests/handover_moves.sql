@@ -102,8 +102,8 @@ insert into public.service_plan_lines (farm_id, machine_id, task, interval_hours
   ('e7000000-0000-4000-9000-000000000001', 'e7200000-0000-4000-9000-000000000001', 'Oil', 10000);
 insert into public.licences (farm_id, machine_id, type, number, expiry_date) values
   ('e7000000-0000-4000-9000-000000000001', 'e7200000-0000-4000-9000-000000000001', 'cof', 'COF-1', current_date + 90);
-insert into public.faults (farm_id, machine_id, title, severity) values
-  ('e7000000-0000-4000-9000-000000000001', 'e7200000-0000-4000-9000-000000000001', 'Old fault', 'low');
+insert into public.faults (farm_id, machine_id, description) values
+  ('e7000000-0000-4000-9000-000000000001', 'e7200000-0000-4000-9000-000000000001', 'Old fault');
 
 do $t$
 declare

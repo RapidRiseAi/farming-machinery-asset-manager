@@ -24,7 +24,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 export const dynamic = "force-dynamic";
 
 type Position = { machine_id: string; lat: number; lng: number; recorded_at: string; session_id: string | null };
-type Fault = { id: string; title: string; lat: number; lng: number; created_at: string; machine_id: string };
+type Fault = { id: string; description: string | null; lat: number; lng: number; created_at: string; machine_id: string };
 type Machine = { id: string; name: string };
 type Session = { id: string; machine_id: string; started_at: string; ended_at: string | null };
 type Stop = { id: string; session_id: string; lat: number | null; lng: number | null; location: string | null; occurred_at: string; kind: string };
@@ -49,7 +49,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
       .limit(2000),
     supabase
       .from("faults")
-      .select("id, title, lat, lng, created_at, machine_id")
+      .select("id, description, lat, lng, created_at, machine_id")
       .eq("farm_id", farmId ?? "")
       .not("lat", "is", null)
       .is("deleted_at", null)
@@ -115,7 +115,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
           id: f.id,
           lat: f.lat,
           lng: f.lng,
-          title: f.title,
+          title: f.description || t("map.fault", locale),
           detail: `${nameOf.get(f.machine_id) ?? ""} · ${dateTime(f.created_at, locale)}`,
           kind: "fault" as const,
         })),

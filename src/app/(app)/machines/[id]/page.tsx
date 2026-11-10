@@ -103,6 +103,7 @@ type Machine = {
   id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null;
   year: number | null; serial_no: string | null; reg_no: string | null; meter_type: string;
   previous_machine_id: string | null; moved_to_machine_id: string | null;
+  fuel_tank_litres: number | null;
   current_reading: number | null; current_reading_date: string | null; status: string;
   purchase_date: string | null; purchase_price_cents: number | null; supplier: string | null;
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null; location: string | null; notes: string | null;
@@ -168,7 +169,7 @@ export default async function MachineDetailPage({
   // A failed read is the error screen, not "this machine does not exist".
   const data = must(await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, previous_machine_id, moved_to_machine_id")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, previous_machine_id, moved_to_machine_id, fuel_tank_litres")
     .eq("id", id)
     .maybeSingle(), "machine:machine");
   const machineBase = data as Omit<Machine, "purchase_price_cents" | "supplier" | "finance_provider" | "finance_total_cents" | "finance_monthly_cents" | "finance_term_months" | "finance_interest_bps"> | null;

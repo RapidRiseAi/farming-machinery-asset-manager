@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
 import { checkEntitlement, currentFarmId, effectiveFarmRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -368,7 +369,17 @@ export default async function FuelPage({
         lead={t("fuel.subtitle", locale)}
         infoKey="fuel"
         locale={locale}
-        actions={headerActions}
+        actions={
+          <>
+            {headerActions}
+            {/* Card statements are checked here even by a fleet with no tank of its own. */}
+            {canManage ? (
+              <Link href="/fuel/cards" className={buttonVariants({ variant: "secondary" })}>
+                {t("fuelCards.title", locale)}
+              </Link>
+            ) : null}
+          </>
+        }
       />
 
       <Flash tone="error" message={errorMessage(sp.error, locale)} />

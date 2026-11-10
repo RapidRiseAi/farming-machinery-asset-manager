@@ -659,7 +659,9 @@
     "importAddsOnly": "Invoer voeg nuwe {{assets}} by; dit verander nooit {{assets}} wat reeds op FLEETWISE is nie. Rye waarvan die serie- of registrasienommer reeds {{on}} die {{org}} is, word uitgelaat, so as jy dieselfde lêer weer invoer word niks twee keer bygevoeg nie.",
     "importedSkipped": "{n} {{assets}} ingevoer. {skipped} rye het 'n probleem gehad en is uitgelaat: maak hulle in die lêer reg en voer net daardie rye in.",
     "problemsFilter": "Probleme",
-    "problemsOpen": "Met 'n oop probleem"
+    "problemsOpen": "Met 'n oop probleem",
+    "tankLitres": "Brandstoftenkgrootte (liter)",
+    "tankLitresHint": "Word gebruik om 'n brandstofkaartvulling te sien wat meer is as wat die tenk hou."
   },
   "machineType": {
     "tractor": "Trekker",
@@ -7878,7 +7880,8 @@
     "recordStop": "Stop opname",
     "recording": "Neem tans op.",
     "keepOpen": "Hou hierdie skerm oop: 'n foon hou op opneem wanneer die skerm sluit.",
-    "recordDenied": "Hierdie foon deel nie sy ligging nie. Laat dit toe in jou blaaier se instellings."
+    "recordDenied": "Hierdie foon deel nie sy ligging nie. Laat dit toe in jou blaaier se instellings.",
+    "fault": "Fout"
   },
   "trips": {
     "title": "{{Trips}}",
@@ -7999,5 +8002,39 @@
     "emptyHint": "Dit vul in sodra {{trips}} voltooi is met hul inkomste bygevoeg.",
     "count": "{{Trips}}",
     "perKm": "Per km na uitgawes"
+  },
+  "fuelCards": {
+    "title": "Brandstofkaarte",
+    "lead": "Bring 'n kaartstaat in en sien wat verkeerd lyk voordat jy dit betaal.",
+    "back": "Terug na brandstof",
+    "bringIn": "Bring 'n staat in",
+    "bringInHint": "Laai die staat van jou bank af as 'n CSV-lêer. Dit het 'n datum, liter en 'n bedrag nodig; 'n registrasie laat ons elke vulling by 'n {{asset}} pas. Om dieselfde staat twee keer in te bring, voeg niks by nie.",
+    "file": "CSV-lêer",
+    "import": "Bring dit in",
+    "imported": "{added} nuwe vullings bygevoeg. {skipped} rye kon nie gelees word nie.",
+    "emptyTitle": "Nog geen brandstofkaartvullings nie",
+    "emptyHint": "Bring jou eerste staat hierbo in.",
+    "statFills": "Vullings",
+    "statSpent": "Bestee",
+    "statCheck": "Om na te gaan",
+    "date": "Datum",
+    "vehicle": "{{Asset}}",
+    "litres": "Liter",
+    "amount": "Bedrag",
+    "where": "Waar",
+    "check": "Kontrole",
+    "fine": "Lyk reg",
+    "markChecked": "Merk as nagegaan",
+    "flag": {
+      "unknown_vehicle": "Onbekende {{asset}}",
+      "over_tank": "Meer as wat die tenk hou",
+      "too_soon": "Te gou na die laaste vulling",
+      "odometer_back": "Odometer het teruggegaan"
+    },
+    "errors": {
+      "file": "Daardie lêer kon nie gelees word nie. Gebruik 'n CSV-lêer kleiner as 2 MB.",
+      "columns": "Daardie lêer het kolomme vir die datum, liter en bedrag nodig.",
+      "empty": "Geen vullings kon uit daardie lêer gelees word nie."
+    }
   }
 }

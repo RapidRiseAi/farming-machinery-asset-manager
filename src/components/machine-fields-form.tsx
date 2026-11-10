@@ -18,6 +18,7 @@ export type MachineFieldDefaults = {
   model?: string | null;
   year?: number | null;
   serial_no?: string | null;
+  fuel_tank_litres?: number | null;
   reg_no?: string | null;
   meter_type?: string | null;
   current_reading?: number | null;
@@ -120,6 +121,9 @@ export function MachineFieldsForm({
               </option>
             ))}
           </Select>
+        </Field>
+        <Field label={t("machines.tankLitres", locale)} htmlFor="fuel_tank_litres" hint={t("machines.tankLitresHint", locale)}>
+          <Input id="fuel_tank_litres" name="fuel_tank_litres" type="number" inputMode="decimal" min={0} defaultValue={m.fuel_tank_litres ?? ""} />
         </Field>
         {/* The reading is only asked for when the machine is added: after that it moves
             through Log reading, and the Edit dialog's old box saved nothing at all. */}

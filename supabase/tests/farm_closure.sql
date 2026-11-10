@@ -37,16 +37,16 @@ insert into public.machines (id, farm_id, name, type)
 select 'e6200000-0000-4000-9000-000000000001', id, 'Gone tractor', 'tractor' from closing;
 insert into public.machines (id, farm_id, name, type) values
   ('e6200000-0000-4000-9000-000000000002', 'e6000000-0000-4000-9000-000000000002', 'Staying tractor', 'tractor');
-insert into public.faults (farm_id, machine_id, title, severity)
-select id, 'e6200000-0000-4000-9000-000000000001', 'Leak', 'low' from closing;
+insert into public.faults (farm_id, machine_id, description)
+select id, 'e6200000-0000-4000-9000-000000000001', 'Leak' from closing;
 
 -- A contractor who worked for them.
 insert into public.workshops (id, name) values ('e6300000-0000-4000-9000-000000000001', 'Their mechanic');
 insert into public.workshop_links (workshop_id, farm_id, status)
 select 'e6300000-0000-4000-9000-000000000001', id, 'active' from closing;
-insert into public.partner_documents (id, workshop_id, farm_id, doc_type, bill_to_name, number, issue_date, status, source)
+insert into public.partner_documents (id, workshop_id, farm_id, kind, bill_to_name, number)
 select 'e6400000-0000-4000-9000-000000000001', 'e6300000-0000-4000-9000-000000000001', id,
-       'invoice', 'Closing Farm', 'INV-1', current_date, 'sent', 'built' from closing;
+       'invoice', 'Closing Farm', 'INV-1' from closing;
 
 insert into storage.objects (bucket_id, name, metadata)
 select 'machine-photos', id::text || '/a/photo.jpg', '{"size": 10}' from closing

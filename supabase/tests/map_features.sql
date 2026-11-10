@@ -18,9 +18,9 @@ insert into public.users (id, farm_id, role, name, email, active) values
   ('e8100000-0000-4000-9000-000000000004', 'e8000000-0000-4000-9000-000000000002', 'owner', 'Other', 'other@map.test', true);
 insert into public.machines (id, farm_id, name, type) values
   ('e8200000-0000-4000-9000-000000000001', 'e8000000-0000-4000-9000-000000000001', 'Truck', 'truck');
-insert into public.driving_sessions (id, farm_id, machine_id, driver_id, started_at, created_by) values
+insert into public.driving_sessions (id, farm_id, machine_id, driver_id, started_at) values
   ('e8300000-0000-4000-9000-000000000001', 'e8000000-0000-4000-9000-000000000001',
-   'e8200000-0000-4000-9000-000000000001', 'e8100000-0000-4000-9000-000000000002', now(), 'e8100000-0000-4000-9000-000000000002');
+   'e8200000-0000-4000-9000-000000000001', 'e8100000-0000-4000-9000-000000000002', now());
 insert into public.asset_positions (farm_id, machine_id, session_id, recorded_at, lat, lng) values
   ('e8000000-0000-4000-9000-000000000001', 'e8200000-0000-4000-9000-000000000001',
    'e8300000-0000-4000-9000-000000000001', now(), -25.7, 28.2),
