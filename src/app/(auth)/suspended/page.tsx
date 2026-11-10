@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -145,6 +146,11 @@ export default async function SuspendedPage({
           {t("suspended.download", locale)}
         </DownloadLink>
 
+        {role === "owner" && farmId === profile.farm_id ? (
+          <p className="mt-3 text-center text-sm">
+            <Link href="/close-account" className="font-medium text-status-due underline">{t("closure.settingsLink", locale)}</Link>
+          </p>
+        ) : null}
         <p className="mt-4 text-xs text-sand-700">{t("suspended.help", locale).replace("{email}", COMPANY.email)}</p>
         <SwitchFarm profile={profile} current={farmId} locale={locale} />
       </div>

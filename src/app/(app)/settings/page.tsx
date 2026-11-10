@@ -518,7 +518,7 @@ export default async function SettingsPage({
       {profile.role === "owner" ? (
         <p className="text-sm text-sand-600">
           {t("closure.settingsLine", locale)}{" "}
-          <Link href="/settings/close" className="font-medium text-status-due underline">{t("closure.settingsLink", locale)}</Link>
+          <Link href="/close-account" className="font-medium text-status-due underline">{t("closure.settingsLink", locale)}</Link>
         </p>
       ) : null}
 

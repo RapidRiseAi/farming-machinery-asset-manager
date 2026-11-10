@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { APP_NAME } from "@/lib/env";
@@ -140,6 +141,11 @@ export default async function ClosedPage({
           {t("closed.download", locale)}
         </DownloadLink>
 
+        {farmRole === "owner" && farmId === profile.farm_id ? (
+          <p className="mt-3 text-center text-sm">
+            <Link href="/close-account" className="font-medium text-status-due underline">{t("closure.settingsLink", locale)}</Link>
+          </p>
+        ) : null}
         <p className="mt-4 text-xs text-sand-700">
           {t("closed.help", locale).replace("{email}", "team@rapidriseai.com")}
         </p>

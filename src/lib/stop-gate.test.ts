@@ -38,6 +38,7 @@ const OPEN_ON_PURPOSE: Record<string, string> = {
   "app/(auth)/suspended/actions.ts": "the pay screen of a paused farm",
   "app/(auth)/closed/actions.ts": "reopening a closed farm",
   "app/(public)/close-account/[token]/actions.ts": "deleting your data must never depend on paying first",
+  "app/(auth)/close-account/actions.ts": "asking to delete your data must never depend on paying first either",
   "app/(app)/billing/actions.ts":
     "billing itself: paying, the card, cancelling (setCancellation refuses a paused farm) and slot and plan changes (the engine refuses them while paused)",
   "app/(app)/help/actions.ts": "a paused farm can still ask Rapid Rise for help",

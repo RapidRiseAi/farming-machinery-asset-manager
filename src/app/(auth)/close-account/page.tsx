@@ -1,4 +1,8 @@
-import { requireRole } from "@/lib/auth";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import { effectiveFarmRole, requireProfile } from "@/lib/auth";
+import { APP_NAME } from "@/lib/env";
 import { errorMessage } from "@/lib/errors";
 import { exportIsFresh } from "@/lib/farm-closure";
 import { dateTime, num } from "@/lib/format";
@@ -11,7 +15,8 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DownloadLink } from "@/components/ui/download-link";
 import { Flash } from "@/components/ui/flash";
-import { PageContainer, PageHeader } from "@/components/ui/page-header";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
+import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { requestClosure } from "./actions";
 
@@ -19,6 +24,11 @@ import { requestClosure } from "./actions";
  * Closing an account for good. The owner alone, and it deletes nothing: the last step is a
  * link in their email. It lays out exactly what goes and what stays, and hands them everything
  * first, because after that there is no way back.
+ *
+ * It sits outside the app's billing gate, like /closed: somebody who has cancelled or stopped
+ * paying is exactly who asks for this, and deleting your data must never depend on paying
+ * first. So it checks the sign-in and the owner itself, on the home account, which is the one
+ * the closure deletes.
  */
 export const dynamic = "force-dynamic";
 
@@ -29,10 +39,11 @@ export default async function CloseAccountPage({
 }: {
   searchParams: Promise<{ error?: string; sent?: string }>;
 }) {
-  const profile = await requireRole(["owner"]);
+  const profile = await requireProfile();
   const sp = await searchParams;
   const locale = profile.lang;
-  const farmId = profile.farm_id ?? "";
+  const farmId = profile.farm_id;
+  if (!farmId || (await effectiveFarmRole(farmId, profile)) !== "owner") redirect("/home");
 
   const svc = createServiceClient();
   const farm = must(
@@ -50,7 +61,14 @@ export default async function CloseAccountPage({
   const labels = downloadLabels(locale);
 
   return (
-    <PageContainer>
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <BrandMark />
+          <Wordmark name={APP_NAME} className="text-xl" />
+        </div>
+        <Link href="/home" className="text-sm font-medium text-brand-ink underline">{t("closure.back", locale)}</Link>
+      </div>
       <PageHeader
         title={t("closure.title", locale)}
         lead={t("closure.lead", locale).replace("{business}", () => farm?.name ?? "")}
@@ -113,6 +131,6 @@ export default async function CloseAccountPage({
           <SubmitButton variant="danger">{t("closure.send", locale)}</SubmitButton>
         </form>
       </Card>
-    </PageContainer>
+    </main>
   );
 }
