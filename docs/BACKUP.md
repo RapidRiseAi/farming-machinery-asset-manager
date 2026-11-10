@@ -37,9 +37,33 @@ what `pnpm db:test` does every run).
 - Buckets are **private** (migration `0200`); objects are platform-managed and
   redundantly stored by Supabase. Storage is **not** covered by the Postgres PITR
   timeline, treat DB rows and their storage objects as separately recoverable.
-- For extra safety on irreplaceable media, schedule a periodic **out-of-band copy** of the
-  buckets (e.g. a monthly `supabase storage` export / S3-compatible sync) to a second
-  location. Record where: **_offsite copy: ____________**.
+- **Nightly offsite copy:** `.github/workflows/file-copy.yml` makes a second copy of every
+  bucket each night. A file deleted in the app is set aside for seven days and then removed, so a
+  closed account's files do not outlive the closure promise. It does nothing until three
+  repository secrets exist:
+  - `SUPABASE_S3_ACCESS_KEY_ID` and `SUPABASE_S3_SECRET_ACCESS_KEY`: Supabase, Storage,
+    S3 Connection, new access key.
+  - `BACKUP_RCLONE_CONFIG`: an rclone config with one `[dest]` section for where the copy
+    lives. Azure Blob (an account Rapid Rise already has):
+
+    ```ini
+    [dest]
+    type = azureblob
+    account = <storage account name>
+    key = <access key>
+    ```
+
+    Cloudflare R2 or Backblaze B2 (S3-compatible, no charge for reading the copy back on R2):
+
+    ```ini
+    [dest]
+    type = s3
+    provider = Cloudflare
+    access_key_id = <key id>
+    secret_access_key = <secret>
+    endpoint = https://<account id>.r2.cloudflarestorage.com
+    ```
+  Record where: **_offsite copy: ____________**.
 
 ### 2.4 Connection strings (for restore tooling / migrations)
 - `DATABASE_URL` = pooler (transaction mode), app/serverless.

@@ -57,19 +57,34 @@ insert into app.audit_table_rules (table_name, scope, reason) values
   ('farm_ownership_transfers', 'farm', 'who was offered the business, and what they answered')
 on conflict (table_name) do nothing;
 
+-- What somebody is on a business, read from the tables. app.effective_farm_role answers only for
+-- the signed-in caller (it returns null for anyone else), and these functions run on the server
+-- and ask about other people, so they need this instead.
+create or replace function app.role_on_farm(p_user uuid, p_farm uuid) returns text
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(
+           (select m.role::text from public.user_farm_memberships m
+             where m.user_id = p_user and m.farm_id = p_farm and m.active and m.deleted_at is null),
+           (select u.role::text from public.users u
+             where u.id = p_user and u.farm_id = p_farm and u.role in ('owner', 'manager', 'mechanic', 'operator')))
+   where exists (select 1 from public.users u where u.id = p_user and u.active and u.deleted_at is null);
+$$;
+revoke all on function app.role_on_farm(uuid, uuid) from public, anon, authenticated;
+grant execute on function app.role_on_farm(uuid, uuid) to service_role;
+
 create or replace function public.offer_ownership(p_farm uuid, p_from uuid, p_to uuid)
 returns uuid
 language plpgsql set search_path = public, pg_temp as $$
 declare
   v_id uuid;
 begin
-  if app.effective_farm_role(p_from, p_farm)::text is distinct from 'owner' then
+  if app.role_on_farm(p_from, p_farm) is distinct from 'owner' then
     raise exception 'only the owner can hand over the business' using errcode = '42501';
   end if;
   if p_from = p_to then
     raise exception 'you already own this' using errcode = '22023';
   end if;
-  if app.effective_farm_role(p_to, p_farm) is null
+  if app.role_on_farm(p_to, p_farm) is null
      or not exists (select 1 from public.users u where u.id = p_to and u.active and u.deleted_at is null) then
     raise exception 'that person is not on the team' using errcode = '22023';
   end if;
@@ -96,7 +111,7 @@ begin
     raise exception 'this offer has ended' using errcode = '22023';
   end if;
   -- It may have sat for days: the person offering must still be the one who can give it.
-  if app.effective_farm_role(v.from_user, v.farm_id)::text is distinct from 'owner' then
+  if app.role_on_farm(v.from_user, v.farm_id) is distinct from 'owner' then
     raise exception 'this offer has ended' using errcode = '22023';
   end if;
 
@@ -128,8 +143,8 @@ begin
   if m.moved_to_machine_id is not null or m.status in ('retired', 'sold') then
     raise exception 'this vehicle has left this site' using errcode = '22023';
   end if;
-  if coalesce(app.effective_farm_role(p_by, m.farm_id)::text, '') not in ('owner', 'manager')
-     or coalesce(app.effective_farm_role(p_by, p_to)::text, '') not in ('owner', 'manager') then
+  if coalesce(app.role_on_farm(p_by, m.farm_id), '') not in ('owner', 'manager')
+     or coalesce(app.role_on_farm(p_by, p_to), '') not in ('owner', 'manager') then
     raise exception 'you need to run both sites to move a vehicle' using errcode = '42501';
   end if;
 

@@ -1,0 +1,72 @@
+name: Nightly file copy
+
+# A second copy of every uploaded photo, voice note and document, somewhere other than
+# Supabase. Database backups do not include these files (docs/BACKUP.md section 2.3), so
+# without this a lost project, or a mistaken delete, loses them for good.
+#
+# == What it does ==============================================================
+# Each night it makes the copy match Storage exactly. A file deleted in the app is moved
+# aside, not kept for ever: after seven days it goes. That is what the closure promise says
+# ("backups roll off in about seven days"), so a closed account's files do not live on here.
+#
+# == It does nothing until it is set up ========================================
+# Two repository secrets turn it on (Settings, Secrets and variables, Actions):
+#   SUPABASE_S3_ACCESS_KEY_ID / SUPABASE_S3_SECRET_ACCESS_KEY
+#       Supabase, Storage, S3 Connection: create an access key.
+#   BACKUP_RCLONE_CONFIG
+#       An rclone config file with one section called [dest], for wherever the copy lives:
+#       Azure Blob (type = azureblob), Cloudflare R2 or Backblaze B2 (type = s3), and so on.
+#       docs/BACKUP.md section 2.3 has an example for each.
+# Until they exist, the run says so and stops. The repository is public: secrets are never
+# printed, and the files never pass through anything but this runner.
+
+on:
+  schedule:
+    - cron: "15 0 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: file-copy
+  cancel-in-progress: false
+
+jobs:
+  copy:
+    name: Copy Storage offsite
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      HAS_SOURCE: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID != '' && secrets.SUPABASE_S3_SECRET_ACCESS_KEY != '' }}
+      HAS_DEST: ${{ secrets.BACKUP_RCLONE_CONFIG != '' }}
+    steps:
+      - name: Waiting to be set up
+        if: env.HAS_SOURCE != 'true' || env.HAS_DEST != 'true'
+        run: echo "::notice title=Not set up yet::Add the three secrets named at the top of this workflow to start the nightly copy."
+
+      - name: Install rclone
+        if: env.HAS_SOURCE == 'true' && env.HAS_DEST == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq rclone
+
+      - name: Copy
+        if: env.HAS_SOURCE == 'true' && env.HAS_DEST == 'true'
+        env:
+          RCLONE_CONFIG_SRC_TYPE: s3
+          RCLONE_CONFIG_SRC_PROVIDER: Other
+          RCLONE_CONFIG_SRC_ENDPOINT: https://nmqtcvdwtyggxjjgtnzm.supabase.co/storage/v1/s3
+          RCLONE_CONFIG_SRC_REGION: eu-west-3
+          RCLONE_CONFIG_SRC_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_S3_SECRET_ACCESS_KEY }}
+          DEST_CONFIG: ${{ secrets.BACKUP_RCLONE_CONFIG }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.config/rclone
+          printf '%s\n' "$DEST_CONFIG" > ~/.config/rclone/rclone.conf
+          today=$(date -u +%Y-%m-%d)
+          # Match Storage; anything removed today is set aside under its date.
+          rclone sync src: dest:fleetwise-files/current \
+            --backup-dir "dest:fleetwise-files/removed/$today" \
+            --transfers 8 --checkers 16 --stats-one-line --stats 60s
+          # What was set aside more than seven days ago goes for good.
+          rclone delete dest:fleetwise-files/removed --min-age 7d --rmdirs
+          rclone size dest:fleetwise-files/current

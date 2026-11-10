@@ -53,7 +53,7 @@ begin
   v := public.offer_ownership(a, old_owner, new_owner);
 
   -- Nothing has changed yet, and nobody but the person named can accept.
-  if app.effective_farm_role(old_owner, a)::text <> 'owner' then raise exception 'an offer changed the owner'; end if;
+  if app.role_on_farm(old_owner, a) <> 'owner' then raise exception 'an offer changed the owner'; end if;
   begin
     perform public.accept_ownership(v, other);
     raise exception 'the wrong person accepted';
@@ -74,13 +74,13 @@ begin
   v := public.offer_ownership(a, old_owner, new_owner);
   if public.accept_ownership(v, new_owner) <> a then raise exception 'accept returned the wrong account'; end if;
 
-  if app.effective_farm_role(new_owner, a)::text <> 'owner' then raise exception 'the new owner is not the owner'; end if;
-  if app.effective_farm_role(old_owner, a)::text <> 'manager' then raise exception 'the old owner did not step down'; end if;
+  if app.role_on_farm(new_owner, a) <> 'owner' then raise exception 'the new owner is not the owner'; end if;
+  if app.role_on_farm(old_owner, a) <> 'manager' then raise exception 'the old owner did not step down'; end if;
   if (select role from public.users where id = new_owner)::text <> 'owner' then raise exception 'the profile role was not moved'; end if;
   if (select billing_email from public.farms where id = a) <> 'new@handover.test' then raise exception 'the bills still go to the old owner'; end if;
 
   -- The old owner's other site is theirs still.
-  if app.effective_farm_role(old_owner, 'e7000000-0000-4000-9000-000000000002')::text <> 'owner' then
+  if app.role_on_farm(old_owner, 'e7000000-0000-4000-9000-000000000002') <> 'owner' then
     raise exception 'the handover reached another site';
   end if;
 
