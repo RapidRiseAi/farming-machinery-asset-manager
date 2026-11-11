@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { errorCode } from "@/lib/action-errors";
-import { requireRole } from "@/lib/auth";
+import { requireFarmRole, requireProfile, requireRole } from "@/lib/auth";
 import { recordMeterReading } from "@/lib/domain/fleet-commands";
 import { todayLocal } from "@/lib/format";
 import { isUuid } from "@/lib/ids";
@@ -278,7 +278,7 @@ function parseStops(raw: string): { lat: number; lng: number; label: string }[] 
  * from the route service, never from what a browser sent.
  */
 export async function saveTripRoute(formData: FormData) {
-  const profile = await requireRole(["owner", "manager"]);
+  const profile = await requireProfile();
   const tripId = uuid(formData, "trip_id");
   if (!tripId) redirect("/trips?error=trip-failed");
   const back = `/trips/${tripId}/route`;
@@ -295,6 +295,9 @@ export async function saveTripRoute(formData: FormData) {
     .maybeSingle();
   if (error) redirect(`${back}?error=${errorCode(error, "app/trips/actions:saveTripRoute", "trip-failed")}`);
   if (!trip) redirect("/trips?error=trip-failed");
+  // The trip's own business decides, not the site last chosen, as on the planner page and in
+  // its searches: someone who runs two businesses plans the trips of either.
+  await requireFarmRole(trip.farm_id as string, ["owner", "manager"], `/trips/${tripId}`, profile);
   if (trip.status === "completed" || trip.status === "cancelled") redirect(`/trips/${tripId}?error=route-closed`);
   if (!(await featureOn("map", trip.farm_id as string))) redirect(`/trips/${tripId}`);
 
@@ -328,10 +331,19 @@ export async function saveTripRoute(formData: FormData) {
 }
 
 export async function clearTripRoute(formData: FormData) {
-  await requireRole(["owner", "manager"]);
+  const profile = await requireProfile();
   const tripId = uuid(formData, "trip_id");
   if (!tripId) redirect("/trips?error=trip-failed");
   const supabase = await createClient();
+  const { data: trip, error: readError } = await supabase
+    .from("trips")
+    .select("farm_id")
+    .eq("id", tripId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (readError) redirect(`/trips/${tripId}?error=${errorCode(readError, "app/trips/actions:clearTripRoute", "trip-failed")}`);
+  if (!trip) redirect("/trips?error=trip-failed");
+  await requireFarmRole(trip.farm_id as string, ["owner", "manager"], `/trips/${tripId}`, profile);
   const { error } = await supabase.from("trip_routes").delete().eq("trip_id", tripId);
   if (error) redirect(`/trips/${tripId}?error=${errorCode(error, "app/trips/actions:clearTripRoute", "trip-failed")}`);
   revalidatePath(`/trips/${tripId}`);

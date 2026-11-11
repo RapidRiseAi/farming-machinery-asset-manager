@@ -150,6 +150,8 @@ export async function GET(request: Request) {
   await run("closure_purge", "purge_expired_closures");
   // Route trails older than six months (20261107120000).
   await run("positions_purge", "cron_purge_positions");
+  // Place search answers older than a month (20261111130000).
+  await run("place_cache_purge", "cron_purge_place_cache");
 
   await step("ai_fx_rate", () => refreshFxRate(supabase));
   await step("ai_prices", () => refreshPrices(supabase));

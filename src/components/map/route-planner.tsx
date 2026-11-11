@@ -16,12 +16,32 @@ import { HOME, MAP_STYLE, themeColour } from "./map-style";
  * the manager presses save, and the server then asks for the routes again and keeps the one
  * chosen.
  *
+ * What a box says and where its pin is must agree when the plan is saved:
+ *  - A search puts its best match on the map at once, with the other matches listed to switch
+ *    to, and a trip's own place names are looked up as the planner opens.
+ *  - Whatever the person does to a box (types, drops or drags its pin, chooses a place,
+ *    searches again) outranks an answer still on its way for it. Each box counts its changes,
+ *    and an answer is used only if its box has not changed since it was asked for.
+ *  - A box typed over after its pin was set says the pin has not moved, and Save waits until
+ *    the person searches it or keeps the pin under the new name.
+ *
  * Map text is built from text nodes: a place name came from a person's typing or a search.
  */
 
-type Point = { key: string; lat: number | null; lng: number | null; label: string; auto: boolean };
+type Point = {
+  key: string;
+  lat: number | null;
+  lng: number | null;
+  label: string;
+  /** Named from the map (a dropped or dragged pin) until the person types over it. */
+  auto: boolean;
+  /** Typed in since its pin was set: the text may no longer say where the pin is. */
+  edited: boolean;
+};
 type Option = { distance_m: number; duration_s: number; line: [number, number][] };
 type Place = { label: string; lat: number; lng: number };
+/** What a box's last search said: other matches, nothing found, too short to search, or a failure. */
+type Found = { others: Place[]; none?: boolean; short?: boolean; error?: string };
 
 export type PlannerLabels = {
   start: string;
@@ -32,6 +52,11 @@ export type PlannerLabels = {
   finding: string;
   noResults: string;
   otherMatches: string;
+  tooShort: string;
+  notPlaced: string;
+  notMoved: string;
+  keepPin: string;
+  unresolved: string;
   pin: string;
   pinning: string;
   addStop: string;
@@ -59,6 +84,20 @@ let counter = 0;
 const newKey = () => `p${(counter += 1)}`;
 const placed = (p: Point): p is Point & { lat: number; lng: number } => p.lat != null && p.lng != null;
 const letter = (i: number) => String.fromCharCode(65 + (i % 26));
+
+function without<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record;
+  const rest = { ...record };
+  delete rest[key];
+  return rest;
+}
+
+function withoutKey(set: ReadonlySet<string>, key: string): ReadonlySet<string> {
+  if (!set.has(key)) return set;
+  const next = new Set(set);
+  next.delete(key);
+  return next;
+}
 
 // Fills on the map are the brand's literal colours: the tiles are light in both themes, so a
 // theme-following green (light in dark mode) would wash out under white letters.
@@ -89,10 +128,10 @@ export function RoutePlanner({
 }) {
   const [points, setPoints] = useState<Point[]>(() =>
     initialStops.length >= 2
-      ? initialStops.map((s) => ({ key: newKey(), lat: s.lat, lng: s.lng, label: s.label, auto: false }))
+      ? initialStops.map((s) => ({ key: newKey(), lat: s.lat, lng: s.lng, label: s.label, auto: false, edited: false }))
       : [
-          { key: newKey(), lat: null, lng: null, label: origin, auto: false },
-          { key: newKey(), lat: null, lng: null, label: destination, auto: false },
+          { key: newKey(), lat: null, lng: null, label: origin, auto: false, edited: false },
+          { key: newKey(), lat: null, lng: null, label: destination, auto: false, edited: false },
         ],
   );
   const [active, setActive] = useState<string | null>(null);
@@ -101,9 +140,11 @@ export function RoutePlanner({
   const matchSaved = useRef(savedDistanceM);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [problem, setProblem] = useState<string | null>(null);
-  // What the last search for each point found besides the place it put on the map.
-  const [found, setFound] = useState<Record<string, { others: Place[]; none?: boolean; error?: string }>>({});
-  const [searching, setSearching] = useState<string | null>(null);
+  const [found, setFound] = useState<Record<string, Found>>({});
+  /** Boxes with a search on its way, by the change it was asked for at. */
+  const [searching, setSearching] = useState<Record<string, number>>({});
+  /** Boxes the opening lookup has still to reach. */
+  const [queued, setQueued] = useState<ReadonlySet<string>>(() => new Set());
   const [ready, setReady] = useState(false);
 
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -114,6 +155,10 @@ export function RoutePlanner({
   pointsRef.current = points;
   activeRef.current = active;
   const holder = useRef<HTMLDivElement>(null);
+  /** Each box's changes, counted. An answer asked for at an older count is out of date. */
+  const changes = useRef(new Map<string, number>());
+  /** Boxes the person has acted on: the opening lookup leaves them alone. */
+  const touched = useRef(new Set<string>());
 
   const ends = points.length >= 2 && placed(points[0]) && placed(points[points.length - 1]);
   const route = useMemo(() => (ends ? points.filter(placed).map((p) => ({ lat: p.lat, lng: p.lng })) : []), [points, ends]);
@@ -121,18 +166,36 @@ export function RoutePlanner({
 
   const roleOf = (i: number) => (i === 0 ? labels.start : i === points.length - 1 ? labels.end : labels.stop.replace("{n}", String(i)));
 
+  // == Who changed a box last ==================================================
+  const change = (key: string): number => {
+    const n = (changes.current.get(key) ?? 0) + 1;
+    changes.current.set(key, n);
+    return n;
+  };
+
+  /** The person acted on this box: what was on its way for it, or listed under it, is over. */
+  const takeOver = (key: string): number => {
+    touched.current.add(key);
+    setQueued((q) => withoutKey(q, key));
+    setSearching((s) => without(s, key));
+    setFound((f) => without(f, key));
+    return change(key);
+  };
+
   // == Naming a pin ============================================================
-  const nameIt = async (key: string, lat: number, lng: number) => {
-    const response = await fetch(`/api/routing/search?lat=${lat}&lng=${lng}`).catch(() => null);
+  const nameIt = async (key: string, at: number, lat: number, lng: number) => {
+    const response = await fetch(`/api/routing/search?trip=${encodeURIComponent(tripId)}&lat=${lat}&lng=${lng}`).catch(() => null);
     const json = response?.ok ? ((await response.json().catch(() => null)) as { label?: string | null } | null) : null;
     const label = json?.label;
-    if (!label) return;
+    // A name for where the pin was before it moved again is not its name.
+    if (!label || changes.current.get(key) !== at) return;
     setPoints((list) => list.map((p) => (p.key === key && p.auto ? { ...p, label } : p)));
   };
 
   const place = (key: string, lat: number, lng: number) => {
-    setPoints((list) => list.map((p) => (p.key === key ? { ...p, lat, lng, label: labels.pinned, auto: true } : p)));
-    void nameIt(key, lat, lng);
+    const at = takeOver(key);
+    setPoints((list) => list.map((p) => (p.key === key ? { ...p, lat, lng, label: labels.pinned, auto: true, edited: false } : p)));
+    void nameIt(key, at, lat, lng);
   };
 
   // == The map, once ===========================================================
@@ -313,57 +376,101 @@ export function RoutePlanner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, ready]);
 
-  // == The list ================================================================
+  // == Searching ===============================================================
   const put = (key: string, p: Place) =>
-    setPoints((list) => list.map((x) => (x.key === key ? { ...x, lat: p.lat, lng: p.lng, label: p.label, auto: false } : x)));
+    setPoints((list) =>
+      list.map((x) => (x.key === key ? { ...x, lat: p.lat, lng: p.lng, label: p.label, auto: false, edited: false } : x)),
+    );
 
-  const forget = (key: string) =>
-    setFound((f) => {
-      if (!(key in f)) return f;
-      const rest = { ...f };
-      delete rest[key];
-      return rest;
-    });
+  /** A place search's refusal in its own words: never the route allowance's. */
+  const searchProblem = (code: string | undefined): string =>
+    code === "busy"
+      ? labels.errors.busy
+      : !code || code === "unavailable"
+        ? labels.errors.searchDown
+        : (labels.errors[code] ?? labels.errors.searchDown);
 
-  // As in a navigation app, a search puts its best match on the map at once. A typed name that
-  // was never put on the map looked set but gave no route; the other matches stay listed below.
-  const search = async (key: string) => {
-    const query = pointsRef.current.find((p) => p.key === key)?.label.trim() ?? "";
-    if (query.length < 3) return;
-    setSearching(key);
-    const response = await fetch(`/api/routing/search?q=${encodeURIComponent(query)}`).catch(() => null);
+  /**
+   * Finds the box's text. As in a navigation app the best match goes on the map at once; the
+   * other matches stay listed to switch to. `opening` marks the lookup as the planner opens,
+   * which the person did not ask for and which stops if they leave.
+   */
+  const search = async (key: string, opening: { signal: AbortSignal } | null = null) => {
+    const point = pointsRef.current.find((p) => p.key === key);
+    if (!point) return;
+    const query = point.label.trim();
+    const at = opening ? change(key) : takeOver(key);
+    if (query.length < 3) {
+      setFound((f) => ({ ...f, [key]: { others: [], short: true } }));
+      return;
+    }
+    setSearching((s) => ({ ...s, [key]: at }));
+    const response = await fetch(`/api/routing/search?trip=${encodeURIComponent(tripId)}&q=${encodeURIComponent(query)}`, {
+      signal: opening?.signal,
+    }).catch(() => null);
     const json = (await response?.json().catch(() => null)) as { places?: Place[]; error?: string } | null;
-    setSearching((s) => (s === key ? null : s));
+    setSearching((s) => (s[key] === at ? without(s, key) : s));
+    // The person changed this box while the answer was on its way: theirs stands.
+    if (changes.current.get(key) !== at || opening?.signal.aborted) return;
     if (!response?.ok) {
-      setFound((f) => ({ ...f, [key]: { others: [], error: labels.errors[json?.error ?? "unavailable"] ?? labels.errors.unavailable } }));
+      setFound((f) => ({ ...f, [key]: { others: [], error: searchProblem(json?.error) } }));
       return;
     }
     const places = json?.places ?? [];
-    if (places[0]) put(key, places[0]);
-    setFound((f) => ({ ...f, [key]: { others: places.slice(1), none: places.length === 0 } }));
+    if (places[0]) {
+      put(key, places[0]);
+      // Found: the box no longer waits for a tap on the map.
+      setActive((a) => (a === key ? null : a));
+      setFound((f) => ({ ...f, [key]: { others: places.slice(1) } }));
+    } else {
+      setFound((f) => ({ ...f, [key]: { others: [], none: true } }));
+      // "Tap the map to drop a pin": the tap now lands on this box. Not on opening, when the
+      // person has asked for nothing yet.
+      if (!opening) setActive(key);
+    }
   };
 
   const choosePlace = (key: string, p: Place) => {
+    takeOver(key);
     put(key, p);
-    forget(key);
     setActive(null);
   };
 
-  // Opened from a trip that names its places but has no pins yet: look the names up, as if
-  // Search had been pressed, one after the other (the place search takes one request a second).
-  const lookedUp = useRef(false);
+  /** The pin stays where it is, under the name typed over it. */
+  const keepPin = (key: string) => {
+    takeOver(key);
+    setPoints((list) => list.map((x) => (x.key === key ? { ...x, auto: false, edited: false } : x)));
+    setActive((a) => (a === key ? null : a));
+  };
+
+  // A trip that names its places but has no pins yet: the names are looked up as the planner
+  // opens, as if Search had been pressed, one box after the other (the place search takes one
+  // request a second for all of FLEETWISE). A box the person has already typed in, pinned or
+  // searched is theirs and is left alone. Leaving the page stops the lookup.
   useEffect(() => {
-    if (lookedUp.current) return;
-    lookedUp.current = true;
+    if (initialStops.length >= 2) return;
+    const names = pointsRef.current.filter((p) => !placed(p) && p.label.trim() !== "").map((p) => p.key);
+    if (names.length === 0) return;
+    const controller = new AbortController();
+    setQueued(new Set(names));
     void (async () => {
-      for (const p of pointsRef.current) {
-        if (!placed(p) && p.label.trim().length >= 3) await search(p.key);
+      for (const key of names) {
+        if (controller.signal.aborted) return;
+        setQueued((q) => withoutKey(q, key));
+        const now = pointsRef.current.find((p) => p.key === key);
+        if (!now || placed(now) || touched.current.has(key)) continue;
+        await search(key, { signal: controller.signal });
       }
     })();
-    // Once, on opening; search reads the latest points through the ref.
+    return () => {
+      controller.abort();
+      setQueued(new Set());
+    };
+    // Once, as the planner opens; each box is read through the ref when the lookup reaches it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // == The list ================================================================
   const move = (i: number, by: -1 | 1) =>
     setPoints((list) => {
       const j = i + by;
@@ -375,11 +482,19 @@ export function RoutePlanner({
 
   const addStop = () => {
     const key = newKey();
-    setPoints((list) => [...list.slice(0, -1), { key, lat: null, lng: null, label: "", auto: false }, list[list.length - 1]]);
+    setPoints((list) => [
+      ...list.slice(0, -1),
+      { key, lat: null, lng: null, label: "", auto: false, edited: false },
+      list[list.length - 1],
+    ]);
     setActive(key);
   };
 
-  const remove = (key: string) => setPoints((list) => (list.length > 2 ? list.filter((p) => p.key !== key) : list));
+  const remove = (key: string) => {
+    takeOver(key);
+    setPoints((list) => (list.length > 2 ? list.filter((p) => p.key !== key) : list));
+    setActive((a) => (a === key ? null : a));
+  };
 
   const km = (m: number) => `${new Intl.NumberFormat(numberLocale, { maximumFractionDigits: m < 10_000 ? 1 : 0 }).format(m / 1000)} km`;
   const time = (s: number) => {
@@ -388,83 +503,107 @@ export function RoutePlanner({
     return h > 0 ? labels.hoursMinutes.replace("{h}", String(h)).replace("{m}", String(min)) : labels.minutes.replace("{m}", String(min));
   };
 
+  const busy = (key: string) => key in searching;
+  const lookingUp = (key: string) => key in searching || queued.has(key);
+  // A box whose text and pin may disagree, or a stop named but not on the map: saving now
+  // would keep the wrong place, or quietly drop the stop.
+  const unresolved = points.some(
+    (p, i) => (placed(p) && p.edited) || (!placed(p) && p.label.trim() !== "" && i > 0 && i < points.length - 1),
+  );
+  const anySearch = Object.keys(searching).length > 0 || queued.size > 0;
+
   const savedStops = points.filter(placed).map((p) => ({ lat: p.lat, lng: p.lng, label: p.label.trim() }));
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(320px,400px)_1fr]">
       <div className="order-2 flex flex-col gap-3 lg:order-1">
         <ol className="flex flex-col gap-2">
-          {points.map((p, i) => (
-            <li key={p.key} className={`rounded-xl border p-2 ${active === p.key ? "border-brand-ink bg-brand-tint" : "border-sand-200"}`}>
-              <div className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${i === 0 || i === points.length - 1 ? "bg-brand-600" : "bg-gold-600"}`}
-                >
-                  {letter(i)}
-                </span>
-                <label className="sr-only" htmlFor={`rp_${p.key}`}>{roleOf(i)}</label>
-                <input
-                  id={`rp_${p.key}`}
-                  value={p.label}
-                  placeholder={`${roleOf(i)}: ${labels.searchPlaceholder}`}
-                  maxLength={160}
-                  onChange={(e) => {
-                    const label = e.target.value;
-                    setPoints((list) => list.map((x) => (x.key === p.key ? { ...x, label, auto: false } : x)));
-                    forget(p.key);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void search(p.key);
-                    }
-                  }}
-                  className="min-h-11 min-w-0 flex-1 rounded-lg border border-sand-300 bg-surface px-3 text-sm text-ink"
-                />
-                <button
-                  type="button"
-                  onClick={() => void search(p.key)}
-                  className={buttonVariants({ variant: "secondary", size: "sm" })}
-                  disabled={searching === p.key}
-                >
-                  {labels.search}
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-sm">
-                <button
-                  type="button"
-                  aria-pressed={active === p.key}
-                  onClick={() => setActive(active === p.key ? null : p.key)}
-                  className="min-h-9 rounded-lg px-2 font-medium text-brand-ink underline"
-                >
-                  {active === p.key ? labels.pinning : labels.pin}
-                </button>
-                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="min-h-9 rounded-lg px-2 text-sand-700 disabled:opacity-40" aria-label={`${labels.up}: ${roleOf(i)}`}>↑</button>
-                <button type="button" onClick={() => move(i, 1)} disabled={i === points.length - 1} className="min-h-9 rounded-lg px-2 text-sand-700 disabled:opacity-40" aria-label={`${labels.down}: ${roleOf(i)}`}>↓</button>
-                {points.length > 2 ? (
-                  <button type="button" onClick={() => remove(p.key)} className="min-h-9 rounded-lg px-2 text-status-due underline">{labels.remove}</button>
-                ) : null}
-              </div>
-              {searching === p.key ? <p className="mt-2 pl-9 text-sm text-sand-600">{labels.finding}</p> : null}
-              {found[p.key]?.error ? <p role="alert" className="mt-2 pl-9 text-sm text-status-due">{found[p.key].error}</p> : null}
-              {found[p.key]?.none ? <p role="status" className="mt-2 pl-9 text-sm text-sand-600">{labels.noResults}</p> : null}
-              {found[p.key]?.others.length ? (
-                <div className="mt-2">
-                  <p className="pl-1 text-xs text-sand-600">{labels.otherMatches}</p>
-                  <ul className="mt-1 flex flex-col divide-y divide-sand-100 rounded-lg border border-sand-200">
-                    {found[p.key].others.map((place, n) => (
-                      <li key={n}>
-                        <button type="button" onClick={() => choosePlace(p.key, place)} className="w-full p-2 text-left text-sm text-ink hover:bg-sand-50">
-                          {place.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+          {points.map((p, i) => {
+            const f = found[p.key];
+            return (
+              <li key={p.key} className={`rounded-xl border p-2 ${active === p.key ? "border-brand-ink bg-brand-tint" : "border-sand-200"}`}>
+                <div className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${i === 0 || i === points.length - 1 ? "bg-brand-600" : "bg-gold-600"}`}
+                  >
+                    {letter(i)}
+                  </span>
+                  <label className="sr-only" htmlFor={`rp_${p.key}`}>{roleOf(i)}</label>
+                  <input
+                    id={`rp_${p.key}`}
+                    value={p.label}
+                    placeholder={`${roleOf(i)}: ${labels.searchPlaceholder}`}
+                    maxLength={160}
+                    onChange={(e) => {
+                      const label = e.target.value;
+                      takeOver(p.key);
+                      setPoints((list) => list.map((x) => (x.key === p.key ? { ...x, label, auto: false, edited: true } : x)));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (!busy(p.key)) void search(p.key);
+                      }
+                    }}
+                    className="min-h-11 min-w-0 flex-1 rounded-lg border border-sand-300 bg-surface px-3 text-sm text-ink"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void search(p.key)}
+                    className={buttonVariants({ variant: "secondary", size: "sm" })}
+                    disabled={busy(p.key)}
+                  >
+                    {labels.search}
+                  </button>
                 </div>
-              ) : null}
-            </li>
-          ))}
+                <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-sm">
+                  <button
+                    type="button"
+                    aria-pressed={active === p.key}
+                    onClick={() => setActive(active === p.key ? null : p.key)}
+                    className="min-h-9 rounded-lg px-2 font-medium text-brand-ink underline"
+                  >
+                    {active === p.key ? labels.pinning : labels.pin}
+                  </button>
+                  <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="min-h-9 rounded-lg px-2 text-sand-700 disabled:opacity-40" aria-label={`${labels.up}: ${roleOf(i)}`}>↑</button>
+                  <button type="button" onClick={() => move(i, 1)} disabled={i === points.length - 1} className="min-h-9 rounded-lg px-2 text-sand-700 disabled:opacity-40" aria-label={`${labels.down}: ${roleOf(i)}`}>↓</button>
+                  {points.length > 2 ? (
+                    <button type="button" onClick={() => remove(p.key)} className="min-h-9 rounded-lg px-2 text-status-due underline">{labels.remove}</button>
+                  ) : null}
+                </div>
+                {lookingUp(p.key) ? <p role="status" className="mt-2 pl-9 text-sm text-sand-600">{labels.finding}</p> : null}
+                {f?.error ? <p role="alert" className="mt-2 pl-9 text-sm text-status-due">{f.error}</p> : null}
+                {f?.short ? <p role="status" className="mt-2 pl-9 text-sm text-sand-600">{labels.tooShort}</p> : null}
+                {f?.none ? <p role="status" className="mt-2 pl-9 text-sm text-sand-600">{labels.noResults}</p> : null}
+                {placed(p) && p.edited && !lookingUp(p.key) ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 pl-9 text-sm">
+                    <p className="font-medium text-status-due">{labels.notMoved}</p>
+                    <button type="button" onClick={() => keepPin(p.key)} className="min-h-9 rounded-lg px-2 font-medium text-brand-ink underline">
+                      {labels.keepPin}
+                    </button>
+                  </div>
+                ) : null}
+                {!placed(p) && p.label.trim() !== "" && !lookingUp(p.key) && !f ? (
+                  <p className="mt-2 pl-9 text-sm text-sand-600">{labels.notPlaced}</p>
+                ) : null}
+                {f?.others.length ? (
+                  <div className="mt-2">
+                    <p className="pl-1 text-xs text-sand-600">{labels.otherMatches}</p>
+                    <ul className="mt-1 flex flex-col divide-y divide-sand-100 rounded-lg border border-sand-200">
+                      {f.others.map((other, n) => (
+                        <li key={n}>
+                          <button type="button" onClick={() => choosePlace(p.key, other)} className="w-full p-2 text-left text-sm text-ink hover:bg-sand-50">
+                            {other.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
         </ol>
         {points.length < 25 ? (
           <button type="button" onClick={addStop} className={buttonVariants({ variant: "secondary" })}>{labels.addStop}</button>
@@ -473,7 +612,15 @@ export function RoutePlanner({
         <div>
           <h3 className="text-sm font-semibold text-sand-900">{labels.routes}</h3>
           <p role="status" className="text-sm text-sand-600">
-            {status === "loading" ? labels.loading : status === "error" ? problem : !ends ? labels.needEnds : null}
+            {status === "loading"
+              ? labels.loading
+              : status === "error"
+                ? problem
+                : !ends
+                  ? labels.needEnds
+                  : unresolved
+                    ? labels.unresolved
+                    : null}
           </p>
           {options.length > 0 ? (
             <ul className="mt-2 flex flex-col gap-2">
@@ -493,14 +640,15 @@ export function RoutePlanner({
             </ul>
           ) : null}
           {options.length === 1 ? <p className="mt-2 text-sm text-sand-600">{labels.onlyOne}</p> : null}
-          {problem && status !== "error" ? <p className="mt-2 text-sm text-status-due">{problem}</p> : null}
         </div>
 
         <form action={saveAction} className="flex flex-wrap items-center gap-3">
           <input type="hidden" name="trip_id" value={tripId} />
           <input type="hidden" name="waypoints" value={JSON.stringify(savedStops)} />
           <input type="hidden" name="choice" value={String(chosen)} />
-          <SubmitButton variant="primary" disabled={options.length === 0 || status === "loading"}>{labels.save}</SubmitButton>
+          <SubmitButton variant="primary" disabled={options.length === 0 || status === "loading" || anySearch || unresolved}>
+            {labels.save}
+          </SubmitButton>
           <a href={cancelHref} className="text-sm font-medium underline">{labels.cancel}</a>
         </form>
       </div>

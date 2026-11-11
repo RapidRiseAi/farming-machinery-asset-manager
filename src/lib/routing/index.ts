@@ -84,16 +84,42 @@ export async function planRoutes(
 }
 
 // == Places (OpenStreetMap's Nominatim) ==========================================
-// Its public service asks for at most one request a second from an application, and a name
-// that says who is asking. Searches happen only when a person presses search, never while
-// they type, and each server instance keeps a second between its own requests.
+// Its usage policy (operations.osmfoundation.org/policies/nominatim/) allows at most one
+// request a second, counted for the whole application across all its users, searches a person
+// asks for, and a name that says who is asking; it asks apps to cache where they can. So: a
+// search happens when a person presses Search or opens a trip's planner, never while they
+// type; answers are kept in the database for a month and served from there; and every server
+// instance books its moment from one shared slot (20261111130000). docs/ROUTING.md has more.
 
+/** How long to wait for a slot before telling the person the search is busy. */
+const MAX_SLOT_WAIT_MS = 6_000;
+const DAY_MS = 86_400_000;
+/** Changes when the search's settings (countries, number of answers, language) change. */
+const CACHE_VERSION = "za6en";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Used only when the shared slot cannot be read: spacing within this instance, as before.
 let nextSlot = 0;
-async function politely(): Promise<void> {
+async function politelyHere(): Promise<void> {
   const now = Date.now();
   const wait = Math.max(0, nextSlot - now);
   nextSlot = Math.max(now, nextSlot) + 1100;
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  if (wait > 0) await sleep(wait);
+}
+
+/** Waits for this request's moment in the application's one-a-second queue. */
+async function politely(): Promise<void> {
+  const { data, error } = await createServiceClient().rpc("book_place_search_slot");
+  if (error) {
+    captureError(error, { where: "routing:slot" });
+    await politelyHere();
+    return;
+  }
+  const wait = Number(data);
+  if (!Number.isFinite(wait) || wait <= 0) return;
+  if (wait > MAX_SLOT_WAIT_MS) throw new RouteError("busy", "the place search queue is long");
+  await sleep(wait);
 }
 
 function placeHeaders(): HeadersInit {
@@ -103,9 +129,56 @@ function placeHeaders(): HeadersInit {
   };
 }
 
+/** One spelling per search: "  Nelspruit " and "nelspruit" are the same question. */
+export function placeCacheKey(query: string): string {
+  return `${CACHE_VERSION}|${query.normalize("NFC").trim().toLowerCase().replace(/\s+/g, " ").slice(0, 200)}`;
+}
+
+/** Places as stored by keepPlaces; anything else is treated as not stored. */
+function storedPlaces(raw: unknown): Place[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: Place[] = [];
+  for (const p of raw as Partial<Place>[]) {
+    if (typeof p?.label !== "string" || typeof p.lat !== "number" || typeof p.lng !== "number") return null;
+    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return null;
+    out.push({ label: p.label, lat: p.lat, lng: p.lng });
+  }
+  return out;
+}
+
+/** A stored answer still fresh: a month for places found, a day for a search that found none. */
+async function cachedPlaces(key: string): Promise<Place[] | null> {
+  const { data, error } = await createServiceClient()
+    .from("place_search_cache")
+    .select("places, fetched_at")
+    .eq("query", key)
+    .maybeSingle();
+  if (error) {
+    captureError(error, { where: "routing:cache-read" });
+    return null;
+  }
+  if (!data) return null;
+  const places = storedPlaces(data.places);
+  if (!places) return null;
+  const age = Date.now() - new Date(data.fetched_at as string).getTime();
+  return age < (places.length > 0 ? 30 : 1) * DAY_MS ? places : null;
+}
+
+async function keepPlaces(key: string, places: Place[]): Promise<void> {
+  const { error } = await createServiceClient()
+    .from("place_search_cache")
+    .upsert({ query: key, places, fetched_at: new Date().toISOString() }, { onConflict: "query" });
+  if (error) captureError(error, { where: "routing:cache-write" });
+}
+
 export async function searchPlaces(farmId: string, query: string): Promise<Place[]> {
   const { config, problem } = routingConfig();
   if (!config) throw new RouteError("not_configured", problem ?? undefined);
+  const key = placeCacheKey(query);
+  void count(farmId, 0, 1);
+  const kept = await cachedPlaces(key);
+  if (kept) return kept;
+
   await politely();
   try {
     const response = await fetch(searchUrl(config, query), {
@@ -113,10 +186,11 @@ export async function searchPlaces(farmId: string, query: string): Promise<Place
       signal: AbortSignal.timeout(8_000),
       cache: "no-store",
     });
-    void count(farmId, 0, 1);
-    if (response.status === 429) throw new RouteError("limit", "the place search is busy");
+    if (response.status === 429) throw new RouteError("busy", "the place search is busy");
     if (!response.ok) throw new RouteError("unavailable", `place search answered ${response.status}`);
-    return parsePlaces(await response.json().catch(() => null));
+    const places = parsePlaces(await response.json().catch(() => null));
+    await keepPlaces(key, places);
+    return places;
   } catch (failure) {
     if (failure instanceof RouteError) throw failure;
     captureError(failure, { where: "routing:search", farmId });
@@ -128,7 +202,11 @@ export async function searchPlaces(farmId: string, query: string): Promise<Place
 export async function placeName(farmId: string, point: RoutePoint): Promise<string | null> {
   const { config } = routingConfig();
   if (!config) return null;
-  await politely();
+  try {
+    await politely();
+  } catch {
+    return null;
+  }
   try {
     const response = await fetch(reverseUrl(config, point), {
       headers: placeHeaders(),

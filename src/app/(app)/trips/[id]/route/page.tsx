@@ -19,7 +19,7 @@ import { saveTripRoute } from "../../actions";
  */
 export const dynamic = "force-dynamic";
 
-const ERRORS = ["not_configured", "no_route", "limit", "unavailable", "invalid", "off", "forbidden", "stopped", "auth"] as const;
+const ERRORS = ["not_configured", "no_route", "limit", "busy", "unavailable", "searchDown", "invalid", "off", "forbidden", "stopped", "auth"] as const;
 
 export default async function TripRoutePage({
   params,
@@ -61,6 +61,11 @@ export default async function TripRoutePage({
     finding: t("routes.finding", locale),
     noResults: t("routes.noResults", locale),
     otherMatches: t("routes.otherMatches", locale),
+    tooShort: t("routes.tooShort", locale),
+    notPlaced: t("routes.notPlaced", locale),
+    notMoved: t("routes.notMoved", locale),
+    keepPin: t("routes.keepPin", locale),
+    unresolved: t("routes.unresolved", locale),
     pin: t("routes.pin", locale),
     pinning: t("routes.pinning", locale),
     addStop: t("routes.addStop", locale),

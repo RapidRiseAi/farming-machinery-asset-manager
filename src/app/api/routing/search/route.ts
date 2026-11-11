@@ -5,12 +5,13 @@ import { plannerAccess, routeErrorResponse } from "@/lib/routing/access";
 
 /**
  * Finding a place by name (`?q=`), or naming a pin dropped on the map (`?lat=&lng=`), for the
- * route planner. OpenStreetMap's search; see src/lib/routing/providers.ts.
+ * route planner. `?trip=` names the trip being planned, whose business is checked and counted.
+ * OpenStreetMap's search; see src/lib/routing/index.ts.
  */
 export async function GET(request: Request) {
-  const access = await plannerAccess();
-  if ("response" in access) return access.response;
   const url = new URL(request.url);
+  const access = await plannerAccess(url.searchParams.get("trip"));
+  if ("response" in access) return access.response;
 
   const lat = Number(url.searchParams.get("lat"));
   const lng = Number(url.searchParams.get("lng"));

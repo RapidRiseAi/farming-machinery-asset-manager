@@ -17,7 +17,11 @@ export type RouteOption = { distanceM: number; durationS: number; line: LngLat[]
 export type Place = { label: string; lat: number; lng: number };
 export type RouteProvider = "mapbox" | "osrm";
 
-export type RouteErrorCode = "not_configured" | "no_route" | "invalid" | "limit" | "unavailable";
+/**
+ * `limit` is the month's route allowance; `busy` is the place search asking us to slow down,
+ * which passes in seconds and has nothing to do with the allowance.
+ */
+export type RouteErrorCode = "not_configured" | "no_route" | "invalid" | "limit" | "busy" | "unavailable";
 
 export class RouteError extends Error {
   constructor(public readonly code: RouteErrorCode, message?: string) {

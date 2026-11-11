@@ -48,9 +48,30 @@ Nothing else changes between services: both answer in the same shape (`src/lib/r
 
 Place search does **not** use Mapbox: its free search results may not be stored ("Temporary
 results are not allowed to be cached", docs.mapbox.com/api/search/geocoding), and a trip stores its
-stops. Searching uses OpenStreetMap instead, whose results may be kept with attribution. Its public
-service allows about one search a second for the whole application, so FLEETWISE searches only
-when someone presses Search, never while they type.
+stops. Searching uses OpenStreetMap's Nominatim instead, whose results may be kept with attribution.
+
+### The place search and OpenStreetMap's rules
+
+The public service's usage policy (operations.osmfoundation.org/policies/nominatim/, read 11
+November 2026) allows "an absolute maximum of 1 request per second", and for websites and apps
+"the sum of traffic by all your users should not exceed the limits". Use "directly triggered by
+the end-user" is fine "provided that your number of users is moderate"; autocomplete is not
+allowed; apps should, "if at all possible, set up a proxy and also enable caching of requests".
+(Its bulk geocoding section goes further: "Clients sending repeatedly the same query may be
+classified as faulty and blocked.") FLEETWISE keeps to it this way (20261111130000):
+
+- A search happens when someone presses Search, or opens a trip's planner (its two place names
+  are looked up once), never while they type.
+- Every answer is kept in `place_search_cache` for a month (a search that found nothing, a day),
+  shared by every server, and served from there. The nightly job clears older answers.
+- Every server books its moment from one shared slot, `book_place_search_slot()`, 1.1 seconds
+  apart for the whole application. A request that would wait more than 6 seconds is refused
+  as busy, and the planner says so in its own words (never as the route allowance).
+- Requests name FLEETWISE in their User-Agent, and the planner credits OpenStreetMap.
+
+If use grows past "moderate", or OpenStreetMap asks, run Nominatim alongside the own route server
+and set `NOMINATIM_URL` to it: no code changes. The planner and its searches check, and count
+against, the business that owns the trip, not the site last chosen.
 
 ## When to switch
 
