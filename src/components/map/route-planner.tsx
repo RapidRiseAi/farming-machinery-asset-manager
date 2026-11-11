@@ -29,7 +29,9 @@ export type PlannerLabels = {
   end: string;
   searchPlaceholder: string;
   search: string;
+  finding: string;
   noResults: string;
+  otherMatches: string;
   pin: string;
   pinning: string;
   addStop: string;
@@ -99,7 +101,8 @@ export function RoutePlanner({
   const matchSaved = useRef(savedDistanceM);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [problem, setProblem] = useState<string | null>(null);
-  const [results, setResults] = useState<{ key: string; places: Place[] } | null>(null);
+  // What the last search for each point found besides the place it put on the map.
+  const [found, setFound] = useState<Record<string, { others: Place[]; none?: boolean; error?: string }>>({});
   const [searching, setSearching] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -311,25 +314,55 @@ export function RoutePlanner({
   }, [options, ready]);
 
   // == The list ================================================================
+  const put = (key: string, p: Place) =>
+    setPoints((list) => list.map((x) => (x.key === key ? { ...x, lat: p.lat, lng: p.lng, label: p.label, auto: false } : x)));
+
+  const forget = (key: string) =>
+    setFound((f) => {
+      if (!(key in f)) return f;
+      const rest = { ...f };
+      delete rest[key];
+      return rest;
+    });
+
+  // As in a navigation app, a search puts its best match on the map at once. A typed name that
+  // was never put on the map looked set but gave no route; the other matches stay listed below.
   const search = async (key: string) => {
     const query = pointsRef.current.find((p) => p.key === key)?.label.trim() ?? "";
     if (query.length < 3) return;
     setSearching(key);
     const response = await fetch(`/api/routing/search?q=${encodeURIComponent(query)}`).catch(() => null);
     const json = (await response?.json().catch(() => null)) as { places?: Place[]; error?: string } | null;
-    setSearching(null);
+    setSearching((s) => (s === key ? null : s));
     if (!response?.ok) {
-      setProblem(labels.errors[json?.error ?? "unavailable"] ?? labels.errors.unavailable);
+      setFound((f) => ({ ...f, [key]: { others: [], error: labels.errors[json?.error ?? "unavailable"] ?? labels.errors.unavailable } }));
       return;
     }
-    setResults({ key, places: json?.places ?? [] });
+    const places = json?.places ?? [];
+    if (places[0]) put(key, places[0]);
+    setFound((f) => ({ ...f, [key]: { others: places.slice(1), none: places.length === 0 } }));
   };
 
   const choosePlace = (key: string, p: Place) => {
-    setPoints((list) => list.map((x) => (x.key === key ? { ...x, lat: p.lat, lng: p.lng, label: p.label, auto: false } : x)));
-    setResults(null);
+    put(key, p);
+    forget(key);
     setActive(null);
   };
+
+  // Opened from a trip that names its places but has no pins yet: look the names up, as if
+  // Search had been pressed, one after the other (the place search takes one request a second).
+  const lookedUp = useRef(false);
+  useEffect(() => {
+    if (lookedUp.current) return;
+    lookedUp.current = true;
+    void (async () => {
+      for (const p of pointsRef.current) {
+        if (!placed(p) && p.label.trim().length >= 3) await search(p.key);
+      }
+    })();
+    // Once, on opening; search reads the latest points through the ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const move = (i: number, by: -1 | 1) =>
     setPoints((list) => {
@@ -379,6 +412,7 @@ export function RoutePlanner({
                   onChange={(e) => {
                     const label = e.target.value;
                     setPoints((list) => list.map((x) => (x.key === p.key ? { ...x, label, auto: false } : x)));
+                    forget(p.key);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -412,17 +446,22 @@ export function RoutePlanner({
                   <button type="button" onClick={() => remove(p.key)} className="min-h-9 rounded-lg px-2 text-status-due underline">{labels.remove}</button>
                 ) : null}
               </div>
-              {results?.key === p.key ? (
-                <ul className="mt-2 flex flex-col divide-y divide-sand-100 rounded-lg border border-sand-200">
-                  {results.places.length === 0 ? <li className="p-2 text-sm text-sand-600">{labels.noResults}</li> : null}
-                  {results.places.map((place, n) => (
-                    <li key={n}>
-                      <button type="button" onClick={() => choosePlace(p.key, place)} className="w-full p-2 text-left text-sm text-ink hover:bg-sand-50">
-                        {place.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+              {searching === p.key ? <p className="mt-2 pl-9 text-sm text-sand-600">{labels.finding}</p> : null}
+              {found[p.key]?.error ? <p role="alert" className="mt-2 pl-9 text-sm text-status-due">{found[p.key].error}</p> : null}
+              {found[p.key]?.none ? <p role="status" className="mt-2 pl-9 text-sm text-sand-600">{labels.noResults}</p> : null}
+              {found[p.key]?.others.length ? (
+                <div className="mt-2">
+                  <p className="pl-1 text-xs text-sand-600">{labels.otherMatches}</p>
+                  <ul className="mt-1 flex flex-col divide-y divide-sand-100 rounded-lg border border-sand-200">
+                    {found[p.key].others.map((place, n) => (
+                      <li key={n}>
+                        <button type="button" onClick={() => choosePlace(p.key, place)} className="w-full p-2 text-left text-sm text-ink hover:bg-sand-50">
+                          {place.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
             </li>
           ))}
