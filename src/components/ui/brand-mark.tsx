@@ -59,7 +59,7 @@ export function Wordmark({
   name: string;
   /** `footer`: white on FLEETWISE Black, with "WISE" white too, as the website's footer. */
   tone?: "page" | "nav" | "footer";
-  /** The website's capitals, FLEETWISE, for the pages before sign-in. */
+  /** The website's larger lockup, for the pages before sign-in. Capitals are used everywhere. */
   caps?: boolean;
   className?: string;
 }) {
@@ -69,8 +69,10 @@ export function Wordmark({
   return (
     <span
       className={cn(
-        "font-bold",
-        caps ? "text-2xl uppercase tracking-[-0.03em]" : "text-lg tracking-tight",
+        // FLEETWISE in capitals everywhere (founder decision, 7 November): the app's menu and
+        // gate screens showed FleetWise, unlike the website and every email.
+        "font-bold uppercase",
+        caps ? "text-2xl tracking-[-0.03em]" : "text-lg tracking-tight",
         ink,
         className,
       )}
