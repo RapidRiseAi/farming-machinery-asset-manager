@@ -11,6 +11,8 @@ import { isUuid } from "@/lib/ids";
 import { captureError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { featureOn } from "@/lib/features";
+import { planRoutes, RouteError, validPoints } from "@/lib/routing";
 import { EXPENSE_KINDS, randsToCents } from "@/lib/trips";
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -239,6 +241,99 @@ export async function addTripExpense(formData: FormData) {
     created_by: profile.id,
   });
   if (error) redirect(`/trips/${tripId}?error=${errorCode(error, "app/trips/actions:addTripExpense", "trip-failed")}`);
+  revalidatePath(`/trips/${tripId}`);
+  redirect(`/trips/${tripId}`);
+}
+
+/** A route service's refusal, as a code the planner page explains. */
+function routeFailureCode(failure: unknown): string {
+  if (failure instanceof RouteError) {
+    if (failure.code === "not_configured") return "route-not-configured";
+    if (failure.code === "no_route") return "route-none";
+    if (failure.code === "limit") return "route-limit";
+    if (failure.code === "invalid") return "route-stops";
+  }
+  return "route-unavailable";
+}
+
+/** The stops the planner sent: real places with a short name each, 2 to MAX_STOPS of them. */
+function parseStops(raw: string): { lat: number; lng: number; label: string }[] | null {
+  let input: unknown;
+  try {
+    input = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const points = validPoints(input);
+  if (!points) return null;
+  return points.map((p, i) => {
+    const label = (input as { label?: unknown }[])[i]?.label;
+    return { lat: p.lat, lng: p.lng, label: typeof label === "string" ? label.trim().slice(0, 160) : "" };
+  });
+}
+
+/**
+ * Keep the route a manager chose. The routes are asked for again here and the chosen one taken
+ * from the service's answer, so the planned distance a driver is measured against always came
+ * from the route service, never from what a browser sent.
+ */
+export async function saveTripRoute(formData: FormData) {
+  const profile = await requireRole(["owner", "manager"]);
+  const tripId = uuid(formData, "trip_id");
+  if (!tripId) redirect("/trips?error=trip-failed");
+  const back = `/trips/${tripId}/route`;
+  const stops = parseStops(String(formData.get("waypoints") ?? ""));
+  if (!stops) redirect(`${back}?error=route-stops`);
+  const choice = Math.max(0, Math.min(5, Number.parseInt(String(formData.get("choice") ?? "0"), 10) || 0));
+
+  const supabase = await createClient();
+  const { data: trip, error } = await supabase
+    .from("trips")
+    .select("id, farm_id, status")
+    .eq("id", tripId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) redirect(`${back}?error=${errorCode(error, "app/trips/actions:saveTripRoute", "trip-failed")}`);
+  if (!trip) redirect("/trips?error=trip-failed");
+  if (trip.status === "completed" || trip.status === "cancelled") redirect(`/trips/${tripId}?error=route-closed`);
+  if (!(await featureOn("map", trip.farm_id as string))) redirect(`/trips/${tripId}`);
+
+  let planned: Awaited<ReturnType<typeof planRoutes>> | null = null;
+  let failed: string | null = null;
+  try {
+    planned = await planRoutes(trip.farm_id as string, stops);
+  } catch (failure) {
+    failed = routeFailureCode(failure);
+  }
+  if (!planned) redirect(`${back}?error=${failed ?? "route-unavailable"}`);
+  const option = planned.options[choice] ?? planned.options[0];
+
+  const { error: saveError } = await supabase.from("trip_routes").upsert(
+    {
+      trip_id: tripId,
+      farm_id: trip.farm_id,
+      waypoints: stops,
+      geometry: option.line,
+      distance_m: option.distanceM,
+      duration_s: option.durationS,
+      provider: planned.provider,
+      planned_by: profile.id,
+      planned_at: new Date().toISOString(),
+    },
+    { onConflict: "trip_id" },
+  );
+  if (saveError) redirect(`${back}?error=${errorCode(saveError, "app/trips/actions:saveTripRoute", "trip-failed")}`);
+  revalidatePath(`/trips/${tripId}`);
+  redirect(`/trips/${tripId}?saved=route`);
+}
+
+export async function clearTripRoute(formData: FormData) {
+  await requireRole(["owner", "manager"]);
+  const tripId = uuid(formData, "trip_id");
+  if (!tripId) redirect("/trips?error=trip-failed");
+  const supabase = await createClient();
+  const { error } = await supabase.from("trip_routes").delete().eq("trip_id", tripId);
+  if (error) redirect(`/trips/${tripId}?error=${errorCode(error, "app/trips/actions:clearTripRoute", "trip-failed")}`);
   revalidatePath(`/trips/${tripId}`);
   redirect(`/trips/${tripId}`);
 }

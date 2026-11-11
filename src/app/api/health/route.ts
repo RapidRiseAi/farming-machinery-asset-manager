@@ -6,6 +6,7 @@ import { siteUrlWarning } from "@/lib/site-url-check";
 import { deliveryWarnings } from "@/lib/delivery-health";
 import { observabilityEnabled } from "@/lib/observability";
 import { emailConfigProblem } from "@/lib/email/resend";
+import { routingConfig } from "@/lib/routing/providers";
 
 /**
  * Is the product up, and is it running its scheduled work? For an external uptime monitor.
@@ -61,6 +62,8 @@ export async function GET(request: Request) {
       paymentKey: process.env.PAYSTACK_SECRET_KEY,
     }),
   );
+  // Route planning (the map's trips) has no route service to ask. A code only, like the rest.
+  if (routingConfig().problem) warnings.push("routing_not_configured");
   let routes: CronHealth[] | null = null;
   try {
     const read = createServiceClient().rpc(CRON_RPC.health);

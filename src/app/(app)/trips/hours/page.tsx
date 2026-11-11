@@ -109,6 +109,7 @@ export default async function DriverHoursPage() {
           <p className="mb-3 text-sm text-sand-600">{t("hours.policyHint", locale)}</p>
           <form action={updateSettings} className="grid gap-3 sm:grid-cols-3">
             <input type="hidden" name={OWNED_FIELD} value={POLICY_KEYS.join(" ")} />
+            <input type="hidden" name="return_to" value="/trips/hours" />
             <Field label={t("hours.maxDay", locale)} htmlFor="driver_max_hours_day">
               <Input id="driver_max_hours_day" name="driver_max_hours_day" inputMode="numeric" defaultValue={policy.maxDay} />
             </Field>

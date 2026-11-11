@@ -12,7 +12,8 @@ import { mustAll } from "@/lib/supabase/must";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FleetMap, type MapMarker } from "@/components/map/fleet-map";
+import { FleetMap, type MapLine, type MapMarker } from "@/components/map/fleet-map";
+import { lineKm, type LngLat } from "@/lib/routing/geometry";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 
 /**
@@ -28,14 +29,17 @@ type Fault = { id: string; description: string | null; lat: number; lng: number;
 type Machine = { id: string; name: string };
 type Session = { id: string; machine_id: string; started_at: string; ended_at: string | null };
 type Stop = { id: string; session_id: string; lat: number | null; lng: number | null; location: string | null; occurred_at: string; kind: string };
+type TripRow = { id: string; number: number; machine_id: string; status: string; started_at: string | null; ended_at: string | null; driving_session_id: string | null };
+type PlannedRoute = { trip_id: string; waypoints: { lat: number; lng: number; label?: string }[]; geometry: LngLat[]; distance_m: number };
 
-export default async function MapPage({ searchParams }: { searchParams: Promise<{ session?: string }> }) {
+export default async function MapPage({ searchParams }: { searchParams: Promise<{ session?: string; trip?: string }> }) {
   const profile = await requireProfile();
   const farmId = await currentFarmId(profile);
   if (!(await featureOn("map", farmId))) notFound();
   const sp = await searchParams;
   const locale = profile.lang;
   const chosen = isUuid(sp.session) ? sp.session : null;
+  const chosenTrip = isUuid(sp.trip) ? sp.trip : null;
 
   const supabase = await createClient();
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -70,9 +74,54 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
       .gte("occurred_at", since)
       .order("occurred_at", { ascending: false })
       .limit(500),
+    supabase
+      .from("trips")
+      .select("id, number, machine_id, status, started_at, ended_at, driving_session_id")
+      .eq("farm_id", farmId ?? "")
+      .is("deleted_at", null)
+      .in("status", ["planned", "underway", "completed"])
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
   mustAll(results, "map:page");
-  const [{ data: positionData }, { data: faultData }, { data: machineData }, { data: sessionData }, { data: stopData }] = results;
+  const [{ data: positionData }, { data: faultData }, { data: machineData }, { data: sessionData }, { data: stopData }, { data: tripData }] = results;
+  const trips = (tripData ?? []) as TripRow[];
+  const tripOfSession = new Map(trips.filter((tr) => tr.driving_session_id).map((tr) => [tr.driving_session_id as string, tr]));
+
+  // One trip: the route planned and the route driven, from any phone or tracker on that vehicle.
+  let trip = chosenTrip ? (trips.find((tr) => tr.id === chosenTrip) ?? null) : null;
+  if (chosenTrip && !trip) {
+    // An older trip, opened from its own page: read it on its own.
+    const older = await supabase
+      .from("trips")
+      .select("id, number, machine_id, status, started_at, ended_at, driving_session_id")
+      .eq("id", chosenTrip)
+      .eq("farm_id", farmId ?? "")
+      .is("deleted_at", null)
+      .maybeSingle();
+    mustAll([older], "map:trip-row");
+    trip = (older.data as TripRow | null) ?? null;
+  }
+  let planned: PlannedRoute | null = null;
+  let tripDriven: LngLat[] = [];
+  if (trip) {
+    const [routeRes, trailRes] = await Promise.all([
+      supabase.from("trip_routes").select("trip_id, waypoints, geometry, distance_m").eq("trip_id", trip.id).maybeSingle(),
+      trip.started_at
+        ? supabase
+            .from("asset_positions")
+            .select("lat, lng, recorded_at")
+            .eq("machine_id", trip.machine_id)
+            .gte("recorded_at", trip.started_at)
+            .lte("recorded_at", trip.ended_at ?? new Date().toISOString())
+            .order("recorded_at")
+            .limit(5000)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    mustAll([routeRes, trailRes], "map:trip");
+    planned = (routeRes.data as PlannedRoute | null) ?? null;
+    tripDriven = routeLine(((trailRes.data ?? []) as { lat: number; lng: number; recorded_at: string }[]).map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })));
+  }
 
   const positions = (positionData ?? []) as Position[];
   const faults = (faultData ?? []) as Fault[];
@@ -91,7 +140,16 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
   ];
 
   const seen = lastSeen(sightings);
-  const markers: MapMarker[] = chosen
+  const markers: MapMarker[] = trip
+    ? (planned?.waypoints ?? []).map((w, i) => ({
+        id: `stop-${i}`,
+        lat: w.lat,
+        lng: w.lng,
+        title: w.label || String.fromCharCode(65 + i),
+        detail: t("map.stop", locale),
+        kind: "stop" as const,
+      }))
+    : chosen
     ? stops
         .filter((s) => s.session_id === chosen && s.lat != null && s.lng != null)
         .map((s) => ({
@@ -121,7 +179,13 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
         })),
       ];
 
-  const route = chosen
+  const lines: MapLine[] = trip
+    ? [
+        ...(planned ? [{ id: "planned", kind: "planned" as const, coords: planned.geometry }] : []),
+        ...(tripDriven.length > 1 ? [{ id: "driven", kind: "driven" as const, coords: tripDriven }] : []),
+      ]
+    : [];
+  const route = chosen && !trip
     ? routeLine(positions.filter((p) => p.session_id === chosen).map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })))
     : [];
 
@@ -129,21 +193,53 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
     <PageContainer size="wide">
       <PageHeader title={t("map.title", locale)} lead={t("map.lead", locale)} actions={<Badge tone="warning">{t("map.testing", locale)}</Badge>} />
 
-      {markers.length === 0 && route.length === 0 ? (
+      {markers.length === 0 && route.length === 0 && lines.length === 0 ? (
         <EmptyState title={t("map.emptyTitle", locale)} hint={t("map.emptyHint", locale)} />
       ) : null}
 
-      <FleetMap markers={markers} route={route} />
+      <FleetMap markers={markers} route={route} lines={lines} />
 
-      {chosen ? (
+      {trip ? (
+        <p className="text-sm text-sand-600">
+          {t("map.tripSummary", locale)
+            .replace("{n}", String(trip.number))
+            .replace("{planned}", planned ? num(planned.distance_m / 1000) : "-")
+            .replace("{driven}", tripDriven.length > 1 ? num(lineKm(tripDriven)) : "-")}{" "}
+          <Link href={`/trips/${trip.id}`} className="underline">{t("map.openTrip", locale)}</Link>{" "}
+          <Link href="/map" className="underline">{t("map.backToFleet", locale)}</Link>
+        </p>
+      ) : null}
+
+      {chosen && !trip ? (
         <p className="text-sm text-sand-600">
           {route.length > 1 ? t("map.routeKm", locale).replace("{km}", () => num(routeKm(route))) : t("map.noRoute", locale)}{" "}
           <Link href="/map" className="underline">{t("map.backToFleet", locale)}</Link>
         </p>
       ) : null}
 
+      {trips.length > 0 ? (
+        <Card>
+          <CardHeader><CardTitle as="h3">{t("map.recentTrips", locale)}</CardTitle></CardHeader>
+          <ul className="flex flex-col divide-y divide-sand-100">
+            {trips.map((tr) => (
+              <li key={tr.id} className="flex items-center justify-between gap-3 py-2">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium text-sand-900">
+                    {t("trips.titleOne", locale).replace("{n}", String(tr.number))} · {nameOf.get(tr.machine_id) ?? ""}
+                  </span>
+                  <span className="block text-sm text-sand-500">
+                    {t(`trips.statusName.${tr.status}`, locale)}{tr.started_at ? ` · ${relativeDate(tr.started_at, locale)}` : ""}
+                  </span>
+                </span>
+                <Link href={`/map?trip=${tr.id}`} className="shrink-0 text-sm font-medium underline">{t("map.seeRoute", locale)}</Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       <Card>
-        <CardHeader><CardTitle as="h3">{t("map.recentTrips", locale)}</CardTitle></CardHeader>
+        <CardHeader><CardTitle as="h3">{t("map.drivingRecords", locale)}</CardTitle></CardHeader>
         {sessions.length === 0 ? (
           <p className="text-sm text-sand-500">{t("map.noTrips", locale)}</p>
         ) : (
@@ -154,7 +250,12 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
                   <span className="block truncate font-medium text-sand-900">{nameOf.get(s.machine_id) ?? ""}</span>
                   <span className="block text-sm text-sand-500">{relativeDate(s.started_at, locale)}</span>
                 </span>
-                <Link href={`/map?session=${s.id}`} className="shrink-0 text-sm font-medium underline">{t("map.seeRoute", locale)}</Link>
+                <Link
+                  href={tripOfSession.has(s.id) ? `/map?trip=${tripOfSession.get(s.id)?.id}` : `/map?session=${s.id}`}
+                  className="shrink-0 text-sm font-medium underline"
+                >
+                  {t("map.seeRoute", locale)}
+                </Link>
               </li>
             ))}
           </ul>

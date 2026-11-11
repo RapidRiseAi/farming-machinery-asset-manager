@@ -6,6 +6,7 @@ import { rands } from "@/lib/money";
 import { must } from "@/lib/supabase/must";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { routingConfig } from "@/lib/routing/providers";
 import { monthStart, usageCharge, type UsageRates } from "@/lib/usage-billing";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -45,6 +46,26 @@ export default async function AdminUsagePage({
   const farms = (must(await supabase.from("farms").select("id, name").limit(2000), "admin-usage:farms") ?? []) as { id: string; name: string }[];
   const nameOf = new Map(farms.map((f) => [f.id, f.name]));
   const priced = rates?.whatsapp_message_cents != null || rates?.storage_gb_month_cents != null;
+
+  // Route planning (20261111090000): requests per business, and trips planned, this month.
+  // The founder's rule: Mapbox until trips pass about a thousand a month, then the own server.
+  const nextMonth = new Date(`${month}T00:00:00Z`);
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+  const routeUse = (must(
+    await svc.from("routing_usage").select("farm_id, routes, searches").eq("month", month),
+    "admin-usage:routing",
+  ) ?? []) as { farm_id: string; routes: number; searches: number }[];
+  const { count: plannedTrips } = must(
+    await svc
+      .from("trip_routes")
+      .select("trip_id", { count: "exact", head: true })
+      .gte("planned_at", `${month}T00:00:00+02:00`)
+      .lt("planned_at", `${nextMonth.toISOString().slice(0, 10)}T00:00:00+02:00`),
+    "admin-usage:planned",
+  ) as unknown as { count: number | null };
+  const routing = routingConfig();
+  const routeTotal = routeUse.reduce((sum, r) => sum + Number(r.routes), 0);
+  const searchTotal = routeUse.reduce((sum, r) => sum + Number(r.searches), 0);
 
   return (
     <PageContainer size="wide">
@@ -120,6 +141,42 @@ export default async function AdminUsagePage({
           </div>
         </Card>
       )}
+
+      <Card>
+        <CardHeader><CardTitle as="h3">Route planning</CardTitle></CardHeader>
+        <p className="text-sm text-sand-700">
+          {routing.config
+            ? `Service: ${routing.config.provider === "mapbox" ? "Mapbox" : "own route server (OSRM)"}.${routing.config.monthlyCap != null ? ` Stops at ${num(routing.config.monthlyCap)} route requests a month.` : ""}`
+            : `Not set up: ${routing.problem}. See docs/ROUTING.md.`}
+        </p>
+        <p className="mt-1 text-sm text-sand-700">
+          {`This month: ${num(plannedTrips ?? 0)} trips planned, ${num(routeTotal)} route requests, ${num(searchTotal)} place searches. Move to the own route server once trips pass about 1,000 a month (docs/ROUTING.md).`}
+        </p>
+        {routeUse.length > 0 ? (
+          <div className="mt-3 overflow-x-auto">
+            <Table>
+              <Thead>
+                <Tr>
+                  <Th>Business</Th>
+                  <Th>Route requests</Th>
+                  <Th>Place searches</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {routeUse
+                  .sort((a, b) => b.routes - a.routes)
+                  .map((r) => (
+                    <Tr key={r.farm_id}>
+                      <Td>{nameOf.get(r.farm_id) ?? r.farm_id}</Td>
+                      <Td className="tnum">{num(r.routes)}</Td>
+                      <Td className="tnum">{num(r.searches)}</Td>
+                    </Tr>
+                  ))}
+              </Tbody>
+            </Table>
+          </div>
+        ) : null}
+      </Card>
     </PageContainer>
   );
 }

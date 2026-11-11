@@ -82,5 +82,9 @@ export async function updateSettings(formData: FormData) {
   const { error } = await supabase.rpc("update_farm_settings", { p_farm: profile.farm_id, p_settings: settings });
   if (error) redirect(`/settings?error=${errorCode(error, "app/settings/actions:updateSettings")}`);
   revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  // A setting saved from the screen it governs goes back there (driver hours, the trip
+  // report's route check). Only those screens: anything else lands on Settings.
+  const back = String(formData.get("return_to") ?? "");
+  const target = back === "/trips/hours" || back === "/trips/report" ? back : "/settings";
+  redirect(`${target}?saved=1`);
 }

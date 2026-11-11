@@ -50,6 +50,8 @@ export const SETTING_NUMBERS = {
   driver_max_hours_day: 12,
   driver_max_hours_week: 60,
   driver_min_rest_hours: 8,
+  // How far a trip may differ from its planned route before it is flagged, in percent.
+  route_km_tolerance_pct: 10,
 } as const;
 
 /**
@@ -69,6 +71,7 @@ export const SETTING_RANGES: Partial<Record<keyof typeof SETTING_NUMBERS, { min:
   driver_max_hours_day: { min: 1, max: 24 },
   driver_max_hours_week: { min: 1, max: 168 },
   driver_min_rest_hours: { min: 1, max: 24 },
+  route_km_tolerance_pct: { min: 1, max: 100 },
 };
 
 function inRange(key: string, n: number): boolean {

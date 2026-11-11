@@ -53,14 +53,19 @@ export type IncomingPoint = { lat: number; lng: number; at: string; speed?: numb
 
 /**
  * What a phone may send. Only real coordinates, no time from the future, and nothing older
- * than a day: a phone with a wrong clock must not rewrite where a vehicle was.
+ * than a day: a phone with a wrong clock must not rewrite where a vehicle was. A tracker that
+ * was out of signal sends its backlog, so it may go back further (`maxAgeHours`).
  */
-export function cleanPoints(input: unknown, now: Date = new Date()): IncomingPoint[] {
+export function cleanPoints(
+  input: unknown,
+  now: Date = new Date(),
+  { maxAgeHours = 24, max = 200 }: { maxAgeHours?: number; max?: number } = {},
+): IncomingPoint[] {
   if (!Array.isArray(input)) return [];
   const newest = now.getTime() + 5 * 60 * 1000;
-  const oldest = now.getTime() - 24 * 60 * 60 * 1000;
+  const oldest = now.getTime() - maxAgeHours * 60 * 60 * 1000;
   const out: IncomingPoint[] = [];
-  for (const raw of input.slice(0, 200)) {
+  for (const raw of input.slice(0, max)) {
     const p = raw as Partial<IncomingPoint> | null;
     const at = typeof p?.at === "string" ? Date.parse(p.at) : Number.NaN;
     const { lat, lng } = p ?? {};

@@ -23,7 +23,14 @@ export function RouteRecorder({ sessionId, labels }: { sessionId: string; labels
     if (!on) return;
     let wake: { release: () => Promise<void> } | null = null;
     const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } };
-    void nav.wakeLock?.request("screen").then((lock) => { wake = lock; }).catch(() => undefined);
+    const stayAwake = () => void nav.wakeLock?.request("screen").then((lock) => { wake = lock; }).catch(() => undefined);
+    stayAwake();
+    // A phone drops the screen lock whenever this page is hidden (a call, another app), and
+    // does not give it back: ask again when the page is in front once more.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") stayAwake();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     const watch = navigator.geolocation.watchPosition(
       (p) => {
@@ -57,6 +64,7 @@ export function RouteRecorder({ sessionId, labels }: { sessionId: string; labels
     const timer = setInterval(() => void send(), SEND_EVERY_MS);
 
     return () => {
+      document.removeEventListener("visibilitychange", onVisible);
       navigator.geolocation.clearWatch(watch);
       clearInterval(timer);
       void send();

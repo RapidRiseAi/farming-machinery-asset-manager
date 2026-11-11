@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
+import { featureOn } from "@/lib/features";
 import { dateTime, num } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -32,6 +33,7 @@ import {
   saveTripIncome,
   startTrip,
 } from "../actions";
+import { TripRouteCard } from "./route-card";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +60,7 @@ export default async function TripPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -72,14 +74,15 @@ export default async function TripPage({
   const trip = must(
     await supabase
       .from("trips")
-      .select("id, farm_id, number, status, machine_id, trailer_id, second_trailer_id, driver_id, origin, destination, planned_start, started_at, ended_at, opening_reading, closing_reading, notes")
+      .select("id, farm_id, number, status, machine_id, trailer_id, second_trailer_id, driver_id, driving_session_id, origin, destination, planned_start, started_at, ended_at, opening_reading, closing_reading, notes")
       .eq("id", id)
       .is("deleted_at", null)
       .maybeSingle(),
     "trip:row",
   ) as {
     id: string; farm_id: string; number: number; status: string; machine_id: string; trailer_id: string | null;
-    second_trailer_id: string | null; driver_id: string | null; origin: string | null; destination: string | null;
+    second_trailer_id: string | null; driver_id: string | null; driving_session_id: string | null;
+    origin: string | null; destination: string | null;
     planned_start: string | null; started_at: string | null; ended_at: string | null;
     opening_reading: number | null; closing_reading: number | null; notes: string | null;
   } | null;
@@ -91,13 +94,17 @@ export default async function TripPage({
 
   const [jobs, machines, driver, income, expenses] = await Promise.all([
     supabase.from("trip_jobs").select("id, customer, reference, description, weight_kg, passengers, seal_no, pickup, dropoff, status, delivered_at, received_by, pod_note, pod_photo_path, pod_signature_path").eq("trip_id", id).is("deleted_at", null).order("created_at"),
-    supabase.from("machines").select("id, name").in("id", [trip.machine_id, trip.trailer_id, trip.second_trailer_id].filter(Boolean) as string[]),
+    supabase.from("machines").select("id, name, meter_type").in("id", [trip.machine_id, trip.trailer_id, trip.second_trailer_id].filter(Boolean) as string[]),
     trip.driver_id ? supabase.from("users").select("name").eq("id", trip.driver_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     manager ? supabase.from("trip_income").select("amount_cents, invoice_ref").eq("trip_id", id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     manager ? supabase.from("trip_expenses").select("id, kind, amount_cents, note").eq("trip_id", id).order("created_at") : Promise.resolve({ data: [], error: null }),
   ]);
   const jobRows = (must(jobs, "trip:jobs") ?? []) as Job[];
-  const names = new Map(((must(machines, "trip:machines") ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name]));
+  const machineRows = (must(machines, "trip:machines") ?? []) as { id: string; name: string; meter_type: string | null }[];
+  const names = new Map(machineRows.map((m) => [m.id, m.name]));
+  // An hour meter says nothing about distance, so only a km reading is held against the plan.
+  const kmMeter = machineRows.find((m) => m.id === trip.machine_id)?.meter_type === "km";
+  const mapOn = await featureOn("map", trip.farm_id);
   const driverName = (must(driver, "trip:driver") as { name?: string } | null)?.name ?? null;
   const incomeRow = must(income, "trip:income") as { amount_cents: number; invoice_ref: string | null } | null;
   const expenseRows = (must(expenses, "trip:expenses") ?? []) as { id: string; kind: string; amount_cents: number; note: string | null }[];
@@ -121,6 +128,7 @@ export default async function TripPage({
       <p><Link href="/trips" className="text-sm underline">{t("trips.back", locale)}</Link></p>
       <PageHeader title={label} actions={<Badge tone={TRIP_STATUS_TONE[trip.status] ?? "neutral"}>{t(`trips.statusName.${trip.status}`, locale)}</Badge>} />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      <Flash tone="success" message={sp.saved === "route" ? t("routes.savedFlash", locale) : undefined} />
 
       <Card>
         <FactList>
@@ -164,6 +172,8 @@ export default async function TripPage({
           </form>
         ) : null}
       </Card>
+
+      {mapOn ? <TripRouteCard trip={trip} viewerId={profile.id} manager={manager} kmMeter={kmMeter} locale={locale} /> : null}
 
       <Card>
         <CardHeader

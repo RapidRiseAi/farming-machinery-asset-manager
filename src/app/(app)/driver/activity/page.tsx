@@ -111,6 +111,18 @@ export default async function ActivityPage({
       })
     : { data: [], error: null };
   if (eventResult.error) throw new Error("Driver history unavailable");
+  // A drive started by a trip links back to it (20261111090000). Only trips this person may
+  // see come back, so a driver sees links to their own trips and nobody else's.
+  const linked = sessions.length
+    ? await db
+        .from("trips")
+        .select("id, number, driving_session_id")
+        .in("driving_session_id", sessions.map((s) => s.id))
+    : { data: [], error: null };
+  if (linked.error) throw new Error("Driver trips unavailable");
+  const tripOf = new Map(
+    ((linked.data ?? []) as { id: string; number: number; driving_session_id: string }[]).map((r) => [r.driving_session_id, r]),
+  );
   const details = (eventResult.data ?? []) as {
     session_id: string;
     stop_events: DrivingEvent[];
@@ -288,6 +300,11 @@ export default async function ActivityPage({
               <h3 className="text-lg font-semibold">
                 {name(drivers, s.driver_id)} · {name(machines, s.machine_id)}
               </h3>
+              {tripOf.get(s.id) ? (
+                <Link href={`/trips/${tripOf.get(s.id)?.id}`} className="text-sm font-medium underline">
+                  {t("routes.openTrip", locale).replace("{n}", String(tripOf.get(s.id)?.number ?? ""))}
+                </Link>
+              ) : null}
               <p>
                 {date(s.started_at)}{" "}
                 {s.ended_at

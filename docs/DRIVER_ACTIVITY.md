@@ -117,6 +117,9 @@ backoff and the same event ID; do not retry a 409 unchanged indefinitely.
 disabled connection, missing mapping or invalid event sequence, and 400 means
 invalid JSON/schema. Disable takes effect on subsequent ingestion transactions.
 
+Positions from the same tracker, without a driver and in batches, go to
+`POST /api/integrations/positions` with the same token: see docs/ROUTING.md.
+
 ## Release and verification
 
 Apply `20261003142805_driver_activity_and_secure_qr.sql` before releasing the app.

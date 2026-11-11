@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Planned routes, trips that keep the driving record, tracker positions, route counting.
+  "20261111090000": "select to_regclass('public.trip_routes') is not null and to_regclass('public.routing_usage') is not null and to_regprocedure('public.ingest_tracker_positions(uuid,text,jsonb)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'trips' and column_name = 'driving_session_id') and (select prosrc like '%write_driving_event%' from pg_proc where oid = 'public.trip_start(uuid,numeric)'::regprocedure)",
   // Closure switches the guards off with SET LOCAL, which the hosted database allows.
   "20261110090000": "select bool_and(p.prosrc like '%set local session_replication_role%') and count(*) = 2 from pg_proc p where p.oid in ('public.close_farm_permanently(uuid,uuid)'::regprocedure, 'public.purge_expired_closures()'::regprocedure)",
   // One bill for several sites, usage at cost plus markup, and Done-For-You quotes.

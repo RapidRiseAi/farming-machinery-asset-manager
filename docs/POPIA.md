@@ -44,6 +44,15 @@ so and the lawyer must confirm the basis (legitimate interest with openness is t
 A driver sees only their own trips, an owner or manager the fleet; points are deleted after
 180 days, and with the account on closure.
 
+**Tracker positions and planned routes (11 November 2026, migration `20261111090000`).** A
+business's vehicle tracker can now send positions (`/api/integrations/positions`, docs/ROUTING.md).
+They land in the same table under the same rules, are kept only while the map is on for that
+business, and need no driver: a tracker reports the vehicle, and who drove it follows from the
+trip or driving record. A trip's planned route (`trip_routes`) is a plan of places, not a record
+of a person, but it is compared with the route driven, so the notice should say that a trip's
+distance is checked against its plan. Place searches go to OpenStreetMap's search with only the
+words typed, and route requests to Mapbox (or Rapid Rise's own server) with only coordinates.
+
 **Not collected otherwise (Scope §13):** continuous tracking outside the map above, biometric
 identifiers, ID/passport numbers, banking/card data (billing is deferred; when it lands
 it runs through Paystack, card data never touches our servers), and any
