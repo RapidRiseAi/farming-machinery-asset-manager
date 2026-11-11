@@ -55,14 +55,14 @@ export default async function AdminUsagePage({
     await svc.from("routing_usage").select("farm_id, routes, searches").eq("month", month),
     "admin-usage:routing",
   ) ?? []) as { farm_id: string; routes: number; searches: number }[];
-  const { count: plannedTrips } = must(
-    await svc
-      .from("trip_routes")
-      .select("trip_id", { count: "exact", head: true })
-      .gte("planned_at", `${month}T00:00:00+02:00`)
-      .lt("planned_at", `${nextMonth.toISOString().slice(0, 10)}T00:00:00+02:00`),
-    "admin-usage:planned",
-  ) as unknown as { count: number | null };
+  // A head-only count has no rows: must() checks the read, and the count is on the result.
+  const planned = await svc
+    .from("trip_routes")
+    .select("trip_id", { count: "exact", head: true })
+    .gte("planned_at", `${month}T00:00:00+02:00`)
+    .lt("planned_at", `${nextMonth.toISOString().slice(0, 10)}T00:00:00+02:00`);
+  must(planned, "admin-usage:planned");
+  const plannedTrips = planned.count;
   const routing = routingConfig();
   const routeTotal = routeUse.reduce((sum, r) => sum + Number(r.routes), 0);
   const searchTotal = routeUse.reduce((sum, r) => sum + Number(r.searches), 0);
