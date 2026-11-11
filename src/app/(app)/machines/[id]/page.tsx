@@ -182,7 +182,7 @@ export default async function MachineDetailPage({
     : await effectiveFarmRole(machineBase.farm_id, profile);
   const canEdit = resourceRole === "owner" || resourceRole === "manager";
   // The database checks the person runs both ends; this only decides whether to offer it.
-  const otherSites = canEdit ? (await accessibleFarms(profile)).filter((f) => f.id !== machine.farm_id) : [];
+  const otherSites = canEdit ? (await accessibleFarms(profile)).filter((f) => f.id !== machineBase.farm_id) : [];
   const canAddReading = resourceRole != null && ["owner", "manager", "mechanic", "operator"].includes(resourceRole);
   // The same rule /faults uses to offer this machine in its report dialog.
   const canReportFault = resourceRole != null &&
