@@ -58,7 +58,11 @@ export async function removeFiles(svc: SupabaseClient, files: StoredFile[]): Pro
   return left;
 }
 
-/** Finish what a closure could not. A step of the nightly job. */
+/**
+ * Finish what a closure could not. A step of the nightly job, whose result must start with
+ * "ok" or the whole night is reported as failed (and the founder emailed): "0 removed" did
+ * exactly that on 11 November. Files that still will not go are a real failure, and say so.
+ */
 export async function finishClosureFiles(svc: SupabaseClient): Promise<string> {
   const { data, error } = await svc
     .from("farm_closures")
@@ -67,11 +71,15 @@ export async function finishClosureFiles(svc: SupabaseClient): Promise<string> {
     .limit(20);
   if (error) throw error;
   let removed = 0;
+  let stuck = 0;
   for (const row of (data ?? []) as { id: string; pending_files: StoredFile[] }[]) {
     const left = await removeFiles(svc, row.pending_files);
     removed += row.pending_files.length - left.length;
+    stuck += left.length;
     const { error: saveError } = await svc.from("farm_closures").update({ pending_files: left }).eq("id", row.id);
     if (saveError) throw saveError;
   }
-  return `${removed} removed`;
+  return stuck > 0
+    ? `error: ${stuck} file(s) of closed accounts could not be removed; tried again tomorrow (${removed} removed)`
+    : `ok (${removed} removed)`;
 }
