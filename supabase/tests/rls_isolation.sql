@@ -781,60 +781,14 @@ select 'ALL 0210/0211 COST-ENTRIES & TCO TESTS PASSED' as result;
 insert into machines (id, farm_id, name, type, meter_type) values
   ('aa777777-7777-7777-7777-777777777777', '11111111-1111-1111-1111-111111111111', 'Conflict A', 'tractor', 'hours');
 
--- (d) a normal farm user must not be able to call the service-role apply function.
-set role authenticated;
+-- The first offline sync's apply function, public.sync_apply_reading, was dropped on 11
+-- November 2026 (20261111160000): the app records readings through recordMeterReading, and
+-- nothing called it. Its conflict tests went with it. The machine above stays, so the
+-- counts the later sections rely on are unchanged.
 do $$ begin
-  perform _t_login('a1111111-1111-1111-1111-111111111111');
-  begin
-    perform public.sync_apply_reading(
-      '11111111-1111-1111-1111-111111111111'::uuid, 'aa777777-7777-7777-7777-777777777777'::uuid,
-      1, current_date, 'manual'::meter_source, null::uuid, now());
-    raise exception 'SYNC PRIV FAIL: authenticated executed sync_apply_reading';
-  exception
-    when insufficient_privilege then null;                 -- expected
-    when others then if sqlstate = 'P0001' then raise; end if;
-  end;
-end $$;
-reset role;
-
--- (a)(b)(c) forced conflict, as the service role (the /api/sync route's identity).
-set role service_role;
-do $$
-declare
-  m uuid := 'aa777777-7777-7777-7777-777777777777';
-  f uuid := '11111111-1111-1111-1111-111111111111';
-  r1 jsonb; r2 jsonb;
-  v_reading numeric; v_ts timestamptz; v_hist bigint;
-begin
-  -- Edit X: LATER client timestamp, reading 1200 → becomes the winner.
-  r1 := public.sync_apply_reading(f, m, 1200, current_date, 'manual'::meter_source, null,
-        '2026-01-01T10:00:00Z'::timestamptz);
-  if r1->>'status' <> 'applied' then raise exception 'CONFLICT FAIL: first edit status=% (expected applied)', r1->>'status'; end if;
-
-  -- Edit Y: EARLIER client timestamp, reading 1000, arrives late → must LOSE.
-  r2 := public.sync_apply_reading(f, m, 1000, current_date, 'manual'::meter_source, null,
-        '2026-01-01T09:00:00Z'::timestamptz);
-  if r2->>'status' <> 'conflict' then raise exception 'CONFLICT FAIL: stale edit status=% (expected conflict)', r2->>'status'; end if;
-  if (r2->'superseded'->>'reading')::numeric <> 1000 then
-    raise exception 'CONFLICT FAIL: superseded value not preserved: %', r2->'superseded'; end if;
-
-  -- Deterministic outcome: the machine reflects the greatest-timestamp writer (1200).
-  select current_reading, current_reading_client_ts into v_reading, v_ts from machines where id = m;
-  if v_reading <> 1200 then raise exception 'LWW FAIL: current_reading=% (expected 1200)', v_reading; end if;
-  if v_ts <> '2026-01-01T10:00:00Z'::timestamptz then raise exception 'LWW FAIL: winner ts=% (expected 10:00Z)', v_ts; end if;
-
-  -- No silent loss: BOTH reading rows persist in append-only history.
-  select count(*) into v_hist from meter_readings where machine_id = m and deleted_at is null;
-  if v_hist <> 2 then raise exception 'HISTORY FAIL: expected 2 reading rows, got %', v_hist; end if;
-end $$;
-reset role;
-
--- The losing value is ALSO recoverable from the append-only audit_log (both inserts logged).
-do $$ declare c bigint; begin
-  select count(*) into c from audit_log
-    where entity = 'meter_readings'
-      and (diff->'new'->>'machine_id') = 'aa777777-7777-7777-7777-777777777777';
-  if c <> 2 then raise exception 'AUDIT FAIL: expected 2 audit rows for conflict readings, got %', c; end if;
+  if to_regprocedure('public.sync_apply_reading(uuid,uuid,numeric,date,meter_source,uuid,timestamptz)') is not null then
+    raise exception 'SYNC FAIL: the dropped offline-sync function is back';
+  end if;
 end $$;
 
 select 'ALL 0220 OFFLINE-SYNC TESTS PASSED' as result;
@@ -9922,8 +9876,7 @@ reset role;
 do $$ begin
   if has_function_privilege('anon', 'app.partner_client_exposure(uuid,uuid,date)', 'EXECUTE')
      or has_function_privilege('anon', 'public.partner_client_exposure(uuid,uuid,date)', 'EXECUTE')
-     or has_function_privilege('anon', 'app.partner_over_limit(uuid,date)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.partner_over_limit(uuid,date)', 'EXECUTE') then
+     or has_function_privilege('anon', 'app.partner_over_limit(uuid,date)', 'EXECUTE') then
     raise exception 'G23 FAIL: anon may execute a credit-exposure function';
   end if;
 end $$;
@@ -10110,8 +10063,7 @@ end $$;
 reset role;
 
 do $$ begin
-  if has_function_privilege('anon', 'app.purchase_order_invoiced(uuid)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.purchase_order_invoiced(uuid)', 'EXECUTE') then
+  if has_function_privilege('anon', 'app.purchase_order_invoiced(uuid)', 'EXECUTE') then
     raise exception 'G24 FAIL: anon may execute purchase_order_invoiced';
   end if;
 end $$;

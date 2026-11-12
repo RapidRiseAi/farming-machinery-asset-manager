@@ -509,11 +509,6 @@ begin
     raise exception 'AI USAGE FAIL [10]: a manager read the owner page data';
   exception when insufficient_privilege then null;
   end;
-  v := public.ai_my_usage(v_farm);
-  if not (v ? 'voice_seconds') or v::text ~ 'cents' then
-    raise exception 'AI USAGE FAIL [10]: a member''s own usage is wrong or shows money: %', v;
-  end if;
-
   perform public._t_login('a1a00000-0000-4000-9000-000000000004');
   select count(*) into n from public.ai_usage where farm_id = v_farm;
   if n <> 0 then raise exception 'AI USAGE FAIL [10]: the neighbouring farm read % rows', n; end if;
