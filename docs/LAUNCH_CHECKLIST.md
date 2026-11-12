@@ -67,6 +67,14 @@ Facts below were read from the accounts on 2026-10-14.
 - [ ] **Lawyer:** a read of the terms (`src/lib/legal.ts`) and the privacy policy, which must name
       Paris hosting, AI and voice processing abroad, the POPIA section 72 basis, lapsed farms
       read-only for 90 days then closed, and that farms can download all their data.
+- [ ] **Media backup, free:** three repository secrets (GitHub, Settings, Secrets and variables,
+      Actions): `SUPABASE_S3_ACCESS_KEY_ID` and `SUPABASE_S3_SECRET_ACCESS_KEY` from Supabase
+      (Storage, S3 Connection, new access key) and `BACKUP_RCLONE_CONFIG` for where the copy
+      lives (`docs/BACKUP.md` 2.3 has the three-line file for Backblaze B2, Cloudflare R2 or
+      Azure). The nightly copy then starts by itself; check the next morning's run under
+      Actions, "Nightly file copy".
+- [ ] **D-U-N-S number** for the Google Play account in the business name (requested through
+      Apple's lookup on 11 November; TransUnion issues them in South Africa).
 - [ ] **Phones:** one iPhone and one Android for the real-device pass (engineering gives a
       30-minute script). Support cases are worked on `/admin/support` (2026-10-28);
       `SUPPORT_WEBHOOK_URL` stays unset. Set `OPS_ALERT_EMAIL` so new requests also arrive by email.
@@ -241,12 +249,18 @@ Order: correctness and security first, then load, then product.
       2026-10-15: reproduced (26 s rising to 57 s over twelve loads, flat bypassed); warming
       made single-flight with a 30-minute cool-down at low priority, RSC requests out of the
       worker; now 2 to 3 s, flat. `scripts/sw_check.mjs`. One look on a real phone remains.
-- [ ] **H4** Load test: k6 scripts and a synthetic 500-farm seed for the staging project.
-- [ ] **Domain readiness:** every URL from `NEXT_PUBLIC_SITE_URL`; manifest, emails and PDFs ready
-      for the domain.
-- [ ] **H8** Transfer a farm's ownership; move a machine between farms with its history.
-- [ ] **H9** Module switches per farm and a simple mode for operators (per the founder's decision).
-- [ ] **UX** Weekly owner digest email; empty states that teach; assistant suggested questions.
+- [ ] **H4** Load test: k6 scripts and a synthetic 500-farm seed for the staging project
+      (waits for the founder's staging project in Part 1).
+- [x] **Domain readiness:** every URL from `NEXT_PUBLIC_SITE_URL`; manifest, emails and PDFs ready
+      for the domain. 2026-11-06: the app runs at app.fleet-wise.co.za; `/api/health` warns when
+      the site URL is not the domain (`c913dcc`).
+- [x] **H8** Transfer a farm's ownership; move a machine between farms with its history.
+      2026-11-06: `/handover` (ownership transfers in `farm_ownership_transfers`, vehicle moves
+      with their history), `handover_moves.sql`.
+- [x] **H9** Module switches per farm and a simple mode for operators (per the founder's decision).
+      2026-11-05 (`9b64488`), on the Settings page under Menus.
+- [ ] **UX** Weekly owner digest email (built: `cron_enqueue_weekly_digest`, Mondays); empty
+      states that teach and assistant suggested questions still open.
 - [x] **H5** Keep the click-through test farm out of Rapid Rise's admin totals (removal at launch).
       2026-10-14: `farms.is_test` (20261014110000); all four production farms marked (the founder
       confirmed each is a test). Left out of the admin farm count, the billing console's totals and
@@ -261,13 +275,13 @@ Order: correctness and security first, then load, then product.
       bucket; reminders through the nightly route; calendar, /finance page with a 12-month
       cash flow, CSV and workbook export (advanced_reports). Owners and managers only
       (`app.can_view_farm_finance`, founder default), every plan. Migrations 20261028110000
-      to 20261028111100, NOT yet applied; `asset_finance.sql`. Still to do: apply and probe,
-      `ui:check` on /finance and the machine Costs tab at 360 and 1024px with real data.
+      to 20261028111100, applied (nothing pending on 2026-11-11); `asset_finance.sql`. The
+      360px and 1024px pass over /finance ran in the 5 November phone pass.
 
-### Launch preparation, 4 to 5 November (branch `claude/launch-prep-nov`, NOT deployed)
+### Launch preparation, 4 to 5 November (released to `main` on 6 November)
 
-Prepared locally while the founder was away; nothing applied to production, nothing
-pushed. Each item has its own commit, tests and mutation checks.
+Prepared locally while the founder was away, then applied and released with the 6 November
+work. Each item has its own commit, tests and mutation checks.
 
 - [x] **November price list** (`83ec86d`): R49 / R79 / R99, annual ten months, five-slot
       minimum on every billing path, Done-For-You quote-only, existing prices pinned; the
@@ -302,24 +316,45 @@ pushed. Each item has its own commit, tests and mutation checks.
 - [x] **PC layout and readability**: two-column layouts on large screens, darker secondary
       text, one step larger type on big monitors.
 
-**Release order** (when the founder says go):
+**Release order** (done 6 November): migrations first (`apply_pending.mjs`, each probed),
+then the branch to `main`, the deployment verified by commit SHA, then the live checks. The
+same order applies to every release since: database, app, live journey, Vercel error log.
 
-1. `node scripts/apply_pending.mjs --dry`, then `--apply`: `20261104200000` (prices),
-   `20261104210000` (WhatsApp media), `20261104220000` (plan boundaries),
-   `20261105090000` (erasure voice notes), `20261105100000` (staff onboarding),
-   `20261105120000` (dashboard boards), each probed.
-   Database first: the live app tolerates all three (old WhatsApp webhooks still call the
-   four-argument receiver), while the new app's billing pages read `min_billed_slots`.
-2. Push the branch to `main` straight after, verify the deployment by commit SHA, then the
-   live checks (health, role sweep, repeat-tap check). Between steps 1 and 2 the old sign-up
-   page still shows the launch prices while the invoice uses the new ones, so keep the gap
-   to minutes (no real farms are affected today).
-3. Publish the website branch `claude/plan-accuracy` once the app is live.
+**From the 29 October pricing brief:** built since: pooled slots across a customer's sites,
+storage and WhatsApp usage on the invoice at cost plus markup (`usage_for_month`,
+`usage_rates`, Admin, Usage), and recording an accepted Done-For-You quote
+(`done_for_you_quotes`), all 7 November. Still open (not to be sold as working until built):
+the activation service catalogue (setup, document capture, training, QR kits) as orders in
+the app.
 
-**Still open from the 29 October pricing brief** (not to be sold as working until built):
-pooled slots across a customer's sites (billing-customer grouping), WhatsApp provider-cost
-metering, storage metering, recording an accepted Done-For-You quote, and the activation
-service catalogue (setup, document capture, training, QR kits) as orders in the app.
+### 6 to 11 November (all released to `main`)
+
+- [x] Production wiped of test data (6 November, founder's decision); test accounts fenced.
+- [x] Partner applications, one-person contractor links, the account-takeover fix, company
+      types and FLEETWISE wording, permanent account closure, handover and vehicle moves,
+      trips, fuel cards, pooled sites, usage billing, Done-For-You quotes, the nightly file
+      copy workflow (6 to 10 November).
+- [x] The map behind the "map" feature flag (Admin, Features in testing): live positions,
+      trips with planned routes, navigation links, the km check, tracker positions, the
+      place search within OpenStreetMap's rules (`docs/ROUTING.md`, 11 November).
+- [x] Row-security policies evaluate `auth.uid()` once per query; four functions with a
+      pinned `search_path`; six unused functions dropped (`schema_tidy.sql`, 11 November).
+- [x] Dead code: six orphan files, about 160 unused declarations and the unused exports
+      removed; `trip_routes.sql` and every other SQL suite proven to run in CI
+      (`sql-suite.test.ts`), 11 November.
+- [x] The menu regrouped by work (Home, The fleet, On the road, Money, the company, Help),
+      each group folding; Settings and Account tidied; the manifest describes any fleet.
+- [ ] **Before the map leaves testing:** self-hosted map tiles (or a tile contract) and the
+      lawyer's read of the tracking wording in the privacy policy (`docs/POPIA.md`).
+- [ ] **Android app** (Capacitor wrapper with background location) once the Google Play
+      account in the business name exists (D-U-N-S number requested 11 November).
+- [ ] **Media backup:** the nightly copy ran on 11 November and stopped at "waiting to be set
+      up": the three repository secrets in `docs/BACKUP.md` 2.3 are not set. Until they are,
+      uploaded photos and documents have no copy outside Supabase.
+- [ ] **Still to audit before launch** (the 11 November audit run was cut short by usage
+      limits): the 85 SECURITY DEFINER functions any signed-in person can call, each read for
+      its own membership check; what an Android WebView will need (web push, deep links,
+      camera, geolocation); the few remaining "not yet" items in the docs against the code.
 
 ### Founder decisions (2026-10-13)
 
