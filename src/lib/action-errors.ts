@@ -37,6 +37,11 @@ export function classifyFailure(error: DbFailure | Error, fallback?: string): Cl
   if (typeof failure.status === "number" && failure.status >= 400 && failure.status < 500 && failure.message) {
     return { report: false, code: failure.message };
   }
+  // The database's own pay gate (app.require_open_farm, 20261112100000): the business has
+  // not paid, which the person can act on and which is not a fault of ours.
+  if (failure.code === "42501" && failure.message === "farm-not-active") {
+    return { report: false, code: "farm-not-active" };
+  }
   if (failure.code === "42501") return { report: true, code: "forbidden" };
   return { report: true, code: "try-again" };
 }

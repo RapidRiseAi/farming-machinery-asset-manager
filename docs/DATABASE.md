@@ -28,10 +28,22 @@ the authority on its columns (`supabase/migrations`, applied in filename order).
   once per statement, never per row. Tables a stopped business must keep (billing, the
   person's account and memberships, notifications, help, closure, handover) are listed
   `open` in `app.pay_gate_rules` with the reason; a contractor's own books are
-  `contractor_open`, stopped for the customer but not for the contractor. A `security
-  definer` function runs as its owner, past these policies, so one that writes a business's
-  rows checks the gate itself. A new table with `farm_id` calls `app.pay_gate_apply('table')`
-  or gets a rules row; `pay_gate.sql` fails until it does.
+  `contractor_open`, stopped for the customer but not for the contractor. A new table with
+  `farm_id` calls `app.pay_gate_apply('table')` or gets a rules row; `pay_gate.sql` fails
+  until it does. The farm buckets in Storage follow the same rule (`pay_gate_*` on
+  `storage.objects`, the business read from the path's first folder).
+- **A `security definer` function runs as its owner, past those policies, so it checks the
+  pay gate itself** (20261112100000): `app.require_open_farm(farm, writing)`, called once the
+  function knows the business and has checked the caller, raises 42501 `farm-not-active`
+  (which the app says in the person's language) on the same rule as the tables. Rapid Rise,
+  the service role and a business the caller does not reach pass through. Functions for
+  paying, the person's own account, help, Rapid Rise staff and a contractor's own books are
+  left open on purpose; the list and the reasons are in the migration's header, and
+  `pay_gate_functions.sql` fails when a new definer function a person can call is neither
+  checked nor listed there.
+- **Notifications are written by the system.** Owner-run functions (`app.notify_farm` and
+  its relatives) write every one; a person's session cannot insert one, and deletes only
+  their own (20261112100000).
 - **Policies call `auth.uid()` once per query**, as `(select auth.uid())`, since
   20261111150000. Write new policies the same way.
 - **RPCs that run as their owner check the caller themselves.** A `security definer`

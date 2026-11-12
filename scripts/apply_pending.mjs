@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The pay gate inside owner-run functions, and on the farm buckets where storage exists.
+  "20261112100000": "select to_regprocedure('app.require_open_farm(uuid,boolean)') is not null and to_regprocedure('app.pay_gate_storage_apply()') is not null and (to_regclass('storage.objects') is null or exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'pay_gate_insert'))",
   // The pay gate in the database: the helper, the open-table list and a policy it makes.
   "20261112090000": "select to_regprocedure('app.stopped_farm_ids(boolean)') is not null and to_regclass('app.pay_gate_rules') is not null and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'machines' and policyname = 'pay_gate_insert')",
   // Planned routes, trips that keep the driving record, tracker positions, route counting.

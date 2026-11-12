@@ -35,7 +35,9 @@ If you are adding a third, it needs to be argued for here first.
   writes while `app.farm_billing_gate` is not `ok`, and reads too while it is `pending`;
   billing, the person's own account, help, closure and handover stay open
   (`app.pay_gate_rules`), and Rapid Rise is never stopped. `SECURITY DEFINER` RPCs run past
-  these policies and must check the gate themselves; see `docs/DATABASE.md`.
+  these policies, so each one that acts on a business's records calls
+  `app.require_open_farm` (20261112100000), and the farm buckets in Storage carry the same
+  restrictive policies; see `docs/DATABASE.md`.
 - **Composite foreign keys** `(child_id, farm_id) → parent(id, farm_id)` make it
   structurally impossible for a child row to reference a parent in another farm.
 - **Access helpers** live in schema `app` (`0100_rls_helpers.sql`), are `SECURITY

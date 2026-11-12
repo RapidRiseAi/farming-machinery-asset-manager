@@ -34,6 +34,13 @@ test("row-level security refusals are reported and said as not allowed", () => {
   });
 });
 
+test("the database's pay gate is said as the business not being active, and not reported", () => {
+  assert.deepEqual(classifyFailure({ code: "42501", message: "farm-not-active" }), {
+    report: false,
+    code: "farm-not-active",
+  });
+});
+
 test("no error object: the caller's fallback code, not reported; without one, reported", () => {
   assert.deepEqual(classifyFailure(null, "work-changed"), { report: false, code: "work-changed" });
   assert.deepEqual(classifyFailure(undefined), { report: true, code: "try-again" });
