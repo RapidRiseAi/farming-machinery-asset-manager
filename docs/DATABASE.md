@@ -1,13 +1,13 @@
 # The database, by area
 
 A map of the Supabase Postgres schema as it stands on 11 November 2026: 137 tables and 8
-views in `public`, 8 tables in `app`, about 600 functions, and the rules every table follows. Table names
+views in `public`, 9 tables in `app`, about 600 functions, and the rules every table follows. Table names
 are grouped by the part of the product they serve; the migration that created each one is
 the authority on its columns (`supabase/migrations`, applied in filename order).
 
 ## The rules every table follows
 
-- **Row-level security on everything, forced.** 141 tables have RLS and 115 force it, so even
+- **Row-level security on everything, forced.** 142 tables have RLS and 116 force it, so even
   the table owner is bound by the policies. A table with RLS and no policies is service-only
   (the server's service key reaches it, no browser does): `request_claims`,
   `driver_connection_secrets`, `place_search_cache`, `place_search_slot`,
@@ -18,6 +18,20 @@ the authority on its columns (`supabase/migrations`, applied in filename order).
   `app.effective_farm_role(auth.uid(), farm_id)`, `app.has_farm_access`, `app.is_rr_admin`,
   `app.has_permission` and their relatives. Rapid Rise's powers need a two-step session
   (`aal2`), checked in the database (20261014100000).
+- **A business that has not paid cannot work through anybody's session, its own included**
+  (20261112090000). Every table with a `farm_id` carries restrictive `pay_gate_*` policies:
+  while `app.farm_billing_gate` is not `ok`, a member cannot insert, update or delete that
+  business's rows. A `suspended` or `closed` business can still read them (pay and download:
+  the export reads through the person's own session); a `pending` one, which never paid,
+  cannot read them either. A row with no farm (the shared libraries) is never stopped, and
+  Rapid Rise never is. `app.stopped_farm_ids(writing)` names the caller's stopped businesses
+  once per statement, never per row. Tables a stopped business must keep (billing, the
+  person's account and memberships, notifications, help, closure, handover) are listed
+  `open` in `app.pay_gate_rules` with the reason; a contractor's own books are
+  `contractor_open`, stopped for the customer but not for the contractor. A `security
+  definer` function runs as its owner, past these policies, so one that writes a business's
+  rows checks the gate itself. A new table with `farm_id` calls `app.pay_gate_apply('table')`
+  or gets a rules row; `pay_gate.sql` fails until it does.
 - **Policies call `auth.uid()` once per query**, as `(select auth.uid())`, since
   20261111150000. Write new policies the same way.
 - **RPCs that run as their owner check the caller themselves.** A `security definer`
@@ -122,13 +136,16 @@ allowance). `docs/AI_USAGE.md`.
 
 `audit_log`, `app.audit_table_rules`, `app.audit_redaction_runs`, `cron_runs` (every
 scheduled run, 180 days), `request_claims` (one request, one effect), `app.rate_limit_windows`,
-`app.signup_attempt_buckets`, `app.test_email_inboxes`.
+`app.signup_attempt_buckets`, `app.test_email_inboxes`, `app.pay_gate_rules` (the tables a
+business that has not paid keeps).
 
 ## Adding a table
 
 1. A migration under `supabase/migrations` named by timestamp. Enable and force RLS, write
    the policies with `(select auth.uid())`, grant the least the roles need, and add an
    `app.audit_table_rules` row and the audit trigger when the table holds a business's data.
+   A table with `farm_id` also gets the pay gate: `select app.pay_gate_apply('table')` after
+   its policies, or an `app.pay_gate_rules` row saying why a stopped business keeps it.
 2. A probe in `scripts/apply_pending.mjs` that answers true once the migration is in, so
    production can be brought up to date and checked.
 3. A test in `supabase/tests` that proves the isolation, named in `supabase/tests/run.sh`

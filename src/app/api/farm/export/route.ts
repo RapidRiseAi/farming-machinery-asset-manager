@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getProfile, currentFarmId, effectiveFarmRole, accessibleFarms } from "@/lib/auth";
+import { farmBillingGate } from "@/lib/billing/service";
 import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { captureError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
@@ -130,6 +131,12 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
+  // A business that has never paid reads none of its records through its own session
+  // (20261112090000). An export now would be a file of empty tables that looks whole, and
+  // its stamp below would let an owner go on to close the account on the strength of it.
+  if (role !== "rr_admin" && (await farmBillingGate(supabase, farmId)) === "pending") {
+    return NextResponse.json({ error: "farm-not-active" }, { status: 402 });
+  }
   const costsVisible = await canViewFarmCosts(supabase, farmId);
   const exportedAt = new Date().toISOString();
   const encoder = new TextEncoder();

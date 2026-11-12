@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The pay gate in the database: the helper, the open-table list and a policy it makes.
+  "20261112090000": "select to_regprocedure('app.stopped_farm_ids(boolean)') is not null and to_regclass('app.pay_gate_rules') is not null and exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'machines' and policyname = 'pay_gate_insert')",
   // Planned routes, trips that keep the driving record, tracker positions, route counting.
   // Schema tidy: pinned search_path on four functions, unused functions gone.
   "20261111160000": "select to_regprocedure('public.ai_my_usage(uuid)') is null and to_regprocedure('public.sync_apply_reading(uuid,uuid,numeric,date,meter_source,uuid,timestamptz)') is null and (select proconfig is not null from pg_proc where oid = 'public.app_job_line_version()'::regprocedure)",

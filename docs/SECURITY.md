@@ -28,6 +28,14 @@ If you are adding a third, it needs to be argued for here first.
   (`force row level security`, so even the table owner is subject to policy). Policies
   gate `select/insert/update/delete` on `app.has_farm_access(farm_id)`; reads also hide
   soft-deleted rows. See `0101_rls_policies.sql`.
+- **Payment is enforced by the database as well as the app** (20261112090000). The app's
+  gate (`(app)/layout.tsx`, the role helpers in `src/lib/auth.ts`) was the only check until
+  12 November 2026, so a member of an unpaid business could use the REST API with their own
+  session. Restrictive `pay_gate_*` policies on every table with a `farm_id` now refuse
+  writes while `app.farm_billing_gate` is not `ok`, and reads too while it is `pending`;
+  billing, the person's own account, help, closure and handover stay open
+  (`app.pay_gate_rules`), and Rapid Rise is never stopped. `SECURITY DEFINER` RPCs run past
+  these policies and must check the gate themselves; see `docs/DATABASE.md`.
 - **Composite foreign keys** `(child_id, farm_id) → parent(id, farm_id)` make it
   structurally impossible for a child row to reference a parent in another farm.
 - **Access helpers** live in schema `app` (`0100_rls_helpers.sql`), are `SECURITY
