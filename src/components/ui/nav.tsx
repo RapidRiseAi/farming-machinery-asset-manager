@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "./cn";
-import { Icon, MoreIcon, type IconName } from "./icons";
+import { ChevronDownIcon, Icon, MoreIcon, type IconName } from "./icons";
 import { Sheet } from "./dialog";
 import { INSTALL_HREF, useStandalone } from "./use-standalone";
 
@@ -252,6 +252,113 @@ export function MoreMenu({
           {signOutSlot}
         </nav>
       </Sheet>
+    </>
+  );
+}
+
+/** Which groups this device has opened or closed, by group key. */
+const GROUPS_KEY = "fleetwise:nav-groups";
+
+function readOpenGroups(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(GROUPS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The sidebar's groups, each a heading that opens and closes its rows.
+ *
+ * An owner's menu is 28 destinations. Listed flat it is a wall, and the first thing a new
+ * owner sees. Each group now folds: the first two stand open on a new device, the rest show
+ * their name and a chevron, one tap opens one, and the choice is remembered on this device.
+ * The group holding the page you are on opens by itself, so the active row is never out of
+ * sight when you arrive. A folded group with a count inside shows the count on its heading.
+ * Nothing leaves the menu, and the command palette still reaches everything.
+ */
+export function NavGroups({
+  groups,
+  defaultOpen,
+  labels,
+}: {
+  groups: NavGroup[];
+  /** The groups open on a device that has not chosen yet. */
+  defaultOpen: string[];
+  /** "Show {group}" and "Hide {group}": the heading's name for assistive technology. */
+  labels: { show: string; hide: string };
+}) {
+  const pathname = usePathname();
+  const [chosen, setChosen] = useState<Record<string, boolean>>({});
+  const activeKey = groups.find((g) => g.items.some((i) => isNavItemActive(pathname, i)))?.key ?? null;
+
+  // Read the device's choices after mounting: the server rendered the defaults, and a
+  // mismatch between the two would be reported as a broken page.
+  useEffect(() => {
+    setChosen(readOpenGroups());
+  }, []);
+
+  // Arriving in a group that was folded opens it, and the choice is forgotten, so the
+  // selected row is in view when the page loads.
+  useEffect(() => {
+    if (!activeKey) return;
+    setChosen((c) => {
+      if (c[activeKey] !== false) return c;
+      const next = { ...c };
+      delete next[activeKey];
+      try {
+        localStorage.setItem(GROUPS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, [activeKey]);
+
+  const isOpen = (g: NavGroup) => chosen[g.key] ?? (g.key === activeKey || defaultOpen.includes(g.key));
+  const toggle = (g: NavGroup) => {
+    const next = { ...chosen, [g.key]: !isOpen(g) };
+    setChosen(next);
+    try {
+      localStorage.setItem(GROUPS_KEY, JSON.stringify(next));
+    } catch {}
+  };
+
+  return (
+    <>
+      {groups.map((g) => {
+        const open = isOpen(g);
+        const inside = g.items.reduce((n, i) => n + (i.badge ?? 0), 0);
+        return (
+          <div key={g.key} className="space-y-1">
+            {/*
+              Sticky, and above the ScrollArea's top fade (`z-10` beats the fade's
+              `z-auto` in the aside's stacking context). `-mx-3 px-6` bleeds it to the
+              panel edges so rows pass BEHIND it rather than beside it.
+            */}
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-controls={`nav-group-${g.key}`}
+              aria-label={(open ? labels.hide : labels.show).replace("{group}", g.label)}
+              onClick={() => toggle(g)}
+              className="focus-ring sticky top-0 z-10 -mx-3 flex min-h-[36px] w-[calc(100%+1.5rem)] items-center gap-2 bg-nav px-6 pb-1.5 pt-2.5 text-left text-xs font-semibold uppercase tracking-wider text-nav-heading transition-colors hover:text-nav-ink"
+            >
+              <span className="min-w-0 flex-1 truncate">{g.label}</span>
+              {!open && inside > 0 ? <Badge count={inside} tone="gold" /> : null}
+              <ChevronDownIcon
+                aria-hidden
+                className={cn("shrink-0 text-base transition-transform duration-150", open ? "" : "-rotate-90")}
+              />
+            </button>
+            <div id={`nav-group-${g.key}`} hidden={!open} className="space-y-1">
+              {g.items.map((item) => (
+                <NavLink key={item.href} item={item} variant="sidebar" />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 }

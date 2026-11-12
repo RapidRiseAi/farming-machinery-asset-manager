@@ -69,5 +69,5 @@ test("every module has a label in both languages, and the layout applies the fil
   }
   const layout = readFileSync(join(process.cwd(), "src/app/(app)/layout.tsx"), "utf8");
   assert.ok(layout.includes("hiddenMenuHrefs(farmSettings"));
-  assert.ok(layout.includes("const groups = trim(allGroups)") && layout.includes("const tailGroups = trim(allTailGroups)"));
+  assert.ok(layout.includes("const groups = trim(allGroups)"));
 });

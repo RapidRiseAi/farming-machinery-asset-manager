@@ -27,7 +27,7 @@ import { AssistantSafeSignOutForm } from "@/components/assistant/sign-out-form";
 // Direct module imports keep every (app) route's client bundle to just the nav
 // interactivity, the barrel would pull the kit's full client chunk (see
 // src/components/ui/README.md).
-import { NavLink, MoreMenu, type NavItemData } from "@/components/ui/nav";
+import { NavLink, NavGroups, MoreMenu, type NavItemData } from "@/components/ui/nav";
 import {
   BellIcon,
   SignOutIcon,
@@ -385,161 +385,99 @@ export default async function AppLayout({
   const booksItems: NavItemData[] = booksAllowed
     ? [money, cashflow, orders, expenses, recurringExpenses, suppliers, banking, vat, accounting]
     : [];
-  const moreItems: NavItemData[] = isWorkshop
-    ? [clients, documents, statements, recurring, ...booksItems, corrections, machines, jobcards, checklists, parts, partnerSettings, install]
-    : [
-        ...(canUseInbox ? [inbox] : []),
-        faults,
-        ...(assistantNavVisible ? [assistant] : []),
-        ...(isAdmin ? [] : [driverActivity]),
-        work,
-        ...(isManagerPlus ? [documents, finance] : []),
-        ...(fuelAllowed ? [fuel] : []),
-        ...(canParts ? [parts] : []),
-        tyres,
-        ...(canPartners ? [partners] : []),
-        checklists,
-        ...(finesAllowed ? [fines] : []),
-        incidents,
-        calendar,
-        ...(reportsAllowed ? [reports] : []),
-        ...(sitesVisible ? [sites] : []),
-        ...(reportsAllowed && isManagerPlus ? [accounting] : []),
-        alerts,
-        ...(apiTokensAllowed ? [apiTokens] : []),
-        ...(isManagerPlus ? [team, settings] : []),
-        ...(isOwner || isAdmin ? [aiUsage] : []),
-        ...(isAdmin ? rapidRiseItems : []),
-        help,
-        install,
-      ];
-
-  // Desktop: grouped sidebar sections (gated items dropped).
-  const overviewItems: NavItemData[] = [
-    ...(dashAllowed ? [dashboard] : []),
-    ...(canUseInbox ? [inbox] : []),
-    ...(sitesVisible ? [sites] : []),
-    ...(reportsAllowed ? [reports] : []),
-    ...(reportsAllowed && isManagerPlus ? [accounting] : []),
-  ];
   /*
-    "Alerts" is no longer a nav row. The bell is permanent in both top bars and now carries
-    the unread count, so the row was the same destination a second (and on phones a third)
-    time. It stays reachable from the command palette.
+    The sidebar's groups, by what a person is doing (gated items dropped). The same list
+    feeds the phone's More sheet, the command palette and the service worker's warm list,
+    so no two shells can describe the product differently.
 
-    Contractors get real groups instead of one 16-row "Contractor" heading with the Books
-    screens mixed in and a "Farm" group for a business that is not a farm: what they sell,
-    the books (only when entitled), the workshop, and their business settings.
+    Six groups for a farm or company, each named for the work: Home (the day's picture),
+    The fleet (the vehicles and what is done to them), On the road (trips, drivers, the
+    map, fines and accidents), Money, the company itself (team, partners, settings,
+    billing) and Help. The old "Everything else" bucket of seven unrelated rows is gone:
+    each of those rows now sits with its kind. Contractors keep their own four groups.
+    The sidebar folds each group (NavGroups), so a new owner meets two open groups and
+    four headings, not a wall of 28 rows.
+
+    "Alerts" is not a nav row. The bell is permanent in both top bars and carries the
+    unread count; the row stays reachable from the command palette.
   */
+  // Contractors too since 20261028100900: they ask about their own business or a linked farm.
+  const helpGroup = { key: "help", label: t("nav.groupHelp", locale), items: [help, install] };
   const allGroups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
     ? [
-        { key: "overview", label: t("nav.groupOverview", locale), items: [driverHome] },
-        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, trips, driverActivity, ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, ...(fuelAllowed ? [fuel] : [])] },
+        { key: "home", label: t("nav.groupHome", locale), items: [driverHome, ...(assistantNavVisible ? [assistant] : []), calendar] },
+        { key: "fleet", label: t("nav.theFleet", locale), items: [machines, faults, checklists, ...(fuelAllowed ? [fuel] : []), tyres, ...(canParts ? [parts] : [])] },
+        { key: "road", label: t("nav.groupRoad", locale), items: [trips, driverActivity, ...(mapOn ? [map] : []), ...(finesAllowed ? [fines] : []), incidents] },
+        { key: "company", label: t("nav.groupFarm", locale), items: [...(canPartners ? [partners] : []), ...(apiTokensAllowed ? [apiTokens] : [])] },
+        helpGroup,
       ]
     : isWorkshop
-    ? [
-        { key: "sales", label: t("nav.groupSales", locale), items: [contractor, clients, work, documents, statements, recurring, corrections] },
-        { key: "books", label: t("nav.groupBooks", locale), items: booksItems },
-        { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists, parts] },
-        { key: "business", label: t("nav.groupBusiness", locale), items: [partnerSettings] },
-      ]
-    : [
-        ...(isAdmin
-          ? [{ key: "rapidrise", label: t("nav.groupRapidRise", locale), items: rapidRiseItems }]
-          : []),
-        ...(overviewItems.length ? [{ key: "overview", label: t("nav.groupOverview", locale), items: overviewItems }] : []),
-        {
-          key: "fleet",
-          label: t("nav.theFleet", locale),
-          items: [machines, ...(isAdmin ? [] : [trips, driverActivity]), ...(mapOn ? [map] : []), ...(assistantNavVisible ? [assistant] : []), faults, jobcards, work, ...(fuelAllowed ? [fuel] : [])],
-        },
-        {
-          key: "farm",
-          label: t("nav.groupFarm", locale),
-          items: isManagerPlus ? [documents, corrections, finance, team] : [],
-        },
-      ]
+      ? [
+          { key: "sales", label: t("nav.groupSales", locale), items: [contractor, clients, work, documents, statements, recurring, corrections] },
+          { key: "books", label: t("nav.groupBooks", locale), items: booksItems },
+          { key: "workshop", label: t("nav.groupWorkshop", locale), items: [machines, jobcards, faults, checklists, parts] },
+          { key: "business", label: t("nav.groupBusiness", locale), items: [partnerSettings] },
+          helpGroup,
+        ]
+      : [
+          ...(isAdmin ? [{ key: "rapidrise", label: t("nav.groupRapidRise", locale), items: rapidRiseItems }] : []),
+          {
+            key: "home",
+            label: t("nav.groupHome", locale),
+            items: [
+              ...(dashAllowed ? [dashboard] : []),
+              ...(canUseInbox ? [inbox] : []),
+              ...(assistantNavVisible ? [assistant] : []),
+              ...(sitesVisible ? [sites] : []),
+              calendar,
+              ...(reportsAllowed ? [reports] : []),
+            ],
+          },
+          {
+            key: "fleet",
+            label: t("nav.theFleet", locale),
+            items: [machines, faults, jobcards, work, checklists, ...(fuelAllowed ? [fuel] : []), tyres, ...(canParts ? [parts] : [])],
+          },
+          {
+            key: "road",
+            label: t("nav.groupRoad", locale),
+            items: [...(isAdmin ? [] : [trips, driverActivity]), ...(mapOn ? [map] : []), ...(finesAllowed ? [fines] : []), incidents],
+          },
+          {
+            key: "money",
+            label: t("nav.groupMoney", locale),
+            items: isManagerPlus ? [documents, corrections, finance, ...(reportsAllowed ? [accounting] : [])] : [],
+          },
+          {
+            key: "company",
+            label: t("nav.groupFarm", locale),
+            items: [
+              ...(isManagerPlus ? [team] : []),
+              ...(canPartners ? [partners] : []),
+              ...(isManagerPlus ? [settings] : []),
+              ...(isOwner || isAdmin ? [billing, aiUsage] : []),
+              ...(apiTokensAllowed ? [apiTokens] : []),
+            ],
+          },
+          helpGroup,
+        ]
   ).filter((g) => g.items.length > 0);
-
-  /*
-    The long tail. It used to sit behind an "Everything else" disclosure in the sidebar,
-    which meant parts, partners, checklists, fines, settings, admin and install were
-    invisible until you found and opened a summary, a person who never did had no way
-    to know those screens existed.
-
-    They are now named groups like any other, and the whole panel scrolls with a visible
-    scrollbar and an edge fade (see ScrollArea). Nothing in the nav is hidden from anyone
-    who is allowed to reach it.
-
-    Three groups and not one. "Everything else" had grown to twelve destinations for an
-    owner, which is a bucket, not a heading, and the sticky headings added above make a
-    heading that says nothing more conspicuous rather than less. Two of those twelve are
-    unarguably a different KIND of thing from the other ten, so they are named: what you
-    do to your account (settings, billing, API access, and the cross-tenant admin
-    screens) and where you go for help. The remaining operational screens keep the
-    founder's existing label, because inventing a taxonomy for them is a product
-    decision and not a UI one.
-  */
-  const tailAccount: NavItemData[] = isWorkshop
-    ? []
-    : [
-        ...(apiTokensAllowed ? [apiTokens] : []),
-        ...(isManagerPlus ? [settings] : []),
-        ...(isOwner ? [billing, aiUsage] : []),
-        ...(isAdmin ? [billing, aiUsage] : []),
-      ];
-  const tailRest: NavItemData[] = isWorkshop
-    // Parts moved into the contractor's "Workshop" group, beside the job cards it serves.
-    ? []
-    : [
-        ...(canParts ? [parts] : []),
-        tyres,
-        ...(canPartners ? [partners] : []),
-        checklists,
-        ...(finesAllowed ? [fines] : []),
-        incidents,
-        calendar,
-      ];
-  // Contractors too since 20261028100900: they ask about their own business or a linked farm.
-  const tailHelp: NavItemData[] = [help, install];
-
-  /**
-   * One definition of the tail, spread by all four consumers (sidebar, "More" sheet,
-   * command palette, service-worker warm list). They used to rebuild
-   * `{ key: "tail", label: nav.everythingElse, items: tailItems }` at three separate
-   * call sites, which is three chances to disagree about what the tail is.
-   *
-   * Deduped by href: an account that is BOTH owner and rr_admin matched
-   * `isOwner ? [billing]` and `isAdmin ? [..., billing]`, and got the same
-   * destination twice in one group.
-   */
-  const allTailGroups: { key: string; label: string; items: NavItemData[] }[] = [
-    { key: "tail", label: t("nav.everythingElse", locale), items: tailRest },
-    { key: "account", label: t("nav.groupAccount", locale), items: tailAccount },
-    { key: "help", label: t("nav.groupHelp", locale), items: tailHelp },
-  ]
-    .map((g) => ({
-      ...g,
-      items: g.items.filter((i, n) => g.items.findIndex((o) => o.href === i.href) === n),
-    }))
-    .filter((g) => g.items.length > 0);
 
   // What this farm chose to leave out of its menus (H9): switched-off modules, and for a
   // driver in simple mode everything but home, help and install. The pages still open
   // from a link; this is a simpler menu, not a permission.
-  const menuHrefs = [...allGroups, ...allTailGroups].flatMap((g) => g.items.map((i) => i.href));
+  const menuHrefs = allGroups.flatMap((g) => g.items.map((i) => i.href));
   const hiddenHrefs = hiddenMenuHrefs(farmSettings, { isOperator, isWorkshop, isAdmin, company: profile.company }, menuHrefs);
   const shown = (i: NavItemData) => !hiddenHrefs.has(i.href);
   const trim = (gs: typeof allGroups) =>
     gs.map((g) => ({ ...g, items: g.items.filter(shown) })).filter((g) => g.items.length > 0);
   const groups = trim(allGroups);
-  const tailGroups = trim(allTailGroups);
   // The first tab is home and is never a module; the rest follow the switches.
   const defaultTabs = allDefaultTabs.filter((i, n) => n === 0 || shown(i));
 
   // Everything this role may open in the nav, the catalogue both the pinned tabs and the
   // active-state exclusions are checked against.
-  const navItems = [...groups.flatMap((g) => g.items), ...tailGroups.flatMap((g) => g.items), ...defaultTabs];
+  const navItems = [...groups.flatMap((g) => g.items), ...defaultTabs];
   const navByHref = new Map(navItems.map((i) => [i.href, i]));
 
   /*
@@ -581,27 +519,23 @@ export default async function AppLayout({
     desktop sidebar was organised into three named groups. The phone and the
     desktop disagreed about what the product is.
 
-    It is now DERIVED from the sidebar's own `groups` + `tailGroups`, so the two
-    shells cannot drift again, minus whatever already has a permanent tab at the
-    bottom of the screen (no point listing it twice). `moreItems` above is kept
-    only as a flat source for the service worker's warm list.
+    It is now DERIVED from the sidebar's own `groups`, so the two shells cannot drift
+    again, minus whatever already has a permanent tab at the bottom of the screen (no
+    point listing it twice).
   */
   const tabHrefs = new Set(tabItems.map((i) => i.href));
-  const moreGroups = [
-    ...groups,
-    ...tailGroups,
-  ]
+  const moreGroups = groups
     .map((g) => ({ ...g, items: g.items.filter((i) => !tabHrefs.has(i.href)) }))
     .filter((g) => g.items.length > 0);
 
   /**
-   * What Ctrl/⌘+K can reach. Built from the same server-computed `groups` and
-   * `tailGroups` as the sidebar, so the palette cannot offer a destination this
-   * role may not open, but WITHOUT `moreGroups`' tab filter, because a tab
-   * being on screen is no reason you should not be able to type its name.
+   * What Ctrl/⌘+K can reach. Built from the same server-computed `groups` as the
+   * sidebar, so the palette cannot offer a destination this role may not open, but
+   * WITHOUT `moreGroups`' tab filter, because a tab being on screen is no reason you
+   * should not be able to type its name.
    */
   const personalItems: NavItemData[] = [yourAccount, alerts];
-  const paletteBase = [...groups, ...tailGroups];
+  const paletteBase = groups;
   const paletteGroups = (
     paletteBase.some((g) => g.key === "account")
       ? paletteBase.map((g) => (g.key === "account" ? { ...g, items: [...personalItems, ...g.items] } : g))
@@ -770,7 +704,6 @@ export default async function AppLayout({
       [
         ...navItems,
         ...tabItems,
-        ...moreItems,
         ...personalItems,
       ].map((i) => i.href),
     ),
@@ -826,29 +759,13 @@ export default async function AppLayout({
           rememberKey="nav-sidebar"
           revealActive
         >
-          <nav className="space-y-5 py-2">
-            {/*
-              One loop over one list. The tail used to be a second, near-identical block
-              below this map, which is how the two came to render the same heading markup
-              twice and could have drifted apart on the next change.
-            */}
-            {[...groups, ...tailGroups].map((g) => (
-              <div key={g.key} className="space-y-1">
-                {/*
-                  Sticky, and above the ScrollArea's top fade (`z-10` beats the fade's
-                  `z-auto` in the aside's stacking context). Scrolling 900px of nav with
-                  no heading in sight is how you lose track of which section you are in.
-                  `-mx-3 px-6` bleeds it to the panel edges so rows pass BEHIND it
-                  rather than beside it.
-                */}
-                <p className="sticky top-0 z-10 -mx-3 bg-nav px-6 pb-2 pt-2.5 text-xs font-semibold uppercase tracking-wider text-nav-heading">
-                  {g.label}
-                </p>
-                {g.items.map((item) => (
-                  <NavLink key={item.href} item={item} variant="sidebar" />
-                ))}
-              </div>
-            ))}
+          <nav className="space-y-4 py-2">
+            {/* Each group folds and remembers; the first two stand open on a new device. */}
+            <NavGroups
+              groups={groups}
+              defaultOpen={groups.slice(0, 2).map((g) => g.key)}
+              labels={{ show: t("nav.showGroup", locale), hide: t("nav.hideGroup", locale) }}
+            />
           </nav>
         </ScrollArea>
         {/*

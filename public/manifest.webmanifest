@@ -1,11 +1,15 @@
 {
+  "id": "/",
   "name": "FLEETWISE",
   "short_name": "FLEETWISE",
-  "description": "Farm machinery & vehicle manager for South African farms.",
+  "description": "Fleet, vehicle and machinery manager for South African businesses.",
+  "lang": "en-ZA",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f7f3e8",
   "theme_color": "#00572c",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -24,6 +28,23 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Report a problem",
+      "url": "/faults?report=1",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Vehicles",
+      "url": "/machines",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Log diesel",
+      "url": "/fuel",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

@@ -203,7 +203,6 @@ export default async function AccountPage({
       {sp.error ? <Flash tone="error" message={errorMessage(sp.error, locale)} /> : null}
 
       {/* == Who you are ==================================================== */}
-      {profile.role !== "workshop" && profile.role !== "rr_admin" && <Link className="underline" href="/driver/activity">{t("driving.title",locale)}</Link>}
       <Card id="profile">
         <CardHeader>
           <CardTitle>{t("account.whoTitle", locale)}</CardTitle>

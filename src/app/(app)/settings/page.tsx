@@ -23,6 +23,8 @@ import { Flash } from "@/components/ui/flash";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { VatRateField } from "@/components/vat-rate-field";
 import { SupportVisits } from "@/components/support/support-visits";
+import { PrefRow } from "@/components/preferences/pref-row";
+import { buttonVariants } from "@/components/ui/button";
 import { OWNED_FIELD } from "@/lib/settings";
 import { MODULE_KEYS, moduleOn, moduleSettingKey, simpleDriverMode } from "@/lib/modules";
 
@@ -178,33 +180,52 @@ export default async function SettingsPage({
         </form>
       </Card>
 
-      {/* Personal settings (language, wording, alerts) belong to the person, not the
-          farm. They live in Your account and preferences, which every role can open. */}
-      <p className="text-sm text-sand-600">
-        {t("settings.personalLink", locale)}{" "}
-        <Link href="/account" className="focus-ring rounded font-medium text-brand-ink underline underline-offset-2">
-          {t("settings.personalLinkCta", locale)}
-        </Link>
-      </p>
-      {/* /settings/api names Settings in its back link; this is the way there from here,
-          not only from the nav. */}
-      {apiAllowed ? (
-        <p className="text-sm text-sand-600">
-          {t("settings.apiLink", locale)}{" "}
-          <Link href="/settings/api" className="focus-ring rounded font-medium text-brand-ink underline underline-offset-2">
-            {t("nav.apiTokens", locale)}
-          </Link>
-        </p>
-      ) : null}
-      {/* What voice and AI cost, and the limit: money, so the owner's alone (BILLING.md 10). */}
-      {profile.role === "owner" ? (
-        <p className="text-sm text-sand-600">
-          {t("aiUsage.settingsLink", locale)}{" "}
-          <Link href="/settings/ai" className="focus-ring rounded font-medium text-brand-ink underline underline-offset-2">
-            {t("aiUsage.title", locale)}
-          </Link>
-        </p>
-      ) : null}
+      {/* The other settings screens, and what belongs to the person rather than the
+          company: one card of rows with a button each. As three loose sentences under the
+          company type they read as an afterthought, and were missed. */}
+      <Card>
+        <CardHeader>
+          <CardTitle as="h3">{t("settings.moreTitle", locale)}</CardTitle>
+        </CardHeader>
+        <FactList>
+          {/* Personal settings (language, wording, alerts) belong to the person, not the
+              company. They live in Your account and preferences, which every role can open. */}
+          <PrefRow
+            label={t("nav.accountAndPrefs", locale)}
+            value={t("settings.rowAccount", locale)}
+            action={
+              <Link href="/account" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                {t("settings.openScreen", locale)}
+              </Link>
+            }
+          />
+          {/* /settings/api names Settings in its back link; this is the way there from here,
+              not only from the nav. */}
+          {apiAllowed ? (
+            <PrefRow
+              label={t("nav.apiTokens", locale)}
+              value={t("settings.apiLink", locale)}
+              action={
+                <Link href="/settings/api" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                  {t("settings.openScreen", locale)}
+                </Link>
+              }
+            />
+          ) : null}
+          {/* What voice and AI cost, and the limit: money, so the owner's alone (BILLING.md 10). */}
+          {profile.role === "owner" ? (
+            <PrefRow
+              label={t("aiUsage.title", locale)}
+              value={t("settings.rowAi", locale)}
+              action={
+                <Link href="/settings/ai" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                  {t("settings.openScreen", locale)}
+                </Link>
+              }
+            />
+          ) : null}
+        </FactList>
+      </Card>
 
       {/* == Money and invoices ================================================ */}
       <section aria-labelledby="settings-money" className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
