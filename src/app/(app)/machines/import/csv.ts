@@ -66,7 +66,7 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
 
-export type MachineInsert = {
+type MachineInsert = {
   name: string;
   type: string;
   make: string | null;
@@ -82,7 +82,7 @@ export type MachineInsert = {
   notes: string | null;
 };
 
-export type RowResult = {
+type RowResult = {
   line: number; // 1-based data row number (excludes header)
   cells: Record<string, string>;
   errors: string[];
@@ -113,7 +113,7 @@ export type ExistingMachines = { names: string[]; serials: string[]; regs: strin
 export const idKey = (v: string) => v.toUpperCase().replace(/[\s-]/g, "");
 
 /** Today as YYYY-MM-DD on the farm's calendar. */
-export function farmToday(now: Date = new Date()): string {
+function farmToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit",
   }).format(now);

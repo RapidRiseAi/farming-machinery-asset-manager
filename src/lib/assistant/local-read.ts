@@ -24,7 +24,6 @@ import type {
 } from "./types";
 
 export type LocalReadRequest = AssistantLocalReadRequest;
-export type { AssistantNavigation } from "./types";
 /**
  * The read scope for a question about ONE machine the person has already chosen.
  *
@@ -397,7 +396,7 @@ function boundedCount(count: number, englishNoun: string, afrikaansNoun: string,
   return localized(locale, `${count} ${englishNoun}`, `${count} ${afrikaansNoun}`);
 }
 
-export function formatFleetOverview(machines: AssistantMachine[], locale: AssistantLocale): string {
+function formatFleetOverview(machines: AssistantMachine[], locale: AssistantLocale): string {
   const active = machines.filter((machine) => machine.status === "active").length;
   const workshop = machines.filter((machine) => machine.status === "in_workshop").length;
   const overdue = machines.filter((machine) => machine.serviceStatus === "overdue").length;
@@ -474,7 +473,7 @@ export function formatWorkRequests(rows: WorkRequestReadRow[], locale: Assistant
   return `${boundedCount(rows.length, "matching work requests", "ooreenstemmende werkversoeke", locale)}. ${boundedList(items, locale)}`;
 }
 
-export function formatDocuments(rows: DocumentReadRow[], locale: AssistantLocale, outstandingOnly = false): string {
+function formatDocuments(rows: DocumentReadRow[], locale: AssistantLocale, outstandingOnly = false): string {
   if (!rows.length) return localized(locale, "There are no matching quotes or invoices.", "Daar is geen ooreenstemmende kwotasies of fakture nie.");
   const items = rows.map((row) => {
     const total = amount(outstandingOnly ? row.outstandingCents : row.totalCents, locale);

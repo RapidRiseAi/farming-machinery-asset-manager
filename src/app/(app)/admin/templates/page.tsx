@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
 import { MACHINE_TYPES, TYPE_LABELS } from "@/lib/machine-options";
 import { createTemplate, updateTemplate, deleteTemplate } from "./actions";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";

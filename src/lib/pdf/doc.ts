@@ -26,7 +26,7 @@ const MAP: Record<string, string> = { "→": "->", "←": "<-", "•": "-", "ℓ
 const EXTRA = new Set([0x2018, 0x2019, 0x201c, 0x201d, 0x2013, 0x2014, 0x2026, 0x2022, 0x20ac, 0x2122]);
 
 /** Replace glyphs outside WinAnsi so drawText never throws. */
-export function sanitize(s: string | null | undefined): string {
+function sanitize(s: string | null | undefined): string {
   if (s == null) return "";
   let out = "";
   for (const ch of String(s)) {

@@ -9,7 +9,7 @@ import {
   guessBankMapping, applyBankMapping, parseStatement, readHeaders, readSampleRow,
   type StatementParse,
 } from "@/lib/banking";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { TextField } from "@/components/ui/field";

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, TextField } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";

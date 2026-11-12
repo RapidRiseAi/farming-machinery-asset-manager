@@ -16,7 +16,7 @@ import { captureError } from "@/lib/observability";
 // checklists, they don't design them).
 const TEMPLATE_CREW: Role[] = ["owner", "manager", "mechanic", "rr_admin"];
 
-export type TemplateFieldPayload = {
+type TemplateFieldPayload = {
   field_type: ChecklistFieldType;
   label: string;
   required: boolean;

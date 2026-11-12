@@ -31,7 +31,7 @@ export class AssistantAgentInvalidOutput extends Error {
   }
 }
 
-export function configuredLlmModel(): string {
+function configuredLlmModel(): string {
   const model = process.env.LLM_MODEL?.trim();
   if (!model) throw new Error("LLM_MODEL is not configured.");
   return model;

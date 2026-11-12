@@ -11,14 +11,12 @@ import { errorMessage } from "@/lib/errors";
 import {
   FINE_STATUSES,
   fineStatusLabel,
-  fineStatusTone,
   nominationDeadlineStatus,
   nominationPending,
   PENDING_NOMINATION_STATUSES,
   DEFAULT_AARTO_LEAD_DAYS,
   type FineStatus as FineStatusValue,
 } from "@/lib/fines";
-import { expiryTone, expiryLabel } from "@/lib/compliance";
 import { lapsedOn, type CredentialRow } from "@/lib/driver-credentials";
 import { enumLabel, shortDate, todayLocal } from "@/lib/format";
 import { createFine, identifyDriver, updateFineStatus, deleteFine } from "./actions";

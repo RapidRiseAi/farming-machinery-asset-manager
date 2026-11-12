@@ -60,7 +60,7 @@ export const SETTING_NUMBERS = {
  * `Number.isFinite` was checked. Out of range is treated like unparseable: the stored
  * value is kept. Anything not listed here must be 0 or more.
  */
-export const SETTING_RANGES: Partial<Record<keyof typeof SETTING_NUMBERS, { min: number; max?: number }>> = {
+const SETTING_RANGES: Partial<Record<keyof typeof SETTING_NUMBERS, { min: number; max?: number }>> = {
   quiet_hours_start: { min: 0, max: 23 },
   quiet_hours_end: { min: 0, max: 23 },
   fuel_anomaly_pct: { min: 1 },

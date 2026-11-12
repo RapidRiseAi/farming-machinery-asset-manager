@@ -16,7 +16,7 @@ import type { AiOutcome } from "./outcome";
  */
 
 export type AiFeature = "voice" | "ai_hearing" | "ai_answer";
-export type Credential = "platform" | "farm_openai" | "internal";
+type Credential = "platform" | "farm_openai" | "internal";
 
 export type HoldRefusal =
   | "not_member"

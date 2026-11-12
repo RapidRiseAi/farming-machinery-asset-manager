@@ -1,4 +1,4 @@
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { WarningIcon } from "@/components/ui/icons";
 import { exitSupportMode } from "@/app/(app)/admin/farms/[id]/actions";

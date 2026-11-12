@@ -82,11 +82,6 @@ export const PAYMENT_COLUMNS =
   "id, farm_id, invoice_id, attempt_id, amount_incl_cents, currency, paid_at, provider, " +
   "provider_reference, channel, note";
 
-// == Row shapes, as the screens read them =====================================
-
-export type BillingPlan = "essential" | "professional" | "complete" | "done_for_you";
-export type BillingPeriodValue = "monthly" | "annual";
-
 export type SubscriptionRow = {
   id: string;
   farm_id: string;
@@ -406,7 +401,7 @@ export function subscriptionPrice(
 }
 
 /** `YYYY-MM-DD` for a Date, in local terms, the same shape a Postgres `date` arrives as. */
-export function isoDay(d: Date): string {
+function isoDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
@@ -637,7 +632,7 @@ export function accountNotice(sub: SubscriptionRow | null): AccountNotice | null
 // which of them is the answer. That decision is the part worth a test.
 
 /** How loud a tile is. A subset of the kit's `StatTone`, so the page passes it through. */
-export type SummaryTone = "default" | "ok" | "due" | "overdue";
+type SummaryTone = "default" | "ok" | "due" | "overdue";
 
 /**
  * The first tile: how much, and when.
@@ -920,7 +915,7 @@ export function cardBrandLabel(brand: string | null): string | null {
 }
 
 /** The cards a farm may actually be charged on: active, reusable, not removed. */
-export function usableCards(rows: PaymentMethodRow[] | null | undefined): PaymentMethodRow[] {
+function usableCards(rows: PaymentMethodRow[] | null | undefined): PaymentMethodRow[] {
   return (rows ?? []).filter((r) => r.status === "active" && !r.removed_at);
 }
 
@@ -937,7 +932,7 @@ export function primaryCard(rows: PaymentMethodRow[] | null | undefined): Paymen
  * THAT reference, never charging again, so a screen offering "try again" beside one of
  * these would be offering the exact thing that takes money twice.
  */
-export function blockingAttempt(
+function blockingAttempt(
   attempts: AttemptRow[] | null | undefined,
   invoiceId: string,
 ): AttemptRow | null {
@@ -1098,16 +1093,6 @@ export function paymentsFor(
   return (payments ?? [])
     .filter((p) => p.invoice_id === invoiceId)
     .sort((a, b) => b.paid_at.localeCompare(a.paid_at));
-}
-
-/** Every attempt made on one invoice, newest first. */
-export function attemptsFor(
-  attempts: AttemptRow[] | null | undefined,
-  invoiceId: string,
-): AttemptRow[] {
-  return (attempts ?? [])
-    .filter((a) => a.invoice_id === invoiceId)
-    .sort((a, b) => b.requested_at.localeCompare(a.requested_at));
 }
 
 /**

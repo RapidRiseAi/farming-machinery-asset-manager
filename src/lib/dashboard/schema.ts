@@ -10,7 +10,7 @@ import { MAX_WIDGETS, clampBox, compact, type LayoutItem, type WidgetSettings } 
 import { TITLE_MAX, WIDGET_BY_TYPE } from "./widgets";
 import { isHex } from "./palettes";
 
-export const LAYOUT_VERSION = 1;
+const LAYOUT_VERSION = 1;
 
 const itemSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]{1,40}$/),

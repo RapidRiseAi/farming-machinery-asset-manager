@@ -19,10 +19,10 @@ export type WidgetShape = "kpi" | "series" | "breakdown" | "list" | "attention";
 export type WidgetCategory = "attention" | "problems" | "servicing" | "fleet" | "costs" | "fuel" | "papers";
 
 /** `custom`: a hex colour (a preset or the colour wheel) is accepted besides the choices. */
-export type WidgetOption = { choices: readonly string[]; default: string; custom?: true };
+type WidgetOption = { choices: readonly string[]; default: string; custom?: true };
 
 /** A data range a person may colour on its own (a breakdown's slice), and its label key. */
-export type Segment = { key: string; labelKey: string; status?: "ok" | "warn" | "bad" | "neutral" };
+type Segment = { key: string; labelKey: string; status?: "ok" | "warn" | "bad" | "neutral" };
 
 /** The data each widget reads; the page fetches only what the board on screen needs. */
 export type SourceKey = "machines" | "service" | "faults" | "jobCards" | "fuel" | "licences" | "fines";

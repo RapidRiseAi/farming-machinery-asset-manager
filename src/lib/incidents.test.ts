@@ -24,7 +24,6 @@ import {
   requiredFor,
   settledClaimCents,
   type IncidentRow,
-  type IncidentStatus,
 } from "./incidents";
 
 function inc(over: Partial<IncidentRow> = {}): IncidentRow {

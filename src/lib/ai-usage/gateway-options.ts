@@ -1,5 +1,5 @@
 /** Every kind of paid use, as the `ai_usage.feature` column records it. */
-export const AI_FEATURES = [
+const AI_FEATURES = [
   "voice_live",
   "voice_second_pass",
   "voice_offline",
@@ -8,7 +8,7 @@ export const AI_FEATURES = [
   "ai_answer",
   "canary",
 ] as const;
-export type AiFeature = (typeof AI_FEATURES)[number];
+type AiFeature = (typeof AI_FEATURES)[number];
 
 export type GatewayCallContext = {
   farmId: string;

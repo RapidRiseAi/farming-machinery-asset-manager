@@ -8,17 +8,6 @@ import { notificationUrl } from "@/lib/notifications/format";
 import { errorCode } from "@/lib/action-errors";
 import { captureError } from "@/lib/observability";
 
-/** Mark one in-app alert read (read_at is the read marker; 0205). */
-export async function markRead(formData: FormData) {
-  const profile = await requireProfile();
-  const id = String(formData.get("id") ?? "");
-  const supabase = await createClient();
-  const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id).eq("user_id", profile.id).is("read_at", null);
-  if (error) redirect(`/notifications?error=${errorCode(error, "app/notifications/actions:markRead")}`);
-  revalidatePath("/notifications");
-  redirect("/notifications");
-}
-
 /**
  * Open an alert: mark it read and go to what it is about.
  *

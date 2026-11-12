@@ -31,7 +31,7 @@ export const WORKSHOP_PLANS = ["portal", "managed", "books"] as const;
 export type WorkshopPlan = (typeof WORKSHOP_PLANS)[number];
 
 /** Ordered rank; a higher plan unlocks everything a lower one does. */
-export const WORKSHOP_PLAN_RANK: Record<WorkshopPlan, number> = {
+const WORKSHOP_PLAN_RANK: Record<WorkshopPlan, number> = {
   portal: 1,
   managed: 2,
   books: 3,
@@ -47,7 +47,7 @@ export const WORKSHOP_PLAN_RANK: Record<WorkshopPlan, number> = {
  *   record_payments , log payments and proofs against an invoice
  *   client_analytics, cross-client performance panel (per-farm/status rollups)
  */
-export const WORKSHOP_FEATURE_MIN_PLAN = {
+const WORKSHOP_FEATURE_MIN_PLAN = {
   build_documents: "managed",
   record_payments: "managed",
   client_analytics: "managed",

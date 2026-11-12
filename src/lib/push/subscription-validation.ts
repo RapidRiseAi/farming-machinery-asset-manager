@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 
 export const MAX_WEB_PUSH_ENDPOINT_LENGTH = 4096;
-export const MAX_WEB_PUSH_P256DH_LENGTH = 128;
-export const MAX_WEB_PUSH_AUTH_LENGTH = 64;
+const MAX_WEB_PUSH_P256DH_LENGTH = 128;
+const MAX_WEB_PUSH_AUTH_LENGTH = 64;
 
 const STANDARD_WEB_PUSH_HOSTS = new Set([
   "android.googleapis.com",

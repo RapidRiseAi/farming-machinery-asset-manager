@@ -9,7 +9,7 @@
  *   - "ok"      , comfortably in date
  *   - null      , no expiry recorded on this basis
  */
-import type { Locale, Lang } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 
 export type ExpiryStatus = "ok" | "expiring" | "expired";
@@ -41,7 +41,7 @@ export function dateExpiryStatus(
 }
 
 /** Status of an hours-based warranty limit vs the current meter reading. */
-export function hoursExpiryStatus(
+function hoursExpiryStatus(
   current: number | null | undefined,
   limit: number | null | undefined,
   leadHours = DEFAULT_WARRANTY_HOURS_LEAD
@@ -53,7 +53,7 @@ export function hoursExpiryStatus(
 }
 
 /** The more severe of two statuses (null = no signal on that basis). */
-export function worseExpiry(a: ExpiryStatus | null, b: ExpiryStatus | null): ExpiryStatus | null {
+function worseExpiry(a: ExpiryStatus | null, b: ExpiryStatus | null): ExpiryStatus | null {
   if (a === "expired" || b === "expired") return "expired";
   if (a === "expiring" || b === "expiring") return "expiring";
   if (a === "ok" || b === "ok") return "ok";
@@ -101,7 +101,6 @@ export const LICENCE_TYPES = [
   "operating_licence",
   "other",
 ] as const;
-export type LicenceType = (typeof LICENCE_TYPES)[number];
 
 export function licenceTypeLabel(type: string, locale: Lang): string {
   return t(`licenceType.${type}`, locale);

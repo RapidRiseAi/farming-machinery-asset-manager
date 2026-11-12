@@ -26,7 +26,7 @@ export const CALENDAR_KINDS = [
   "contract_end",
 ] as const;
 
-export type CalendarKind = (typeof CALENDAR_KINDS)[number];
+type CalendarKind = (typeof CALENDAR_KINDS)[number];
 export type CalendarState = "overdue" | "due_soon" | "ok";
 
 export type CalendarItem = {
@@ -39,14 +39,6 @@ export type CalendarItem = {
   on_date: string;
   state: CalendarState;
 };
-
-/** Monday-first, because a South African working week is not a Sunday. */
-export const WEEK_STARTS_ON_MONDAY = true;
-
-/** `YYYY-MM` for a given day, or for today. */
-export function monthOf(day: string): string {
-  return day.slice(0, 7);
-}
 
 /** Is this a `YYYY-MM` we can work with? Anything else falls back to the current month. */
 export function isMonth(value: string | null | undefined): value is string {
@@ -122,7 +114,7 @@ export function byDay(items: readonly CalendarItem[]): Map<string, CalendarItem[
   return out;
 }
 
-export function stateOrder(s: CalendarState): number {
+function stateOrder(s: CalendarState): number {
   return s === "overdue" ? 0 : s === "due_soon" ? 1 : 2;
 }
 

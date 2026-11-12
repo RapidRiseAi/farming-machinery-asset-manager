@@ -40,8 +40,8 @@ const VALUE_TONE: Record<StatTone, string> = {
   overdue: "text-status-overdue",
 };
 
-export type StatSize = "md" | "lg";
-export type StatValueKind = "number" | "text";
+type StatSize = "md" | "lg";
+type StatValueKind = "number" | "text";
 
 const VALUE_SIZE: Record<StatValueKind, Record<StatSize, string>> = {
   number: {

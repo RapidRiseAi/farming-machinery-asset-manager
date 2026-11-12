@@ -54,20 +54,6 @@ export async function uploadReceipt(
   return error ? { error: "failed" } : { path };
 }
 
-/** A short-lived signed URL for one receipt, or null if there is none. */
-export async function signedReceiptUrl(
-  supabase: SupabaseClient,
-  path: string | null | undefined,
-): Promise<string | null> {
-  if (!path) return null;
-  // Soft: the link is what fails, while the row still says a receipt is attached.
-  const data = soft(
-    await supabase.storage.from("partner-receipts").createSignedUrl(path, SIGNED_TTL),
-    "receipts:signed-url",
-  );
-  return data?.signedUrl ?? null;
-}
-
 /** Signed URLs for a page-worth of receipts, keyed by path. One round trip, not N. */
 export async function signedReceiptUrls(
   supabase: SupabaseClient,

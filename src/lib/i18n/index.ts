@@ -7,7 +7,7 @@ export const locales = ["en", "af"] as const;
 export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
-export const tones = ["friendly", "professional"] as const;
+const tones = ["friendly", "professional"] as const;
 export type Tone = (typeof tones)[number];
 export const defaultTone: Tone = "friendly";
 

@@ -12,7 +12,7 @@ import { isIsoDate } from "@/lib/ids";
 
 export type ReportFilters = { from: string | null; to: string | null; includeInactive: boolean; group: string | null };
 
-export type CostRow = {
+type CostRow = {
   machineId: string; name: string;
   parts: number; labour: number; other: number; total: number;
   tco: number; perHour: number | null; perKm: number | null; meterType: string;

@@ -12,7 +12,7 @@ import { captureError } from "@/lib/observability";
  * at all. The plaintext exists only in this request's memory: it is never logged, never
  * returned to the browser, and errors that might carry it are reduced to a code first.
  */
-export type OwnKeyFallback = "pause" | "platform";
+type OwnKeyFallback = "pause" | "platform";
 
 /**
  * - `none`: no key linked; the platform's credential, billed.

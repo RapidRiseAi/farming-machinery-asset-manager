@@ -20,7 +20,7 @@ export const TYRE_STATUSES = ["in_stock", "fitted", "removed", "scrapped"] as co
 export const TYRE_AXLES = ["steer", "drive", "trailer", "implement", "spare", "other"] as const;
 
 export type TyreStatus = (typeof TYRE_STATUSES)[number];
-export type TyreAxle = (typeof TYRE_AXLES)[number];
+type TyreAxle = (typeof TYRE_AXLES)[number];
 
 /** One row of `public.tyre_life`. */
 export type TyreLifeRow = {

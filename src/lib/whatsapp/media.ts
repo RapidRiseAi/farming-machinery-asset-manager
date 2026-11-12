@@ -12,7 +12,7 @@ import { whatsappConfig } from "./config";
  * only to Meta's own hosts, never to whatever URL a response names.
  */
 
-export const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
+const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 export type ImageMime = (typeof IMAGE_MIMES)[number];
 /** The fault-photo limit (src/lib/fault-media.ts), so a WhatsApp photo fits where it goes. */
 export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;

@@ -27,18 +27,6 @@ export type Supplier = {
 /** Just enough to render a picker. */
 export type SupplierOption = Pick<Supplier, "id" | "name">;
 
-/**
- * The key two spellings of one business share.
- *
- * This mirrors `lower(btrim(name))`, the expression behind the `suppliers_name_uq` index,
- * the 0481 resolution trigger and the 0482 ageing's fallback grouping. It exists so the
- * browser can warn about a duplicate before the database refuses one; the database stays
- * the authority, because a check in a form loses every race.
- */
-export function supplierKey(name: string): string {
-  return name.trim().toLowerCase();
-}
-
 /** What the workshop's relationship with one supplier currently amounts to. */
 export type SupplierPosition = {
   invoices: number;

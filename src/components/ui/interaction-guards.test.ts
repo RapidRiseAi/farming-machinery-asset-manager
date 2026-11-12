@@ -102,7 +102,6 @@ const RAW_SUBMIT_REVIEWED: Record<string, { count: number; why: string }> = {
   "components/expenses/receipt-upload.tsx": { count: 1, why: "inside <noscript>, only rendered without JavaScript" },
   "components/ui/language-switcher.tsx": { count: 1, why: "sets the language; a second tap sets the same one" },
   "components/ui/device-language-switcher.tsx": { count: 1, why: "sets the language; a second tap sets the same one" },
-  "components/ui/tone-switcher.tsx": { count: 1, why: "sets the tone; a second tap sets the same one" },
   "components/ui/site-switcher.tsx": { count: 1, why: "opens a farm; a second tap opens the same one" },
   "app/(app)/account/whatsapp/whatsapp-settings.tsx": { count: 1, why: "client submit that returns while busy" },
   "app/(auth)/mfa/setup/setup-form.tsx": { count: 1, why: "client submit behind a ref lock" },

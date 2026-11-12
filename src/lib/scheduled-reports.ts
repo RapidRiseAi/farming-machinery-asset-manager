@@ -7,7 +7,7 @@ import {
   type ReportFormat, type ReportKey,
 } from "@/lib/report-export";
 import { sendEmail, emailConfigured, fromAddress, type EmailAttachment } from "@/lib/email/resend";
-import { advanceByCadence, type Cadence } from "@/lib/recurring";
+import { type Cadence } from "@/lib/recurring";
 import { t } from "@/lib/i18n";
 import type { Lang, Locale } from "@/lib/i18n";
 import { shortDate } from "@/lib/format";
@@ -85,12 +85,6 @@ export type ClaimedRun = {
   recipients: string[];
 };
 
-export type RecipientRow = {
-  id: string;
-  user_id: string | null;
-  email: string | null;
-};
-
 // == The period a run covers ==================================================
 //
 // Mirrors `app.report_period` exactly, so a screen saying "the next one covers August"
@@ -107,7 +101,7 @@ function startOfWeek(d: Date): Date {
   return out;
 }
 
-export function reportPeriod(cadence: Cadence, runDate: string): { from: string; to: string } {
+function reportPeriod(cadence: Cadence, runDate: string): { from: string; to: string } {
   const run = utc(runDate);
   const dayBefore = (d: Date) => {
     const out = new Date(d);
@@ -146,10 +140,6 @@ export function isDue(s: Pick<ReportSchedule, "active" | "ends_on" | "next_run_d
   return isLive(s) && s.next_run_date <= today;
 }
 
-export function advanceRun(s: Pick<ReportSchedule, "cadence" | "next_run_date">): string {
-  return advanceByCadence(s.next_run_date, s.cadence);
-}
-
 // == What goes in the envelope ================================================
 
 function stamp(filename: string, periodStart: string): string {
@@ -169,7 +159,7 @@ function esc(v: string): string {
 
 type Body = { subject: string; html: string; text: string };
 
-export function reportEmailBody(run: ClaimedRun, opts: { empty: boolean; files: string[] }): Body {
+function reportEmailBody(run: ClaimedRun, opts: { empty: boolean; files: string[] }): Body {
   const lang = run.lang;
   const period = periodLabel(run.period_start, run.period_end, lang);
   const subject = `${run.schedule_name}, ${period}`;
@@ -358,10 +348,10 @@ export async function deliverReportRun(
 }
 
 /** Reports claimed per call: a batch is delivered before the next is claimed. */
-export const REPORT_CLAIM_BATCH = 10;
+const REPORT_CLAIM_BATCH = 10;
 
 /** How long the nightly run spends on reports before leaving the rest for the next run. */
-export const REPORT_TIME_BUDGET_MS = 40_000;
+const REPORT_TIME_BUDGET_MS = 40_000;
 
 /**
  * The nightly step (spliced into /api/cron/nightly).

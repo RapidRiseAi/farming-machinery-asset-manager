@@ -59,22 +59,6 @@ export async function approveInvoice(formData: FormData) {
   redirect("/inbox?saved=invoice_approved");
 }
 
-/** Mark one queued alert read (read_at is the marker; 0205). Scoped to the caller. */
-export async function markInboxRead(formData: FormData) {
-  const profile = await requireRole([...OWNERS]);
-  const id = String(formData.get("id") ?? "");
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", profile.id)
-    .is("read_at", null);
-  if (error) redirect(`/inbox?error=${errorCode(error, "app/inbox/actions:mark-read")}`);
-  revalidatePath("/inbox");
-  redirect("/inbox");
-}
-
 /**
  * Open one alert from the inbox feed: mark it read, then go where it points.
  *

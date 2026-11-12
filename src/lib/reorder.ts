@@ -1,27 +1,4 @@
-/**
- * Commitment-aware reordering (migration 0503).
- *
- * `lib/stock.ts` answers "have we got one?". This answers the question after it: "will we
- * still have one once the services already on the schedule have been done?", which is the
- * question that actually sends somebody to town, and the one 0451 said it could not yet ask.
- *
- * == Why there is no rule mirrored in here ======================================
- *
- * `lib/stock.ts` mirrors `app.stock_needs_reorder` in TypeScript, and `lib/fuel.ts` mirrors
- * the consumption engine, both deliberately, the screen and the nightly nudge must agree.
- * This file does NOT do that, because the arithmetic here is a join across four tables and
- * a projection from meter history, and a second implementation of it would be a second
- * thing to keep in step and a second place to be wrong.
- *
- * Instead the screen ASKS the database, through the two SECURITY INVOKER functions 0503
- * adds, and asks it for the window as well (`reorder_lookahead_days`) rather than working
- * one out. So the number of days printed on the screen is the number of days the query
- * used, by construction and not by agreement. What lives here is the shape of the rows, the
- * bounds the capture form needs, and the presentation decisions.
- */
 
-/** Farm setting `reorder_lookahead_days`, defaulted and clamped by SQL; see 0503. */
-export const DEFAULT_LOOKAHEAD_DAYS = 30;
 export const MIN_LOOKAHEAD_DAYS = 1;
 export const MAX_LOOKAHEAD_DAYS = 365;
 

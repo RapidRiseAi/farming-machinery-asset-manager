@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Photo } from "@/components/ui/photo";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { looksLikeImage, photoUploadErrorKey } from "@/lib/machine-photo-upload-error";
 
 /**

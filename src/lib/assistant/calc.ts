@@ -21,7 +21,7 @@ const MAX_ARGUMENTS = 200;
 
 type Token = { kind: "num"; value: number } | { kind: "id"; value: string } | { kind: "op"; value: string };
 
-export class CalcError extends Error {}
+class CalcError extends Error {}
 
 function tokenize(input: string): Token[] {
   const tokens: Token[] = [];

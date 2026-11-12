@@ -10,7 +10,7 @@ export type PendingAssistantTranscript = Pick<
   "locale" | "channel" | "voiceCaptureId" | "supersedesVoiceCaptureIds" | "sttConfidence" | "alternatives"
 >;
 
-export const MAX_SUPERSEDED_VOICE_CAPTURES = 5;
+const MAX_SUPERSEDED_VOICE_CAPTURES = 5;
 
 export function pendingTranscriptFor(request: AssistantTurnRequest): PendingAssistantTranscript {
   return {

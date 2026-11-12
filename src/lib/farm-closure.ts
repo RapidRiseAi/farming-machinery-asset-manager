@@ -15,7 +15,7 @@ import { captureError } from "@/lib/observability";
 export const CLOSURE_LINK_HOURS = 24;
 
 /** How recent the export must be, so the file in hand is the file that matters. */
-export const EXPORT_FRESH_HOURS = 24;
+const EXPORT_FRESH_HOURS = 24;
 
 export const CLOSURE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 

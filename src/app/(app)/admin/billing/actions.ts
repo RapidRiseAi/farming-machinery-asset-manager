@@ -10,8 +10,6 @@ import {
   changeSubscriptionPlan,
   getAttemptById,
   getInvoiceById,
-  providerState,
-  type ProviderState,
 } from "@/lib/billing/service";
 import { reconcileAttemptById, retryInvoiceCharge } from "@/lib/billing/worker";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -628,20 +626,6 @@ export async function adminExtendAccess(formData: FormData): Promise<void> {
   revalidatePath("/admin/billing");
   // Back to the farm it was done for (app-7), as the other admin actions return.
   redirect(`/admin/billing?farm=${farmId}&saved=access-extended`);
-}
-
-/**
- * What the kill switch currently says.
- *
- * Returns the provider name and the two booleans and NOTHING else, never the key, never
- * a fragment of it, never a "configured as sk_live_…" hint. `BILLING_PROVIDER` decides
- * whether an adapter exists at all; `BILLING_CHARGING_ENABLED` decides separately whether
- * it may take money, and both are read live rather than from a cached bundle, because the
- * question "may we charge right now" has to be answerable now.
- */
-export async function adminBillingState(): Promise<ProviderState> {
-  await requireRrAdmin();
-  return providerState();
 }
 
 /**

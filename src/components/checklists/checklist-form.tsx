@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef } from "react";
 import { Photo } from "@/components/ui/photo";
 import { useRouter } from "next/navigation";
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { ratingMax, isChecklistValueEmpty, type ChecklistFieldType } from "@/lib/checklists";
 import { CloseIcon, PlusIcon, ChevronUpIcon, CheckIcon } from "@/components/ui/icons";

@@ -7,7 +7,7 @@
  * delta, L/hr for hours meters, L/100km for km meters (Scope §23).
  */
 import { companyOf } from "@/lib/i18n";
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 
 /** Qualifying diesel activities (SARS-style dropdown, Scope §9). */
 export const FUEL_ACTIVITIES = [
@@ -21,7 +21,6 @@ export const FUEL_ACTIVITIES = [
   "loading",
   "other",
 ] as const;
-export type FuelActivity = (typeof FUEL_ACTIVITIES)[number];
 
 /** The draw form's value for an explicit "Whole farm (no machine)" choice. */
 export const FUEL_FARM_LEVEL = "farm";
@@ -89,7 +88,7 @@ export function computeConsumption(issues: FuelIssueRow[], meterType: string): F
 }
 
 /** The latest interval counts as high above this multiple of the earlier average. */
-export const HIGH_INTERVAL_FACTOR = 1.5;
+const HIGH_INTERVAL_FACTOR = 1.5;
 
 export type LatestInterval = {
   /** The latest interval's consumption, display unit. */

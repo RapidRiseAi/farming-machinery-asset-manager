@@ -21,7 +21,7 @@
 export const PAGE_ROWS = 1000;
 
 /** A ceiling, so a runaway read cannot pull a whole table into one function. */
-export const READ_ALL_MAX_ROWS = 100_000;
+const READ_ALL_MAX_ROWS = 100_000;
 
 type PageResult = PromiseLike<{ data: unknown; error: unknown }>;
 

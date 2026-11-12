@@ -29,7 +29,7 @@ function Svg({ title, children, ...props }: IconProps & { children: React.ReactN
   );
 }
 
-export const DashboardIcon = (p: IconProps) => (
+const DashboardIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="3" y="3" width="7" height="9" rx="1.5" />
     <rect x="14" y="3" width="7" height="5" rx="1.5" />
@@ -61,7 +61,7 @@ export const FaultsIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const ReportsIcon = (p: IconProps) => (
+const ReportsIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M5 21V4a1 1 0 0 1 1-1h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1Z" />
     <path d="M14 3v4h4" />
@@ -76,7 +76,7 @@ export const BellIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const TeamIcon = (p: IconProps) => (
+const TeamIcon = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="9" cy="8" r="3.2" />
     <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
@@ -98,7 +98,7 @@ export const AdminIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const MenuIcon = (p: IconProps) => (
+const MenuIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 7h16M4 12h16M4 17h16" />
   </Svg>
@@ -233,7 +233,7 @@ export const PartsIcon = (p: IconProps) => (
 );
 
 /** Tyres: a tyre side-on, the rim inside and tread blocks round the outer edge. */
-export const TyreIcon = (p: IconProps) => (
+const TyreIcon = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="9" />
     <circle cx="12" cy="12" r="4" />
@@ -276,7 +276,7 @@ export const DocumentsIcon = (p: IconProps) => (
 );
 
 /** AARTO fines, an infringement notice (a document with an exclamation). */
-export const FinesIcon = (p: IconProps) => (
+const FinesIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M6 3h8l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
     <path d="M14 3v4h4" />
@@ -435,7 +435,7 @@ export const Spinner = ({ className, ...props }: SVGProps<SVGSVGElement>) => (
    (square, stop, trash, pin) are not semantic stand-ins for VAT or Cash flow, so
    the honest fix is more icons, not a reshuffle. */
 
-export const PercentIcon = (p: IconProps) => (
+const PercentIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M5 19 19 5" />
     <circle cx="7.5" cy="7.5" r="2.5" />
@@ -443,7 +443,7 @@ export const PercentIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const BankIcon = (p: IconProps) => (
+const BankIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3 10 12 4.5 21 10" />
     <path d="M5.5 10v8M10 10v8M14 10v8M18.5 10v8" />
@@ -490,7 +490,7 @@ export const RepeatIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const CartIcon = (p: IconProps) => (
+const CartIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M2.5 4h2l2.2 9.5a1.5 1.5 0 0 0 1.5 1.2h8.3a1.5 1.5 0 0 0 1.5-1.2L19.5 7H6" />
     <circle cx="9" cy="19" r="1.5" />
@@ -498,14 +498,14 @@ export const CartIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const CorrectionIcon = (p: IconProps) => (
+const CorrectionIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M19 13v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h7" />
     <path d="M14.5 10.5 21 4l-2-2-6.5 6.5-.5 3 3-.5Z" />
   </Svg>
 );
 
-export const CardIcon = (p: IconProps) => (
+const CardIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
     <path d="M2.5 10h19" />
@@ -521,7 +521,7 @@ export const KeyIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const CalculatorIcon = (p: IconProps) => (
+const CalculatorIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="4.5" y="2.5" width="15" height="19" rx="2" />
     <rect x="7.5" y="5.5" width="9" height="3.5" rx="1" />
@@ -536,7 +536,7 @@ export const SendIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const iconByName = {
+const iconByName = {
   dashboard: DashboardIcon,
   machines: MachinesIcon,
   jobcards: JobCardsIcon,

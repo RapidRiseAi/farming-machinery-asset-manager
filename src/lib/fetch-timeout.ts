@@ -7,7 +7,7 @@
  * person is told and can try again. A timeout rejects like any network failure, so the
  * caller's existing catch shows its message.
  */
-export const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 export async function fetchWithTimeout(
   input: RequestInfo | URL,

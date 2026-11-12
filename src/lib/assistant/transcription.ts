@@ -107,7 +107,7 @@ export function openAiTranscribePrompt(terms: readonly string[], locale?: Assist
 }
 
 /** ISO 639-1, as OpenAI's transcription `language` takes it. */
-export function transcriptionLanguage(locale: AssistantLocale | undefined): "en" | "af" | undefined {
+function transcriptionLanguage(locale: AssistantLocale | undefined): "en" | "af" | undefined {
   return locale === "en-ZA" ? "en" : locale === "af-ZA" ? "af" : undefined;
 }
 

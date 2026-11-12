@@ -13,7 +13,7 @@
  * not cents: oil is ordered in litres and cable in metres, so they carry decimals.
  */
 
-export const PO_STATUSES = [
+const PO_STATUSES = [
   "draft",
   "sent",
   "part_received",
@@ -71,24 +71,6 @@ export function lineTotalCents(line: Pick<PurchaseOrderLine, "qty_ordered" | "un
   return Math.round(qty(line.qty_ordered) * (line.unit_price_cents ?? 0));
 }
 
-/**
- * The header's three figures, from the lines. Mirrors `app_purchase_order_rollup` plus
- * `app_purchase_order_totals`: subtotal is the sum of the line products, VAT is applied to
- * that sum ONCE rather than per line (rounding each line's VAT separately drifts by a cent
- * or two against the supplier's own invoice), and the total is the two added.
- *
- * Used to show what a line will do to an order BEFORE it is saved. The stored values are
- * what the screen displays afterwards.
- */
-export function orderTotalsFromLines(
-  lines: Pick<PurchaseOrderLine, "qty_ordered" | "unit_price_cents">[],
-  vatRateBps: number,
-): { subtotalCents: number; vatCents: number; totalCents: number } {
-  const subtotalCents = lines.reduce((sum, l) => sum + lineTotalCents(l), 0);
-  const vatCents = vatRateBps > 0 ? Math.round((subtotalCents * vatRateBps) / 10000) : 0;
-  return { subtotalCents, vatCents, totalCents: subtotalCents + vatCents };
-}
-
 /** Still to come on this line. Never negative, an over-delivery is not a negative debt. */
 export function outstandingQty(line: Pick<PurchaseOrderLine, "qty_ordered" | "qty_received">): number {
   return Math.max(0, qty(line.qty_ordered) - qty(line.qty_received));
@@ -130,29 +112,9 @@ export function receivedSummary(
   };
 }
 
-/**
- * What the status will be once the database has looked at the lines. Mirrors
- * `app.purchase_order_derived_status`, including the part that leaves draft, closed and
- * cancelled alone, those are decisions a person made, not deliveries.
- */
-export function derivedStatus(
-  current: PurchaseOrderStatus,
-  lines: Pick<PurchaseOrderLine, "qty_ordered" | "qty_received">[],
-): PurchaseOrderStatus {
-  if (current !== "sent" && current !== "part_received" && current !== "received") return current;
-  const s = receivedSummary(lines);
-  if (s.ordered <= 0 || !s.started) return "sent";
-  return s.complete ? "received" : "part_received";
-}
-
 /** With the supplier, and something is still owed to us. */
 export function isOpen(status: PurchaseOrderStatus): boolean {
   return status === "sent" || status === "part_received";
-}
-
-/** Nothing more will happen to this one. */
-export function isFinished(status: PurchaseOrderStatus): boolean {
-  return status === "closed" || status === "cancelled";
 }
 
 /** Overdue = they said it would be here, and it is not. */

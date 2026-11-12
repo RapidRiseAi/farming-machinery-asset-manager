@@ -21,10 +21,6 @@ export function activeProvider(): PaymentProvider {
   return null;
 }
 
-export function paymentsEnabled(): boolean {
-  return activeProvider() !== null;
-}
-
 export type CheckoutForm = { action: string; fields: [string, string][] };
 
 /**

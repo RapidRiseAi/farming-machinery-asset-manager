@@ -71,7 +71,7 @@ function phpUrlEncode(value: string): string {
  * `fields` must already be in PayFast's expected order, an array of pairs rather than an
  * object, precisely so that nothing downstream can reorder them by accident.
  */
-export function signFields(fields: [string, string][], passphrase: string | null): string {
+function signFields(fields: [string, string][], passphrase: string | null): string {
   const parts = fields
     .filter(([k, v]) => k !== "signature" && v !== "" && v != null)
     .map(([k, v]) => `${k}=${phpUrlEncode(String(v).trim())}`);
@@ -117,7 +117,7 @@ export function checkoutFields(cfg: PayFastConfig, c: PayFastCheckout): [string,
 }
 
 /** Rands as PayFast sends them ("1150.00") back to integer cents, without float drift. */
-export function parseAmount(value: string | null | undefined): number | null {
+function parseAmount(value: string | null | undefined): number | null {
   if (!value) return null;
   const m = String(value).trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
   if (!m) return null;

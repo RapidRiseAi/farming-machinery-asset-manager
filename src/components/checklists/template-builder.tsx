@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import {
   CHECKLIST_FIELD_TYPES,
   fieldTypeLabel,

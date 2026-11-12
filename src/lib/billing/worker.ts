@@ -48,7 +48,6 @@ import {
   dueBillingCharges,
   getAttemptById,
   invoiceChargeableNow,
-  getInvoiceById,
   getSaasProvider,
   newAttemptReference,
   noteReconciliation,
@@ -67,7 +66,7 @@ import {
 export const STALE_PENDING_MINUTES = 30;
 
 /** How many due invoices one call of `runBillingCharges` pulls off the shortlist. */
-export const CHARGE_BATCH_LIMIT = 50;
+const CHARGE_BATCH_LIMIT = 50;
 
 /**
  * How many charges may be in flight at once.
@@ -77,7 +76,7 @@ export const CHARGE_BATCH_LIMIT = 50;
  * polite client of somebody else's API, and about a serial loop of one-second round trips
  * not eating a function's whole time budget.
  */
-export const CHARGE_CONCURRENCY = 6;
+const CHARGE_CONCURRENCY = 6;
 
 /**
  * Settle, and hand back whether it actually worked.
@@ -115,7 +114,7 @@ async function settleOrReport(
 }
 
 /** Why a charge was not attempted. None of these is an error. */
-export type SkipReason =
+type SkipReason =
   | "charging-disabled"
   | "provider-unavailable"
   | "no-stored-card"
@@ -847,30 +846,4 @@ export async function reconcileAttemptById(
   const attempt = await getAttemptById(supabase, attemptId);
   if (!attempt) return { result: "error", attemptId, reason: "no such attempt" };
   return reconcileAttempt(supabase, provider, attempt);
-}
-
-/**
- * A whole billing pass: reconcile first, then charge.
- *
- * The order is not cosmetic. An `unknown` attempt blocks its invoice, so reconciling
- * first is what allows an invoice stranded by last night's timeout to be charged tonight
- * instead of staying stuck until somebody notices.
- */
-export async function runBillingPass(
-  supabase: SupabaseClient,
-  opts: BillingWorkerOptions = {},
-): Promise<{ reconciled: ReconcileSummary; charges: ChargeSummary }> {
-  const reconciled = await reconcileStuckAttempts(supabase, opts);
-  const charges = await runBillingCharges(supabase, opts);
-  return { reconciled, charges };
-}
-
-/** The outstanding balance on one invoice, for a caller that has only its id. */
-export async function invoiceOutstandingCents(
-  supabase: SupabaseClient,
-  invoiceId: string,
-): Promise<number> {
-  const invoice = await getInvoiceById(supabase, invoiceId);
-  if (!invoice) return 0;
-  return Math.max(0, invoice.total_incl_cents - invoice.amount_paid_cents);
 }

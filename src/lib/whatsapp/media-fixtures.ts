@@ -16,7 +16,7 @@ export function oggPage(granule: bigint, headerType: number, body: Uint8Array): 
   return page;
 }
 
-export function opusHead(preSkip: number): Uint8Array {
+function opusHead(preSkip: number): Uint8Array {
   const head = new Uint8Array(19);
   head.set(new TextEncoder().encode("OpusHead"), 0);
   head[8] = 1; head[9] = 1;

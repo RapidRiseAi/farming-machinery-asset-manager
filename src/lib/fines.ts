@@ -5,7 +5,7 @@
  * thresholds (0371) so the UI and the nightly engine agree. A fine is captured against a
  * VEHICLE; the driver is nominated from the usage log before a statutory deadline.
  */
-import type { Locale, Lang } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import type { BadgeTone } from "@/components/ui/badge";
 import { dateExpiryStatus, type ExpiryStatus } from "@/lib/compliance";
@@ -23,14 +23,6 @@ export type FineStatus = (typeof FINE_STATUSES)[number];
 
 /** Statuses where a driver still has to be nominated (the §23 "pending nominations" set). */
 export const PENDING_NOMINATION_STATUSES: readonly FineStatus[] = ["received", "driver_identified"];
-
-/** Statuses that are still "live" (not paid / disputed-resolved / closed), shown in the inbox. */
-export const OPEN_FINE_STATUSES: readonly FineStatus[] = [
-  "received",
-  "driver_identified",
-  "nominated",
-  "disputed",
-];
 
 /** Days before the nomination deadline to start reminding (mirrors 0371 default). */
 export const DEFAULT_AARTO_LEAD_DAYS = 14;

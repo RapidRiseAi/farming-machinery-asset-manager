@@ -36,7 +36,7 @@ export const INCIDENT_STATUSES = [
   "closed",
 ] as const;
 
-export type IncidentKind = (typeof INCIDENT_KINDS)[number];
+type IncidentKind = (typeof INCIDENT_KINDS)[number];
 export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
 
 /** The columns `/incidents` selects. Enumerated once, spread at the call site. */

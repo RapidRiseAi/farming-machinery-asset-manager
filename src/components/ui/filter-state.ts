@@ -50,7 +50,7 @@ export function hrefWithParams(path: string, search: string, changes: Record<str
  * set. This is what decides between NoMatches ("clear the filter") and the first-run
  * or all-clear state: an empty list under a filter is not an empty farm.
  */
-export function hasActiveFilters(groups: readonly GroupLike[], searchValue?: string | null): boolean {
+function hasActiveFilters(groups: readonly GroupLike[], searchValue?: string | null): boolean {
   return groups.some((g) => (g.current ?? "") !== "") || !!(searchValue && searchValue.trim());
 }
 
@@ -58,7 +58,7 @@ export function hasActiveFilters(groups: readonly GroupLike[], searchValue?: str
  * Where "Clear filters" goes: the same list with every group's param removed (and the
  * search param, and a pagination param, when named), every other param kept.
  */
-export function clearFiltersHref(
+function clearFiltersHref(
   path: string,
   search: string,
   groups: readonly GroupLike[],

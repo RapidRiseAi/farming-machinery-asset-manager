@@ -52,7 +52,7 @@ export function billingProvider(): string {
   return (env("BILLING_PROVIDER") || "noop").toLowerCase();
 }
 
-export function providerIsPaystack(): boolean {
+function providerIsPaystack(): boolean {
   return billingProvider() === "paystack";
 }
 

@@ -40,7 +40,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { cn } from "./cn";
 
-export type TabItem = {
+type TabItem = {
   key: string;
   label: ReactNode;
   content: ReactNode;

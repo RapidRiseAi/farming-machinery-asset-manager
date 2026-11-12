@@ -33,9 +33,9 @@ const MAX_PHRASES = 500;
 const MAX_PHRASE_LENGTH = 120;
 const MAX_SPEECH_TEXT_LENGTH = 8_000;
 
-export type SpeechLocale = "af-ZA" | "en-ZA";
-export type SpeechVoice = "willem" | "ollie";
-export type SpeechRecognitionState =
+type SpeechLocale = "af-ZA" | "en-ZA";
+type SpeechVoice = "willem" | "ollie";
+type SpeechRecognitionState =
   | "starting"
   | "listening"
   | "stopping"
@@ -162,7 +162,7 @@ export class SpeechClientError extends Error {
   }
 }
 
-export interface SpeechTranscript {
+interface SpeechTranscript {
   text: string;
   locale: SpeechLocale;
   /** Azure's acoustic confidence for a final result, when supplied. */
@@ -173,7 +173,7 @@ export interface SpeechTranscript {
   offsetMs: number;
 }
 
-export interface SpeechRecognitionOptions {
+interface SpeechRecognitionOptions {
   /** Preferred response/transcription locale. */
   locale: SpeechLocale;
   /** Small candidate set used by Azure source-language identification. */
@@ -194,7 +194,7 @@ export interface SpeechRecognitionOptions {
   onStateChange?: (state: SpeechRecognitionState) => void;
 }
 
-export interface SpeechSynthesisOptions {
+interface SpeechSynthesisOptions {
   voice: SpeechVoice;
 }
 
@@ -473,7 +473,7 @@ function cancellationError(
  * get their own message, not the generic "could not start". Shared by the token and the
  * voice-session requests (voice-meter.ts).
  */
-export async function refusedVoiceError(response: Response): Promise<SpeechClientError> {
+async function refusedVoiceError(response: Response): Promise<SpeechClientError> {
   const body = (await response.json().catch(() => null)) as { error?: unknown; scope?: unknown } | null;
   if (response.status === 402 && body?.error === "ai_limit_reached") {
     return new SpeechClientError(body.scope === "member" ? "personal_limit_reached" : "limit_reached");

@@ -10,7 +10,6 @@ import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { percentToBps } from "@/lib/format";
 import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { defaultDueDate, type DocKind, type DocLineKind } from "@/lib/partner-docs";
-import { safePath } from "@/lib/safe-path";
 import { runOnce } from "@/lib/request-claim";
 import { errorCode } from "@/lib/action-errors";
 

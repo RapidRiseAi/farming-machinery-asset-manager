@@ -21,14 +21,14 @@ export type Tone = "ok" | "warn" | "bad" | "neutral";
 export type ValueFormat = "count" | "rands" | "litres";
 
 /** A change against last month, said in words by the renderer ("R1 200 more than Oct"). */
-export type KpiDelta = { amount: number; more: boolean; month: string; tone: Tone };
+type KpiDelta = { amount: number; more: boolean; month: string; tone: Tone };
 /** `trend`: the same measure over earlier periods, oldest first, for a sparkline. */
 export type KpiData = { kind: "kpi"; value: number; format: ValueFormat; tone: Tone; sub?: string; delta?: KpiDelta; trend?: number[] };
 export type SeriesPoint = { key: string; label: string; value: number };
 export type SeriesData = { kind: "series"; points: SeriesPoint[]; format: ValueFormat };
-export type BreakdownItem = { key: string; label: string; value: number; status?: StatusKey; href?: string };
+type BreakdownItem = { key: string; label: string; value: number; status?: StatusKey; href?: string };
 export type BreakdownData = { kind: "breakdown"; items: BreakdownItem[]; format: ValueFormat; statusColoured: boolean };
-export type ListRow = { key: string; title: string; sub: string; href: string; badge?: { label: string; tone: BadgeTone } };
+type ListRow = { key: string; title: string; sub: string; href: string; badge?: { label: string; tone: BadgeTone } };
 export type ListData = { kind: "list"; rows: ListRow[]; more: number; empty: string };
 export type WidgetData = KpiData | SeriesData | BreakdownData | ListData;
 

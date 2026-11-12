@@ -24,7 +24,7 @@ import { classifyAiFailure } from "@/lib/ai-usage/outcome";
  * what to say, and the inbox's own retention covers the reply. No transcript is logged.
  */
 
-export type VoiceRefusal = "farm_limit" | "member_limit" | "ai_off" | "own_key_broken" | "unavailable";
+type VoiceRefusal = "farm_limit" | "member_limit" | "ai_off" | "own_key_broken" | "unavailable";
 export type VoiceResult = { ok: true; text: string } | { ok: false; reason: VoiceRefusal | "not_heard" };
 
 type Transcribe = typeof aiTranscribe;

@@ -21,7 +21,7 @@
 import type { CompanyType } from "@/lib/i18n";
 
 /** The optional modules, each with the menu destinations it owns. Core screens are not switchable. */
-export const FARM_MODULES = {
+const FARM_MODULES = {
   fuel: ["/fuel"],
   tyres: ["/tyres"],
   parts: ["/parts"],
@@ -65,7 +65,7 @@ export function simpleDriverMode(settings: Record<string, unknown> | null | unde
 }
 
 /** What a driver in simple mode keeps in their menus. */
-export const SIMPLE_DRIVER_HREFS = ["/driver", "/help", "/install"] as const;
+const SIMPLE_DRIVER_HREFS = ["/driver", "/help", "/install"] as const;
 
 /**
  * The menu destinations this farm has chosen to leave out, for this person. Rapid Rise

@@ -51,7 +51,7 @@ const PROTECTED_PREFIXES = [
  * Route guards by role are layered on in the auth phase.
  */
 /** The request header carrying the page asked for: see updateSession. */
-export const PATH_HEADER = "x-fw-path";
+const PATH_HEADER = "x-fw-path";
 
 export async function updateSession(request: NextRequest) {
   // The page asked for, for server components that send someone elsewhere and back (the

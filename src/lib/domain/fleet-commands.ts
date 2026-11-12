@@ -61,31 +61,6 @@ export async function recordMeterReading(
 }
 
 /**
- * Records a generic completed-service card and meter reading atomically. It deliberately
- * does not claim or reset any scheduled service-plan line without a later, explicit
- * human selection of the work that was actually completed.
- */
-export async function recordCompletedService(
-  supabase: SupabaseClient,
-  input: {
-    farmId: string;
-    machineId: string;
-    reading: number;
-    serviceDate: string;
-    workPerformed?: string | null;
-  },
-): Promise<string> {
-  const { data, error } = await supabase.rpc("record_completed_service", {
-    p_farm: input.farmId,
-    p_machine: input.machineId,
-    p_meter_reading: input.reading,
-    p_service_date: input.serviceDate,
-    p_work_performed: input.workPerformed ?? null,
-  });
-  return uuidResult(data, error);
-}
-
-/**
  * Records one fuel draw and, when it names a machine and a meter, the driver-usage log
  * that goes with it, atomically (20260920090000).
  *

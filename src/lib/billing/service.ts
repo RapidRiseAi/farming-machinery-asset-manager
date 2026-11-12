@@ -134,7 +134,7 @@ export const BILLING_RPC = {
 export type AttemptKind = "initial_checkout" | "charge_authorization" | "manual_retry";
 
 /** `billing_attempt_status`. */
-export type AttemptStatus = "pending" | "succeeded" | "failed" | "abandoned" | "unknown";
+type AttemptStatus = "pending" | "succeeded" | "failed" | "abandoned" | "unknown";
 
 /** One row of `app.due_billing_charges`. */
 export type DueCharge = {
@@ -166,7 +166,7 @@ export type AttemptRow = {
   reconcile_note: string | null;
 };
 
-export const ATTEMPT_COLUMNS =
+const ATTEMPT_COLUMNS =
   "id, farm_id, invoice_id, subscription_id, payment_method_id, attempt_ref, kind, " +
   "status, amount_incl_cents, currency, provider, provider_transaction_id, " +
   "requested_at, reconciled_at, reconcile_note";
@@ -374,7 +374,7 @@ export async function settleBillingAttempt(
  * bill. With no active price version this raises nothing and returns 0, which is the
  * state the product ships in.
  */
-export async function generateInvoicesFor(
+async function generateInvoicesFor(
   supabase: SupabaseClient,
   subscriptionId: string | null,
 ): Promise<{ made: number; error: ServiceError | null }> {
@@ -533,7 +533,7 @@ export type SubscriptionRow = {
   plan_before_downgrade: string | null;
 };
 
-export const SUBSCRIPTION_COLUMNS =
+const SUBSCRIPTION_COLUMNS =
   "id, farm_id, plan, billing_period, status, cancel_at_period_end, current_period_end, " +
   "default_payment_method_id, plan_before_downgrade";
 
@@ -564,7 +564,7 @@ export type InvoiceRow = {
   currency: string;
 };
 
-export const INVOICE_COLUMNS =
+const INVOICE_COLUMNS =
   "id, farm_id, subscription_id, invoice_ref, status, total_incl_cents, amount_paid_cents, currency";
 
 /** The oldest open, unpaid invoice for a farm. */
@@ -624,7 +624,7 @@ export async function getInvoiceById(
 
 /** Where the hosted checkout sent the customer. Evidence, not a credential, but a
  *  single-use payment URL all the same, so it is stored and never printed. */
-export async function recordCheckoutSession(
+async function recordCheckoutSession(
   supabase: SupabaseClient,
   attemptId: string,
   session: { authorizationUrl: string; accessCode: string },
@@ -809,7 +809,7 @@ export type CheckoutStart =
   | { ok: false; code: string };
 
 /** `NEXT_PUBLIC_SITE_URL`, normalised, or null. Never the Host header. */
-export function siteOrigin(): string | null {
+function siteOrigin(): string | null {
   const raw = process.env.NEXT_PUBLIC_SITE_URL;
   if (!raw) return null;
   try {
@@ -828,7 +828,7 @@ export function siteOrigin(): string | null {
  * compromised or mistyped adapter response into an open redirect the customer is
  * following with a payment in mind, the most credible phishing context there is.
  */
-export function isPaystackCheckoutUrl(raw: string): boolean {
+function isPaystackCheckoutUrl(raw: string): boolean {
   try {
     const u = new URL(raw);
     if (u.protocol !== "https:") return false;
@@ -1126,48 +1126,6 @@ export function chargeRequestFor(
   };
 }
 
-// == Company settings =========================================================
-
-/**
- * The singleton `billing_settings` row.
- *
- * Read by `singleton`, never by `id`. The primary key is a uuid, the shared `app_audit()`
- * trigger casts `id` to uuid, so a boolean primary key broke it, and the one-row property
- * is held by the `singleton` column and its unique index instead. A reader that looked the
- * row up by a hard-coded id would find nothing.
- */
-export type BillingSettings = {
-  vat_registered: boolean;
-  vat_rate_bps: number;
-  legal_name: string;
-  billing_email: string | null;
-  support_email: string | null;
-  trial_days: number;
-  grace_days: number;
-  retry_offsets_days: number[] | null;
-  downgrade_to_plan: string;
-  cancel_at_period_end: boolean;
-  payment_terms_days: number;
-};
-
-export const BILLING_SETTINGS_COLUMNS =
-  "vat_registered, vat_rate_bps, legal_name, billing_email, support_email, trial_days, " +
-  "grace_days, retry_offsets_days, downgrade_to_plan, cancel_at_period_end, payment_terms_days";
-
-export async function billingSettings(
-  supabase: SupabaseClient,
-): Promise<BillingSettings | null> {
-  const data = must(
-    await supabase
-      .from("billing_settings")
-      .select(BILLING_SETTINGS_COLUMNS)
-      .eq("singleton", true)
-      .maybeSingle(),
-    "billing:settings",
-  );
-  return (data as BillingSettings | null) ?? null;
-}
-
 // == Webhook events ===========================================================
 //
 // `billing_webhook_events` is granted to `service_role` and to nothing else, not even
@@ -1317,7 +1275,7 @@ export async function finishWebhookEvent(
  * with nobody chasing it. A cancelled one is done, and patching it again would rewrite
  * when it ended. `CANCEL_REFUSALS` names each status and its code.
  */
-export const CANCEL_REFUSALS = {
+const CANCEL_REFUSALS = {
   suspended: "billing-cancel-suspended",
   pending: "billing-cancel-pending",
   cancelled: "billing-already-cancelled",
@@ -1517,7 +1475,7 @@ export async function changeQuota(
 }
 
 /** How many vehicle slots a farm has, and how many are left. */
-export type VehicleAllowance = {
+type VehicleAllowance = {
   /** FALSE means no quota was ever bought: no ceiling, and `remaining` is meaningless. */
   enforced: boolean;
   quota: number | null;
@@ -1537,7 +1495,7 @@ export type VehicleAllowance = {
  * Returns null when the answer cannot be established, and callers treat that as "do not
  * block": refusing a farmer because a read failed would be the wrong way to be careful.
  */
-export async function vehicleAllowance(
+async function vehicleAllowance(
   supabase: SupabaseClient,
   farmId: string,
 ): Promise<VehicleAllowance | null> {

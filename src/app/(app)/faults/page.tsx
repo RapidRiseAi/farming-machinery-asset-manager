@@ -8,7 +8,6 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { relativeDate } from "@/lib/format";
 import { resolveFault, acknowledgeFault, startFault, assignFault } from "./actions";
 import { NewJobCard } from "@/app/(app)/jobcards/new-job-card";
-import { FaultCapture } from "@/components/fault-capture";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";

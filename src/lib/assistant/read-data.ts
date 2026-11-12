@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/lib/auth";
-import { matchMachine, normalizeAssistantText } from "./normalize";
+import { matchMachine } from "./normalize";
 import type { AssistantDocumentStatus, AssistantMachine } from "./types";
 import { ID_CHUNK } from "@/lib/supabase/read-all";
 
@@ -14,22 +14,6 @@ export type AssistantReadScope = {
 export type MachineResolution =
   | { ok: true; machine: AssistantMachine }
   | { ok: false; reason: "not_found" | "ambiguous"; alternatives: string[] };
-
-export type FleetSearchResult = {
-  match?: MachineResolution;
-  machines: Array<{
-    name: string;
-    make: string | null;
-    model: string | null;
-    status: string;
-    meterType: string;
-    currentReading: number | null;
-    currentReadingDate: string | null;
-    serviceStatus: AssistantMachine["serviceStatus"];
-    nextDueDate: string | null;
-    nextDueReading: number | null;
-  }>;
-};
 
 export type FaultReadRow = {
   machine: string;
@@ -133,37 +117,6 @@ function canSeeOperationalAmounts(role: Role): boolean {
 
 export function canReadFinancialDocuments(role: Role): boolean {
   return ["rr_admin", "owner", "manager", "mechanic"].includes(role);
-}
-
-export async function searchFleet(
-  scope: AssistantReadScope,
-  input: { query?: string; limit?: number } = {},
-): Promise<FleetSearchResult> {
-  const normalized = input.query ? normalizeAssistantText(input.query) : "";
-  const exact = input.query ? resolveVisibleMachine(input.query, scope.machines) : null;
-  const candidates = exact?.ok
-    ? [exact.machine]
-    : scope.machines.filter((machine) => {
-        if (!normalized) return true;
-        return [machine.name, machine.make, machine.model, ...machine.aliases]
-          .filter((value): value is string => Boolean(value))
-          .some((value) => normalizeAssistantText(value).includes(normalized));
-      });
-  return {
-    match: exact && !exact.ok ? exact : undefined,
-    machines: candidates.slice(0, input.limit ?? 15).map((machine) => ({
-      name: machine.name,
-      make: machine.make,
-      model: machine.model,
-      status: machine.status,
-      meterType: machine.meterType,
-      currentReading: machine.currentReading,
-      currentReadingDate: machine.currentReadingDate,
-      serviceStatus: machine.serviceStatus,
-      nextDueDate: machine.nextDueDate,
-      nextDueReading: machine.nextDueReading,
-    })),
-  };
 }
 
 export async function listFaults(

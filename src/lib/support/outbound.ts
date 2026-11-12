@@ -45,7 +45,7 @@ import { captureError } from "@/lib/observability";
  * placeholder meant the product reported "configured" while every call was refused.
  */
 
-export type SupportTicketPayload = {
+type SupportTicketPayload = {
   id: string;
   kind: string;
   status: string;
@@ -57,11 +57,11 @@ export type SupportTicketPayload = {
   evidence: Record<string, unknown>;
 };
 
-export type PostResult =
+type PostResult =
   | { ok: true; id: string }
   | { ok: false; id: string; error: string };
 
-export function supportWebhookProblem(): string | null {
+function supportWebhookProblem(): string | null {
   const url = (process.env.SUPPORT_WEBHOOK_URL ?? "").trim();
   if (!url) return "SUPPORT_WEBHOOK_URL is not set";
   if (/^\[.*\]$/.test(url)) return "SUPPORT_WEBHOOK_URL is a placeholder, not a URL";
@@ -77,17 +77,13 @@ export function supportWebhookProblem(): string | null {
   return null;
 }
 
-export function supportWebhookConfigured(): boolean {
-  return supportWebhookProblem() === null;
-}
-
 /** The HMAC a receiver checks against the RAW body. */
-export function signPayload(body: string, secret: string): string {
+function signPayload(body: string, secret: string): string {
   return createHmac("sha256", secret).update(body, "utf8").digest("hex");
 }
 
 /** Post one case. Never throws, the caller is usually a webhook that must still answer 200. */
-export async function postSupportTicket(ticket: SupportTicketPayload): Promise<PostResult> {
+async function postSupportTicket(ticket: SupportTicketPayload): Promise<PostResult> {
   const problem = supportWebhookProblem();
   if (problem) return { ok: false, id: ticket.id, error: `not-configured: ${problem}` };
 

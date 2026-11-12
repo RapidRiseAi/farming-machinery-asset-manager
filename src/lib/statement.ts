@@ -17,7 +17,7 @@
 
 import { t, type Lang } from "@/lib/i18n";
 
-export type StatementKind =
+type StatementKind =
   | "opening" | "invoice" | "credit_note" | "debit_note" | "payment" | "refund" | "write_off";
 
 export type StatementRow = {
@@ -65,7 +65,7 @@ export function withRunningBalance(rows: readonly StatementRow[]): StatementLine
 }
 
 /** The closing balance: what the customer owes at the end of the period. */
-export function closingBalanceCents(rows: readonly StatementRow[]): number {
+function closingBalanceCents(rows: readonly StatementRow[]): number {
   return rows.reduce((b, r) => b + (r.debit_cents || 0) - (r.credit_cents || 0), 0);
 }
 

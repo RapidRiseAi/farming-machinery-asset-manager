@@ -66,7 +66,7 @@ export function Badge({ tone = "neutral", wrap = false, className, children, ...
 // still readable.
 
 /** The shape vocabulary. Distinguishable in silhouette, not just by hue. */
-export type StatusShape =
+type StatusShape =
   | "dot" // ● running / fine
   | "ring" // ○ not started / idle
   | "half" // ◐ under way
@@ -321,7 +321,7 @@ export function look(map: Record<string, StatusLook>, value: string | null | und
 
 // == Back-compat ==============================================================
 
-export type ServiceStatus = "ok" | "due_soon" | "overdue";
+type ServiceStatus = "ok" | "due_soon" | "overdue";
 
 export type StatusPillProps = {
   status: ServiceStatus;

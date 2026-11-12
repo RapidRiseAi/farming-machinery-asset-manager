@@ -30,7 +30,7 @@ import type { Feature } from "@/lib/entitlements";
  * (`app.can_view_farm_finance`); this list only decides what the screens offer, and must
  * be changed together with that function.
  */
-export const FINANCE_ROLES = ["owner", "manager"] as const;
+const FINANCE_ROLES = ["owner", "manager"] as const;
 
 /**
  * Finance and contract tracking is core, on every plan (founder default). Only the
@@ -42,8 +42,6 @@ export const FINANCE_EXPORT_FEATURE: Feature = "advanced_reports";
 /** Reminder lead days when an agreement or contract is first captured. */
 export const DEFAULT_INSTALMENT_LEAD_DAYS = 7;
 export const DEFAULT_CONTRACT_LEAD_DAYS = 30;
-/** How far back an unpaid instalment still earns one "overdue" reminder (mirrors SQL). */
-export const OVERDUE_REMINDER_WINDOW_DAYS = 14;
 /** The window of the "coming up" list on the Finance page. */
 export const UPCOMING_WINDOW_DAYS = 90;
 /** The cash-flow view and its export run this many months ahead. */
@@ -61,12 +59,6 @@ export type AgreementKind = (typeof AGREEMENT_KINDS)[number];
 export const AGREEMENT_FREQUENCIES = ["monthly", "quarterly", "biannual", "annual"] as const;
 export type AgreementFrequency = (typeof AGREEMENT_FREQUENCIES)[number];
 
-export const AGREEMENT_STATUSES = ["active", "settled", "cancelled"] as const;
-export type AgreementStatus = (typeof AGREEMENT_STATUSES)[number];
-
-export const INSTALMENT_STATUSES = ["open", "paid", "settled"] as const;
-export type InstalmentStatus = (typeof INSTALMENT_STATUSES)[number];
-
 export const CONTRACT_KINDS = [
   "operating_lease",
   "rental",
@@ -80,9 +72,6 @@ export type ContractKind = (typeof CONTRACT_KINDS)[number];
 
 export const CONTRACT_FREQUENCIES = ["monthly", "quarterly", "biannual", "annual", "once"] as const;
 export type ContractFrequency = (typeof CONTRACT_FREQUENCIES)[number];
-
-export const CONTRACT_STATUSES = ["active", "ended", "cancelled"] as const;
-export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
 
 export function isAgreementKind(v: string): v is AgreementKind {
   return (AGREEMENT_KINDS as readonly string[]).includes(v);
@@ -100,7 +89,7 @@ export function isContractFrequency(v: string): v is ContractFrequency {
 // == Dates, in strings (never `Date`, which carries the server's timezone) ====
 
 /** Months between payments; null for a once-off payment or an unknown frequency. */
-export function stepMonths(frequency: string): number | null {
+function stepMonths(frequency: string): number | null {
   switch (frequency) {
     case "monthly":
       return 1;
@@ -135,7 +124,7 @@ export function addMonths(ymd: string, months: number): string {
 }
 
 /** `YYYY-MM-DD` minus days, without a Date. */
-export function minusDays(ymd: string, days: number): string {
+function minusDays(ymd: string, days: number): string {
   let [y, m, d] = ymd.split("-").map(Number);
   d -= days;
   while (d < 1) {
@@ -230,7 +219,7 @@ export type ScheduleRow = {
 };
 
 /** Why a schedule cannot be built: the same slugs the SQL raises (and errors.ts maps). */
-export type ScheduleError =
+type ScheduleError =
   | "finance-schedule-invalid"
   | "finance-term-frequency"
   | "finance-balloon-too-large"
@@ -375,7 +364,7 @@ export type InstalmentState = {
  * The capital a payment on this row has covered. A lender takes the interest first, then
  * the fee, then capital, so a part payment reduces the balance only once those are met.
  */
-export function capitalPaid(row: InstalmentState): number {
+function capitalPaid(row: InstalmentState): number {
   return Math.min(Math.max(row.paidCents - row.interestCents - row.feeCents, 0), row.capitalCents);
 }
 
@@ -555,14 +544,6 @@ export function monthlyCashflow(commitments: readonly Commitment[], fromMonth: s
     row.totalCents += gross;
   }
   return out;
-}
-
-/** Commitments that carry money, soonest first: the "coming up" list. */
-export function upcomingPayments(commitments: readonly Commitment[]): Commitment[] {
-  return commitments
-    .filter((c) => c.amount_cents != null)
-    .slice()
-    .sort((a, b) => a.on_date.localeCompare(b.on_date) || a.kind.localeCompare(b.kind));
 }
 
 /**

@@ -88,14 +88,6 @@ const PROFILE_COLUMNS_BEFORE_FENCE =
   "ai_processing_withdrawn_at, ai_notice_seen_at, active";
 const PROFILE_COLUMNS = `${PROFILE_COLUMNS_BEFORE_FENCE}, is_test`;
 
-/** The authenticated Supabase auth user, or null. Throws when Auth could not answer. */
-export async function getUser(): Promise<User | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (authUnanswered(error)) throw new ReadFailed("auth:get-user", { code: error?.name });
-  return data.user ?? null;
-}
-
 /**
  * Whether this session may use Rapid Rise's powers, asked of the database itself
  * (public.session_is_rapid_rise: the second factor given in this session, and not a test
@@ -103,7 +95,7 @@ export async function getUser(): Promise<User | null> {
  * database's own rules, so the app takes no other word for it. Cached per request; a call
  * that fails answers no.
  */
-export const rapidRiseUnlocked = cache(async (): Promise<boolean> => {
+const rapidRiseUnlocked = cache(async (): Promise<boolean> => {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("session_is_rapid_rise");
@@ -224,13 +216,6 @@ const loadProfile = cache(async (): Promise<LoadedProfile> => {
  * Rise account this session may not act as (see loadProfile). */
 export async function getProfile(): Promise<Profile | null> {
   return (await loadProfile()).profile;
-}
-
-/** Redirect to /login unless authenticated. */
-export async function requireUser(): Promise<User> {
-  const user = await getUser();
-  if (!user) redirect("/login");
-  return user;
 }
 
 /**
@@ -429,7 +414,7 @@ export async function accessibleFarms(profile?: Profile): Promise<FarmOption[]> 
 export const SUPPORT_FARM_COOKIE = "fw_support_farm";
 
 /** The farm an RR admin is currently supporting, or null. rr_admin only. */
-export async function supportFarmId(profile?: Profile): Promise<string | null> {
+async function supportFarmId(profile?: Profile): Promise<string | null> {
   const p = profile ?? (await requireProfile());
   if (p.role !== "rr_admin") return null;
   const chosen = (await cookies()).get(SUPPORT_FARM_COOKIE)?.value;

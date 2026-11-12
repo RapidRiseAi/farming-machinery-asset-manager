@@ -85,7 +85,7 @@ export function countClientStates(
 }
 
 /** Days since an ISO instant, or null; a farm quiet for this long needs a call. */
-export const QUIET_DAYS = 14;
+const QUIET_DAYS = 14;
 
 export function isQuiet(lastActivity: string | null | undefined, now: Date, createdAt?: string | null): boolean {
   const since = lastActivity ?? createdAt ?? null;

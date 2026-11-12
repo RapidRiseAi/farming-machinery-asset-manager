@@ -210,16 +210,3 @@ function keepAlive(task: Promise<unknown>): void {
   const holder = globalThis as unknown as Record<symbol, VercelContext | undefined>;
   holder[Symbol.for("@vercel/request-context")]?.get?.()?.waitUntil?.(task);
 }
-
-/**
- * Run something and report if it throws, then rethrow. For wrapping a cron step, where the
- * point is that step 7 failing must be visible without stopping steps 8 through 11.
- */
-export async function reporting<T>(where: string, fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    captureError(e, { where });
-    throw e;
-  }
-}

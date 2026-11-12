@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/image-compress";
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { setPrimaryPhoto, clearPrimaryPhoto } from "@/app/(app)/machines/actions";
 import { looksLikeImage, photoUploadErrorKey } from "@/lib/machine-photo-upload-error";
 import { SubmitButton } from "@/components/ui/submit-button";

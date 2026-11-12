@@ -9,7 +9,7 @@ import { PLANS } from "@/lib/entitlements";
 import { adminOnboardCustomer, createFarm } from "./actions";
 import { RequestIdInput } from "@/components/ui/request-id-input";
 import { MIN_BILLED_SLOTS, PLAN_PRICING } from "@/lib/entitlements";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { SelectField, TextField } from "@/components/ui/field";
 import { Badge, StatusBadge, type StatusLook } from "@/components/ui/badge";

@@ -11,10 +11,10 @@ import { cookies } from "next/headers";
  * anything the page loads. So they ride in a ten-minute, httpOnly, SameSite=Strict cookie
  * scoped to `/partners`, cleared when the farmer says they are done with it.
  */
-export const PARTNER_LINK_COOKIE = "fw_partner_link";
+const PARTNER_LINK_COOKIE = "fw_partner_link";
 
 /** Ten minutes is long enough to copy it into WhatsApp and short enough to matter. */
-export const PARTNER_LINK_TTL_SECONDS = 600;
+const PARTNER_LINK_TTL_SECONDS = 600;
 
 export type PartnerLink = { pid: string; url: string; code: string };
 

@@ -115,7 +115,7 @@ function addDays(y: number, m: number, d: number, days: number): { y: number; m:
 }
 
 /** Is this calendar day one the desk works? */
-export function isWorkingDay(y: number, m: number, d: number, cal: SupportCalendar): boolean {
+function isWorkingDay(y: number, m: number, d: number, cal: SupportCalendar): boolean {
   const js = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   const iso = js === 0 ? 7 : js;
   return cal.workingDays.includes(iso) && !cal.holidays.has(isoDay(y, m, d));

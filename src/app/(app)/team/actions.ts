@@ -8,7 +8,6 @@ import { createClient } from "@/lib/supabase/server";
 import { homePathFor, requireProfile, requireUsableFarm, type Role, requireRole } from "@/lib/auth";
 import {
   farmPermissionState,
-  isUserPermission,
   roleHasBaselinePermission,
   USER_PERMISSIONS,
   type UserPermission,
@@ -316,27 +315,6 @@ async function writeGrant(
     if (error) return errorCode(error, "app/team/actions:writeGrant:insert");
   }
   return null;
-}
-
-/** Add or revoke one 0507 grant for another person on the selected farm. */
-export async function setUserPermission(formData: FormData) {
-  const { profile, farmId } = await requireTeamManager();
-  const back = safePath(String(formData.get("back") ?? ""), "/team");
-  const userId = String(formData.get("user_id") ?? "").trim();
-  const rawPermission = String(formData.get("permission") ?? "").trim();
-  const enabled = String(formData.get("enabled") ?? "false") === "true";
-
-  if (!isUserPermission(rawPermission)) {
-    redirect(`${back}?error=${encodeURIComponent("Unknown permission.")}`);
-  }
-
-  const supabase = await createClient();
-  await requireGrantee(supabase, { actorId: profile.id, userId, farmId, back });
-  const failed = await writeGrant(supabase, { userId, farmId, permission: rawPermission, enabled });
-  if (failed) redirect(`${back}?error=${failed}`);
-
-  revalidatePath(back);
-  redirect(`${back}?permissionSaved=1`);
 }
 
 /**

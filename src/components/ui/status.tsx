@@ -1,4 +1,4 @@
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { enumLabel } from "@/lib/format";
 import {
   StatusBadge,
@@ -9,9 +9,7 @@ import {
   FAULT_LOOK,
   URGENCY_LOOK,
   WORK_LOOK,
-  PRIORITY_LOOK,
   EXPIRY_LOOK,
-  BUDGET_LOOK,
   FINE_LOOK,
   DOC_LOOK,
   PO_LOOK,
@@ -65,9 +63,6 @@ export const UrgencyStatus = make(URGENCY_LOOK, "urgency");
 /** Work-request lifecycle (all eight states). */
 export const WorkStatus = make(WORK_LOOK, "workStatus");
 
-/** Work-request priority. */
-export const PriorityStatus = make(PRIORITY_LOOK, "workPriority");
-
 /** Traffic-fine (AARTO) lifecycle. */
 export const FineStatus = make(FINE_LOOK, "fineStatus");
 
@@ -105,21 +100,6 @@ export function ExpiryStatus({ value, locale, size = "sm", className }: Props) {
   return (
     <StatusBadge
       label={t(`compliance.status.${value}`, locale)}
-      tone={l.tone}
-      shape={l.shape}
-      size={size}
-      className={className}
-    />
-  );
-}
-
-/** Budget against actual spend. */
-export function BudgetStatus({ value, locale, size = "sm", className }: Props) {
-  if (!value) return null;
-  const l = look(BUDGET_LOOK, value);
-  return (
-    <StatusBadge
-      label={t(`budget.status.${value}`, locale)}
       tone={l.tone}
       shape={l.shape}
       size={size}

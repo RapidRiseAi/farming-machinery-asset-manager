@@ -22,7 +22,7 @@ import { must } from "@/lib/supabase/must";
  * running of the fleet.
  */
 
-export const RUNNING_COST_TYPES = ["fuel", "parts", "labour", "invoice", "other"] as const;
+const RUNNING_COST_TYPES = ["fuel", "parts", "labour", "invoice", "other"] as const;
 
 export type SiteFigures = {
   machines: number;
@@ -56,7 +56,7 @@ async function count(query: PromiseLike<{ count: number | null; error: unknown }
   return result.count ?? 0;
 }
 
-export async function siteFigures(supabase: SupabaseClient, farmId: string, since: string): Promise<SiteFigures> {
+async function siteFigures(supabase: SupabaseClient, farmId: string, since: string): Promise<SiteFigures> {
   const [machines, outOfService, openFaults, overdueServices, openJobs, costsVisible] = await Promise.all([
     count(supabase.from("machines").select("id", { count: "exact", head: true }).eq("farm_id", farmId).is("deleted_at", null)
       .not("status", "in", "(retired,sold)"), "sites:machines"),

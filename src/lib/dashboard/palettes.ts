@@ -97,12 +97,6 @@ export function contrast(a: string, b: string): number {
 /** The card surfaces charts sit on (light, dark), for those warnings. */
 export const CARD_SURFACES = { light: "#ffffff", dark: "#1d211d" } as const;
 
-/** More slices than colours fold into "Other" upstream; past the end we never invent a hue. */
-export function slotColour(palette: PaletteKey, index: number): Swatch {
-  const set = PALETTES[palette];
-  return set[Math.min(index, set.length - 1)];
-}
-
 /** The style that hands a swatch to `.viz-c`. */
 export function swatchStyle(s: Swatch): Record<string, string> {
   return { "--c-l": s.light, "--c-d": s.dark };

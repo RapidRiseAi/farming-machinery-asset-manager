@@ -24,7 +24,7 @@ export { RouteError, routingConfig, attributionFor } from "./providers";
 export type { Place, RouteOption, RoutePoint, RouteProvider } from "./providers";
 
 /** The most stops a route may have: Mapbox's limit, so a plan never depends on the service. */
-export const MAX_STOPS = 25;
+const MAX_STOPS = 25;
 
 /** Points that are real places, in order. Anything else is refused before a service is asked. */
 export function validPoints(input: unknown): RoutePoint[] | null {
@@ -130,7 +130,7 @@ function placeHeaders(): HeadersInit {
 }
 
 /** One spelling per search: "  Nelspruit " and "nelspruit" are the same question. */
-export function placeCacheKey(query: string): string {
+function placeCacheKey(query: string): string {
   return `${CACHE_VERSION}|${query.normalize("NFC").trim().toLowerCase().replace(/\s+/g, " ").slice(0, 200)}`;
 }
 

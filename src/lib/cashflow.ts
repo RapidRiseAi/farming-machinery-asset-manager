@@ -1,16 +1,4 @@
-/**
- * The shapes the cash-flow screen reads, and the two small pieces of arithmetic that are
- * genuinely the screen's own.
- *
- * Everything that counts money lives in SQL (0486) for the reason recorded there: a
- * screen, a CSV, a PDF and an emailed copy must not be able to disagree, and a figure
- * computed in a React component exists in one place only until somebody adds an export.
- * What is left here is the reader's own opening balance, a number they type, which the
- * database has no business knowing, and the derived question that makes the forecast
- * worth opening: which bucket is the one where the account goes under.
- */
 
-import type { Lang } from "@/lib/i18n";
 import { parseRandsToCents } from "@/lib/money";
 
 /** One row per bucket, in the order money arrives at them. Mirrors `app.partner_cashflow`. */
@@ -46,7 +34,6 @@ export type CashflowMovement = {
 
 /** The five buckets, in order. Named here so the screen never has to sort by ordinal. */
 export const CASH_BUCKETS = ["overdue", "this_week", "next_week", "this_month", "later"] as const;
-export type CashBucketKey = (typeof CASH_BUCKETS)[number];
 
 /**
  * Five empty buckets, so a farm with nothing forecast still gets a readable table rather
@@ -74,7 +61,7 @@ export const EMPTY_BUCKETS: CashflowBucket[] = CASH_BUCKETS.map((bucket, i) => (
  * the same problem, and a month-long horizon shows only one of them.
  */
 export const CASH_HORIZONS = [14, 42, 90, 180] as const;
-export const DEFAULT_HORIZON = 42;
+const DEFAULT_HORIZON = 42;
 
 export function horizonDays(raw: string | undefined): number {
   const n = Number.parseInt(raw ?? "", 10);
@@ -160,19 +147,4 @@ export function movementsByBucket(
     else map.set(m.bucket, [m]);
   }
   return map;
-}
-
-/**
- * "40 days late" in words, or nothing at all when it is not late.
- *
- * Kept next to the type rather than in the component because the same sentence belongs on
- * a CSV row and in a reminder email the day either is built.
- */
-export function latenessLabel(
-  days: number,
-  locale: Lang,
-  t: (key: string, lang: Lang) => string
-): string | null {
-  if (!days || days <= 0) return null;
-  return t("cash.daysLate", locale).replace("{days}", String(days));
 }

@@ -113,7 +113,7 @@ export type FinanceDoc = {
   created_at: string;
 };
 
-export const AGREEMENT_COLUMNS =
+const AGREEMENT_COLUMNS =
   "id, farm_id, machine_id, kind, lender, agreement_number, principal_cents, deposit_cents, interest_rate_bps, " +
   "term_months, frequency, instalment_cents, fee_cents, balloon_cents, start_date, first_instalment_date, end_date, " +
   "auto_mark_paid, status, settled_on, settlement_cents, settlement_charge_cents, statement_balance_cents, " +

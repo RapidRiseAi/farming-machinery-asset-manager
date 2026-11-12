@@ -30,23 +30,13 @@
  * never throw at import time and can never break the rest of FLEETWISE.
  */
 
-import type { BillingAdapter, SaasBillingProvider } from "./types";
+import type { BillingAdapter } from "./types";
 import { NoopBillingAdapter } from "./noop";
 import { PaystackBillingAdapter } from "./paystack";
 import { billingProvider } from "./config";
 
-export type {
-  BillingAdapter,
-  BillingResult,
-  SubscriptionIntent,
-  SubscriptionSnapshot,
-  SaasBillingProvider,
-  CheckoutInit,
-  CheckoutSession,
-  ChargeRequest,
-  VerifiedTransaction,
-  VerifyResult,
-} from "./types";
+// The other types live in ./types and are imported from there.
+export type { BillingAdapter } from "./types";
 
 let cached: BillingAdapter | null = null;
 
@@ -68,33 +58,4 @@ export function getBillingAdapter(): BillingAdapter {
       break;
   }
   return cached;
-}
-
-/**
- * The richer SaaS-billing surface (hosted checkout, verify, charge-authorization,
- * webhook signature), available only from a provider that implements it.
- *
- * Returns null for the no-op adapter rather than a stub that pretends. A caller holding
- * null must degrade visibly: say billing is not switched on. A stub that silently
- * answered "not charged" would be indistinguishable from a failed charge, and those two
- * need very different handling.
- */
-export function getSaasBillingProvider(): SaasBillingProvider | null {
-  const adapter = getBillingAdapter();
-  return adapter instanceof PaystackBillingAdapter ? adapter : null;
-}
-
-/** True when a real payment provider is wired. Says NOTHING about whether it may charge. */
-export function isBillingEnabled(): boolean {
-  return getBillingAdapter().enabled;
-}
-
-/** True only when a provider is wired AND the charging kill switch is on. */
-export function isChargingEnabled(): boolean {
-  return getSaasBillingProvider()?.chargingEnabled ?? false;
-}
-
-/** Test seam. Never called in production code. */
-export function __resetBillingAdapterCache(): void {
-  cached = null;
 }

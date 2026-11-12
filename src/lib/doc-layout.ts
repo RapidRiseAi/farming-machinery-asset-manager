@@ -17,7 +17,7 @@ import type { DocKind } from "@/lib/partner-docs";
 export type Density = "comfortable" | "compact";
 export type AccentStyle = "band" | "line" | "plain";
 
-export type DocLayout = {
+type DocLayout = {
   quote_title?: string;
   invoice_title?: string;
   credit_title?: string;

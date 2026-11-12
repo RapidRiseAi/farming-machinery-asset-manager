@@ -9,10 +9,10 @@ import { cn } from "./cn";
 import { WarningIcon } from "./icons";
 import { PendingGuardProvider, usePendingContainer } from "./pending-guard";
 
-export type ConfirmTone = "danger" | "brand";
+type ConfirmTone = "danger" | "brand";
 
 /** One "quote R14,200 · bill R14,200" style row inside the dialog body. */
-export type ConfirmFact = { label: string; value: string; hint?: string };
+type ConfirmFact = { label: string; value: string; hint?: string };
 
 export type ConfirmDialogProps = {
   /** The server action the confirm button submits. Never wrapped or renamed. */

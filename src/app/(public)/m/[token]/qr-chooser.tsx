@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { cn } from "@/components/ui/cn";
 import { FaultsIcon, MachinesIcon, FuelIcon, JobCardsIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 

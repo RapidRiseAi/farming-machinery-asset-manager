@@ -62,7 +62,7 @@ import {
   type AttemptRow,
 } from "./service";
 
-export const WEBHOOK_PROVIDER = "paystack";
+const WEBHOOK_PROVIDER = "paystack";
 
 /**
  * Events that move money in our ledger.
@@ -109,7 +109,7 @@ const REFUND_EVENTS = new Set([
  * refunded, and keying both cases on the transaction would collapse two different
  * conversations into one ticket.
  */
-export function disputeOrRefundRef(data: Record<string, unknown>): string | null {
+function disputeOrRefundRef(data: Record<string, unknown>): string | null {
   const direct = data.id ?? data.reference;
   if (typeof direct === "string" && direct.trim()) return direct.trim();
   if (typeof direct === "number") return String(direct);
@@ -125,7 +125,7 @@ export function disputeOrRefundRef(data: Record<string, unknown>): string | null
  * costs somebody a glance, chased too late costs the money, because Paystack accepts the
  * dispute on our behalf and takes it out of a payout.
  */
-export function disputeDeadline(data: Record<string, unknown>): string {
+function disputeDeadline(data: Record<string, unknown>): string {
   const raw = data.due_at ?? data.dueAt;
   if (typeof raw === "string" && raw.trim()) {
     const parsed = new Date(raw);

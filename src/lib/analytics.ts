@@ -12,9 +12,6 @@
  */
 import type { CostBreakdown } from "@/lib/cost";
 
-/** Statuses that mean a machine is DOWN (mirrors 0361's downtime reconstruction). */
-export const DOWN_STATUSES = ["in_workshop", "out_of_service"] as const;
-
 /** Trailing window (days) over which the machine-detail page shows utilisation/downtime. */
 export const UTILISATION_WINDOW_DAYS = 90;
 
@@ -39,7 +36,7 @@ export function addDaysYmd(dateYmd: string, days: number): string {
 }
 
 /** Inclusive calendar-day count of [from, to] (both YYYY-MM-DD). Minimum 1. */
-export function daysInWindow(fromYmd: string, toYmd: string): number {
+function daysInWindow(fromYmd: string, toYmd: string): number {
   const from = Date.parse(`${fromYmd}T00:00:00Z`);
   const to = Date.parse(`${toYmd}T00:00:00Z`);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return 1;

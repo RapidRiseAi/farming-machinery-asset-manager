@@ -83,22 +83,13 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
   hit area; the panel keeps the walkthrough re-entry. Prefer `PageHeader`'s
   `infoKey`, which places it.
 
-## Importing, barrel vs. direct
+## Importing
 
-Everything is re-exported from `@/components/ui` (`index.ts`). That's convenient,
-but the barrel re-exports the client components too, and Next.js can't currently
-tree-shake a mixed barrel: **a Server Component that imports from `@/components/ui`
-pulls the kit's whole client chunk (~5 kB gzipped) into that route.**
-
-Guidance:
-
-- **Server Components** (pages, layouts that only use server pieces): import from
-  the specific module, `@/components/ui/card`, `@/components/ui/stat`, etc. This
-  keeps the route's client bundle flat. The dashboard and app shell do this.
-- **Client Components**: import from the barrel or directly, no penalty.
-- A one-line follow-up would remove the caveat entirely: add
-  `experimental.optimizePackageImports: ["@/components/ui"]` to `next.config.mjs`
-  (outside this kit's file ownership).
+Import each piece from its own module: `@/components/ui/card`, `@/components/ui/stat`,
+and so on. There is no barrel. `index.ts` re-exported the client components too, and a
+Server Component importing from a mixed barrel pulled the kit's whole client chunk
+(about 5 kB gzipped) into its route; nothing imported it any more, and it was removed in
+November 2026.
 
 ## Design tokens (cheat-sheet)
 

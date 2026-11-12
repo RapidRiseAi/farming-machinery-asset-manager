@@ -11,7 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 
 /** The marketing website. Its "Log in" lands on /login, so these pages are its next step. */
-export const WEBSITE = "https://fleet-wise.co.za";
+const WEBSITE = "https://fleet-wise.co.za";
 
 /**
  * The website's content column (headerInner: 1440px, 4% each side), for every full-width

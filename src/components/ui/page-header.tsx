@@ -40,7 +40,7 @@ import { Table } from "./table";
  * `data-span="half"` joins the column flow. A page with its own layout opts out with
  * `flow="single"` (settings, which lays out its sections).
  */
-export type PageWidth = "narrow" | "default" | "wide";
+type PageWidth = "narrow" | "default" | "wide";
 
 const WIDTH: Record<PageWidth, string> = {
   narrow: "max-w-2xl",

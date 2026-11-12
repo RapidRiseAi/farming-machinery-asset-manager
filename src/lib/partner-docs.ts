@@ -11,16 +11,13 @@
  * float here.
  */
 
-export const DOC_KINDS = ["quote", "invoice", "credit_note", "debit_note"] as const;
+const DOC_KINDS = ["quote", "invoice", "credit_note", "debit_note"] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
-/** The kinds a partner starts from scratch. Both notes are always raised AGAINST an invoice. */
-export const NEW_DOC_KINDS = ["quote", "invoice"] as const;
-
-export const DOC_SOURCES = ["built", "uploaded"] as const;
+const DOC_SOURCES = ["built", "uploaded"] as const;
 export type DocSource = (typeof DOC_SOURCES)[number];
 
-export const DOC_STATUSES = [
+const DOC_STATUSES = [
   "draft", "sent", "accepted", "declined", "part_paid", "paid", "cancelled", "expired", "void",
   // The customer is never going to pay (0422/0423). Not the same as void: the invoice was
   // correct and the work was done, so it stays on the statement and in the farm's cost
@@ -119,7 +116,7 @@ export type IssuerSnapshot = {
 // == Totals, mirroring the 0381 triggers ============================
 
 /** qty × unit price − line discount, ex-VAT, floored at zero. */
-export function lineTotalCents(line: Pick<DocLine, "qty" | "unit_price_cents" | "discount_cents">): number {
+function lineTotalCents(line: Pick<DocLine, "qty" | "unit_price_cents" | "discount_cents">): number {
   return Math.max(0, Math.round(line.qty * line.unit_price_cents) - (line.discount_cents || 0));
 }
 
@@ -159,13 +156,6 @@ export function isNote(kind: DocKind): boolean {
   return kind === "credit_note" || kind === "debit_note";
 }
 
-/** The statuses a document of this kind can actually be in, in lifecycle order. */
-export function statusesFor(kind: DocKind): DocStatus[] {
-  if (kind === "quote") return ["draft", "sent", "accepted", "declined", "expired", "cancelled"];
-  if (kind === "credit_note" || kind === "debit_note") return ["draft", "sent", "void"];
-  return ["draft", "sent", "part_paid", "paid", "written_off", "void"];
-}
-
 /**
  * Is this document still awaiting the customer? Drives the "needs a decision" lists.
  *
@@ -182,17 +172,12 @@ export function awaitsCustomer(doc: Pick<PartnerDocument, "kind" | "status">): b
   return doc.status === "sent" || doc.status === "part_paid";
 }
 
-/** A document that is settled needs no further action from anyone. */
-export function isSettled(doc: Pick<PartnerDocument, "status">): boolean {
-  return ["paid", "declined", "cancelled", "expired", "written_off"].includes(doc.status);
-}
-
 /**
  * Is this document counted in the farm's cost ledger? Mirrors the 0412 trigger exactly:
  * an issued INVOICE adds, an issued CREDIT NOTE subtracts. A quote is never a cost, it
  * is not money owed, and a void document is not one either.
  */
-export function isCosted(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
+function isCosted(doc: Pick<PartnerDocument, "kind" | "status">): boolean {
   return (doc.kind === "invoice" || isNote(doc.kind))
     // `written_off` counts too: the customer never paid, but the work was done on that
     // machine and its cost of ownership should say so.
@@ -243,7 +228,6 @@ export function correctionsFor(doc: Pick<PartnerDocument, "kind" | "status">): C
 }
 
 
-
 /** What is still owed once payments AND credit notes are taken off. Never negative. */
 export function outstandingCents(
   doc: Pick<PartnerDocument, "total_cents" | "amount_paid_cents" | "kind" | "status">,
@@ -253,19 +237,6 @@ export function outstandingCents(
   // Written off is not outstanding, that is the whole point of writing it off.
   if (doc.status === "written_off") return 0;
   return Math.max(0, doc.total_cents - (doc.amount_paid_cents || 0) - creditedCents);
-}
-
-/** Days past due, negative when it is not yet due. Null when the document has no due date. */
-export function daysOverdue(dueDate: string | null, today = new Date()): number | null {
-  if (!dueDate) return null;
-  const due = new Date(`${dueDate}T00:00:00Z`);
-  const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  return Math.round((now.getTime() - due.getTime()) / 86_400_000);
-}
-
-/** i18n key for a document status label (`docStatus.*`). */
-export function docStatusKey(status: DocStatus): string {
-  return `docStatus.${status}`;
 }
 
 /** Default due date: today + the partner's terms (invoice) or validity (quote) window. */

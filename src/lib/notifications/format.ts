@@ -3,7 +3,7 @@
  * by the in-app centre (src/app/(app)/notifications/page.tsx) and the Web-Push delivery
  * path (src/lib/push/deliver.ts) so both channels read identically.
  */
-import type { Locale, Lang } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { enumLabel, num, shortDate } from "@/lib/format";

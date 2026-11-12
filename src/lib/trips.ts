@@ -14,8 +14,6 @@ export function tripFields(lang: Lang): { goods: boolean; passengers: boolean } 
   return { goods: true, passengers: true };
 }
 
-export const TRIP_STATUSES = ["planned", "underway", "completed", "cancelled"] as const;
-
 export const TRIP_STATUS_TONE: Record<string, BadgeTone> = {
   planned: "neutral",
   underway: "brand",

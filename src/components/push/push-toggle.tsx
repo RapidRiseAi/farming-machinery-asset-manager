@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Locale, Lang } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { reportClientError } from "@/lib/client-report";

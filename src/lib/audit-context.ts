@@ -38,9 +38,9 @@ import { t, type Lang } from "@/lib/i18n";
  */
 
 /** The one header the Next.js server adds. `country/region/city`, any part may be empty. */
-export const GEO_HEADER = "x-fleetwise-geo";
+const GEO_HEADER = "x-fleetwise-geo";
 
-export type RequestGeo = {
+type RequestGeo = {
   country: string | null;
   region: string | null;
   city: string | null;
@@ -54,7 +54,7 @@ export type RequestGeo = {
  * governs what may be collected, and city-level is both the most that helps a human
  * ("this was approved from an unfamiliar city at 02:00") and the least that does.
  */
-export async function requestGeo(): Promise<RequestGeo> {
+async function requestGeo(): Promise<RequestGeo> {
   const h = await headers();
   const pick = (name: string) => {
     const v = h.get(name);
@@ -80,7 +80,7 @@ export async function requestGeo(): Promise<RequestGeo> {
  * "Foo/Bar" recording as "FooBar" is better than one that shifts every field along.
  * Returns null when the edge told us nothing, so no empty header is sent.
  */
-export function geoHeaderValue(geo: RequestGeo): string | null {
+function geoHeaderValue(geo: RequestGeo): string | null {
   const clean = (v: string | null, max: number) =>
     (v ?? "").replace(/[/\r\n]/g, " ").trim().slice(0, max);
   const value = [clean(geo.country, 8), clean(geo.region, 60), clean(geo.city, 80)].join("/");
@@ -109,7 +109,7 @@ export type AuditLocation = {
  * Returns null when there is genuinely nothing to show, so a caller can render nothing
  * instead of an empty parenthesis.
  */
-export function auditPlace(row: AuditLocation | null | undefined): string | null {
+function auditPlace(row: AuditLocation | null | undefined): string | null {
   if (!row) return null;
   const parts = [row.geo_city, row.geo_region, row.geo_country]
     .map((p) => p?.trim())
@@ -166,7 +166,7 @@ export type AuditRow = AuditLocation & {
  * `status`, which the fault trigger (0235) writes when a vehicle goes out of service -
  * that is a real event with a real cause and belongs on the list.
  */
-export const AUTOMATIC_MACHINE_COLUMNS = new Set([
+const AUTOMATIC_MACHINE_COLUMNS = new Set([
   "current_reading",
   "current_reading_date",
   "warranty_notified_status",

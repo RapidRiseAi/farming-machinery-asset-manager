@@ -9,7 +9,7 @@
  */
 
 /** Normalise a raw phone/WhatsApp string to E.164 (e.g. "+27821234567"), or null. */
-export function toE164(raw: string | null | undefined): string | null {
+function toE164(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();
   const hasPlus = trimmed.startsWith("+");

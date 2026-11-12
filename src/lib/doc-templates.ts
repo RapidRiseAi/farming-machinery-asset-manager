@@ -59,13 +59,13 @@ export type DocTemplateId = (typeof DOC_TEMPLATES)[number];
  * `resolveLayout({})`). That is what makes 0505 safe to apply: the column default names a
  * template that changes nothing.
  */
-export const DEFAULT_DOC_TEMPLATE: DocTemplateId = "classic";
+const DEFAULT_DOC_TEMPLATE: DocTemplateId = "classic";
 
 /**
  * The layout keys a template sets. Everything else in `DocLayout`, the wording keys and
  * the thank-you, is deliberately outside a template's reach (see the header).
  */
-export const TEMPLATE_LAYOUT_KEYS = [
+const TEMPLATE_LAYOUT_KEYS = [
   "density",
   "accent_style",
   "show_vehicle",
@@ -75,7 +75,7 @@ export const TEMPLATE_LAYOUT_KEYS = [
   "show_line_numbers",
   "show_unit_price",
 ] as const;
-export type TemplateLayoutKey = (typeof TEMPLATE_LAYOUT_KEYS)[number];
+type TemplateLayoutKey = (typeof TEMPLATE_LAYOUT_KEYS)[number];
 
 /** A template's contribution to `doc_layout`: every governed key, explicitly. */
 export type TemplateLayout = Pick<ResolvedLayout, TemplateLayoutKey>;
@@ -89,7 +89,7 @@ export type TemplateLayout = Pick<ResolvedLayout, TemplateLayoutKey>;
  * letterhead" would leave the numbered lines on. Writing all eight every time makes a
  * template a complete statement about shape rather than a patch.
  */
-export const DOC_TEMPLATE_LAYOUTS: Record<DocTemplateId, TemplateLayout> = {
+const DOC_TEMPLATE_LAYOUTS: Record<DocTemplateId, TemplateLayout> = {
   /**
    * What everybody already has. Colour across the top, roomy rows, a price against every
    * line. Must stay byte-identical to `resolveLayout({})` on all eight keys.
@@ -197,9 +197,4 @@ export function layoutForTemplate(id: DocTemplateId, current: unknown): Resolved
 export function layoutMatchesTemplate(layout: ResolvedLayout, id: DocTemplateId): boolean {
   const wanted = DOC_TEMPLATE_LAYOUTS[id];
   return TEMPLATE_LAYOUT_KEYS.every((key) => layout[key] === wanted[key]);
-}
-
-/** The template this layout IS, or null when it is the partner's own mix of switches. */
-export function matchTemplate(layout: ResolvedLayout): DocTemplateId | null {
-  return DOC_TEMPLATES.find((id) => layoutMatchesTemplate(layout, id)) ?? null;
 }

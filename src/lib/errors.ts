@@ -622,29 +622,5 @@ export function errorMessage(
   return t(FALLBACK, locale);
 }
 
-/**
- * The same lookup for a success code, so `?saved=1` style flashes are
- * translated by the same route rather than by another ternary chain.
- */
-const OK_KEYS: Record<string, string> = {
-  "1": "errors.okSaved",
-  saved: "errors.okSaved",
-  created: "errors.okCreated",
-  updated: "errors.okSaved",
-  deleted: "errors.okDeleted",
-  sent: "errors.okSent",
-  added: "errors.okAdded",
-};
-
-export function successMessage(
-  code: string | string[] | undefined | null,
-  locale: Lang,
-): string | undefined {
-  if (!code) return undefined;
-  const raw = Array.isArray(code) ? code[0] : code;
-  if (!raw) return undefined;
-  return t(OK_KEYS[normalise(raw)] ?? "errors.okSaved", locale);
-}
-
 /** Exposed for the test that asserts every code maps to a real key. */
 export const ERROR_CODE_KEYS = CODE_KEYS;

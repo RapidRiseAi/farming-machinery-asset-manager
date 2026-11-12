@@ -301,7 +301,7 @@ function brandFor(issuer: PackIssuer, locale: Lang) {
 // and so the isolation of "what counts as missing" is testable on its own.
 
 /** How stale a meter may be before the hours on a compliance pack stop being evidence. */
-export const STALE_READING_DAYS = 60;
+const STALE_READING_DAYS = 60;
 
 function daysBetween(a: Date, b: Date): number {
   return Math.round(
@@ -332,7 +332,7 @@ export type ComplianceInput = {
  * What an auditor would find absent. One sentence per machine per missing record,
  * named, "no licence on file" against a list of fifteen tractors is not actionable.
  */
-export function complianceGaps(input: ComplianceInput, locale: Lang): string[] {
+function complianceGaps(input: ComplianceInput, locale: Lang): string[] {
   const { machines, issuer } = input;
   const lic = byMachine(input.licences);
   const plan = byMachine(input.plan);
@@ -397,7 +397,7 @@ export type SaleInput = {
   issuer: PackIssuer;
 };
 
-export function saleGaps(input: SaleInput, locale: Lang): string[] {
+function saleGaps(input: SaleInput, locale: Lang): string[] {
   const { machine: m } = input;
   const gaps: string[] = [];
   if (input.licences.length === 0) gaps.push(t("packs.saleGapNoLicence", locale));
@@ -422,7 +422,7 @@ export type WarrantyInput = {
   issuer: PackIssuer;
 };
 
-export function warrantyGaps(input: WarrantyInput, locale: Lang): string[] {
+function warrantyGaps(input: WarrantyInput, locale: Lang): string[] {
   const { machine: m } = input;
   const gaps: string[] = [];
   if (!m.warranty_expiry_date && m.warranty_expiry_hours == null) {

@@ -64,17 +64,17 @@ import { captureError } from "@/lib/observability";
 export const FARM_AGENT_MAX_STEPS = 6;
 /** Per step. Also what the budget hold is sized on. */
 export const FARM_AGENT_MAX_OUTPUT_TOKENS = 700;
-export const FARM_AGENT_TIMEOUT_MS = 30_000;
+const FARM_AGENT_TIMEOUT_MS = 30_000;
 /** What tool results may add to the prompt over a run, for the budget hold. */
 export const FARM_AGENT_TOOL_RESULT_CHARS = 10_000;
 /** The tool definitions as sent, for the budget hold: 22 tools measured 14 444 characters on 2026-10-11. */
-export const FARM_AGENT_TOOLS_CHARS = 15_000;
+const FARM_AGENT_TOOLS_CHARS = 15_000;
 
 export type FarmAgentResult =
   | ({ kind: "command"; draft: AssistantDraft; tankQuery?: string | null } & AgentUsage)
   | ({ kind: "answer"; answer: string; navigation: AssistantAnswerPage } & AgentUsage);
 
-export type Exchange = { user: string; assistant: string };
+type Exchange = { user: string; assistant: string };
 
 export type FarmAgentContext = {
   scope: FarmDataScope;
@@ -406,7 +406,7 @@ export function farmAgentSystemPrompt(input: {
 }
 
 /** Prefetch the numbers for up to three topics, so most answers take one model call. */
-export async function prefetchDigest(
+async function prefetchDigest(
   scope: FarmDataScope,
   topics: FarmTopic[],
   today: string,
@@ -448,7 +448,7 @@ export async function prefetchDigest(
  * The person's last few exchanges on this business, minutes old, so "and last month?" or "the
  * other one" means something. Their own rows, read on their own session.
  */
-export async function recentExchanges(context: AssistantContext, minutes = 20, limit = 3): Promise<Exchange[]> {
+async function recentExchanges(context: AssistantContext, minutes = 20, limit = 3): Promise<Exchange[]> {
   const since = new Date(Date.now() - minutes * 60_000).toISOString();
   // soft: without the last few exchanges the question is answered on its own, as a first
   // question is; a failure is reported rather than stopping the answer.

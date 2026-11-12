@@ -24,7 +24,7 @@ export const CREDENTIAL_TYPES = [
   "other",
 ] as const;
 
-export type CredentialType = (typeof CREDENTIAL_TYPES)[number];
+type CredentialType = (typeof CREDENTIAL_TYPES)[number];
 
 /** The columns `/team/licences` selects. Enumerated once, spread at the call site. */
 export type CredentialRow = {

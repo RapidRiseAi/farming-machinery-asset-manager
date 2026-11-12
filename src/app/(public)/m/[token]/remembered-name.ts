@@ -17,17 +17,10 @@ import { cookies } from "next/headers";
  * Plain module, no "use server": a "use server" file may export only async actions,
  * and the page needs the reader too.
  */
-export const QR_NAME_COOKIE = "fw_qr_name";
+const QR_NAME_COOKIE = "fw_qr_name";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 const MAX_NAME = 200;
-
-/** The remembered name, or null. Reads a cookie only. */
-export async function readRememberedName(): Promise<string | null> {
-  const raw = (await cookies()).get(QR_NAME_COOKIE)?.value?.trim();
-  if (!raw) return null;
-  return raw.slice(0, MAX_NAME);
-}
 
 /** Remember `name` for next time, or forget it when the person cleared the field. */
 export async function rememberName(name: string | null): Promise<void> {
@@ -54,7 +47,7 @@ export async function rememberName(name: string | null): Promise<void> {
  * The fault form's link is stamped when the page renders, not when it submits (it is
  * handed to the form up front), so the window allows for a slow report.
  */
-export const SENT_FRESH_MS = 3 * 60 * 60 * 1000;
+const SENT_FRESH_MS = 3 * 60 * 60 * 1000;
 
 /** The confirmation URL for a capture that just succeeded. */
 export function sentHref(token: string, kind: "fault" | "reading" | "fuel", at = Date.now()): string {

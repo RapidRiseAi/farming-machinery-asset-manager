@@ -37,7 +37,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { isIsoDate } from "@/lib/ids";
 
 /** An opening balance, a bill from the supplier, or a bill of theirs we settled. */
-export type SupplierStatementKind = "opening" | "bill" | "payment";
+type SupplierStatementKind = "opening" | "bill" | "payment";
 
 export type SupplierStatementRow = {
   entry_date: string;
@@ -100,7 +100,7 @@ export function withSupplierRunningBalance(rows: readonly SupplierStatementRow[]
 }
 
 /** The closing balance: what is still owed to this supplier at the end of the period. */
-export function supplierClosingBalanceCents(rows: readonly SupplierStatementRow[]): number {
+function supplierClosingBalanceCents(rows: readonly SupplierStatementRow[]): number {
   return rows.reduce((b, r) => b + (r.debit_cents || 0) - (r.credit_cents || 0), 0);
 }
 

@@ -25,19 +25,3 @@ export function downloadLabels(locale: Lang): DownloadLabels {
     failed: t("interaction.downloadFailed", locale),
   };
 }
-
-export type ActionLabels = {
-  working: string;
-  failed: string;
-  offline: string;
-  dismiss: string;
-};
-
-export function actionLabels(locale: Lang): ActionLabels {
-  return {
-    working: t("interaction.working", locale),
-    failed: t("interaction.actionFailed", locale),
-    offline: t("interaction.actionOffline", locale),
-    dismiss: t("ui.dismiss", locale),
-  };
-}

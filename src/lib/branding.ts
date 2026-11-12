@@ -125,7 +125,7 @@ export function normaliseHex(value: string | null | undefined): string | null {
 }
 
 /** `#00572c` → `{ r: 0, g: 0.341, b: 0.173 }` for pdf-lib's `rgb()`. */
-export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
+function hexToRgb01(hex: string): { r: number; g: number; b: number } {
   const h = normaliseHex(hex) ?? DEFAULT_BRAND_PRIMARY;
   return {
     r: parseInt(h.slice(1, 3), 16) / 255,
@@ -139,7 +139,7 @@ export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
  * partner picks their brand colour, and their header must stay readable whether they
  * chose navy or a pale yellow.
  */
-export function isDark(hex: string): boolean {
+function isDark(hex: string): boolean {
   const { r, g, b } = hexToRgb01(hex);
   const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) < 0.45;

@@ -4,13 +4,13 @@
  * Afrikaans. The file is parsed by the same CSV reader as the vehicle import.
  */
 
-export const FILL_FLAGS = ["unknown_vehicle", "over_tank", "too_soon", "odometer_back"] as const;
+const FILL_FLAGS = ["unknown_vehicle", "over_tank", "too_soon", "odometer_back"] as const;
 export type FillFlag = (typeof FILL_FLAGS)[number];
 
 /** Two fills this close together on one vehicle usually mean one of them is not for it. */
-export const TOO_SOON_HOURS = 3;
+const TOO_SOON_HOURS = 3;
 
-export const MAX_FILL_ROWS = 2000;
+const MAX_FILL_ROWS = 2000;
 
 type Column = "date" | "time" | "card" | "vehicle" | "driver" | "merchant" | "litres" | "amount" | "odometer";
 

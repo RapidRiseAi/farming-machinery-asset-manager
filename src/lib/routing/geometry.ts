@@ -10,7 +10,7 @@ const EARTH_M = 6_371_000;
 const rad = (d: number) => (d * Math.PI) / 180;
 
 /** Metres between two points, along the earth's surface. */
-export function metresBetween(a: LngLat, b: LngLat): number {
+function metresBetween(a: LngLat, b: LngLat): number {
   const h =
     Math.sin(rad(b[1] - a[1]) / 2) ** 2 +
     Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(rad(b[0] - a[0]) / 2) ** 2;
@@ -129,7 +129,7 @@ export function offRoute(planned: LngLat[], driven: LngLat[], thresholdM = 1000)
   return { offKm: off / 1000, share: total === 0 ? 0 : off / total };
 }
 
-export type KmVerdict = "ok" | "over" | "under" | "unknown";
+type KmVerdict = "ok" | "over" | "under" | "unknown";
 
 export type KmCheck = {
   plannedKm: number | null;

@@ -40,7 +40,7 @@ type SavedRoute = {
 };
 
 /** "5 h 40 min", or "35 min" under an hour. */
-export function durationText(seconds: number, locale: Lang): string {
+function durationText(seconds: number, locale: Lang): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.round((seconds % 3600) / 60);
   return h > 0

@@ -21,7 +21,7 @@ import { balanceDueCents, outstandingCents, isEditable, type BillTo, type DocKin
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, TextField, TextareaField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
 import { Badge } from "@/components/ui/badge";

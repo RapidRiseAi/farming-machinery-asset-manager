@@ -27,18 +27,6 @@ export type StockItem = {
   bin: string | null;
 };
 
-export type StockMovement = {
-  id: string;
-  stock_item_id: string;
-  kind: MoveKind;
-  qty: number;
-  unit_cost_cents: number | null;
-  machine_id: string | null;
-  job_card_id: string | null;
-  occurred_on: string;
-  note: string | null;
-};
-
 /**
  * The TS mirror of `app.stock_needs_reorder`. Kept in step with the SQL for the same
  * reason `lib/fuel.ts` mirrors the consumption engine: the screen and the nightly nudge
@@ -47,12 +35,12 @@ export type StockMovement = {
  * A part with no reorder point is NOT low at zero, it is untracked for reordering, and
  * inventing a threshold produces nightly noise nobody asked for.
  */
-export function needsReorder(item: Pick<StockItem, "on_hand" | "reorder_point">): boolean {
+function needsReorder(item: Pick<StockItem, "on_hand" | "reorder_point">): boolean {
   return item.reorder_point != null && item.on_hand <= item.reorder_point;
 }
 
 /** Below zero means the store has issued what it never recorded receiving. */
-export function isNegative(item: Pick<StockItem, "on_hand">): boolean {
+function isNegative(item: Pick<StockItem, "on_hand">): boolean {
   return item.on_hand < 0;
 }
 
@@ -61,36 +49,6 @@ export type StockTone = "ok" | "low" | "negative";
 export function stockTone(item: Pick<StockItem, "on_hand" | "reorder_point">): StockTone {
   if (isNegative(item)) return "negative";
   return needsReorder(item) ? "low" : "ok";
-}
-
-/**
- * How a quantity changes the shelf. The sign lives here and in the SQL rollup, nowhere
- * else, `qty` on a movement is always positive so that a row cannot be read two ways.
- */
-export function signedQty(kind: MoveKind, qty: number): number {
-  return kind === "issue" ? -qty : qty;
-}
-
-/**
- * Whether this movement will put a cost against the machine (0450's rule).
- *
- * Exported so the capture form can SAY so before the user presses anything, "this will
- * also add R500 to the tractor's costs" is the kind of thing that should never be a
- * surprise discovered later in a report.
- */
-export function movementBooksCost(m: {
-  kind: MoveKind;
-  machine_id: string | null;
-  job_card_id: string | null;
-  unit_cost_cents: number | null;
-  qty: number;
-}): boolean {
-  return (
-    m.kind === "issue" &&
-    !!m.machine_id &&
-    !m.job_card_id &&
-    Math.round((m.unit_cost_cents ?? 0) * m.qty) > 0
-  );
 }
 
 /**

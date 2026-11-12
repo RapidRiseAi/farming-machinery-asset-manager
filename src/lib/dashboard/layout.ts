@@ -10,7 +10,7 @@
 
 export const GRID_COLS = 12;
 /** Far past any real board; a bound so a hand-made layout cannot ask for a mile of rows. */
-export const MAX_ROW = 400;
+const MAX_ROW = 400;
 export const MAX_WIDGETS = 40;
 
 export type GridBox = { x: number; y: number; w: number; h: number };

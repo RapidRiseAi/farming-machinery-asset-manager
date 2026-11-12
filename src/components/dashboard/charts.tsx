@@ -24,14 +24,14 @@ import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 
 // == Values ======================================================================
 
-export function formatValue(n: number, format: ValueFormat, locale: Lang): string {
+function formatValue(n: number, format: ValueFormat, locale: Lang): string {
   if (format === "rands") return rands(n);
   if (format === "litres") return `${num(n, 0)} ${t("dash.unit.litres", locale)}`;
   return num(n, 0);
 }
 
 /** Short forms for axis labels: R12,5k and 1,2k L. */
-export function compactValue(n: number, format: ValueFormat, locale: Lang): string {
+function compactValue(n: number, format: ValueFormat, locale: Lang): string {
   const v = format === "rands" ? n / 100 : n;
   const short = v >= 1_000_000 ? `${num(v / 1_000_000, 1)}m` : v >= 1000 ? `${num(v / 1000, 1)}k` : num(v, 0);
   if (format === "rands") return `R${short}`;
@@ -42,7 +42,7 @@ export function compactValue(n: number, format: ValueFormat, locale: Lang): stri
 const TONE_SWATCH: Record<Tone, Swatch> = { ok: STATUS.ok, warn: STATUS.warn, bad: STATUS.bad, neutral: STATUS.neutral };
 
 /** A single colour from a setting: a named hue, a picked hex, or "auto" (the state's own). */
-export function hueSwatch(colour: string, tone: Tone = "neutral"): Swatch {
+function hueSwatch(colour: string, tone: Tone = "neutral"): Swatch {
   return swatchOf(colour) ?? TONE_SWATCH[tone];
 }
 
@@ -253,7 +253,7 @@ function LineArea({
 }
 
 /** A round number just above the maximum, so the scale reads 0 to 40, not 0 to 37. */
-export function niceCeiling(max: number): number {
+function niceCeiling(max: number): number {
   if (max <= 0) return 1;
   const exp = 10 ** Math.floor(Math.log10(max));
   const step = [1, 2, 2.5, 5, 10].find((s) => s * exp >= max) ?? 10;
@@ -370,7 +370,7 @@ export function BreakdownChart({
  * from 12 o'clock clockwise. A slice of the whole circle stops just short of closing,
  * because an arc that ends where it starts draws nothing.
  */
-export function arcPath(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number): string {
+function arcPath(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number): string {
   const end = Math.min(a1, a0 + Math.PI * 2 - 0.0001);
   const large = end - a0 > Math.PI ? 1 : 0;
   const pt = (r: number, a: number) => `${(cx + r * Math.cos(a)).toFixed(3)} ${(cy + r * Math.sin(a)).toFixed(3)}`;

@@ -14,7 +14,7 @@ import { errorCode } from "@/lib/action-errors";
  * goes out. Returns a code rather than redirecting, so each caller says it in its own place.
  */
 
-export const INVITE_ROLES = ["owner", "manager", "mechanic", "operator"] as const;
+const INVITE_ROLES = ["owner", "manager", "mechanic", "operator"] as const;
 
 type InviteDecision = {
   outcome: "none" | "created" | "already" | "switched_off" | "added" | "moved" | "refused";

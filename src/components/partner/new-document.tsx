@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { t, type Lang } from "@/lib/i18n";
+import { type Lang } from "@/lib/i18n";
 import { createDocument } from "@/app/(app)/documents/actions";
 import { NewDocumentForm, type Recipient } from "./new-document-form";
 import { mustAll } from "@/lib/supabase/must";

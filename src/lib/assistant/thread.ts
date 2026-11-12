@@ -231,7 +231,7 @@ const COLLAPSIBLE: ReadonlySet<ThreadStatus> = new Set<ThreadStatus>([
 ]);
 
 /** A shorter run is left alone: folding two lines away saves nothing. */
-export const THREAD_COLLAPSE_MIN = 3;
+const THREAD_COLLAPSE_MIN = 3;
 
 export type ThreadGroup =
   | { kind: "entry"; entry: ThreadEntry }

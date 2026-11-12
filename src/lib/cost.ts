@@ -20,7 +20,7 @@ export type CostType = (typeof COST_TYPES)[number];
 
 export type CostBreakdown = Record<CostType, number>;
 
-export function emptyBreakdown(): CostBreakdown {
+function emptyBreakdown(): CostBreakdown {
   return { purchase: 0, finance: 0, lease: 0, fuel: 0, parts: 0, labour: 0, invoice: 0, other: 0 };
 }
 

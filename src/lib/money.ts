@@ -90,9 +90,3 @@ export function exVatCents(inclCents: number, rateBps: number): number {
 export function vatOfInclCents(inclCents: number, rateBps: number): number {
   return inclCents - exVatCents(inclCents, rateBps);
 }
-
-/** VAT added on top of an ex-VAT amount, in cents. */
-export function vatOnExCents(exCents: number, rateBps: number): number {
-  if (rateBps <= 0) return 0;
-  return Math.round((exCents * rateBps) / 10000);
-}

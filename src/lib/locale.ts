@@ -27,7 +27,7 @@ export function isLocale(value: string | null | undefined): value is Locale {
  * Best supported locale named by an `Accept-Language` header, honouring q-weights.
  * `af-ZA` matches `af`. Returns null when the header names nothing we speak.
  */
-export function parseAcceptLanguage(header: string | null | undefined): Locale | null {
+function parseAcceptLanguage(header: string | null | undefined): Locale | null {
   if (!header) return null;
   const ranked = header
     .split(",")

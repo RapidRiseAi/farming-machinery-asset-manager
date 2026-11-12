@@ -10,7 +10,7 @@ import { normalizeAssistantText } from "./normalize";
  * the local reads cannot do, and keeps the local answer when AI is not available.
  */
 
-export const FARM_TOPICS = [
+const FARM_TOPICS = [
   "fuel", "costs", "faults", "jobcards", "service", "work", "documents", "readings",
   // Records the AI reads since 2026-10-11 (farm-insights.ts). None has a local read, so a
   // question about one always goes to the AI, with its data fetched up front.

@@ -15,7 +15,3 @@ export const JOB_STATUSES = [
   "waiting_parts",
   "completed",
 ] as const;
-export type JobStatus = (typeof JOB_STATUSES)[number];
-
-export const LINE_KINDS = ["part", "labour", "other"] as const;
-export type LineKind = (typeof LINE_KINDS)[number];

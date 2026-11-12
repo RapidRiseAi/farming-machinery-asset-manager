@@ -37,5 +37,3 @@ export type QueuedMutation = {
   /** When it was queued (for ordering + display). */
   queued_at: number;
 };
-
-export type SyncStatusValue = "applied" | "duplicate" | "conflict" | "pending";

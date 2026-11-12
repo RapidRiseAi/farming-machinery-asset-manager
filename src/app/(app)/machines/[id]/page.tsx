@@ -41,14 +41,12 @@ import { addBudget, updateBudget, deleteBudget } from "./budget-actions";
 import {
   warrantyStatus,
   dateExpiryStatus,
-  expiryTone,
-  expiryLabel,
   licenceTypeLabel,
   LICENCE_TYPES,
   DEFAULT_WARRANTY_LEAD_DAYS,
   DEFAULT_WARRANTY_HOURS_LEAD,
 } from "@/lib/compliance";
-import { fineStatusLabel, fineStatusTone, nominationPending, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
+import { nominationPending, nominationDeadlineStatus, DEFAULT_AARTO_LEAD_DAYS } from "@/lib/fines";
 import { auditPlaceLabel, auditDevice, isHumanChange, type AuditRow } from "@/lib/audit-context";
 import { NewJobCard } from "@/app/(app)/jobcards/new-job-card";
 import { OfflineForm } from "@/components/offline/offline-form";
@@ -59,7 +57,7 @@ import { BackLink, PageContainer } from "@/components/ui/page-header";
 import { backHref } from "@/components/ui/back-href";
 import { readTab } from "@/components/ui/tabs-url";
 import { cn } from "@/components/ui/cn";
-import { StatusPill, StatusBadge, Badge, type BadgeTone } from "@/components/ui/badge";
+import { StatusPill, StatusBadge, Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -92,7 +90,7 @@ import { ExpiryStatus, FineStatus, WorkStatus, MachineStatus } from "@/component
 import { WorkRequestIntakeForm } from "@/app/(app)/work/work-request-intake-form";
 import {
   WORK_KINDS, WORK_PRIORITIES, workKindLabel, workPriorityLabel,
-  workStatusLabel, workStatusTone,
+  workStatusLabel,
 } from "@/lib/work";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
@@ -567,12 +565,6 @@ export default async function MachineDetailPage({
     : SETTING_NUMBERS.stale_reading_days;
   const isStale = machine.meter_type !== "none" &&
     (!machine.current_reading_date || (daysAgo(machine.current_reading_date) ?? Number.POSITIVE_INFINITY) > staleDays);
-  const urgencyTone = (u: string | null): BadgeTone => {
-    const s = (u ?? "").toLowerCase();
-    if (s.includes("stop")) return "danger";
-    if (s.includes("limp")) return "warning";
-    return "neutral";
-  };
   const isKm = machine.meter_type === "km";
   const intervalUnit = isKm ? t("machine.kmShort", locale) : t("machine.hrs", locale);
   const intervalLabel = isKm ? t("machine.intervalKm", locale) : t("machine.intervalHours", locale);

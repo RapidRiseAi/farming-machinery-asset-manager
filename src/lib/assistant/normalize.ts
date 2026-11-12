@@ -144,10 +144,6 @@ function buildLabels(machine: AssistantMachine): SpokenLabel[] {
   return [...labels.values()];
 }
 
-export function spokenLabels(machine: AssistantMachine): string[] {
-  return labelsOf(machine).map((label) => label.text);
-}
-
 /** How well one label is heard in the normalised request: literally, then by sound. */
 function labelScore(label: string, haystack: string, hayKey: string): number {
   let best = 0;

@@ -3,11 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { effectiveFarmRole, requireFarmRole, requireProfile, requireUsableFarm, type Role } from "@/lib/auth";
-import { recordFault } from "@/lib/domain/fleet-commands";
+import { requireFarmRole, requireProfile, type Role } from "@/lib/auth";
 import { errorCode } from "@/lib/action-errors";
-
-const URGENCIES = ["can_work", "limping", "stopped"];
 
 async function faultContext(id: string, roles: readonly Role[]) {
   const profile = await requireProfile();
@@ -41,41 +38,6 @@ async function updateFaultStatus(
     .select("id")
     .maybeSingle();
   if (error || !data) redirect("/faults?error=save-failed");
-}
-
-export async function createFault(formData: FormData) {
-  const machineId = String(formData.get("machine_id") ?? "");
-  const farmId = String(formData.get("farm_id") ?? "");
-  const description = String(formData.get("description") ?? "").trim();
-  const urgencyRaw = String(formData.get("urgency") ?? "can_work");
-  const urgency = URGENCIES.includes(urgencyRaw) ? urgencyRaw : "can_work";
-  const category = String(formData.get("category") ?? "").trim() || null;
-  if (!machineId || !farmId || !description) redirect("/faults?error=Pick+a+machine+and+describe+the+problem");
-  const profile = await requireProfile();
-  const role = await effectiveFarmRole(farmId, profile);
-  if (!role || !["rr_admin", "owner", "manager", "mechanic", "operator"].includes(role)) {
-    redirect("/faults?error=You+cannot+report+a+fault+for+that+farm");
-  }
-  // The stop gate on the posted farm (review round 5, finding gate-1), outside the try below
-  // so its redirect is not caught.
-  await requireUsableFarm(farmId, profile);
-
-  const supabase = await createClient();
-  try {
-    await recordFault(supabase, {
-      farmId,
-      machineId,
-      description,
-      urgency: urgency as "can_work" | "limping" | "stopped",
-      category,
-    });
-  } catch (error) {
-    // Never the database's words in the URL: a refusal our SQL raises keeps its own, and
-    // anything else is reported and said as "try again".
-    redirect(`/faults?error=${errorCode(error as Error, "faults:create")}`);
-  }
-  revalidatePath("/faults");
-  redirect("/faults?saved=1");
 }
 
 export async function resolveFault(formData: FormData) {

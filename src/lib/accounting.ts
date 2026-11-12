@@ -47,12 +47,12 @@ import { t, type Lang } from "@/lib/i18n";
 // accountant maps them once at import, and /accounting shows the whole map so they can
 // see exactly what lands where BEFORE downloading anything.
 
-export type AccountKind = "asset" | "liability" | "income" | "expense";
+type AccountKind = "asset" | "liability" | "income" | "expense";
 
 export type Account = { code: string; key: string; kind: AccountKind };
 
 /** Every account 0510 can emit, in the order an accountant reads a chart. */
-export const CHART: Account[] = [
+const CHART: Account[] = [
   { code: "1000", key: "bank", kind: "asset" },
   { code: "1100", key: "receivable", kind: "asset" },
   { code: "1600", key: "cost_purchase", kind: "asset" },
@@ -132,7 +132,7 @@ export function isJournalScope(v: string | null | undefined): v is JournalScope 
  * actually known, and a vendor name on a file we could not verify is the failure this
  * whole design is avoiding. Every package's import wizard reads one of the two.
  */
-export const LAYOUTS = ["dc", "signed"] as const;
+const LAYOUTS = ["dc", "signed"] as const;
 export type JournalLayout = (typeof LAYOUTS)[number];
 
 export function isJournalLayout(v: string | null | undefined): v is JournalLayout {
@@ -140,7 +140,7 @@ export function isJournalLayout(v: string | null | undefined): v is JournalLayou
 }
 
 /** Integer cents to the plain decimal an importer parses. Never localised: `1234.50`. */
-export function centsToAmount(cents: number): string {
+function centsToAmount(cents: number): string {
   const c = Math.round(cents);
   const neg = c < 0;
   const abs = Math.abs(c);
@@ -148,7 +148,7 @@ export function centsToAmount(cents: number): string {
 }
 
 /** VAT rate as a plain percentage for the file: 1500 → `15`. */
-export function bpsToPercent(bps: number): string {
+function bpsToPercent(bps: number): string {
   const whole = Math.round((bps / 100) * 100) / 100;
   return String(whole);
 }

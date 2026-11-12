@@ -191,16 +191,3 @@ export function Tour({
     </Overlay>
   );
 }
-
-/** Re-opens the tour from anywhere, used by the help card on the info panel. */
-export function StartTourButton({ label }: { label: string }) {
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      onClick={() => window.dispatchEvent(new Event("fleetwise:start-tour"))}
-    >
-      {label}
-    </Button>
-  );
-}

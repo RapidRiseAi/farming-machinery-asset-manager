@@ -227,50 +227,6 @@ export async function removeReceipt(formData: FormData) {
   redirect("/expenses?saved=1");
 }
 
-export async function updateExpense(formData: FormData) {
-  const profile = await requireRole(["workshop"]);
-  await requireWorkshopEntitlement("financials", "/expenses");
-  const id = String(formData.get("expense_id") ?? "");
-  if (!id) redirect("/expenses?error=not-found");
-
-  const m = money(formData);
-  if (!m) redirect(`/expenses?error=need-amount`);
-
-  const supabase = await createClient();
-  // A correction must still name somebody. The old fallback wrote "-" when the field came
-  // back empty, which put a nameless creditor onto the payables ageing for ever, the exact
-  // phantom this feature exists to end, so an empty supplier is now refused instead.
-  const supplier = await resolveSupplier(supabase, formData);
-  if (!supplier) redirect("/expenses?error=need-supplier");
-
-  const { error } = await supabase
-    .from("partner_expenses")
-    .update({
-      supplier_name: supplier.supplier_name,
-      // Set explicitly so switching an invoice from one record to another sticks. Writing
-      // the id here also stops the 0481 trigger's "the name was edited, drop the link"
-      // rule from firing on a deliberate re-pick, because the id changed too.
-      supplier_id: supplier.supplier_id,
-      supplier_vat_number: s(formData, "supplier_vat_number"),
-      reference: s(formData, "reference"),
-      category: category(formData),
-      description: s(formData, "description"),
-      expense_date: s(formData, "expense_date") ?? todayLocal(),
-      paid_on: s(formData, "paid_on"),
-      amount_cents: m.amount_cents,
-      vat_cents: m.vat_cents,
-      vat_rate_bps: m.vat_rate_bps,
-      vat_claimable: formData.get("vat_claimable") != null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  if (error) redirect(`/expenses?error=${errorCode(error, "app/expenses/actions:updateExpense")}`);
-  revalidatePath("/expenses");
-  revalidatePath("/vat");
-  redirect("/expenses?saved=1");
-}
-
 /**
  * Mark a supplier invoice as settled. Separate from the edit form because it is the one
  * thing a partner does to an expense afterwards, and it should not require reopening

@@ -8,7 +8,7 @@
  * a budget and its actual can never drift. The SQL mirror is the `budgets` table (0360) -
  * the period bounds are stored, so this file only has to sum, never re-derive them.
  */
-import type { Locale, Lang } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import type { CostType } from "@/lib/cost";
 
@@ -73,7 +73,7 @@ export function computePeriodBounds(
  * occurred_on falls in the budget's period AND that matches its machine scope (null =
  * any machine, incl. farm-level entries) AND its category scope (null = all types).
  */
-export function budgetActualCents(rows: BudgetCostRow[], b: Budget): number {
+function budgetActualCents(rows: BudgetCostRow[], b: Budget): number {
   let actual = 0;
   for (const r of rows) {
     const day = r.occurred_on?.slice(0, 10);
@@ -121,12 +121,4 @@ export function budgetPeriodLabel(type: string, locale: Lang): string {
 
 export function budgetCategoryLabel(category: string | null, locale: Lang): string {
   return category ? t(`costType.${category}`, locale) : t("budget.allCategories", locale);
-}
-
-export function budgetScopeLabel(
-  b: Pick<Budget, "machine_id">,
-  machineName: string | null,
-  locale: Lang,
-): string {
-  return b.machine_id ? machineName ?? t("budget.thisMachine", locale) : t("budget.wholeFarm", locale);
 }

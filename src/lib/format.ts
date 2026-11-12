@@ -1,4 +1,4 @@
-import { t, type Locale, type Lang, localeOf } from "./i18n";
+import { t, type Lang, localeOf } from "./i18n";
 
 /**
  * FLEETWISE's operating timezone, the same one `todayInSouthAfrica`, the nightly

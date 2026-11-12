@@ -7,7 +7,7 @@ export type AzureSpeechProviderEnv = {
   tokenEndpoint: string;
 };
 
-export type AzureSpeechProviderEnvIssue =
+type AzureSpeechProviderEnvIssue =
   | "missing_key"
   | "invalid_key"
   | "missing_region"
@@ -16,7 +16,7 @@ export type AzureSpeechProviderEnvIssue =
   | "invalid_endpoint";
 
 /** A deliberately non-sensitive error: callers must not surface environment values. */
-export class AzureSpeechProviderEnvError extends Error {
+class AzureSpeechProviderEnvError extends Error {
   readonly issue: AzureSpeechProviderEnvIssue;
 
   constructor(issue: AzureSpeechProviderEnvIssue) {

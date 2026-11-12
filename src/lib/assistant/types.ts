@@ -215,11 +215,3 @@ export type AssistantConfirmResponse =
       href: string;
     }
   | { ok: false; code: string; message: string };
-
-export function isAssistantLocale(value: unknown): value is AssistantLocale {
-  return typeof value === "string" && (ASSISTANT_LOCALES as readonly string[]).includes(value);
-}
-
-export function isAssistantIntent(value: unknown): value is AssistantIntent {
-  return typeof value === "string" && (ASSISTANT_INTENTS as readonly string[]).includes(value);
-}

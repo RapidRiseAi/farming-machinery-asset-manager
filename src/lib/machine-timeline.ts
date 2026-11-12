@@ -22,7 +22,7 @@ export type TimelineEvent = {
 };
 
 /** The chips above the line. "origin" shows under All only: it is where the line starts. */
-export const TIMELINE_FILTERS = {
+const TIMELINE_FILTERS = {
   problems: ["fault", "watch"],
   service: ["jobcard"],
   parts: ["part"],

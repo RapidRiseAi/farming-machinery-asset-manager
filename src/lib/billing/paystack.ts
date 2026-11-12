@@ -84,8 +84,8 @@ import type {
  * checks them and the adapter that writes them cannot drift into using different names
  *, a mismatch there would silently refuse every legitimate payment.
  */
-export const METADATA_FARM_KEY = "farm_id";
-export const METADATA_INVOICE_KEY = "invoice_id";
+const METADATA_FARM_KEY = "farm_id";
+const METADATA_INVOICE_KEY = "invoice_id";
 
 /** Card only. See `PaystackChannel`, nothing else yields a reusable authorization. */
 const CHECKOUT_CHANNELS: PaystackChannel[] = ["card"];
@@ -218,7 +218,7 @@ function readAuthorization(raw: unknown): {
 }
 
 /** Normalise a `data` object from initialize / verify / charge_authorization. */
-export function toVerifiedTransaction(data: Record<string, unknown>): VerifiedTransaction {
+function toVerifiedTransaction(data: Record<string, unknown>): VerifiedTransaction {
   const customer = isObject(data.customer) ? data.customer : {};
   const { authorization, refused } = readAuthorization(data.authorization);
   const idRaw = Number(data.id);

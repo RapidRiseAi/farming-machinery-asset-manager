@@ -25,7 +25,7 @@ import { Pdf } from "@/lib/pdf/doc";
  * per locale would break every spreadsheet that already points at them.
  */
 
-export const REPORT_FAMILIES = [
+const REPORT_FAMILIES = [
   "cost", "by_type", "problems", "compliance", "fuel", "contractors", "budgets", "utilisation",
 ] as const;
 export type ReportFamily = (typeof REPORT_FAMILIES)[number];
@@ -230,7 +230,7 @@ export function csvBytes(grid: ReportGrid): Uint8Array {
 // Same header labels and the same row data as the CSVs above, with money as REAL NUMBERS
 // in Rands rather than text, which is the whole reason the workbook exists.
 
-export function reportSheets(data: ReportData, key: ReportKey = "all"): XlsxSheet[] {
+function reportSheets(data: ReportData, key: ReportKey = "all"): XlsxSheet[] {
   const want = (f: ReportFamily) => key === "all" || key === f;
   const sheets: XlsxSheet[] = [];
 

@@ -1,20 +1,7 @@
-/**
- * Contractor per-kind view-router (F12c, spec §5).
- *
- * A contractor/supplier is a `workshop` classified by `contractor_kind` (0300). The
- * aggregated contractor dashboard (`/contractor`) shares ONE set of components but tailors
- * the DEFAULT filter, focus and copy to the contractor's kind: a mechanic lands on
- * repairs/inspections, a parts supplier on parts/quote requests (+ a catalogue shortcut),
- * an auto-electrician on electrical repairs, and so on. This keeps the surface identical
- * across kinds while making each contractor's first screen fit their trade.
- *
- * The `contractor_kind` labels reuse the existing `partnerKind.*` i18n keys (0300/F12a) -
- * no new label keys. The work-request kinds themselves live in `src/lib/work.ts`.
- */
-import { t, type Locale, type Lang } from "@/lib/i18n";
+
 import type { WorkKind } from "@/lib/work";
 
-export const CONTRACTOR_KINDS = [
+const CONTRACTOR_KINDS = [
   "mechanic",
   "auto_electrician",
   "parts_supplier",
@@ -24,15 +11,11 @@ export const CONTRACTOR_KINDS = [
   "other",
 ] as const;
 
-export type ContractorKind = (typeof CONTRACTOR_KINDS)[number];
+type ContractorKind = (typeof CONTRACTOR_KINDS)[number];
 
-export function isContractorKind(v: string): v is ContractorKind {
+function isContractorKind(v: string): v is ContractorKind {
   return (CONTRACTOR_KINDS as readonly string[]).includes(v);
 }
-
-/** Display label for a contractor kind, reuses F12a's `partnerKind.*` keys. */
-export const contractorKindLabel = (kind: string, locale: Lang) =>
-  t(`partnerKind.${kind}`, locale);
 
 /**
  * The tailored default for one contractor kind. `focusKinds` are the work-request kinds
@@ -49,7 +32,7 @@ export type ContractorView = {
 
 const ALL_KINDS: WorkKind[] = ["repair", "quote", "inspection", "parts", "other"];
 
-export const CONTRACTOR_VIEWS: Record<ContractorKind, ContractorView> = {
+const CONTRACTOR_VIEWS: Record<ContractorKind, ContractorView> = {
   mechanic: {
     kind: "mechanic",
     focusKinds: ["repair", "inspection"],

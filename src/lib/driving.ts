@@ -7,7 +7,7 @@ export const DRIVING_KINDS = [
   "engine_off",
   "location",
 ] as const;
-export type DrivingKind = (typeof DRIVING_KINDS)[number];
+type DrivingKind = (typeof DRIVING_KINDS)[number];
 export type DrivingEvent = {
   sequence?: number;
   id: string;

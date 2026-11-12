@@ -1,4 +1,4 @@
-import { companyOf, t, type CompanyType, type Locale, type Lang } from "@/lib/i18n";
+import { companyOf, t, type CompanyType, type Lang } from "@/lib/i18n";
 
 export const MACHINE_TYPES = [
   "tractor",
@@ -56,10 +56,6 @@ export const MACHINE_STATUSES = [
   "sold",
 ] as const;
 
-// Statuses that keep a machine on the active fleet (counted, notified, reported).
-// `retired`/`sold` are the only excluded statuses; `out_of_service` is active-but-down.
-export const INACTIVE_STATUSES = ["retired", "sold"] as const;
-
 export const METER_TYPES = ["hours", "km", "none"] as const;
 
 /**
@@ -101,19 +97,4 @@ export const TYPE_LABELS: Record<string, string> = {
   forklift: "Forklift",
   earthmoving: "Earthmoving / Plant",
   boat: "Boat",
-};
-
-export const STATUS_LABELS: Record<string, string> = {
-  active: "Active",
-  in_workshop: "In workshop",
-  standby: "Standby",
-  out_of_service: "Out of service",
-  retired: "Retired",
-  sold: "Sold",
-};
-
-export const METER_LABELS: Record<string, string> = {
-  hours: "Hours",
-  km: "Kilometres",
-  none: "None (calendar only)",
 };

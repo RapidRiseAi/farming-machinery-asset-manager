@@ -141,7 +141,6 @@ export default async function ClientPage({
   const now = new Date();
   const closeLabel = t("ui.close", locale);
   const cancelLabel = t("common.cancel", locale);
-  const back = `/admin/farms/${farm.id}`;
   const link = "focus-ring rounded font-medium text-brand-ink underline underline-offset-2 break-all";
 
   const lookInside = (

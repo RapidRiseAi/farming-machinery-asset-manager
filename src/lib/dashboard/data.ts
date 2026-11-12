@@ -20,12 +20,12 @@ export type DashMachine = {
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null;
   assigned_operator_id: string | null;
 };
-export type DashService = { machine_id: string; status: string; task: string; next_due_date: string | null };
-export type DashFault = { id: string; machine_id: string; description: string | null; urgency: string | null; status: string; created_at: string };
-export type DashJobCard = { machine_id: string; type: string; status: string; total_cents: number | null; date_in: string | null; date_out: string | null };
-export type DashFuel = { machine_id: string | null; date: string; litres: number | null; cost_cents: number | null; anomaly_notified_at: string | null };
-export type DashLicence = { id: string; machine_id: string; type: string; expiry_date: string; reminder_lead_days: number };
-export type DashFine = { id: string; machine_id: string; offence: string | null; notice_number: string | null; nomination_deadline: string | null; status: string };
+type DashService = { machine_id: string; status: string; task: string; next_due_date: string | null };
+type DashFault = { id: string; machine_id: string; description: string | null; urgency: string | null; status: string; created_at: string };
+type DashJobCard = { machine_id: string; type: string; status: string; total_cents: number | null; date_in: string | null; date_out: string | null };
+type DashFuel = { machine_id: string | null; date: string; litres: number | null; cost_cents: number | null; anomaly_notified_at: string | null };
+type DashLicence = { id: string; machine_id: string; type: string; expiry_date: string; reminder_lead_days: number };
+type DashFine = { id: string; machine_id: string; offence: string | null; notice_number: string | null; nomination_deadline: string | null; status: string };
 
 export type DashData = {
   now: Date;

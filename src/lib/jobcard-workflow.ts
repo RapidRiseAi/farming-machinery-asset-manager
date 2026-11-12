@@ -7,9 +7,9 @@ export type JobWork = {
   locked: boolean;
 };
 
-export const ACTIVE_JOB_STATUSES = ["reported", "open", "in_progress", "waiting_parts"] as const;
+const ACTIVE_JOB_STATUSES = ["reported", "open", "in_progress", "waiting_parts"] as const;
 
-export function isJobEditableStatus(status: string): boolean {
+function isJobEditableStatus(status: string): boolean {
   return (ACTIVE_JOB_STATUSES as readonly string[]).includes(status);
 }
 

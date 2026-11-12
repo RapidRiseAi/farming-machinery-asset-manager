@@ -42,7 +42,7 @@ import { exVatCents } from "@/lib/money";
  * from `machine-options.ts` so this module stays free of the i18n dictionaries, but
  * the two are asserted equal in `pricing.test.ts`, so they cannot drift silently.
  */
-export const NON_BILLABLE_MACHINE_STATUSES = ["retired", "sold"] as const;
+const NON_BILLABLE_MACHINE_STATUSES = ["retired", "sold"] as const;
 
 /**
  * The billable rule, in one sentence, in one place.
@@ -219,21 +219,4 @@ export function quoteSubscription(input: QuoteInput): SubscriptionQuote {
     chargeable: amounts.totalInclCents > 0,
     ...amounts,
   };
-}
-
-/**
- * What a price version says one vehicle costs per month, for display beside a total.
- * On an annual plan the customer pays for 10 months across 12, so the effective monthly
- * figure is lower than the list price, and showing the list price beside an annual
- * total is how a bill stops adding up in a customer's head.
- */
-export function effectiveMonthlyPerVehicleCents(
-  unitPriceInclCents: number | null,
-  period: BillingPeriod,
-  monthsCharged?: number | null,
-): number | null {
-  if (unitPriceInclCents == null) return null;
-  if (period !== "annual") return unitPriceInclCents;
-  const months = monthsChargedFor("annual", monthsCharged ?? null);
-  return Math.round((unitPriceInclCents * months) / 12);
 }

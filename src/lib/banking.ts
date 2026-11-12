@@ -22,7 +22,7 @@ import { parseRandsToCents } from "@/lib/money";
 
 /** Parse CSV text into rows of string cells. Handles quotes, escaped quotes, commas and
  *  newlines inside quotes, CRLF, and a leading BOM. */
-export function parseCsv(text: string): string[][] {
+function parseCsv(text: string): string[][] {
   const s = text.replace(/^﻿/, "");
   const rows: string[][] = [];
   let row: string[] = [];
@@ -79,7 +79,7 @@ const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : 
 // and "export it differently first" is not an instruction a farmer's mechanic will follow.
 
 export const BANK_COLUMNS = ["date", "description", "reference", "amount", "money_in", "money_out"] as const;
-export type BankColumn = (typeof BANK_COLUMNS)[number];
+type BankColumn = (typeof BANK_COLUMNS)[number];
 
 /** "Leave this column out", a real choice, not an absent one. */
 export const SKIP_COLUMN = "";
@@ -208,7 +208,7 @@ export function readSampleRow(text: string): string[] {
  * refused outright rather than guessed at, because a wrong amount here becomes a wrong
  * payment against a real invoice.
  */
-export function parseBankAmountToCents(input: string | null | undefined): number | null {
+function parseBankAmountToCents(input: string | null | undefined): number | null {
   if (input == null) return null;
   let s = String(input)
     // Every flavour of space a spreadsheet or a bank emits, including the non-breaking and
@@ -296,7 +296,7 @@ const fullYear = (y: number) => (y >= 100 ? y : y >= 70 ? 1900 + y : 2000 + y);
  * is a way to be right about the ones this product actually receives, and to be predictable
  * about the rest.
  */
-export function parseBankDate(input: string | null | undefined): string | null {
+function parseBankDate(input: string | null | undefined): string | null {
   if (input == null) return null;
   const s = String(input).trim();
   if (s === "") return null;
@@ -338,7 +338,7 @@ export function parseBankDate(input: string | null | undefined): string | null {
 
 // == Parsing a whole statement ================================================
 
-export type BankLineInsert = {
+type BankLineInsert = {
   txn_date: string;
   description: string | null;
   reference: string | null;
@@ -347,7 +347,7 @@ export type BankLineInsert = {
   occurrence: number;
 };
 
-export type BankRowResult = {
+type BankRowResult = {
   /** 1-based data row (excludes the header), what the person sees next to the problem. */
   line: number;
   cells: Record<BankColumn, string>;
@@ -375,7 +375,7 @@ export type StatementParse = {
  * makes a re-import a no-op. If the two ever drift, re-importing starts producing
  * duplicates again and nothing in the app will say so.
  */
-export function fingerprint(description: string | null, reference: string | null): string {
+function fingerprint(description: string | null, reference: string | null): string {
   return `${description ?? ""} ${reference ?? ""}`.replace(/[^a-zA-Z0-9]+/g, "").toLowerCase();
 }
 

@@ -2,7 +2,7 @@
 // imports, so it is safe in both server pages and client islands (the template
 // builder + the fill renderer), keeping the SQL field-type model and the UI in step.
 
-import { t, type Locale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 
 /** The field types a checklist template supports (matches the SQL check in 0290). */
 export const CHECKLIST_FIELD_TYPES = [
@@ -19,29 +19,6 @@ export type ChecklistFieldType = (typeof CHECKLIST_FIELD_TYPES)[number];
 export function isChecklistFieldType(v: string): v is ChecklistFieldType {
   return (CHECKLIST_FIELD_TYPES as readonly string[]).includes(v);
 }
-
-/** A template field as stored / edited. */
-export type ChecklistField = {
-  id?: string;
-  field_type: ChecklistFieldType;
-  label: string;
-  required: boolean;
-  help_text: string | null;
-  /** Field extras, e.g. { max: 5 } for a rating. */
-  config: Record<string, unknown> | null;
-  sort_order: number;
-};
-
-/** A field's value on a filled checklist (per-field row in checklist_instance_values). */
-export type ChecklistValue = {
-  template_field_id: string | null;
-  sort_order: number;
-  field_type: ChecklistFieldType;
-  label: string;
-  value_text: string | null;
-  notes: string | null;
-  attachment_id: string | null;
-};
 
 export const DEFAULT_RATING_MAX = 5;
 

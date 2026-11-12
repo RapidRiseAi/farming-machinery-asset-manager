@@ -71,7 +71,7 @@ export default async function DocumentsPage({
   const isFarmSide = profile.role === "owner" || profile.role === "manager";
 
   const supabase = await createClient();
-  const { workshop, plan } = await currentWorkshop(profile);
+  const { plan } = await currentWorkshop(profile);
   const canBuild = isPartner && plan != null && workshopPlanAllows(plan, "build_documents");
 
   let query = supabase

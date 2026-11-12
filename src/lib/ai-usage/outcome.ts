@@ -15,9 +15,6 @@ export type AiOutcome =
   | "cancelled"
   | "unknown";
 
-/** Outcomes that mean the platform itself is misconfigured or out of money: alert at once. */
-export const URGENT_OUTCOMES: readonly AiOutcome[] = ["no_credit"];
-
 export type ClassifiedFailure = {
   outcome: Exclude<AiOutcome, "ok" | "fallback" | "unknown">;
   /** Short, redacted, safe to store and show to the founder. */
