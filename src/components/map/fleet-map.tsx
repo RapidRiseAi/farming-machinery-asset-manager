@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { boundsOf } from "@/lib/map-data";
-import { HOME, MAP_STYLE, themeColour } from "./map-style";
+import { HOME, MAP_STYLE, loadMapLibre, themeColour } from "./map-style";
 
 /**
  * The map itself. MapLibre is large, so it loads only here, and only for people who open this
@@ -65,7 +65,7 @@ export function FleetMap({
     let cancelled = false;
     const all: MapLine[] = [...lines, ...(route.length > 1 ? [{ id: "route", kind: "driven" as const, coords: route }] : [])];
 
-    void import("maplibre-gl").then(({ default: maplibre }) => {
+    void loadMapLibre().then((maplibre) => {
       if (cancelled || !holder.current) return;
       const map = new maplibre.Map({ container: holder.current, style: MAP_STYLE, center: HOME, zoom: 4.5 });
       map.addControl(new maplibre.NavigationControl({ showCompass: false }));

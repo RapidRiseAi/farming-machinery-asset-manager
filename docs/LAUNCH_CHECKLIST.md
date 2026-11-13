@@ -151,6 +151,9 @@ Order: correctness and security first, then load, then product.
 - [x] **B8** Patch Next.js to 15.5.27 or later, the AI SDK packages (undici), sharp; full test run.
       2026-10-13: next 15.5.27, ai 7.0.138, @ai-sdk/openai 4.0.92, overrides sharp 0.35.5,
       undici 7.30.0, source-map-js 1.2.2; `pnpm audit --prod` clean, 579 tests, build.
+      2026-11-13, superseding those versions: ai 7.0.172, @ai-sdk/openai 4.0.117, maplibre-gl
+      6.18.0, tooling overrides raised; `pnpm audit` clean and gated in CI (SECURITY.md §7,
+      Dependencies).
 - [x] **B7** One shared paging reader and database-side totals; fix the SARS diesel logbook,
       reports, machines list lifetime costs, dashboard, machine page and PDF packs; a test that
       fails on any uncapped read of a growing table.

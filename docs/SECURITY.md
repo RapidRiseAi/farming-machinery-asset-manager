@@ -473,6 +473,32 @@ seconds, sends the person back with a translated sentence, before any database o
 call. A browser with JavaScript off gets no token, so it cannot submit these three forms;
 the message says JavaScript is needed. The token and the secret are never logged.
 
+### Dependencies
+
+- **The audit gate.** CI (`app-build`) runs `pnpm audit --prod --audit-level high` right after
+  `pnpm install --frozen-lockfile`, so a high or critical advisory in a package that ships to
+  customers fails the build. Build and lint tooling is not gated, but `pnpm audit` should print
+  nothing; on 2026-11-13 it printed nothing for either.
+- **The lockfile is the pin.** `package.json` keeps `^` ranges and `pnpm-lock.yaml` fixes every
+  version; CI installs it frozen, with the pnpm that `packageManager` names and Node 22
+  (`.nvmrc`). Two entries are exact on purpose: `maplibre-gl` (a new major changes the map
+  code) and `@ai-sdk/openai` (it must share `@ai-sdk/provider-utils` with `ai`).
+- **Overrides** (`pnpm.overrides`) force a package that a dependency still asks for at a
+  vulnerable version onto a patched one: the lowest patched release on the same major, raised
+  only as far as a dependent's own range needs (browserslist 4.28.9 and
+  baseline-browser-mapping 2.11.20 for autoprefixer 10.6, nanoid 3.3.20 for postcss 8.5.32).
+  One crosses a major: minimatch 10 goes to 11.0.1, because typescript-eslint 8 still asks for
+  ^10; the function it calls is unchanged and lint runs inside `pnpm build`. To raise one, set
+  the advisory's patched version, `pnpm install`, `pnpm audit`, then the tests and
+  `pnpm build`. Remove one once nothing asks for a vulnerable version (`pnpm why <name>`): a
+  pin that is no longer needed stops `pnpm update` from moving that package.
+- **MapLibre 6** (2026-11-13, from 5.24.0, critical GHSA-jrc7-96c5-q579: `DOM.sanitize` let
+  script through in attribution text from a map style; our popups are built from text nodes).
+  Version 6 is ES modules only and its worker is a file of its own: `loadMapLibre()` in
+  `src/components/map/map-style.ts` names it with `new URL(..., import.meta.url)`, so webpack
+  ships it under `/_next/static` and it loads from this origin under `worker-src 'self'`.
+  MapLibre no longer needs `blob:` there.
+
 ## 8. Must verify / configure in the live Supabase + Vercel project
 
 - [ ] **Auth → leaked-password protection (HaveIBeenPwned): ENABLE.** The only open item
@@ -491,7 +517,8 @@ the message says JavaScript is needed. The token and the secret are never logged
 - [ ] Set `SENTRY_DSN` to switch error reporting on. The reporting layer itself is built and
       tested (§5d); with no DSN it falls through to the server log, so this is a configuration
       step, not outstanding work.
-- [ ] Keep Supabase, Next.js, and dependencies patched; run `pnpm audit` in CI.
+- [ ] Keep Supabase, Next.js, and dependencies patched. CI runs
+      `pnpm audit --prod --audit-level high` since 2026-11-13 (§7, Dependencies).
 - [ ] Confirm all Storage buckets remain **private** (migration `0200`); serve via signed
       URLs only.
 

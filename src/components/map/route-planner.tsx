@@ -7,7 +7,7 @@ import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { boundsOf } from "@/lib/map-data";
-import { HOME, MAP_STYLE, themeColour } from "./map-style";
+import { HOME, MAP_STYLE, loadMapLibre, themeColour } from "./map-style";
 
 /**
  * Planning a trip's route the way a navigation app does: find a place or drop a pin, add stops
@@ -201,11 +201,11 @@ export function RoutePlanner({
   // == The map, once ===========================================================
   useEffect(() => {
     let cancelled = false;
-    void import("maplibre-gl").then((lib) => {
+    void loadMapLibre().then((lib) => {
       if (cancelled || !holder.current) return;
-      libRef.current = lib.default;
-      const map = new lib.default.Map({ container: holder.current, style: MAP_STYLE, center: HOME, zoom: 4.5 });
-      map.addControl(new lib.default.NavigationControl({ showCompass: false }));
+      libRef.current = lib;
+      const map = new lib.Map({ container: holder.current, style: MAP_STYLE, center: HOME, zoom: 4.5 });
+      map.addControl(new lib.NavigationControl({ showCompass: false }));
       mapRef.current = map;
 
       map.on("click", (e) => {
