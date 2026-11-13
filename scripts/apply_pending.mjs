@@ -38,6 +38,10 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The equipment profile on machines, its eligibility answer, the guard and the review list.
+  "20261114090100": "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'machines' and column_name = 'profile') and to_regprocedure('app.equipment_eligible(public.machine_type)') is not null and to_regclass('public.asset_classification_reviews') is not null and to_regprocedure('public.equipment_profile_candidates(uuid)') is not null",
+  // Compressors, workshop tools and other equipment as machine types.
+  "20261114090000": "select exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'machine_type' and e.enumlabel = 'other_equipment')",
   // Sign-in attempt limits: the counter keyed by a hash the server supplies.
   "20261113090000": "select to_regprocedure('public.rate_limit_take_key(text,text,integer,integer)') is not null",
   // The pay gate inside owner-run functions, and on the farm buckets where storage exists.

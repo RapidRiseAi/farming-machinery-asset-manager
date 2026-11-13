@@ -683,7 +683,10 @@
     "motorcycle": "Motorfiets",
     "forklift": "Vurkhyser",
     "earthmoving": "Grondverskuiwing / Aanleg",
-    "boat": "Boot"
+    "boat": "Boot",
+    "compressor": "Kompressor",
+    "workshop_tool": "Werkswinkelgereedskap",
+    "other_equipment": "Ander toerusting (nie selfaangedrewe nie)"
   },
   "machineStatus": {
     "active": "Aktief",

@@ -683,7 +683,10 @@
     "motorcycle": "Motorcycle",
     "forklift": "Forklift",
     "earthmoving": "Earthmoving / Plant",
-    "boat": "Boat"
+    "boat": "Boat",
+    "compressor": "Compressor",
+    "workshop_tool": "Workshop tool",
+    "other_equipment": "Other equipment (not self-propelled)"
   },
   "machineStatus": {
     "active": "Active",

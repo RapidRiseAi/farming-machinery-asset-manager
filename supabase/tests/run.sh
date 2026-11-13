@@ -266,5 +266,7 @@ pg "$DB" < "$ROOT/supabase/tests/billing_review_4.sql"
 echo "==> running fifth billing review tests (trial cancellations, reopening a paid period, exempt farms, paused changes)"
 pg "$DB" < "$ROOT/supabase/tests/billing_review_5.sql"
 pg "$DB" < "$ROOT/supabase/tests/billing_pricing_2026_11.sql"
+echo "==> running equipment profile tests (eligibility, direct changes refused, the review list)"
+pg "$DB" < "$ROOT/supabase/tests/equipment_profile.sql"
 
 echo "==> OK"

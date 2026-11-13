@@ -83,7 +83,11 @@ person's dashboard), `sync_log`.
 
 ## Vehicles and machinery
 
-`machines` (every vehicle or machine; `meter_type` hours or km), `meter_readings`,
+`machines` (every vehicle or machine; `meter_type` hours or km; `profile` full or equipment,
+which only `convert_asset_profile` changes and `app.equipment_eligible(type)` limits to
+support equipment, 20261114090100), `asset_classification_reviews` (an owner or an
+other-equipment asset asks Rapid Rise to check a classification; never bills by itself),
+`meter_readings`,
 `meter_replacements`, `attachments` (photos and files), `asset_aliases` (the names people
 say), `asset_contracts` (leases, rentals, service contracts), `asset_positions` (where a
 vehicle was, kept 180 days), `licences`, `driver_credentials`, `tyres`, `tyre_fitments`,
