@@ -264,36 +264,40 @@ do $t$ begin
 end $t$;
 
 -- == Files in the farm buckets =================================================
--- Where there is no storage schema (plain Postgres, PGlite), a stand-in with the columns the
--- policies read and a permissive policy that lets everything through, so only the pay gate
--- decides. Where storage is real, only that the policies are there.
+-- Three places this runs, and only the first has storage.objects when the migrations apply:
+--   a Supabase database: storage.objects is real, and 20261112100000 made the policies;
+--   CI (run.sh on Postgres): rls_isolation.sql leaves a storage schema behind but no
+--     storage.objects, after the migrations ran, so they made no policies;
+--   PGlite (migrate_check --suite): no storage schema at all.
+-- So the schema and a stand-in table only where missing (a permissive policy lets everything
+-- through, so only the pay gate decides), and the policies from the migration's own function
+-- only where the migration found nothing to put them on. Then they are exercised everywhere.
 do $t$
 begin
+  create schema if not exists storage;
   if to_regclass('storage.objects') is null then
-    create schema storage;
     create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
     alter table storage.objects enable row level security;
     create policy stand_in_all on storage.objects for all to authenticated using (true) with check (true);
     grant usage on schema storage to authenticated;
     grant select, insert, update, delete on storage.objects to authenticated;
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
+                   and policyname like 'pay_gate_%') then
     if app.pay_gate_storage_apply() <> 4 then raise exception 'the storage policies were not made'; end if;
-    insert into storage.objects (bucket_id, name) values
-      ('machine-photos', 'c8000000-0000-4000-9000-000000000002/c8200000-0000-4000-9000-000000000002/a.jpg'),
-      ('machine-photos', 'c8000000-0000-4000-9000-000000000003/c8200000-0000-4000-9000-000000000003/a.jpg');
   end if;
   if (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects'
         and policyname like 'pay_gate_%' and permissive = 'RESTRICTIVE') <> 4 then
     raise exception 'storage.objects lacks its pay_gate policies';
   end if;
+  insert into storage.objects (bucket_id, name) values
+    ('machine-photos', 'c8000000-0000-4000-9000-000000000002/c8200000-0000-4000-9000-000000000002/a.jpg'),
+    ('machine-photos', 'c8000000-0000-4000-9000-000000000003/c8200000-0000-4000-9000-000000000003/a.jpg');
 end $t$;
 
 do $t$
 declare r record; v_got text;
 begin
-  if not exists (select 1 from storage.objects where bucket_id = 'machine-photos'
-                   and name like 'c8000000-0000-4000-9000-000000000003/%') then
-    return;   -- real storage: the policies' presence is asserted above
-  end if;
   for r in select * from (values
       ('c8100000-0000-4000-9000-000000000001'::uuid, 'c8000000-0000-4000-9000-000000000001', 'machine-photos', 'ok'),
       ('c8100000-0000-4000-9000-000000000002', 'c8000000-0000-4000-9000-000000000002', 'machine-photos', 'refused'),
