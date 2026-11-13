@@ -105,3 +105,13 @@ test("security.txt is served signed out, and pages are matched while build files
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("location"), null);
 });
+
+test("the unsubscribe page and its one-click address are reached signed out", async () => {
+  for (const path of ["/unsubscribe?u=x&s=y", "/unsubscribe/one-click?u=x&s=y"]) {
+    const response = await run(path, SUPABASE);
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers.get("location"), null, `${path} was sent to sign in`);
+    // The enforced policy lets the page's own form post back to this site.
+    assert.match(read(response).policy, /form-action 'self'/);
+  }
+});

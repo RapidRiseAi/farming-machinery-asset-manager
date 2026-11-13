@@ -49,7 +49,10 @@ the authority on its columns (`supabase/migrations`, applied in filename order).
 - **RPCs that run as their owner check the caller themselves.** A `security definer`
   function reachable from a browser must verify membership, role and the account's state
   before it reads or writes; its tests in `supabase/tests` prove a member of one business
-  cannot reach another's rows through it.
+  cannot reach another's rows through it. The check may live in a helper it calls first:
+  `has_entitlement` asks `app.has_farm_access` before it reads a plan, so it answers "no"
+  for a business the caller does not reach, and for a call with no user (the service role)
+  (0251; `rls_isolation.sql` F5 pins both, and the public wrapper).
 - **The `app` schema is not exposed.** PostgREST serves `public` only, so `app.*` helpers
   are reachable from policies and other functions, never from `supabase.rpc()`. A screen that
   needs one calls a thin `public` wrapper.

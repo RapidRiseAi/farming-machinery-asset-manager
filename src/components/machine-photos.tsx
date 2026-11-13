@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { signedUrlsByPath } from "@/lib/signed-urls";
 import { compressImage } from "@/lib/image-compress";
 import { t, type Lang } from "@/lib/i18n";
 import { setPrimaryPhoto, clearPrimaryPhoto } from "@/app/(app)/machines/actions";
@@ -61,20 +62,9 @@ export function MachinePhotos({
     }
     setLoadFailed(false);
     const rows = (data ?? []) as { id: string; storage_path: string | null }[];
-    let signFailure: unknown = null;
-    const withUrls = await Promise.all(
-      rows.map(async (r) => {
-        let url: string | null = null;
-        if (r.storage_path) {
-          const { data: s, error: signError } = await supabase.storage
-            .from("machine-photos")
-            .createSignedUrl(r.storage_path, 3600);
-          if (signError) signFailure = signError;
-          url = s?.signedUrl ?? null;
-        }
-        return { id: r.id, url };
-      })
-    );
+    // One request for the whole gallery; a file that will not sign is left out of it.
+    const { urls, error: signFailure } = await signedUrlsByPath(supabase, "machine-photos", rows.map((r) => r.storage_path), 3600);
+    const withUrls = rows.map((r) => ({ id: r.id, url: (r.storage_path && urls.get(r.storage_path)) || null }));
     setPhotos(withUrls);
     // A photo without a link is hidden, so tell the person some did not load. One row whose
     // file is gone fails on every visit, so it is reported once per page session, not on

@@ -2,6 +2,7 @@
 // which keeps it off the client bundle (mirrors src/lib/machine-photo.ts).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { soft } from "@/lib/supabase/must";
+import { signedUrlsByPath } from "@/lib/signed-urls";
 import { captureError } from "@/lib/observability";
 
 const MAX_PHOTO_BYTES = 6 * 1024 * 1024; // decoded cap (the client already compresses)
@@ -72,12 +73,8 @@ export async function signChecklistPhotos(
   supabase: SupabaseClient,
   paths: (string | null)[],
 ): Promise<(string | null)[]> {
-  return Promise.all(
-    paths.map(async (p) => {
-      if (!p) return null;
-      // soft: a photo that will not sign shows as missing; the answers beside it still stand.
-      const data = soft(await supabase.storage.from("checklist-photos").createSignedUrl(p, 3600), "checklist-media:sign");
-      return data?.signedUrl ?? null;
-    }),
-  );
+  const { urls, error } = await signedUrlsByPath(supabase, "checklist-photos", paths, 3600);
+  // soft: a photo that will not sign shows as missing; the answers beside it still stand.
+  if (error) soft({ data: null, error }, "checklist-media:sign");
+  return paths.map((p) => (p && urls.get(p)) || null);
 }

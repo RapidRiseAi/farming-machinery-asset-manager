@@ -49,6 +49,8 @@ export type SendEmailInput = {
    * customer twice even if our own record of the first send did not survive.
    */
   idempotencyKey?: string | null;
+  /** Extra message headers, passed to Resend as they are (the alert emails' List-Unsubscribe). */
+  headers?: Record<string, string> | null;
 };
 
 export type SendEmailResult =
@@ -182,6 +184,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   };
   if (input.replyTo) body.reply_to = [input.replyTo];
   if (input.cc) body.cc = [input.cc];
+  if (input.headers && Object.keys(input.headers).length) body.headers = input.headers;
   if (input.attachments?.length) {
     body.attachments = input.attachments.map((a) => ({
       filename: a.filename,

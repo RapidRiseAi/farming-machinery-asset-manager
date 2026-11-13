@@ -12,6 +12,7 @@ import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { deliverNotificationEmail } from "./email-deliver";
+import { unsubscribeLinks } from "@/lib/email/unsubscribe";
 
 type Note = {
   id: string;
@@ -30,18 +31,20 @@ const note = (over: Partial<Note> = {}): Note => ({
   ...over,
 });
 
-type SentMail = { to: string; subject: string; text: string; html: string };
+type SentMail = { to: string; subject: string; text: string; html: string; headers: Record<string, string> | null };
 
 function fixture(opts: {
   notes?: Note[];
   user?: { notify_email: boolean; email: string | null };
   send?: () => { ok: boolean; error?: string };
+  userId?: string;
+  language?: string;
 } = {}) {
   const notes = opts.notes ?? [note()];
   const user = {
-    id: "user-1",
+    id: opts.userId ?? "user-1",
     notify_email: opts.user?.notify_email ?? true,
-    language: "en",
+    language: opts.language ?? "en",
     email: opts.user === undefined ? "farmer@example.test" : opts.user.email,
     name: "Farmer",
   };
@@ -119,6 +122,7 @@ function withMail(
       subject: String(body.subject ?? ""),
       text: String(body.text ?? ""),
       html: String(body.html ?? ""),
+      headers: (body.headers as Record<string, string> | undefined) ?? null,
     };
     sent.push(mail);
     const outcome = send(mail);
@@ -243,5 +247,40 @@ test("an address that does not exist is the same: finished, never sent", async (
     assert.equal(sent.length, 0);
     assert.equal(result.skippedRows, 1);
     assert.equal(finished[0].terminal, true);
+  });
+});
+
+test("an alert carries a signed way out, in the person's language, and the one-click headers", async () => {
+  const id = "a1b2c3d4-0000-4000-9000-00000000000a";
+  for (const [language, label] of [["en", "Turn these emails off"], ["af", "Skakel hierdie e-posse af"]] as const) {
+    await withMail(async (sent) => {
+      const { client } = fixture({ userId: id, language, notes: [note({ user_id: id })] });
+      const result = await deliverNotificationEmail(client);
+      assert.equal(result.sent, 1);
+      const links = unsubscribeLinks("https://app.fleetwise.test", id);
+      assert.ok(links, "the test environment has a key to sign with");
+      const mail = sent[0];
+      // The footer, in both parts, worded for this person.
+      assert.ok(mail.text.includes(`${label}: ${links.page}`), mail.text);
+      assert.ok(mail.html.includes(`href="${links.page.replace(/&/g, "&amp;")}"`), mail.html);
+      assert.ok(mail.html.includes(`>${label}</a>`), mail.html);
+      // The mail app's own button: an https address it posts to, and the one-click marker.
+      assert.deepEqual(mail.headers, {
+        "List-Unsubscribe": `<${links.oneClick}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      });
+      assert.match(mail.headers?.["List-Unsubscribe"] ?? "", /^<https:\/\//);
+    });
+  }
+});
+
+test("with no site address there is no half-built way out, and the alert still goes", async () => {
+  await withMail(async (sent) => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    const { client } = fixture({ userId: "a1b2c3d4-0000-4000-9000-00000000000a", notes: [note({ user_id: "a1b2c3d4-0000-4000-9000-00000000000a" })] });
+    await deliverNotificationEmail(client);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].headers, null);
+    assert.doesNotMatch(sent[0].text, /unsubscribe/);
   });
 });

@@ -268,6 +268,7 @@ const CODE_KEYS: Record<string, string> = {
   "closure-link-dead": "closure.errors.linkDead",
   "closure-name": "closure.errors.name",
   "closure-failed": "closure.errors.failed",
+  "unsubscribe-failed": "unsubscribe.failed",
   "apply-missing": "errors.applyMissing",
   "apply-email": "errors.applyEmail",
   "apply-consent": "errors.applyConsent",

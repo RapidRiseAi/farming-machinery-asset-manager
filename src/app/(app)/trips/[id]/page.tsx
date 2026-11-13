@@ -9,6 +9,7 @@ import { dateTime, num } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { must } from "@/lib/supabase/must";
+import { signedUrlsByPath } from "@/lib/signed-urls";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { EXPENSE_KINDS, TRIP_STATUS_TONE, tripDistance, tripFields } from "@/lib/trips";
@@ -112,11 +113,8 @@ export default async function TripPage({
   // Proof of delivery is signed for the moment it is read, and never stored as a public link.
   const svc = createServiceClient();
   const paths = jobRows.flatMap((j) => [j.pod_photo_path, j.pod_signature_path].filter(Boolean) as string[]);
-  const signed = new Map<string, string>();
-  for (const path of paths) {
-    const { data } = await svc.storage.from("jobcard-photos").createSignedUrl(path, 3600);
-    if (data?.signedUrl) signed.set(path, data.signedUrl);
-  }
+  // One request for every photo and signature; one that will not sign is left without a link.
+  const signed = (await signedUrlsByPath(svc, "jobcard-photos", paths, 3600)).urls;
 
   const fields = tripFields(locale);
   const km = tripDistance(trip);

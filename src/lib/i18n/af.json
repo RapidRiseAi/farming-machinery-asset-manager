@@ -6322,7 +6322,19 @@
   "notifyEmail": {
     "open": "Maak dit in FLEETWISE oop",
     "why": "Jy kry dit omdat jy FLEETWISE gevra het om jou waarskuwings te e-pos. Skakel dit af onder Kennisgewings.",
-    "financialBody": "Daar is 'n bedrag hierby, daarom is dit nie in die e-pos nie. Maak FLEETWISE oop om dit te sien."
+    "financialBody": "Daar is 'n bedrag hierby, daarom is dit nie in die e-pos nie. Maak FLEETWISE oop om dit te sien.",
+    "unsubscribe": "Skakel hierdie e-posse af"
+  },
+  "unsubscribe": {
+    "title": "Skakel waarskuwings per e-pos af",
+    "body": "Dit stop die waarskuwings wat FLEETWISE vir jou e-pos, soos 'n diens wat aan die kom is of 'n fout wat aangemeld is. Jou waarskuwings wys steeds in die toep, en kwitansies, fakture en aanmeld-e-posse kom steeds.",
+    "button": "Skakel hierdie e-posse af",
+    "pending": "Skakel hulle af",
+    "doneTitle": "Waarskuwings per e-pos is af",
+    "doneBody": "Klaar. Jy kan hulle weer aanskakel onder Jou rekening.",
+    "invalidTitle": "Hierdie skakel werk nie",
+    "invalidBody": "Niks is verander nie. Jy kan self waarskuwings per e-pos afskakel onder Jou rekening.",
+    "failed": "Dit het nie gewerk nie, en niks is verander nie. Probeer asseblief weer."
   },
   "logbook": {
     "draftNotice": "KONSEP, opgestel volgens die SARS-dieselloglêer se uitleg. Laat jou rekenmeester dit nagaan voordat jy eis. FLEETWISE lewer die rekords; die eis is joune.",

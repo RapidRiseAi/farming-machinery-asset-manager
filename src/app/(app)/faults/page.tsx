@@ -3,6 +3,7 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 import { must, soft } from "@/lib/supabase/must";
+import { signedUrlsByPath } from "@/lib/signed-urls";
 import { t } from "@/lib/i18n";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { relativeDate } from "@/lib/format";
@@ -122,20 +123,25 @@ export default async function FaultsPage({
     : [];
   const attachments = (aData as Attach[] | null) ?? [];
   const signed = new Map<string, { kind: string; url: string }[]>();
-  await Promise.all(
-    attachments.map(async (a) => {
-      if (!a.storage_path) return;
-      const bucket = a.kind === "voice" ? "fault-voice" : "fault-photos";
+  // One request per bucket, not one per file.
+  const bucketOf = (a: Attach) => (a.kind === "voice" ? "fault-voice" : "fault-photos");
+  const [voiceUrls, photoUrls] = await Promise.all(
+    (["fault-voice", "fault-photos"] as const).map(async (bucket) => {
+      const batch = await signedUrlsByPath(supabase, bucket, attachments.filter((a) => bucketOf(a) === bucket).map((a) => a.storage_path), 3600);
       // Soft, not must: one file missing from storage would otherwise take the whole list
       // down on every visit. That one is reported and left out.
-      const s = soft(await supabase.storage.from(bucket).createSignedUrl(a.storage_path, 3600), "faults:media-url");
-      if (s?.signedUrl) {
-        const list = signed.get(a.parent_id) ?? [];
-        list.push({ kind: a.kind, url: s.signedUrl });
-        signed.set(a.parent_id, list);
-      }
-    })
+      if (batch.error) soft({ data: null, error: batch.error }, "faults:media-url");
+      return batch.urls;
+    }),
   );
+  for (const a of attachments) {
+    const url = a.storage_path ? (bucketOf(a) === "fault-voice" ? voiceUrls : photoUrls).get(a.storage_path) : undefined;
+    if (url) {
+      const list = signed.get(a.parent_id) ?? [];
+      list.push({ kind: a.kind, url });
+      signed.set(a.parent_id, list);
+    }
+  }
 
   const roles = new Map(await Promise.all([...new Set([...machines.map(m => m.farm_id), ...faults.map(f => f.farm_id)])].map(async id =>
     [id, profile.role === "workshop" ? "workshop" : await effectiveFarmRole(id, profile)] as const)));

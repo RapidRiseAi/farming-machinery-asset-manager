@@ -25,6 +25,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emailConfigProblem, fromAddress, sendEmail } from "@/lib/email/resend";
+import { unsubscribeHeaders, unsubscribeLinks } from "@/lib/email/unsubscribe";
 import { formatNotification, notificationTitle, notificationUrl } from "@/lib/notifications/format";
 import { t, type Lang, type Locale } from "@/lib/i18n";
 import { APP_NAME, siteUrl } from "@/lib/env";
@@ -179,15 +180,25 @@ export async function deliverNotificationEmail(
     // half-built URL in somebody's inbox would be worse than none.
     const base = siteUrl();
     const link = base ? `${base}${notificationUrl(n.template, n.payload ?? {})}` : null;
+    // One click to stop these, signed for this person (lib/email/unsubscribe.ts): a footer
+    // link to a page that asks first, and the headers a mail app's own button posts to.
+    const off = base ? unsubscribeLinks(base, user.id) : null;
+    const offLabel = t("notifyEmail.unsubscribe", locale);
 
-    const text = [title, "", body, ...(link ? ["", `${openLabel}: ${link}`] : []), "", why].join("\n");
+    const text = [
+      title, "", body, ...(link ? ["", `${openLabel}: ${link}`] : []), "", why,
+      ...(off ? ["", `${offLabel}: ${off.page}`] : []),
+    ].join("\n");
     const html =
       `<p style="font-size:16px;margin:0 0 12px"><strong>${escapeHtml(title)}</strong></p>` +
       `<p style="font-size:16px;margin:0 0 16px">${escapeHtml(body)}</p>` +
       (link
         ? `<p style="margin:0 0 16px"><a href="${escapeHtml(link)}">${escapeHtml(openLabel)}</a></p>`
         : "") +
-      `<p style="font-size:12px;color:#5d5a52;margin:0">${escapeHtml(why)}</p>`;
+      `<p style="font-size:12px;color:#5d5a52;margin:0">${escapeHtml(why)}</p>` +
+      (off
+        ? `<p style="font-size:12px;color:#5d5a52;margin:8px 0 0"><a href="${escapeHtml(off.page)}" style="color:#5d5a52">${escapeHtml(offLabel)}</a></p>`
+        : "");
 
     try {
       const sent = await sendEmail({
@@ -197,6 +208,7 @@ export async function deliverNotificationEmail(
         subject: title,
         html,
         text,
+        headers: off ? unsubscribeHeaders(off.oneClick) : null,
       });
       if (sent.ok) {
         result.sent++;

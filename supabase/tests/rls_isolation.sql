@@ -1080,12 +1080,24 @@ do $$ declare fb uuid := '22222222-2222-2222-2222-222222222222'; begin
   perform _t_login('a1111111-1111-1111-1111-111111111111');   -- Owner A
   if app.has_entitlement(fb,'machines')  then raise exception 'ENT ISOLATION FAIL: Owner A read Farm B ungated entitlement'; end if;
   if app.has_entitlement(fb,'dashboard') then raise exception 'ENT ISOLATION FAIL: Owner A read Farm B gated entitlement'; end if;
+  -- The PostgREST wrapper a session can actually call answers "no" the same way.
+  if public.has_entitlement(fb,'machines') then raise exception 'ENT ISOLATION FAIL: Owner A read Farm B through public.has_entitlement'; end if;
 end $$;
 -- rr_admin can read any farm's real result (Farm B is essential → ungated yes, dashboard no).
 do $$ declare fb uuid := '22222222-2222-2222-2222-222222222222'; begin
   perform _t_login('d4444444-4444-4444-4444-444444444444');   -- RR admin
   if not app.has_entitlement(fb,'machines') then raise exception 'ENT FAIL: rr_admin denied ungated on Farm B'; end if;
   if app.has_entitlement(fb,'dashboard')    then raise exception 'ENT FAIL: rr_admin saw dashboard on essential Farm B'; end if;
+end $$;
+reset role;
+-- The service role with no user (the crons, server code on the service key) reaches no farm,
+-- so it is told "no", as it has been since 0251: pinned so that changing it is a decision.
+set role service_role;
+do $$ begin
+  perform set_config('request.jwt.claims', '', true);
+  if public.has_entitlement('22222222-2222-2222-2222-222222222222','machines') then
+    raise exception 'ENT FAIL: the service role with no user read a farm''s entitlement';
+  end if;
 end $$;
 reset role;
 

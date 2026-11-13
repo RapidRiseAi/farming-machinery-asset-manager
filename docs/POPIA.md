@@ -39,10 +39,12 @@ Everything in the product is tenant-isolated by `farm_id` and Row-Level Security
 **Vehicle positions (in testing, 6 November 2026).** The map (`asset_positions`, migration
 `20261107120000`) records a vehicle's route from a driver's phone while their screen is open, and
 from trackers later. It is behind a feature switch and reaches only businesses Rapid Rise has
-turned it on for, for testing. Before it is released to everyone, the privacy notice must say
-so and the lawyer must confirm the basis (legitimate interest with openness is the likely one).
-A driver sees only their own trips, an owner or manager the fleet; points are deleted after
-180 days, and with the account on closure.
+turned it on for, for testing. The privacy notice says so since 13 November 2026 (its
+"Location" clause); the lawyer must still confirm the basis (legitimate interest with openness
+is the likely one) before it is released to everyone, and the clause's "still testing" goes
+then. A driver sees only their own trips, an owner or manager the fleet, and Rapid Rise
+(`asset_positions_sel`); points are deleted after 180 days (`cron_purge_positions`, nightly),
+and with the account on permanent closure.
 
 **Tracker positions and planned routes (11 November 2026, migration `20261111090000`).** A
 business's vehicle tracker can now send positions (`/api/integrations/positions`, docs/ROUTING.md).
@@ -318,6 +320,58 @@ erase. The count is reported in the `data_subject_erasure` compliance entry and 
 return value, so an operator can show what was cleared. Proven in `rls_isolation.sql` §G34,
 including that erasing one person leaves another person's location intact and that the audit
 diff itself survives.
+
+---
+
+## 5.3 Processors, cookies and browser storage (privacy notice of 13 November 2026)
+
+The privacy notice (`src/lib/legal.ts`, "Who else touches it", "Information leaving South
+Africa", "Cookies and your browser's storage") names these, each read from the code that
+calls it. Keep the two in step: a new outside service, cookie or stored item is a change to
+both.
+
+| Service | What it receives | Where, and from what | Agreement |
+|---|---|---|---|
+| Supabase | Everything: database, files, sign-in | Paris (`eu-west-3`, CLAUDE.md; not re-read from the dashboard) | DPA to keep on file (§7) |
+| Vercel | Every request; functions run in Paris | `vercel.json` `regions: ["cdg1"]` | Required before real users (§5) |
+| Paystack | Card payments | Its checkout page (`checkout.paystack.com`) | Their terms; confirm |
+| Resend | Every email we send, with its recipient | `lib/email/resend.ts` | Confirm |
+| Microsoft Azure Speech | Voice, in the browser | South Africa North (`AZURE_SPEECH_REGION`) | Required (§5) |
+| Vercel AI Gateway, then OpenAI (Microsoft MAI-Transcribe-2 as the hearing's fallback) | A hard request's recording; an AI answer's words and the records it needs | Outside SA; `LLM_MODEL` names the model (production: `openai/...`) | Required (§5) |
+| OpenAI directly | The same, on a business's own key | Under the business's own OpenAI account | The business's own |
+| Mapbox | A planned trip's stop coordinates, server to server | `lib/routing/providers.ts`; map switch only | Confirm; gone once `ROUTING_PROVIDER=osrm` |
+| OpenStreetMap Nominatim | Place text typed in the planner; a dropped pin's coordinates (reverse lookup), server to server | `NOMINATIM_URL`, default the public service | None (public service, usage policy) |
+| OpenFreeMap | Map tiles fetched by the browser: the device's IP and the area shown | `MAP_TILES_ORIGIN`; map switch only | None (free service; to move before release, ROUTING.md) |
+| Cloudflare Turnstile | Browser signals (IP, TLS fingerprint, user agent) on sign-in, sign-up and the partner form, when both keys are set | `components/turnstile-widget.tsx`; Cloudflare's Turnstile Privacy Addendum (18 June 2025): processor for the check, controller for improving detection; it names no cookies and points to Cloudflare's cookie policy | Their addendum |
+| Meta WhatsApp | A linked number's messages | Only after a person links it (`docs/WHATSAPP.md`) | Required before WhatsApp goes live |
+| Browser push services (Google, Apple, Mozilla, Microsoft) | An encrypted notification (aes128gcm, `lib/push/webpush.ts`) | The endpoint the device registered | None (the browser's own) |
+
+Not named, and why: the nightly offsite copy of stored files (`docs/BACKUP.md` §2.3) is not set
+up yet and its provider is not chosen; name it in the notice when it is. Error reporting
+(§5.1) is off while `SENTRY_DSN` is unset; name the provider when it is set. PayFast is in
+the content security policy for a dormant customer-invoice path and is not switched on.
+
+**Cookies** (all first-party; no advertising or analytics cookies, no third-party trackers):
+
+| Cookie | Purpose | Lifetime | Set in |
+|---|---|---|---|
+| `sb-<project-ref>-auth-token` (split `.0`, `.1` when large; `-code-verifier` during a sign-in link) | Supabase sign-in session | Up to 400 days (`@supabase/ssr` default), removed on sign-out | `lib/supabase/*` |
+| `fw_farm` | The business being worked in | 1 year, deleted on sign-out | `lib/auth.ts` |
+| `fw_lang` | Language before and after sign-in | 1 year | `lib/locale.ts` |
+| `fw_start`, `fw_tabs` | Start page, phone bottom-bar shortcuts | 1 year | `lib/preferences.ts` |
+| `fw_qr_name` | Name typed on the QR page, path `/m` | 1 year; cleared by an empty name | `m/[token]/remembered-name.ts` |
+| `fw_partner_link` | A contractor's new link and code, path `/partners` | 10 minutes | `lib/partner-link.ts` |
+| `fw_join_sent` | Email typed on a contractor's join page, path `/join/<token>` | 15 minutes | `join/[token]/actions.ts` |
+| `fw_support_farm` | Rapid Rise support mode only | 1 hour, deleted on sign-out | `admin/farms/[id]/actions.ts` |
+
+Cloudflare Turnstile, when on, may set or read its own storage; that is Cloudflare's, under
+its terms.
+
+**Browser storage** (localStorage, sessionStorage, IndexedDB and the service worker's caches,
+on the device only): theme and text size, open menu groups, last filters and views, the
+tour's progress, unsaved drafts (job cards, intake, documents), request ids for a retry,
+cached pages for use offline, and the offline capture queue, including offline voice audio
+for at most seven days (§4).
 
 ---
 

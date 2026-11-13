@@ -5,6 +5,7 @@ import { requireProfile, effectiveFarmRole } from "@/lib/auth";
 import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { createClient } from "@/lib/supabase/server";
 import { soft } from "@/lib/supabase/must";
+import { signedUrlsByPath } from "@/lib/signed-urls";
 import { canEditJobWork, canReviewJob, canReturnJob, needsJobMeter } from "@/lib/jobcard-workflow";
 import { rands } from "@/lib/money";
 import { meterReading, shortDate } from "@/lib/format";
@@ -131,12 +132,11 @@ export default async function JobCardDetail({ params, searchParams }: {
   const supplierTotal = workRequest?.invoice_amount_cents ?? (invoices.length ? invoices.reduce((sum, invoice) => sum + invoice.amount_cents, 0) : null);
   const canReturn = canReturnJob(jc, workRequest?.status ?? null, invoices.length > 0 || (attachRes.data ?? []).some((a) => a.kind === "invoice"));
   const provider = (providerRes.data as { name: string } | null)?.name ?? jc.external_provider_name;
-  const attachments = await Promise.all(((attachRes.data as { id: string; kind: string; storage_path: string | null }[] | null) ?? [])
-    .filter((a) => costsVisible || a.kind === "photo")
-    .map(async (a) => {
-      const signed = a.storage_path ? await supabase.storage.from("jobcard-photos").createSignedUrl(a.storage_path, 3600) : null;
-      return { ...a, url: signed?.data?.signedUrl ?? null };
-    }));
+  // Signed in one request; a file that will not sign shows without a link, as before.
+  const attachmentRows = ((attachRes.data as { id: string; kind: string; storage_path: string | null }[] | null) ?? [])
+    .filter((a) => costsVisible || a.kind === "photo");
+  const attachmentUrls = (await signedUrlsByPath(supabase, "jobcard-photos", attachmentRows.map((a) => a.storage_path), 3600)).urls;
+  const attachments = attachmentRows.map((a) => ({ ...a, url: (a.storage_path && attachmentUrls.get(a.storage_path)) || null }));
   // The fault this card was opened from: its photo and voice note, so the mechanic hears
   // the driver where the work is done rather than only on the faults list. Soft: a missing
   // file or an unread list leaves this out, never the job card itself.
@@ -145,15 +145,19 @@ export default async function JobCardDetail({ params, searchParams }: {
         .eq("parent_type", "fault").eq("parent_id", jc.created_from_fault_id)
         .in("kind", ["photo", "voice"]).is("deleted_at", null).order("created_at")
     : { data: [], error: null };
-  const faultMedia = (await Promise.all(
-    ((soft(faultMediaRes, "jobcards:fault-media") as { id: string; kind: string; storage_path: string | null }[] | null) ?? [])
-      .map(async (a) => {
-        if (!a.storage_path) return null;
-        const bucket = a.kind === "voice" ? "fault-voice" : "fault-photos";
-        const signed = soft(await supabase.storage.from(bucket).createSignedUrl(a.storage_path, 3600), "jobcards:fault-media-url");
-        return signed?.signedUrl ? { id: a.id, kind: a.kind, url: signed.signedUrl } : null;
-      }),
-  )).filter((m): m is { id: string; kind: string; url: string } => m !== null);
+  const faultMediaRows = (soft(faultMediaRes, "jobcards:fault-media") as { id: string; kind: string; storage_path: string | null }[] | null) ?? [];
+  const faultBucket = (a: { kind: string }) => (a.kind === "voice" ? "fault-voice" : "fault-photos");
+  const [faultVoiceUrls, faultPhotoUrls] = await Promise.all(
+    (["fault-voice", "fault-photos"] as const).map(async (bucket) => {
+      const batch = await signedUrlsByPath(supabase, bucket, faultMediaRows.filter((a) => faultBucket(a) === bucket).map((a) => a.storage_path), 3600);
+      if (batch.error) soft({ data: null, error: batch.error }, "jobcards:fault-media-url");
+      return batch.urls;
+    }),
+  );
+  const faultMedia = faultMediaRows.flatMap((a) => {
+    const url = a.storage_path ? (faultBucket(a) === "fault-voice" ? faultVoiceUrls : faultPhotoUrls).get(a.storage_path) : undefined;
+    return url ? [{ id: a.id, kind: a.kind, url }] : [];
+  });
   const loadError = [lineRes, planRes, coverRes, attachRes, invoiceRes, catalogueRes, kitRes, workRes, providerRes, teamRes, membershipRes].find((result) => result.error)?.error;
   const membershipRoles = new Map((membershipRes.data ?? []).map((m) => [m.user_id, m.role]));
   const team = (teamRes.data ?? []).filter((person) => person.role !== "workshop" && ["owner", "manager", "mechanic"].includes(membershipRoles.get(person.id) ?? (person.farm_id === jc.farm_id ? person.role : "")));

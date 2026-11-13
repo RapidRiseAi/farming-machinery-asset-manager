@@ -6322,7 +6322,19 @@
   "notifyEmail": {
     "open": "Open it in FLEETWISE",
     "why": "You are getting this because you asked FLEETWISE to email your alerts. Turn it off under Notifications.",
-    "financialBody": "There is an amount on this one, so it is not in the email. Open FLEETWISE to see it."
+    "financialBody": "There is an amount on this one, so it is not in the email. Open FLEETWISE to see it.",
+    "unsubscribe": "Turn these emails off"
+  },
+  "unsubscribe": {
+    "title": "Turn off alert emails",
+    "body": "This stops the alert emails FLEETWISE sends you, such as a service falling due or a fault being reported. Your alerts still show in the app, and receipts, invoices and sign-in emails still come.",
+    "button": "Turn these emails off",
+    "pending": "Turning them off",
+    "doneTitle": "Alert emails are off",
+    "doneBody": "Done. You can turn them back on in Your account.",
+    "invalidTitle": "This link does not work",
+    "invalidBody": "Nothing has been changed. You can turn alert emails off yourself in Your account.",
+    "failed": "That did not work, and nothing has been changed. Please try again."
   },
   "logbook": {
     "draftNotice": "DRAFT, modelled on the SARS diesel logbook layout. Have your accountant check it before you claim. FLEETWISE produces the records; the claim is yours.",
