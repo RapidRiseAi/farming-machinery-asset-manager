@@ -124,7 +124,9 @@ Facts below were read from the accounts on 2026-10-14.
 
 ### After launch
 
-- [ ] Enforce the content security policy after a week of reports (engineering summarises first).
+- [x] Enforce the content security policy after a week of reports (engineering summarises first).
+      2026-11-13: enforced (H6 in Part 2). Watch the Vercel log for `csp-report` lines after
+      the release: each is something the policy stopped.
 - [ ] Supabase compute: Small (about $15 a month, less the $10 credit) if the load test or real
       use shows connections or CPU running high.
 - [ ] Point-in-time recovery once real data is worth it.
@@ -233,6 +235,10 @@ Order: correctness and security first, then load, then product.
       2026-10-14: `Content-Security-Policy-Report-Only` with reports logged by
       /api/csp-report; nine trigger functions revoked from anon, and a suite that fails if any
       returns. Enforce the policy once the reports are quiet (rename the header).
+      2026-11-13: enforced, with a per-request nonce and `'strict-dynamic'` instead of
+      `'unsafe-inline'` for scripts, set by the middleware (`src/lib/security/csp.ts`); HSTS,
+      COOP and `security.txt` added. Checked in Edge on a local build across the public and
+      signed-in screens with no violations.
 - [x] **Published passwords** (found 2026-10-14, not in the original review): the demo
       personas' and the click-through owner's passwords were in this public repo, and the
       accounts exist on production, Rapid Rise's only admin among them.

@@ -1,45 +1,14 @@
 /**
- * Content security policy, REPORT-ONLY (H6): browsers report what it would block to
- * /api/csp-report and block nothing. Once the reports are quiet it can be enforced by
- * renaming the header. Inline scripts and styles stay allowed: the App Router's own
- * bootstrap is inline and this app uses no nonces. Beyond its own origin the browser talks
- * only to Supabase (signed photo and voice URLs) and Azure Speech (live dictation).
+ * The content security policy is NOT set here. It carries a fresh nonce per request, so the
+ * middleware builds and sends it (src/middleware.ts, src/lib/security/csp.ts); a header from
+ * this file would be the same on every response. The headers below are the fixed ones.
  */
-const supabaseOrigin = (() => {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").origin;
-  } catch {
-    return "";
-  }
-})();
-/**
- * Cloudflare Turnstile, the bot check on sign-up, sign-in and the partner form
- * (src/lib/security/turnstile.ts): its script, its iframe and its calls home. Allowed ONLY
- * when the site key is set at build time, so without it the policy is exactly as tight as
- * before. Headers are fixed at build: setting the key in Vercel needs a redeploy.
- */
-const turnstile = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ? " https://challenges.cloudflare.com" : "";
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${turnstile}`,
-  "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${supabaseOrigin}`,
-  `media-src 'self' blob: ${supabaseOrigin}`,
-  "font-src 'self' data:",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://tiles.openfreemap.org https://*.speech.microsoft.com wss://*.speech.microsoft.com${turnstile}`,
-  ...(turnstile ? [`frame-src${turnstile}`] : []),
-  "worker-src 'self' blob:",
-  "manifest-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-  "report-uri /api/csp-report",
-].join("; ");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // No `X-Powered-By: Next.js` on every response: it tells a scanner what to try first.
+  poweredByHeader: false,
   // Keep tracing anchored to this application when a parent folder also has a lockfile.
   outputFileTracingRoot: process.cwd(),
   // Mobile-first, low-bandwidth: keep the client bundle lean.
@@ -69,7 +38,12 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "camera=(self), microphone=(self), geolocation=(self), payment=()",
           },
-          { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy },
+          // HTTPS only for two years, subdomains too. Deliberately NOT `preload`: the preload
+          // list is hard to leave, and the decision belongs to whoever owns the domain.
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          // A page another site opens cannot reach this one through window.opener, nor this
+          // one reach it. Nothing here opens a popup (payments are a redirect in the same tab).
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
         ],
       },
       {

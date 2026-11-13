@@ -2,15 +2,21 @@ import { t, locales } from "@/lib/i18n";
 import { MachinesIcon } from "@/components/ui/icons";
 import { buttonVariants } from "@/components/ui/button";
 
-// Static fallback served by the service worker for never-visited routes while offline.
+// Fallback served by the service worker for never-visited routes while offline.
 // No auth, no data, deliberately tiny so it precaches cleanly.
-export const dynamic = "force-static";
+//
+// Rendered per request, NOT static (13 November 2026). The content security policy carries a
+// fresh nonce on every response (lib/security/csp.ts), and a page built once at build time
+// has no nonce on its scripts, so opened online every script on it would be blocked. The service
+// worker keeps the copy it fetched at install and serves it offline with no policy header
+// (public/sw.js, networkFirstNav), so the nonce in that copy never meets a different one.
+export const dynamic = "force-dynamic";
 
 /**
- * Force-static means one HTML for everybody, so there is no request to read a language
- * from. It used to render in the default locale only, which gave every Afrikaans user an
- * English page at exactly the moment they could not fetch anything else. The short copy
- * is shown in both languages instead, each block marked with its own `lang`.
+ * The service worker caches one copy for whoever uses this device, so the page must not
+ * depend on who asked. It used to render in the default locale only, which gave every
+ * Afrikaans user an English page at exactly the moment they could not fetch anything else.
+ * The short copy is shown in both languages instead, each block marked with its own `lang`.
  *
  * "Try again" goes to /home, the role dispatcher. It went to /dashboard, which drivers and
  * contractors cannot open, so their retry landed on a refusal.

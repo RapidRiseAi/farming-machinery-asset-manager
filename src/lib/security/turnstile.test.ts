@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
 
 import { SITEVERIFY_URL, TURNSTILE_FIELD, turnstileConfig, turnstileWidget, verifyTurnstile } from "./turnstile";
 
@@ -211,20 +210,17 @@ test("the widget sits inside each form and posts the field the server reads", ()
   }
 });
 
-/** The CSP the config would send, built with or without a site key. */
+/** The CSP the middleware sends, with or without a site key. */
 async function cspWith(siteKey: string | undefined): Promise<string> {
   const saved = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   if (siteKey === undefined) delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   else process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = siteKey;
   try {
-    // A fresh copy each time: the policy is built when the module loads.
-    const url = `${pathToFileURL(join(process.cwd(), "next.config.mjs")).href}?csp=${siteKey ? "on" : "off"}`;
-    const config = (await import(url)).default as {
-      headers: () => Promise<Array<{ headers: Array<{ key: string; value: string }> }>>;
-    };
-    const header = (await config.headers()).flatMap((r) => r.headers).find((h) => h.key.startsWith("Content-Security-Policy"));
+    const { middleware } = await import("../../middleware");
+    const { NextRequest } = await import("next/server");
+    const header = (await middleware(new NextRequest("http://localhost/login"))).headers.get("content-security-policy");
     assert.ok(header, "no Content-Security-Policy header");
-    return header.value;
+    return header;
   } finally {
     if (saved === undefined) delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     else process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = saved;
@@ -234,7 +230,6 @@ async function cspWith(siteKey: string | undefined): Promise<string> {
 test("the CSP allows Cloudflare only in a build that has the site key", async () => {
   const off = await cspWith(undefined);
   assert.equal(off.includes("challenges.cloudflare.com"), false, off);
-  assert.doesNotMatch(off, /frame-src/);
 
   const on = await cspWith(SITE);
   const directive = (name: string) => on.split(";").map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? "";

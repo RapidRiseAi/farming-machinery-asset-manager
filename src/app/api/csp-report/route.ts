@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
 /**
- * Where browsers report what the report-only content security policy (next.config.mjs)
- * would have blocked. Logged as one compact line each, read in the Vercel logs, so the policy
- * can be tightened and then enforced. Nothing is blocked while it is report-only.
+ * Where browsers report what the content security policy blocked (lib/security/csp.ts, sent
+ * and enforced by the middleware since 13 November 2026). Logged as one compact line each,
+ * read in the Vercel logs: a new line here is something the policy stopped, either an attack
+ * or a source the app now needs. Each line starts `csp-report`, which also finds the
+ * `csp-report-only` lines from the report-only weeks.
  *
  * Open to anyone, as browsers send these without a session, so it stores nothing and logs
  * only the directive, the blocked origin and the page's path: never a query string, which in
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
     const directive = String(r["effective-directive"] ?? r.effectiveDirective ?? r["violated-directive"] ?? "?").slice(0, 40);
     const blocked = originOf(r["blocked-uri"] ?? r.blockedURL);
     const page = pathOf(r["document-uri"] ?? r.documentURL);
-    console.warn(`csp-report-only ${directive} blocked=${blocked} page=${page}`);
+    console.warn(`csp-report ${directive} blocked=${blocked} page=${page}`);
   }
   return new NextResponse(null, { status: 204 });
 }

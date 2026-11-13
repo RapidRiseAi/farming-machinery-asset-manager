@@ -1,0 +1,4 @@
+Contact: mailto:team@rapidriseai.com
+Expires: 2027-11-13T00:00:00.000Z
+Preferred-Languages: en, af
+Canonical: https://app.fleet-wise.co.za/.well-known/security.txt

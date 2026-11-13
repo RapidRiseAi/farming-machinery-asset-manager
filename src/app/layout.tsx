@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
 import { BOOT_GUARD } from "@/components/ui/boot-guard";
@@ -11,6 +12,7 @@ import { APP_NAME } from "@/lib/env";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { TEXT_SIZE_BOOTSTRAP } from "@/components/preferences/text-size";
+import { NONCE_HEADER } from "@/lib/security/csp";
 
 
 // The brand's typeface, as on fleet-wise.co.za. next/font downloads it at build time and
@@ -71,17 +73,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // available this high in the tree; `setLanguage` mirrors a signed-in user's profile
   // choice into the same cookie, so the two agree. Audit bug 2.
   const locale = await deviceLocale();
+  // This request's nonce, set by the middleware with the enforced content security policy
+  // (lib/security/csp.ts). An inline script without it does not run.
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined;
   return (
     <html lang={locale} className={dmSans.variable} suppressHydrationWarning>
       <head>
         {/* Buttons load until they work: marks the page as starting before first paint
             and holds taps on controls until <BootReady/> sees them attached. First, so
             nothing paints or listens before it. See boot-guard.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: BOOT_GUARD }} />
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: BOOT_GUARD }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         {/* Text size on this device (Your account and preferences), same no-flash
             treatment as the theme: stamped before paint, read by globals.css. */}
-        <script dangerouslySetInnerHTML={{ __html: TEXT_SIZE_BOOTSTRAP }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: TEXT_SIZE_BOOTSTRAP }} />
       </head>
       {/* Surfaces come from the semantic tokens so the whole app follows the
           theme without a single component knowing which theme it is in. */}

@@ -385,6 +385,32 @@ not by installing the SDK. Security-relevant properties:
   actions.
 - **Web Push** uses self-hosted VAPID (RFC 8291/8188) via Node crypto only, no third
   party (F6).
+- **Content security policy, enforced** (H6; report-only from 2026-10-14, enforced
+  2026-11-13). The middleware (`src/middleware.ts`) makes a fresh nonce for every request
+  and sends the policy from `src/lib/security/csp.ts` on every response it handles, the
+  sign-in redirect included. It also hands the policy and the nonce to the page as request
+  headers: Next.js puts the nonce on its own scripts, and the root layout's three inline
+  scripts read it from `x-nonce`. `script-src` is `'self' 'nonce-…' 'strict-dynamic'`, with
+  no `'unsafe-inline'` and no `'unsafe-eval'`, so a script runs only if it carries the nonce
+  or was added by one that did (Next's chunks, the Turnstile script). `style-src` keeps
+  `'unsafe-inline'` on purpose: React style props, MapLibre and Next's route announcer set
+  inline styles, and CSS cannot run script. Beyond its own origin the browser may reach only
+  Supabase (REST, Storage, Realtime), Azure Speech (https and wss), OpenFreeMap tiles and,
+  when its site key is set at build time, Cloudflare Turnstile; Mapbox and Nominatim are
+  called from the server only. Forms may leave only for Paystack's checkout and PayFast.
+  Also: `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`,
+  `upgrade-insecure-requests`, violations reported to `/api/csp-report` (log lines start
+  `csp-report`). Every page renders per request (a page built once at build time would have
+  no nonce); `/offline` was the one static page and is now dynamic. The service worker
+  stores whole responses, so a page served from its cache keeps the header it was rendered
+  with, and its offline fallback is served with no policy at all. Tests:
+  `src/lib/security/csp.test.ts`, `src/middleware.test.ts`,
+  `src/lib/security/inline-scripts.test.ts` (fails on a `<script>` without the nonce,
+  `next/script`, a `javascript:` URL, an inline handler attribute, or eval).
+- **Other headers** (`next.config.mjs`): `Strict-Transport-Security: max-age=63072000;
+  includeSubDomains` (not `preload`, which is hard to leave), `Cross-Origin-Opener-Policy:
+  same-origin`, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`,
+  and no `X-Powered-By`. `/.well-known/security.txt` names the security contact.
 
 ### Voice assistant boundary
 
@@ -437,8 +463,9 @@ renders and `/api/health` warns `captcha_not_configured`. To switch it on:
 1. In Cloudflare, Turnstile, add a widget for the app's hostnames, mode **Managed**.
 2. In Vercel, set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (the site key) and `TURNSTILE_SECRET_KEY`
    (the secret, server-only) for Production, then **redeploy**: the site key is read at build
-   time, and the CSP allows `https://challenges.cloudflare.com` (script, frame and connect)
-   only in a build that has it.
+   time, and the CSP the middleware sends allows `https://challenges.cloudflare.com`
+   (script, frame and connect) only in a build that has it. The widget appends its script
+   from our own code, so `'strict-dynamic'` lets it run.
 3. Check `/api/health` no longer lists `captcha_not_configured`, and sign in once.
 
 On, it fails **closed**: a missing or refused token, or Cloudflare not answering in five
