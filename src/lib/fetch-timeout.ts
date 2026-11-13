@@ -11,9 +11,10 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
-  init: RequestInit & { timeoutMs?: number } = {},
+  // `fetchImpl` lets a test hand in its own fetch (the bot check's verifier does).
+  init: RequestInit & { timeoutMs?: number; fetchImpl?: typeof fetch } = {},
 ): Promise<Response> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = init;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal, fetchImpl = fetch, ...rest } = init;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException("The request took too long.", "TimeoutError")), timeoutMs);
   // A caller's own signal still cancels it.
@@ -23,7 +24,7 @@ export async function fetchWithTimeout(
     else signal.addEventListener("abort", forward, { once: true });
   }
   try {
-    return await fetch(input, { ...rest, signal: controller.signal });
+    return await fetchImpl(input, { ...rest, signal: controller.signal });
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", forward);

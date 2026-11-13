@@ -9,6 +9,7 @@ import { BARE_ADDRESS } from "@/lib/email/resend";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { captureError } from "@/lib/observability";
+import { checkTurnstile } from "@/lib/security/turnstile";
 import { createServiceClient } from "@/lib/supabase/service";
 
 const KINDS = ["mechanic", "auto_electrician", "parts_supplier", "panel_beater", "tyre", "towing", "other"];
@@ -50,6 +51,11 @@ export async function applyToPartner(formData: FormData): Promise<void> {
   if (!KINDS.includes(kind)) bounce("apply-missing");
   if (!BARE_ADDRESS.test(email)) bounce("apply-email");
   if (String(formData.get("consent") ?? "") !== "on") bounce("apply-consent");
+
+  // The bot check (lib/security/turnstile.ts), before the limiter or the insert. A no-op
+  // until its keys are set.
+  const captcha = await checkTurnstile(formData);
+  if (captcha) bounce(captcha);
 
   const svc = createServiceClient();
   const forwarded = (await headers()).get("x-forwarded-for") ?? "";

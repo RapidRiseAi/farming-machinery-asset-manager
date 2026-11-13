@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Flash } from "@/components/ui/flash";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 export function LoginForm({
   error,
@@ -14,7 +15,10 @@ export function LoginForm({
   locale,
   defaultEmail,
   next,
+  captcha,
 }: {
+  /** The bot check's site key and language, or null while it is off (nothing renders). */
+  captcha: { siteKey: string; language: string } | null;
   error?: string;
   sent?: string;
   /** Device language (cookie, then Accept-Language). There is no profile yet. */
@@ -103,6 +107,10 @@ export function LoginForm({
             revealLabel={t("auth.revealPassword", locale)}
           />
         </Field>
+
+        {/* Inside the form, so its token goes with all three buttons: sign in, the link and
+            "Forgot?". It adds no button, so Enter still signs in through the hidden one. */}
+        {captcha ? <TurnstileWidget siteKey={captcha.siteKey} language={captcha.language} /> : null}
 
         <SubmitButton fullWidth>{t("auth.signIn", locale)}</SubmitButton>
 

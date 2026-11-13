@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
+import { turnstileWidget } from "@/lib/security/turnstile";
 import { HeroAside, PublicShell, SplitLayout } from "@/components/public-shell";
 import { CashIcon, DeviceIcon, JobCardsIcon } from "@/components/ui/icons";
 
@@ -66,7 +67,15 @@ export default async function LoginPage({
         ? t("auth.errLinkExpired", locale)
         : raw === "auth-other-browser"
         ? t("auth.errOtherBrowser", locale)
-        : raw === "need-email"
+        : // The bot check and the attempt limits (login/actions.ts). Before the raw-text
+          // matches below, which they must never fall into.
+          raw === "captcha-retry"
+          ? t("errors.captchaRetry", locale)
+          : raw === "captcha-unavailable"
+          ? t("errors.captchaUnavailable", locale)
+          : raw === "signin-busy"
+          ? t("errors.signinBusy", locale)
+          : raw === "need-email"
           ? t("auth.errNeedEmail", locale)
           : raw === "need-password"
             ? t("auth.errNeedPassword", locale)
@@ -132,6 +141,7 @@ export default async function LoginPage({
             sent={sp.sent}
             locale={locale}
             defaultEmail={sp.email}
+            captcha={turnstileWidget(locale)}
           />
         </div>
 

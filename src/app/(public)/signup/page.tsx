@@ -27,6 +27,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Flash } from "@/components/ui/flash";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { HeroAside, PublicShell, SplitLayout, Tick } from "@/components/public-shell";
+import { TurnstileWidget } from "@/components/turnstile-widget";
+import { turnstileWidget } from "@/lib/security/turnstile";
 import { PlanPicker } from "./plan-picker";
 import { signUp } from "./actions";
 
@@ -47,6 +49,8 @@ export default async function SignUpPage({
   const sp = await searchParams;
   // Pre-auth there is no profile to read a language from, so the device decides.
   const locale = await deviceLocale();
+  // The bot check, or null while its keys are not set (then nothing renders).
+  const captcha = turnstileWidget(locale);
 
   const options = PLANS.map((plan) => {
     const monthly = perVehicleMonthlyCents(plan, "monthly");
@@ -235,6 +239,12 @@ export default async function SignUpPage({
             {t("signup.termsPost", locale)}
           </span>
         </label>
+
+        {captcha ? (
+          <div className="mt-4">
+            <TurnstileWidget siteKey={captcha.siteKey} language={captcha.language} />
+          </div>
+        ) : null}
 
         {/* SubmitButton, not a bare button: it disables itself while the farm is being
             created, so a second tap on a slow connection cannot start a second sign-up.

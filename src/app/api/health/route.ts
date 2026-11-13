@@ -7,6 +7,7 @@ import { deliveryWarnings } from "@/lib/delivery-health";
 import { observabilityEnabled } from "@/lib/observability";
 import { emailConfigProblem } from "@/lib/email/resend";
 import { routingConfig } from "@/lib/routing/providers";
+import { turnstileConfig } from "@/lib/security/turnstile";
 
 /**
  * Is the product up, and is it running its scheduled work? For an external uptime monitor.
@@ -64,6 +65,8 @@ export async function GET(request: Request) {
   );
   // Route planning (the map's trips) has no route service to ask. A code only, like the rest.
   if (routingConfig().problem) warnings.push("routing_not_configured");
+  // No bot check on sign-up, sign-in or the partner form until both Turnstile keys are set.
+  if (!turnstileConfig()) warnings.push("captcha_not_configured");
   let routes: CronHealth[] | null = null;
   try {
     const read = createServiceClient().rpc(CRON_RPC.health);

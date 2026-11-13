@@ -412,6 +412,40 @@ not by installing the SDK. Security-relevant properties:
   replies, tool arguments, audio paths and provider error detail so POPIA erasure does
   not leave another append-only copy.
 
+### Bots and sign-in abuse
+
+What is on now, with no keys:
+
+- **Sign-in attempts are limited** (`src/lib/security/sign-in-throttle.ts`, counted in the
+  database by `rate_limit_take_key`, 20261113090000). A password sign-in, an emailed sign-in
+  link and a password reset each count against the address typed (8 per 15 minutes, password
+  and email kinds counted apart) and against the caller's IP (30 per 15 minutes, all kinds
+  together). Over either limit the person reads "Too many attempts. Try again in a few
+  minutes." and Supabase Auth is not called. The answer is the same whether or not the
+  address has an account. The address and the IP are stored only as SHA-256 digests, and the
+  database refuses anything else. The limiter **fails open**: if it cannot count, the attempt
+  goes through and the fault is reported, because an outage of a guard must not lock every
+  customer out; Supabase Auth's own limits and the bot check still apply.
+- **Sign-up** takes one of 10 slots per IP per hour (`billing_take_signup_slot`, after the
+  form is valid, fails open), and the **partner application** the same under its own
+  `partner:` key. `/join` has 20 per hour under `join:`.
+
+Cloudflare Turnstile (the bot check on sign-up, sign-in and the partner application,
+`src/lib/security/turnstile.ts`) is **off until both keys are set**. Off, nothing loads or
+renders and `/api/health` warns `captcha_not_configured`. To switch it on:
+
+1. In Cloudflare, Turnstile, add a widget for the app's hostnames, mode **Managed**.
+2. In Vercel, set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (the site key) and `TURNSTILE_SECRET_KEY`
+   (the secret, server-only) for Production, then **redeploy**: the site key is read at build
+   time, and the CSP allows `https://challenges.cloudflare.com` (script, frame and connect)
+   only in a build that has it.
+3. Check `/api/health` no longer lists `captcha_not_configured`, and sign in once.
+
+On, it fails **closed**: a missing or refused token, or Cloudflare not answering in five
+seconds, sends the person back with a translated sentence, before any database or Auth
+call. A browser with JavaScript off gets no token, so it cannot submit these three forms;
+the message says JavaScript is needed. The token and the secret are never logged.
+
 ## 8. Must verify / configure in the live Supabase + Vercel project
 
 - [ ] **Auth → leaked-password protection (HaveIBeenPwned): ENABLE.** The only open item

@@ -12,6 +12,7 @@ import { isCompanyType } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { TERMS_VERSION } from "@/lib/legal";
 import { captureError } from "@/lib/observability";
+import { checkTurnstile } from "@/lib/security/turnstile";
 import type { BillingPeriod } from "@/lib/entitlements";
 
 /** The most vehicles somebody may buy on the public form without talking to us first. */
@@ -76,6 +77,11 @@ export async function signUp(formData: FormData): Promise<void> {
   // A plan with no published price is either bespoke or simply not on sale. Refused here
   // as well as in SQL, so the visitor gets a sentence rather than a failed transaction.
   if (perVehicleMonthlyCents(plan, period) == null) bounce("signup-plan-unavailable");
+
+  // The bot check (lib/security/turnstile.ts), before anything touches the database or Auth.
+  // Off, and a no-op, until its keys are set; once on, no token means no account.
+  const captcha = await checkTurnstile(formData);
+  if (captcha) bounce(captcha);
 
   const svc = createServiceClient();
 

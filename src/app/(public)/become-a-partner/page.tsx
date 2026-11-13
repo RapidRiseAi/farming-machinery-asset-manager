@@ -5,7 +5,9 @@ import { APP_NAME } from "@/lib/env";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
+import { turnstileWidget } from "@/lib/security/turnstile";
 import { HeroAside, PublicShell, SplitLayout } from "@/components/public-shell";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, SelectField } from "@/components/ui/field";
@@ -36,6 +38,8 @@ export default async function BecomeAPartnerPage({
   const sp = await searchParams;
   const locale = await deviceLocale();
   const say = (key: string) => t(`become.${key}`, locale).replaceAll("{app}", () => APP_NAME);
+  // The bot check, or null while its keys are not set (then nothing renders).
+  const captcha = turnstileWidget(locale);
 
   return (
     <PublicShell locale={locale} width="full">
@@ -126,6 +130,8 @@ export default async function BecomeAPartnerPage({
                   </Link>
                 }
               />
+
+              {captcha ? <TurnstileWidget siteKey={captcha.siteKey} language={captcha.language} /> : null}
 
               <SubmitButton size="lg" fullWidth pendingText={say("pending")}>
                 {say("submit")}

@@ -8,6 +8,15 @@ import { siteUrl } from "@/lib/env";
 import { safePath } from "@/lib/safe-path";
 import { readAssurance } from "@/lib/mfa";
 import { errorCode } from "@/lib/action-errors";
+import { checkTurnstile } from "@/lib/security/turnstile";
+import { signInLimit } from "@/lib/security/sign-in-throttle";
+
+/*
+  All three actions below are posted by the ONE login form (login-form.tsx), so each gets the
+  bot check's token, and each runs the same two guards before Supabase Auth is called: the bot
+  check (a no-op until its keys are set), then the attempt limits (lib/security/sign-in-throttle.ts).
+  `??` so an attempt the bot check refused is not also counted.
+*/
 
 export async function signInWithPassword(formData: FormData) {
   const next=safePath(String(formData.get("next")??""),"/home");
@@ -20,6 +29,8 @@ export async function signInWithPassword(formData: FormData) {
   // and not a guarantee.
   if (!email) redirect(loginError("need-email"));
   if (!password) redirect(loginError("need-password"));
+  const refused = (await checkTurnstile(formData)) ?? (await signInLimit("password", email));
+  if (refused) redirect(loginError(refused));
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect(loginError(error.message));
@@ -51,6 +62,10 @@ export async function sendPasswordReset(formData: FormData) {
   // Configuration only, this URL goes in an email. See `siteUrl()`.
   const origin = siteUrl();
   if (!origin) redirect("/login?error=email-not-configured");
+
+  // Counted with the link: both send an email to the address typed.
+  const refused = (await checkTurnstile(formData)) ?? (await signInLimit("email", email));
+  if (refused) redirect(`/login?error=${refused}`);
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -85,6 +100,9 @@ export async function signInWithMagicLink(formData: FormData) {
   // to send people there; Supabase refused it and fell back to the bare front page.
   const origin = siteUrl();
   if (!origin) redirect(`/login?error=email-not-configured&next=${encodeURIComponent(next)}`);
+
+  const refused = (await checkTurnstile(formData)) ?? (await signInLimit("email", email));
+  if (refused) redirect(`/login?error=${refused}&next=${encodeURIComponent(next)}`);
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({

@@ -529,6 +529,13 @@ const CODE_KEYS: Record<string, string> = {
 
   // == Auth ==================================================================
   "need-password": "errors.needPassword",
+  // The bot check (lib/security/turnstile.ts) on sign-up, sign-in and the partner form: the
+  // token was missing or refused (or JavaScript is off), or Cloudflare could not be asked.
+  "captcha-retry": "errors.captchaRetry",
+  "captcha-unavailable": "errors.captchaUnavailable",
+  // Too many sign-in attempts for this address or from this connection
+  // (lib/security/sign-in-throttle.ts). The same words whether or not the address exists.
+  "signin-busy": "errors.signinBusy",
 
   // The public QR actions use a bare `?error=1` as a generic sentinel. Mapped so
   // it resolves to a sentence rather than the digit.

@@ -12,14 +12,22 @@ const supabaseOrigin = (() => {
     return "";
   }
 })();
+/**
+ * Cloudflare Turnstile, the bot check on sign-up, sign-in and the partner form
+ * (src/lib/security/turnstile.ts): its script, its iframe and its calls home. Allowed ONLY
+ * when the site key is set at build time, so without it the policy is exactly as tight as
+ * before. Headers are fixed at build: setting the key in Vercel needs a redeploy.
+ */
+const turnstile = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ? " https://challenges.cloudflare.com" : "";
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${turnstile}`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${supabaseOrigin}`,
   `media-src 'self' blob: ${supabaseOrigin}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://tiles.openfreemap.org https://*.speech.microsoft.com wss://*.speech.microsoft.com`,
+  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace(/^https:/, "wss:")} https://tiles.openfreemap.org https://*.speech.microsoft.com wss://*.speech.microsoft.com${turnstile}`,
+  ...(turnstile ? [`frame-src${turnstile}`] : []),
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "frame-ancestors 'none'",

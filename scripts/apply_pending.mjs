@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Sign-in attempt limits: the counter keyed by a hash the server supplies.
+  "20261113090000": "select to_regprocedure('public.rate_limit_take_key(text,text,integer,integer)') is not null",
   // The pay gate inside owner-run functions, and on the farm buckets where storage exists.
   "20261112100000": "select to_regprocedure('app.require_open_farm(uuid,boolean)') is not null and to_regprocedure('app.pay_gate_storage_apply()') is not null and (to_regclass('storage.objects') is null or exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'pay_gate_insert'))",
   // The pay gate in the database: the helper, the open-table list and a policy it makes.
