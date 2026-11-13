@@ -14,8 +14,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { featureOn } from "@/lib/features";
 import { planRoutes, RouteError, validPoints } from "@/lib/routing";
 import { EXPENSE_KINDS, randsToCents } from "@/lib/trips";
-
-const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+import { PHOTO_MAX_BYTES as MAX_PHOTO_BYTES } from "@/lib/limits";
 
 const text = (fd: FormData, key: string, max = 200): string | null => {
   const v = String(fd.get(key) ?? "").trim().slice(0, max);

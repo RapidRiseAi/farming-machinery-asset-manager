@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
 import type { createServiceClient } from "@/lib/supabase/service";
+import { PHOTO_MAX_BYTES, VOICE_NOTE_MAX_BYTES } from "@/lib/limits";
 
+// The legacy multipart path (an installed older app posts the files with the fault). The
+// request body itself is bounded by Vercel's 4.5 MB first; new clients upload directly.
 const MEDIA = [
-  { field: "photo", bucket: "fault-photos", limit: 6 * 1024 * 1024 },
-  { field: "voice", bucket: "fault-voice", limit: 8 * 1024 * 1024 },
+  { field: "photo", bucket: "fault-photos", limit: PHOTO_MAX_BYTES },
+  { field: "voice", bucket: "fault-voice", limit: VOICE_NOTE_MAX_BYTES },
 ] as const;
 
 /** Stable attachment identity makes a lost response safe to replay without duplicates. */

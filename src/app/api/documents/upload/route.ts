@@ -6,6 +6,7 @@ import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
+import { FUNCTION_BODY_MAX_BYTES, maxBytesForMime } from "@/lib/limits";
 import { sameSupplierUpload, supplierFileHash, validSupplierTotal, type SupplierDocumentReceipt } from "@/lib/supplier-document-upload";
 import { captureError } from "@/lib/observability";
 import { classifyFailure, type DbFailure } from "@/lib/action-errors";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
 
   let form: FormData;
   try {
-    form = await readBoundedFormData(request, 9 * 1024 * 1024);
+    form = await readBoundedFormData(request, FUNCTION_BODY_MAX_BYTES);
   } catch (error) {
     return NextResponse.json({ error: "bad_request" }, { status: error instanceof RangeError ? 413 : 400 });
   }
@@ -66,8 +67,8 @@ export async function POST(request: Request) {
   if (!supplierNumber || supplierNumber.length > 120) return NextResponse.json({ error: "document-number-required" }, { status: 400 });
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(capture)) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "missing_file" }, { status: 400 });
-  if (file.size > 8 * 1024 * 1024) return NextResponse.json({ error: "file_too_large" }, { status: 413 });
   if (!(file.type.startsWith("image/") || file.type === "application/pdf")) return NextResponse.json({ error: "bad-file-type" }, { status: 400 });
+  if (file.size > maxBytesForMime(file.type)) return NextResponse.json({ error: "file_too_large" }, { status: 413 });
   if (!validSupplierTotal(kind, totalIncl)) return NextResponse.json({ error: "missing_total" }, { status: 400 });
 
   const supabase = await createClient();

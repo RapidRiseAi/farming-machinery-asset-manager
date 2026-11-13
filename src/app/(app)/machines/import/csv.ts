@@ -2,6 +2,7 @@
 // preview and the server insert action so both agree on what's valid.
 
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES, defaultMeterFor as defaultMeterOf } from "@/lib/machine-options";
+import { MACHINE_IMPORT_MAX_ROWS } from "@/lib/limits";
 
 export const IMPORT_COLUMNS = [
   "name",
@@ -20,7 +21,7 @@ export const IMPORT_COLUMNS = [
   "notes",
 ] as const;
 
-export const MAX_IMPORT_ROWS = 200;
+export const MAX_IMPORT_ROWS = MACHINE_IMPORT_MAX_ROWS;
 
 /** Parse CSV text into rows of string cells. Handles quotes, escaped quotes,
  *  commas/newlines inside quotes, CRLF, and a leading BOM. */

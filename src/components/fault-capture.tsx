@@ -18,6 +18,7 @@ import { Fact, FactList } from "@/components/ui/facts";
 import { Photo } from "@/components/ui/photo";
 import { cn } from "@/components/ui/cn";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { PHOTO_MAX_BYTES, VOICE_NOTE_MAX_BYTES } from "@/lib/limits";
 
 /** Longest voice note, decided 2026-10-27: two minutes, then the recorder stops itself. */
 const VOICE_MAX_MS = 120_000;
@@ -270,9 +271,9 @@ export function FaultCapture({
 
     // Compress up-front so the same bytes are used online or queued offline.
     const compressedPhoto = photo ? await compressImage(photo) : undefined;
-    if ((compressedPhoto && (compressedPhoto.size > 6 * 1024 * 1024 ||
+    if ((compressedPhoto && (compressedPhoto.size > PHOTO_MAX_BYTES ||
       !["image/jpeg", "image/png", "image/webp"].includes(compressedPhoto.type))) ||
-      (voice && voice.size > 8 * 1024 * 1024)) {
+      (voice && voice.size > VOICE_NOTE_MAX_BYTES)) {
       setError(t("offline.mediaTooLarge", locale)); setBusy(false); return;
     }
     const name =

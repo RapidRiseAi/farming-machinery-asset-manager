@@ -9,6 +9,7 @@ import { sameOrigin } from "@/lib/security/same-origin";
 import { ReadFailed } from "@/lib/supabase/must";
 import { captureError } from "@/lib/observability";
 import { classifyFailure } from "@/lib/action-errors";
+import { maxBytesForMime } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
   }
 
   const file = form.get("file");
-  if (file instanceof File && file.size > 8 * 1024 * 1024) {
+  if (file instanceof File && file.size > maxBytesForMime(file.type || "image/jpeg")) {
     return NextResponse.json({ error: "file_too_large" }, { status: 413 });
   }
   const stored = await uploadWorkRequestMedia(

@@ -3,10 +3,11 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { JournalLine } from "@/lib/accounting";
 import { readAll, type ReadAllResult } from "@/lib/supabase/read-all";
+import { JOURNAL_MAX_LINES } from "@/lib/limits";
 
 /** Lines one journal read may carry before it is refused: more than a year of a very large
  *  farm. Past this the caller asks for a shorter period rather than getting part of it. */
-export const JOURNAL_MAX_LINES = 100_000;
+export { JOURNAL_MAX_LINES };
 
 export type JournalRead =
   | { scope: "partner"; workshopId: string; from: string; to: string }

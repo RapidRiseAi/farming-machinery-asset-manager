@@ -1,13 +1,15 @@
 "use client";
 
 import type { AssistantLocale } from "@/lib/assistant/types";
+import { INSTANT_CLIP_MAX_MS } from "@/lib/limits";
 
 const DB_NAME = "fleetwise-voice-assistant";
 const DB_VERSION = 1;
 const STORE = "captures";
 const SIGN_OUT_LOCK = "fleetwise-voice-storage-locked";
 export const OFFLINE_VOICE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-export const MAX_OFFLINE_RECORDING_MS = 60_000;
+/** The one-minute recording the instant path can hear (limits.ts); longer speech is a recorded command. */
+export const MAX_OFFLINE_RECORDING_MS = INSTANT_CLIP_MAX_MS;
 const pendingWrites = new Set<Promise<void>>();
 let writesBlockedForSignOut = false;
 

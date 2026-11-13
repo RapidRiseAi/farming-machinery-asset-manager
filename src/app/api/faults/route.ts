@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { uploadFaultMedia } from "@/lib/fault-media";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
+import { FUNCTION_BODY_MAX_BYTES } from "@/lib/limits";
 import { ReadFailed } from "@/lib/supabase/must";
 import { captureError } from "@/lib/observability";
 
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
   let form: FormData;
   try {
-    form = await readBoundedFormData(request, 16 * 1024 * 1024);
+    form = await readBoundedFormData(request, FUNCTION_BODY_MAX_BYTES);
   } catch (error) {
     return NextResponse.json({ error: "bad_request" }, { status: error instanceof RangeError ? 413 : 400 });
   }

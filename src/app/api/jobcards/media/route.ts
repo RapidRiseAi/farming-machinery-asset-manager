@@ -6,6 +6,7 @@ import { parseRandsToCents, exVatCents } from "@/lib/money";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
 import { canEditJobWork, canReviewJob } from "@/lib/jobcard-workflow";
+import { FUNCTION_BODY_MAX_BYTES, maxBytesForMime } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const profile = await getProfile();
   if (!profile?.active) return reject("forbidden", 403);
   let form: FormData;
-  try { form = await readBoundedFormData(request, 9 * 1024 * 1024); }
+  try { form = await readBoundedFormData(request, FUNCTION_BODY_MAX_BYTES); }
   catch (error) { return reject("bad_request", error instanceof RangeError ? 413 : 400); }
 
   const id = String(form.get("job_card_id") ?? "");
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) return reject("receipt");
-  if (file.size > 8 * 1024 * 1024) return reject("file_too_large", 413);
+  if (file.size > maxBytesForMime(file.type)) return reject("file_too_large", 413);
   if (!(file.type.startsWith("image/") || (kind !== "photo" && file.type === "application/pdf"))) return reject("bad-file-type");
 
   const rawAmount = String(form.get("invoice_amount") ?? "").trim();

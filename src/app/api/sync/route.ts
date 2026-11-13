@@ -5,12 +5,13 @@ import { uploadFaultMedia } from "@/lib/fault-media";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { parseSyncEnvelope } from "@/lib/offline/envelope";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
+import { FUNCTION_BODY_MAX_BYTES } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   let form: FormData;
-  try { form = await readBoundedFormData(request, 16 * 1024 * 1024); }
+  try { form = await readBoundedFormData(request, FUNCTION_BODY_MAX_BYTES); }
   catch (error) {
     return NextResponse.json({ error: "bad_request" }, { status: error instanceof RangeError ? 413 : 400 });
   }

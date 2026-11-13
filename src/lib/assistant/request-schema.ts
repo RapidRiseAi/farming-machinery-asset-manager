@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { postgresUuidSchema } from "./identifiers";
+import { ASSISTANT_TYPED_MAX_CHARS } from "@/lib/limits";
 
 // PostgreSQL accepts UUID-shaped identifiers regardless of their RFC version.
 // Some long-lived/demo machine rows intentionally use deterministic identifiers
@@ -7,7 +8,7 @@ import { postgresUuidSchema } from "./identifiers";
 // GUID validator rather than Zod's stricter RFC 9562 UUID validator.
 export const assistantTurnRequestSchema = z
   .object({
-    input: z.string().trim().min(1).max(2000),
+    input: z.string().trim().min(1).max(ASSISTANT_TYPED_MAX_CHARS),
     locale: z.enum(["en-ZA", "af-ZA"]),
     channel: z.enum(["typed", "voice"]),
     voiceCaptureId: z.uuid().optional(),

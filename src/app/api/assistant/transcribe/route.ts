@@ -20,6 +20,7 @@ import { farmOpenAi, openAiModelId, transcriptionResponseBody, transcriptionToke
 import { classifyAiFailure } from "@/lib/ai-usage/outcome";
 import { aiErrorForLog } from "@/lib/ai-usage/safe-log";
 import { strictPcmDurationMs } from "@/lib/ai-usage/wav";
+import { HEARING_CLIP_MAX_BYTES } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -39,8 +40,9 @@ export const runtime = "nodejs";
  */
 
 const HEADERS = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } as const;
-// 60 s of 16 kHz mono 16-bit WAV is 1.92 MB; a little headroom for the header.
-const MAX_AUDIO_BYTES = 2_000_000;
+// 60 s of 16 kHz mono 16-bit WAV is 1.92 MB (the catalogue's instant-hearing clip). A
+// longer recording goes through the upload pipeline as command audio, never this route.
+const MAX_AUDIO_BYTES = HEARING_CLIP_MAX_BYTES;
 const HEDGE_AFTER_MS = 3_000;
 /** The browser stops waiting 6.5 s after it posts (AI_HEARING_DEADLINE_MS); this counts from arrival. */
 const RESPOND_BY_MS = 5_800;

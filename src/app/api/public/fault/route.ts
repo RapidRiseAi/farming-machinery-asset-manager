@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { uploadFaultMedia } from "@/lib/fault-media";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
 import { rememberName } from "@/app/(public)/m/[token]/remembered-name";
+import { FUNCTION_BODY_MAX_BYTES } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +35,12 @@ function geoFields(form: FormData): { lat?: number; lng?: number } {
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > 20 * 1024 * 1024) {
+  if (Number.isFinite(contentLength) && contentLength > FUNCTION_BODY_MAX_BYTES) {
     return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
   }
   let form: FormData;
   try {
-    form = await readBoundedFormData(request, 16 * 1024 * 1024);
+    form = await readBoundedFormData(request, FUNCTION_BODY_MAX_BYTES);
   } catch (error) {
     return NextResponse.json({ error: "bad_request" }, { status: error instanceof RangeError ? 413 : 400 });
   }

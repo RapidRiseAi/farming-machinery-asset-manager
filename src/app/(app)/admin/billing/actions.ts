@@ -18,6 +18,7 @@ import { isIsoDate, isUuid } from "@/lib/ids";
 import { classifyFailure, errorCode, type DbFailure } from "@/lib/action-errors";
 import { parseRandsToCents } from "@/lib/money";
 import { captureError } from "@/lib/observability";
+import { maxBytesForMime } from "@/lib/limits";
 import { runOnce } from "@/lib/request-claim";
 
 /**
@@ -402,8 +403,7 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
   redirect(`/admin/billing?saved=${percentBps == null && fixedCents == null ? "discount-cleared" : "discount"}`);
 }
 
-/** Proof files: a bank confirmation or a slip, small enough for one request (4.5 MB). */
-const PROOF_MAX_BYTES = 4 * 1024 * 1024;
+/** Proof files: a bank confirmation or a slip, the catalogue's limit for its type (src/lib/limits.ts). */
 const PROOF_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 /**
@@ -468,9 +468,9 @@ export async function adminRecordPayment(formData: FormData): Promise<void> {
   if (amountCents == null) bounce("billing-amount-unclear", farmId);
   if (amountCents <= 0) bounce("billing-manual-bad", farmId);
   if (!(proof instanceof File) || proof.size === 0) bounce("billing-manual-proof", farmId);
-  if (proof.size > PROOF_MAX_BYTES) bounce("billing-manual-proof-big", farmId);
   const ext = PROOF_TYPES[proof.type];
   if (!ext) bounce("billing-manual-proof-type", farmId);
+  if (proof.size > maxBytesForMime(proof.type)) bounce("billing-manual-proof-big", farmId);
 
   const supabase = createServiceClient();
   const path = `${farmId}/${invoiceId}/${crypto.randomUUID()}.${ext}`;

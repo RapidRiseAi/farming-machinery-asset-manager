@@ -1,3 +1,4 @@
+import { MIB } from "@/lib/limits";
 /**
  * What a business's messages and storage come to, at Rapid Rise's cost plus its markup
  * (20261107150000). Nothing is charged until Rapid Rise has set what each costs: an unset rate
@@ -12,7 +13,8 @@ export type UsageRates = {
 
 export type UsageCharge = { whatsappCents: number; storageCents: number; totalCents: number; gigabytes: number };
 
-const GB = 1024 * 1024 * 1024;
+// Binary gigabytes, as the cost-plus storage meter has always counted (task A3 revisits it).
+const GB = 1024 * MIB;
 
 export function withMarkup(cents: number, markupBps: number): number {
   return Math.round(cents * (1 + markupBps / 10000));

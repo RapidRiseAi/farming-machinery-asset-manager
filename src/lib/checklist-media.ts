@@ -4,8 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { soft } from "@/lib/supabase/must";
 import { signedUrlsByPath } from "@/lib/signed-urls";
 import { captureError } from "@/lib/observability";
-
-const MAX_PHOTO_BYTES = 6 * 1024 * 1024; // decoded cap (the client already compresses)
+import { PHOTO_MAX_BYTES as MAX_PHOTO_BYTES } from "@/lib/limits";
 
 /**
  * Upload a checklist photo-field image supplied as a base64 `data:` URL (ferried

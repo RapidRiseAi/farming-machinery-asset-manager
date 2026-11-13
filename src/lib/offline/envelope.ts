@@ -1,4 +1,5 @@
 import { parseRandsToCents } from "@/lib/money";
+import { OFFLINE_PAYLOAD_MAX_CHARS } from "@/lib/limits";
 import type { MutationScope, MutationType } from "./types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,7 +19,7 @@ export function parseSyncEnvelope(form: FormData, now = Date.now()) {
     || !["app", "public"].includes(scope) || !TYPES.includes(type)
     || (scope === "public" && !["log_reading", "report_fault"].includes(type))) return null;
   const payload = String(form.get("payload") ?? "");
-  if (payload.length > 20000) return null;
+  if (payload.length > OFFLINE_PAYLOAD_MAX_CHARS) return null;
   let fields: Record<string, string>;
   try {
     const value: unknown = JSON.parse(payload);

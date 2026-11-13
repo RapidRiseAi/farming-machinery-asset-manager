@@ -10,9 +10,11 @@ import { readAll } from "@/lib/supabase/read-all";
 import { must } from "@/lib/supabase/must";
 import { createClient } from "@/lib/supabase/server";
 import { parseCsv } from "../../machines/import/csv";
+import { FUEL_CARD_CSV_MAX_BYTES } from "@/lib/limits";
 
 const HERE = "/fuel/cards";
-const MAX_BYTES = 2 * 1024 * 1024;
+/** The reviewed 2 MiB fuel-card CSV cap, unchanged (src/lib/limits.ts). */
+const MAX_BYTES = FUEL_CARD_CSV_MAX_BYTES;
 
 export async function importStatement(formData: FormData) {
   const profile = await requireRole(["owner", "manager"]);
