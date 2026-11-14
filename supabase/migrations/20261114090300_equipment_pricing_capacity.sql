@@ -173,15 +173,15 @@ insert into public.billing_price_versions (
 select v.* from (values
   ('launch-2026-11-eq', 'essential'::farm_plan,    'monthly'::billing_period, 4900,  1,   4900::bigint,  2, 1500::bigint,  0, 5, 'active', current_date,
    'Decision register 2026-11-12. R49 a full space a month, 2 equipment included, extra R15.'),
-  ('launch-2026-11-eq', 'essential'::farm_plan,    'annual'::billing_period,  4900, 10,  49000::bigint, 2, 15000::bigint, 0, 5, 'active', current_date,
+  ('launch-2026-11-eq', 'essential'::farm_plan,    'annual'::billing_period,  4900, 10,  49000::bigint, 2, 15000::bigint, 0, 5, 'active'::billing_price_status, current_date,
    'R490 a full space a year (explicit), 2 equipment included all year, extra R150 a year.'),
   ('launch-2026-11-eq', 'professional'::farm_plan, 'monthly'::billing_period, 7900,  1,   7900::bigint,  5, 1500::bigint,  0, 5, 'active', current_date,
    'Decision register 2026-11-12. R79 a full space a month, 5 equipment included, extra R15.'),
-  ('launch-2026-11-eq', 'professional'::farm_plan, 'annual'::billing_period,  7900, 10,  79000::bigint, 5, 15000::bigint, 0, 5, 'active', current_date,
+  ('launch-2026-11-eq', 'professional'::farm_plan, 'annual'::billing_period,  7900, 10,  79000::bigint, 5, 15000::bigint, 0, 5, 'active'::billing_price_status, current_date,
    'R790 a full space a year (explicit), 5 equipment included all year, extra R150 a year.'),
   ('launch-2026-11-eq', 'complete'::farm_plan,     'monthly'::billing_period, 9900,  1,   9900::bigint, 15, 1500::bigint,  0, 5, 'active', current_date,
    'Decision register 2026-11-12. R99 a full space a month, 15 equipment included, extra R15.'),
-  ('launch-2026-11-eq', 'complete'::farm_plan,     'annual'::billing_period,  9900, 10,  99000::bigint, 15, 15000::bigint, 0, 5, 'active', current_date,
+  ('launch-2026-11-eq', 'complete'::farm_plan,     'annual'::billing_period,  9900, 10,  99000::bigint, 15, 15000::bigint, 0, 5, 'active'::billing_price_status, current_date,
    'R990 a full space a year (explicit), 15 equipment included all year, extra R150 a year.')
 ) as v(version_label, plan, billing_period, per_vehicle_monthly_incl_cents, months_charged, period_price_incl_cents,
        equipment_included, equipment_period_incl_cents, vat_rate_bps, min_billed_slots, status, effective_from, notes)
