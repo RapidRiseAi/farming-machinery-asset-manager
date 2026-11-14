@@ -45,9 +45,13 @@ fail, reader, error mapping, UPLOAD_GLOBAL_LIMIT_BYTES), routes /api/uploads/beg
 /api/uploads/finalise, server.test.ts (12 tests: boundaries, lost response, never-arrived,
 spoofed, revoked, sentences), sweep.ts + nightly step upload_sweep + sweep.test.ts,
 upload.err.* sentences in en/af mapped in errors.ts (numbers filled from the catalogue by
-withLimits). Next: 2c client helper (src/lib/upload/client.ts with signed PUT and an
-in-house TUS client in tus.ts, progress, pause/resume, retry, reload survival by intent),
-the reusable control src/components/ui/upload-field.tsx, then step 3.
+withLimits). Step 2c (WIP, committed): src/lib/upload/tus.ts (in-house TUS 1.0 client: create, PATCH in
+6 MiB chunks, HEAD to resume, 409 recovery; signed PUT; XHR transport for progress),
+src/lib/upload/client.ts (uploadFile: begin, PUT or TUS with resume URL kept per intent in
+localStorage, finalise; refusals as codes; stableRequestId for online/offline sharing),
+client.test.ts (fake TUS server: interrupted and resumed, paused, expired URL, refusals).
+Next: src/components/ui/upload-field.tsx (reusable control: progress, pause/resume, retry,
+keep-original for photos), then step 3 (move every path).
 
 ## Next
 
