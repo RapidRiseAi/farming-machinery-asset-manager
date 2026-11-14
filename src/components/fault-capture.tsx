@@ -18,11 +18,19 @@ import { Fact, FactList } from "@/components/ui/facts";
 import { Photo } from "@/components/ui/photo";
 import { cn } from "@/components/ui/cn";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
-import { PHOTO_MAX_BYTES, VOICE_NOTE_MAX_BYTES } from "@/lib/limits";
+import { PHOTO_MAX_BYTES, RECORDER_AUDIO_BPS, RECORDING_WARN_BEFORE_MS, VOICE_NOTE_MAX_BYTES, VOICE_NOTE_MAX_MS } from "@/lib/limits";
+import { preparePhoto } from "@/lib/upload/compress";
+import { sendCaptureMedia } from "@/lib/offline/media";
+import { errorMessage } from "@/lib/errors";
+import { preferredMimeType } from "@/components/assistant/offline-voice";
 
-/** Longest voice note, decided 2026-10-27: two minutes, then the recorder stops itself. */
-const VOICE_MAX_MS = 120_000;
-const VOICE_BITS_PER_SECOND = 32_000;
+/**
+ * Longest voice note (decisions 10 and 11): ten minutes, then the recorder stops itself and
+ * keeps what it has; it warns shortly before. The bitrate is set, so ten minutes is about
+ * 3.6 MB however the browser would have chosen (docs/LIMITS.md).
+ */
+const VOICE_MAX_MS = VOICE_NOTE_MAX_MS;
+const VOICE_BITS_PER_SECOND = RECORDER_AUDIO_BPS;
 /** m:ss for the recording timer. */
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
@@ -46,24 +54,6 @@ function UrgencyGlyph({ value, className }: { value: Urgency; className?: string
   if (value === "limping") return <svg {...common}><path d="M5 1 9.3 8.6H0.7z" /></svg>;
   if (value === "stopped") return <svg {...common}><rect x="1.2" y="1.2" width="7.6" height="7.6" rx="1.2" /></svg>;
   return <svg {...common}><circle cx="5" cy="5" r="3.4" /></svg>;
-}
-
-/** Downscale + JPEG re-encode a photo to keep uploads small on rural signal (§7). */
-async function compressImage(file: File, maxDim = 1600, quality = 0.7): Promise<Blob> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) { bitmap.close(); return file; }
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b ?? file), "image/jpeg", quality));
-  } catch {
-    return file;
-  }
 }
 
 /** One object URL per blob, revoked when the blob changes or the form unmounts. */
@@ -132,6 +122,8 @@ export function FaultCapture({
   const [urgency, setUrgency] = useState<Urgency>("can_work");
   const [machineId, setMachineId] = useState(initialMachine);
   const [photo, setPhoto] = useState<File | null>(null);
+  // Photos are made smaller unless the person keeps the original (decision 13).
+  const [keepOriginal, setKeepOriginal] = useState(false);
   const [voice, setVoice] = useState<Blob | null>(null);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -142,6 +134,8 @@ export function FaultCapture({
   const recorderRef = useRef<MediaRecorder | null>(null);
   // Seconds recorded so far, shown on the stop button; the cap stops the recorder by itself.
   const [elapsed, setElapsed] = useState(0);
+  // Set when the recorder stopped itself at the limit: what was said is kept, and said so.
+  const [stoppedAtLimit, setStoppedAtLimit] = useState(false);
   const recTimersRef = useRef<{ tick?: ReturnType<typeof setInterval>; cap?: ReturnType<typeof setTimeout> }>({});
   const chunksRef = useRef<BlobPart[]>([]);
   const pendingRef = useRef<QueuedMutation | null>(null);
@@ -187,12 +181,13 @@ export function FaultCapture({
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // About 0.25 MB a minute: a full two-minute note and a photo stay well under the
-      // request limit of the server functions (4.5 MB), where the browser's default bitrate
-      // could pass it in a few minutes. A browser that ignores the hint is still capped.
+      // About 0.36 MB a minute: ten minutes is about 3.6 MB, far under the 20 MB a note may be,
+      // and it goes straight to Storage, never through a server function. A browser that
+      // ignores the hint is still well under (128 kbps is 9.6 MB), and still capped by time.
       let rec: MediaRecorder;
+      const mimeType = preferredMimeType();
       try {
-        rec = new MediaRecorder(stream, { audioBitsPerSecond: VOICE_BITS_PER_SECOND });
+        rec = new MediaRecorder(stream, { audioBitsPerSecond: VOICE_BITS_PER_SECOND, ...(mimeType ? { mimeType } : {}) });
       } catch {
         rec = new MediaRecorder(stream);
       }
@@ -208,7 +203,8 @@ export function FaultCapture({
       setElapsed(0);
       const started = Date.now();
       recTimersRef.current.tick = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 250);
-      recTimersRef.current.cap = setTimeout(stopRec, VOICE_MAX_MS);
+      setStoppedAtLimit(false);
+      recTimersRef.current.cap = setTimeout(() => { setStoppedAtLimit(true); stopRec(); }, VOICE_MAX_MS);
     } catch {
       setError(t("faults.micDenied", locale));
     }
@@ -269,12 +265,11 @@ export function FaultCapture({
     if (busy || recording) return;
     setBusy(true);
 
-    // Compress up-front so the same bytes are used online or queued offline.
-    const compressedPhoto = photo ? await compressImage(photo) : undefined;
-    if ((compressedPhoto && (compressedPhoto.size > PHOTO_MAX_BYTES ||
-      !["image/jpeg", "image/png", "image/webp"].includes(compressedPhoto.type))) ||
-      (voice && voice.size > VOICE_NOTE_MAX_BYTES)) {
-      setError(t("offline.mediaTooLarge", locale)); setBusy(false); return;
+    // Reduce up-front (unless the original is kept) so the same bytes are used online or
+    // queued offline. The server judges the real bytes again when they arrive.
+    const compressedPhoto = photo ? (await preparePhoto(photo, keepOriginal)).file : undefined;
+    if ((compressedPhoto && compressedPhoto.size > PHOTO_MAX_BYTES) || (voice && voice.size > VOICE_NOTE_MAX_BYTES)) {
+      setError(errorMessage("upload-too-large", locale) ?? t("offline.mediaTooLarge", locale)); setBusy(false); return;
     }
     const name =
       variant === "public"
@@ -301,11 +296,20 @@ export function FaultCapture({
         if(qrAttempt.current?.key!==key) qrAttempt.current={key,id:crypto.randomUUID()};
         form.set("client_id",qrAttempt.current.id);
         Object.entries(fields).forEach(([key,value])=>form.set(key,value));
-        if (compressedPhoto) form.set("photo",compressedPhoto,"photo.jpg");
-        if (voice) form.set("voice",voice,"voice.webm");
+        // The fault first (a small request), then its files straight to Storage.
         const response = await fetchWithTimeout("/api/public/fault",{method:"POST",body:form});
-        const result=await response.json();
-        if (!response.ok || result.media_saved===false) throw new Error("capture_failed");
+        const result=await response.json() as { fault_id?: string; farm_id?: string };
+        if (!response.ok || !result.fault_id) throw new Error("capture_failed");
+        if ((compressedPhoto || voice) && result.farm_id) {
+          const media = await sendCaptureMedia({ client_id: qrAttempt.current.id, photo: compressedPhoto, voice: voice ?? undefined },
+            { id: result.fault_id, farmId: result.farm_id });
+          if (media.state !== "done") {
+            // The fault is saved; the form keeps the photo and the note to send again.
+            setError(errorMessage(media.state === "refused" ? media.code : "upload-interrupted", locale) ?? t("faults.error", locale));
+            setBusy(false);
+            return;
+          }
+        }
         window.location.href=redirectTo;
       } catch { setError(t("faults.error",locale)); setBusy(false); }
       return;
@@ -353,8 +357,24 @@ export function FaultCapture({
       setBusy(false);
       return;
     }
-    const body = await res.json().catch(() => null) as { status?: string } | null;
+    const body = await res.json().catch(() => null) as { status?: string; entity_id?: string; farm_id?: string } | null;
     if (res.ok && body?.status === "applied") {
+      // The fault is saved; its photo and voice note follow straight to Storage. A dropped
+      // connection leaves them queued on the phone with the saved fault's id; a refusal
+      // keeps the form as it is, with the reason, to send again.
+      if ((mutation.photo || mutation.voice) && body.entity_id && body.farm_id) {
+        const media = await sendCaptureMedia(mutation, { id: body.entity_id, farmId: body.farm_id });
+        if (media.state === "transient" && canQueueOffline()) {
+          mutation = { ...mutation, entity_id: body.entity_id, farm_id: body.farm_id };
+          await queueOffline();
+          return;
+        }
+        if (media.state !== "done") {
+          setError(errorMessage(media.state === "refused" ? media.code : "upload-interrupted", locale) ?? t("faults.error", locale));
+          setBusy(false);
+          return;
+        }
+      }
       pendingRef.current = null;
       if (onDone) {
         clearForm();
@@ -556,6 +576,19 @@ export function FaultCapture({
             <span className="min-w-0 break-words">{coords ? t("faults.locationAdded", locale) : t("faults.addLocation", locale)}</span>
           </button>
         </div>
+
+        {recording && elapsed * 1000 >= VOICE_MAX_MS - RECORDING_WARN_BEFORE_MS ? (
+          <p role="status" className="mt-2 text-sm font-medium text-status-due">{t("faults.voiceNearLimit", locale)}</p>
+        ) : null}
+        {stoppedAtLimit && voice && !recording ? (
+          <p role="status" className="mt-2 text-sm text-sand-600">{t("faults.voiceStoppedAtLimit", locale)}</p>
+        ) : null}
+        {photo ? (
+          <label className="mt-2 flex items-start gap-2 text-sm text-sand-700">
+            <input type="checkbox" checked={keepOriginal} onChange={(e) => setKeepOriginal(e.target.checked)} className="mt-1 h-4 w-4 rounded border-sand-300" />
+            <span>{t("upload.keepOriginal", locale)}<span className="block text-xs text-sand-500">{t("upload.keepOriginalHint", locale)}</span></span>
+          </label>
+        ) : null}
 
         {/* Said before anyone records: the recording is kept, and the farm hears it. */}
         <p className="mt-2 text-xs text-sand-500">{t("faults.voiceNotice", locale).replace("{max}", clock(VOICE_MAX_MS / 1000))}</p>

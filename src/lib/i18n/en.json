@@ -1715,7 +1715,9 @@
       "93": "Last 3 months",
       "186": "Last 6 months",
       "372": "Last 12 months"
-    }
+    },
+    "voiceNearLimit": "Less than 30 seconds left: the recording stops itself at ten minutes and keeps what you said.",
+    "voiceStoppedAtLimit": "The recording reached ten minutes and stopped. Everything you said is kept."
   },
   "jobcards": {
     "title": "Job cards",

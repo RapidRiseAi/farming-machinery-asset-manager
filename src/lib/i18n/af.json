@@ -1715,7 +1715,9 @@
       "93": "Afgelope 3 maande",
       "186": "Afgelope 6 maande",
       "372": "Afgelope 12 maande"
-    }
+    },
+    "voiceNearLimit": "Minder as 30 sekondes oor: die opname stop self by tien minute en hou wat jy gesê het.",
+    "voiceStoppedAtLimit": "Die opname het tien minute bereik en gestop. Alles wat jy gesê het, is gehou."
   },
   "jobcards": {
     "title": "Werkkaarte",

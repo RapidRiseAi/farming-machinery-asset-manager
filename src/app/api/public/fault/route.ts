@@ -104,5 +104,7 @@ export async function POST(request: Request) {
   // Only after the fault was recorded, as the kiosk's reading and fuel actions do: the
   // phone remembers who reported it, and a cleared name field forgets it.
   await rememberName(reporter);
-  return NextResponse.json({ ok: true, fault_id: result.fault_id, media_saved: media.ok });
+  // The current page sends its files straight to Storage afterwards (the upload pipeline),
+  // to this fault in this business; an installed older page still sends them here.
+  return NextResponse.json({ ok: true, fault_id: result.fault_id, farm_id: result.farm_id, media_saved: media.ok });
 }
