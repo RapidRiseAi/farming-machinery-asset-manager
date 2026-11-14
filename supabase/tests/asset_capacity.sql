@@ -226,7 +226,7 @@ insert into public.machines (farm_id, name, type)
 select 'ec100000-0000-4000-9000-000000000005', 'Truck ' || g, 'truck' from generate_series(1, 3) g;
 insert into public.job_cards (id, farm_id, machine_id, type) values
   ('ec180000-0000-4000-9000-000000000001', 'ec100000-0000-4000-9000-000000000005', 'ec120000-0000-4000-9000-000000000053', 'repair'),
-  ('ec180000-0000-4000-9000-000000000002', 'ec100000-0000-4000-9000-000000000005', 'ec120000-0000-4000-9000-000000000055', 'service');
+  ('ec180000-0000-4000-9000-000000000002', 'ec100000-0000-4000-9000-000000000005', 'ec120000-0000-4000-9000-000000000055', 'scheduled_service');
 insert into public.fuel_tanks (id, farm_id, name) values
   ('ec130000-0000-4000-9000-000000000001', 'ec100000-0000-4000-9000-000000000005', 'Tank');
 insert into public.fuel_issues (farm_id, tank_id, machine_id, litres) values
@@ -386,7 +386,8 @@ do $t$
 declare v jsonb;
 begin
   v := public.asset_capacity_summary('ec100000-0000-4000-9000-000000000005');
-  if (v #>> '{full,purchased}')::int <> 5 or (v #>> '{full,free_now}')::int <> 0
+  -- Four full assets in use (the pump left, a new bakkie came) of five bought: one free.
+  if (v #>> '{full,purchased}')::int <> 5 or (v #>> '{full,free_now}')::int <> 1 or (v #>> '{full,active}')::int <> 4
      or (v #>> '{equipment,included}')::int <> 2 or (v #>> '{equipment,extra_paid}')::int <> 1
      or (v #>> '{equipment,free_now}')::int <> 0 or (v #>> '{equipment,extra_next_renewal}')::int <> 1 then
     raise exception 'CAPACITY FAIL: the capacity summary is %', v;
