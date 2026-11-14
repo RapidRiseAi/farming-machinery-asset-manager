@@ -112,6 +112,30 @@ test("what still passes through a function fits Vercel's body limit; resumable c
   }
 });
 
+test("the database's class limits and bucket settings are the catalogue's", () => {
+  const sql = readFileSync(join(SRC, "..", "supabase", "migrations", "20261115090000_upload_pipeline.sql"), "utf8");
+  const maxBytes = /function app\.upload_class_max_bytes[\s\S]*?end::bigint/.exec(sql)?.[0] ?? "";
+  for (const [cls, spec] of Object.entries(MEDIA_CLASSES)) {
+    assert.match(maxBytes, new RegExp(`when '${cls}' then ${spec.maxBytes}\\b`), `${cls} bytes in SQL`);
+  }
+  const maxMs = /function app\.upload_class_max_ms[\s\S]*?end;/.exec(sql)?.[0] ?? "";
+  for (const [cls, spec] of Object.entries(MEDIA_CLASSES)) {
+    if (spec.maxMs) assert.match(maxMs, new RegExp(`when '${cls}' then ${spec.maxMs}\\b`), `${cls} duration in SQL`);
+  }
+  const mimes = /function app\.upload_class_mimes[\s\S]*?end;/.exec(sql)?.[0] ?? "";
+  for (const [cls, spec] of Object.entries(MEDIA_CLASSES)) {
+    const row = new RegExp(`when '${cls}' then array\\[([^\\]]*)\\]`).exec(mimes)?.[1] ?? "";
+    assert.deepEqual(row.split(",").map((m) => m.trim().replace(/'/g, "")), [...spec.mimes], `${cls} types in SQL`);
+  }
+  for (const [bucket, spec] of Object.entries(BUCKETS)) {
+    if (bucket === "partner-branding") continue; // set by 20261013140000, unchanged
+    const row = new RegExp(`\\('${bucket}',\\s*(\\d+)::bigint, array\\[([^\\]]*)\\]\\)`).exec(sql);
+    assert.ok(row, `${bucket} is configured by the migration`);
+    assert.equal(Number(row[1]), spec.maxBytes, `${bucket} size`);
+    assert.deepEqual(row[2].split(",").map((m) => m.trim().replace(/'/g, "")), [...spec.mimes], `${bucket} types`);
+  }
+});
+
 test("every catalogue entry is labelled and positive", () => {
   for (const [name, entry] of Object.entries(LIMITS)) {
     assert.ok(entry.value > 0, `${name} must be positive`);

@@ -147,6 +147,20 @@ allowance). `docs/AI_USAGE.md`.
 `support_settings`, `support_holidays`, `report_schedules`, `report_schedule_recipients`,
 `report_schedule_runs`.
 
+## Files and uploads
+
+`attachments` (above) is the record of a stored file. `upload_intents` (20261115090000) is
+one direct upload on its way there: the person, the business (or a contractor's workshop),
+the record, the object path the server chose, what was declared, what the server read back
+from Storage, the bytes reserved against the storage pool and its status (reserved,
+uploaded, finalised, failed, expired). Written only by `upload_begin` and `upload_commit`
+(a person's session) and the service-only `upload_mark_verified`, `upload_fail` and the
+nightly sweep; a person reads their own. `app.upload_settings` holds the switch that makes
+Storage refuse a person's direct writes outside a reserved path, and
+`app.storage_quota_overrides` a hand-set limit; `app.storage_quota_bytes` and
+`app.storage_pool_farm_ids` are the hooks task A3 replaces with the pooled allowance.
+`docs/LIMITS.md` explains the flow.
+
 ## Bookkeeping of the system itself
 
 `audit_log`, `app.audit_table_rules`, `app.audit_redaction_runs`, `cron_runs` (every

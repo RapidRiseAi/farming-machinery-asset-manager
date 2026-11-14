@@ -95,7 +95,8 @@ export const LIMITS = {
   storageGlobalLimitNeededBytes: entry(50 * MB, "bytes", "provider", false,
     "The project-wide Storage limit must be at least the largest file the app accepts (50 MB PDFs)."),
   /** Bytes the begin step reads back from storage to sniff a file's real type. */
-  sniffHeadBytes: entry(64 * KIB, "bytes", "abuse", false, "Enough for every header we parse."),
+  sniffHeadBytes: entry(256 * KIB, "bytes", "abuse", false,
+    "Enough for every header we parse, past a JPEG's 64 kB EXIF block to its frame header."),
   /** Bytes read from the end of a recording to find its duration. */
   sniffTailBytes: entry(512 * KIB, "bytes", "abuse", false, "Enough to find the last Ogg page or WebM cluster."),
   /** Open (not yet finalised) intents one person may hold at once. */

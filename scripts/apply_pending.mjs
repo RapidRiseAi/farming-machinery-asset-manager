@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Direct uploads: the intents table, begin and commit, and the command-audio bucket where storage exists.
+  "20261115090000": "select to_regclass('public.upload_intents') is not null and to_regprocedure('public.upload_commit(uuid,text,uuid)') is not null and (to_regclass('storage.buckets') is null or exists (select 1 from storage.buckets where id = 'command-audio'))",
   // Sign-in attempt limits: the counter keyed by a hash the server supplies.
   "20261113090000": "select to_regprocedure('public.rate_limit_take_key(text,text,integer,integer)') is not null",
   // The pay gate inside owner-run functions, and on the farm buckets where storage exists.
