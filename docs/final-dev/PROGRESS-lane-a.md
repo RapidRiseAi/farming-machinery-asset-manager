@@ -14,8 +14,8 @@ calculator and capacity, assets UI, tests for scenarios 1, 2, 3, 4, 5, 9, 14, 15
 |---|---|---|
 | 1 | Requirement register `docs/final-dev/REQUIREMENTS.md` | done |
 | 2 | Equipment profile model | done |
-| 3 | Central entitlements matrix and server enforcement | in progress |
-| 4 | Pricing calculator and capacity | not started |
+| 3 | Central entitlements matrix and server enforcement | done |
+| 4 | Pricing calculator and capacity | in progress |
 | 5 | Assets UI | not started |
 | 6 | Tests and docs | not started |
 
@@ -47,9 +47,14 @@ gated by `trips` with UpgradeNotice and no equipment as vehicles; reports data s
 page shows the labelled subtotal; error codes `equipment-refused-*`, `plan-feature-*`,
 `equipment-type-not-eligible`, `equipment-review-*` in errors.ts with EN/AF keys.
 
-Next in step 3: run the new report test through `pnpm -s test` (it needs the server-only
-shim; `npx tsx --test` alone fails on `server-only`), API v1 `profile` column, full gates,
-then the step-3-done commit.
+Step 3 finished: report split test (mutation caught), API v1 `profile` column and
+docs/PUBLIC_API.md line; tsc, 1086 unit tests, all gates and 75 PGlite suites pass.
+Left for step 5 (UI): the machines list TCO column per row, hiding refused tabs on an
+equipment asset page (`isEquipment` is already computed in machines/[id]/page.tsx).
+
+Step 4 (now): migration `20261114090300_equipment_pricing_capacity.sql` (explicit period
+prices and equipment terms on a new price generation, equipment capacity on the
+subscription, atomic capacity reservation, conversion, preview), `src/lib/billing/calculator.ts`.
 
 Step 2 delivered: `20261114090000_machine_types_equipment.sql` (compressor, workshop_tool,
 other_equipment), `20261114090100_equipment_profile.sql` (`machines.profile`,
