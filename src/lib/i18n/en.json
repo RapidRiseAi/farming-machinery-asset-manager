@@ -8213,7 +8213,26 @@
       "failed": "The file could not be attached. Your details are kept: try again.",
       "unavailable": "Uploads are not working right now. Your details are kept: try again in a few minutes.",
       "interrupted": "The connection dropped during the upload. It carries on from where it stopped when you try again."
-    }
+    },
+    "choosePhoto": "Choose or take a photo",
+    "chooseFile": "Choose a file",
+    "chooseAnother": "Choose another file",
+    "keepOriginal": "Keep the original photo (not made smaller)",
+    "keepOriginalHint": "Photos are made smaller so they send quickly; serial numbers and damage stay readable. Tick this to send the photo exactly as it is.",
+    "reducedNote": "Made smaller for sending: {from} to {to} pixels wide.",
+    "keptNote": "Sent as it is.",
+    "preparing": "Getting the file ready...",
+    "starting": "Starting the upload...",
+    "sending": "Sending: {percent}%",
+    "checking": "Checking the file...",
+    "done": "Attached.",
+    "paused": "Paused at {percent}%.",
+    "pause": "Pause",
+    "resume": "Carry on",
+    "retry": "Try again",
+    "remove": "Remove",
+    "stillSending": "Wait for the file to finish sending, or remove it.",
+    "selected": "{name}, {size}"
   },
   "assets": {
     "viewFleet": "Fleet assets",

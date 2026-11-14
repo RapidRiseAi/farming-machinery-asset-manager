@@ -8213,7 +8213,26 @@
       "failed": "Die lêer kon nie aangeheg word nie. Jou besonderhede bly gestoor: probeer weer.",
       "unavailable": "Oplaai werk nie nou nie. Jou besonderhede bly gestoor: probeer oor 'n paar minute weer.",
       "interrupted": "Die verbinding het tydens die oplaai weggeval. Dit gaan voort van waar dit gestop het wanneer jy weer probeer."
-    }
+    },
+    "choosePhoto": "Kies of neem 'n foto",
+    "chooseFile": "Kies 'n lêer",
+    "chooseAnother": "Kies 'n ander lêer",
+    "keepOriginal": "Hou die oorspronklike foto (nie kleiner gemaak nie)",
+    "keepOriginalHint": "Foto's word kleiner gemaak sodat hulle vinnig stuur; reeksnommers en skade bly leesbaar. Merk dit om die foto presies soos dit is te stuur.",
+    "reducedNote": "Kleiner gemaak om te stuur: {from} na {to} pieksels breed.",
+    "keptNote": "Gestuur soos dit is.",
+    "preparing": "Maak die lêer gereed...",
+    "starting": "Begin die oplaai...",
+    "sending": "Stuur: {percent}%",
+    "checking": "Kontroleer die lêer...",
+    "done": "Aangeheg.",
+    "paused": "Onderbreek by {percent}%.",
+    "pause": "Onderbreek",
+    "resume": "Gaan voort",
+    "retry": "Probeer weer",
+    "remove": "Verwyder",
+    "stillSending": "Wag dat die lêer klaar stuur, of verwyder dit.",
+    "selected": "{name}, {size}"
   },
   "assets": {
     "viewFleet": "Vlootbates",
