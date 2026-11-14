@@ -198,6 +198,7 @@ comment on table public.billing_price_versions is
 -- quote, not a refusal of the customer. Not a technical maximum and not an equipment cap.
 create or replace function app.self_service_max_full_spaces() returns integer
 language sql immutable set search_path = public, pg_temp as $$ select 200 $$;
+revoke all on function app.self_service_max_full_spaces() from public, anon;
 grant execute on function app.self_service_max_full_spaces() to authenticated, service_role;
 
 -- == Equipment capacity on the subscription ===========================================
