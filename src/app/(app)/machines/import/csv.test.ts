@@ -105,3 +105,24 @@ test("an Afrikaans sheet's reading date column is found by its heading", () => {
   const result = validateCsv(canonical, none, TODAY);
   assert.equal(result.rows[0].machine?.current_reading_date, "2026-09-15");
 });
+
+test("the profile column: blank is a fleet asset, equipment only for a type that may hold it", () => {
+  const r = validateCsv(sheet(
+    row({ name: "Bakkie", type: "bakkie", meter_type: "km" }),
+    row({ name: "Pump", type: "pump_generator", meter_type: "hours", profile: "equipment" }),
+    row({ name: "Plough", type: "implement", meter_type: "none", profile: "Toerusting" }),
+    row({ name: "Cheap truck", type: "truck", meter_type: "km", profile: "equipment" }),
+    row({ name: "Odd", type: "tractor", meter_type: "hours", profile: "maybe" }),
+  ), none, TODAY);
+  assert.equal(r.rows[0].machine?.profile, "full");
+  assert.equal(r.rows[1].machine?.profile, "equipment");
+  assert.equal(r.rows[2].machine?.profile, "equipment", "the Afrikaans word is understood");
+  assert.deepEqual(r.rows[3].errors, ["profile_not_eligible"]);
+  assert.deepEqual(r.rows[4].errors, ["profile_invalid"]);
+  assert.equal(r.validCount, 3);
+  // A sheet made from the older template, with no profile column, still imports as fleet assets.
+  const old = validateCsv(["name,type,meter_type", "Tractor,tractor,hours"].join("\n"), none, TODAY);
+  assert.equal(old.rows[0].machine?.profile, "full");
+  // The guess maps an Afrikaans heading onto it.
+  assert.equal(guessMapping(["Naam", "Tipe", "Profiel"])[2], "profile");
+});
