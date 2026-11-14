@@ -60,7 +60,7 @@ export function ConversionReview({ preview, locale }: { preview: ConversionPrevi
         ) : null}
       </FactList>
       {needFull > 0 || needEq > 0 ? (
-        <p className="rounded-lg bg-callout-warning-bg p-3 text-sand-900">
+        <p className="rounded-lg bg-callout-warn-bg p-3 text-sand-900">
           {t("assets.convertNeedsSpace", locale)
             .replace("{full}", String(needFull))
             .replace("{equipment}", String(needEq))}
