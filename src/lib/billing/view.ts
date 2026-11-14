@@ -134,6 +134,12 @@ export type PriceRow = {
    * the launch list. Optional so a row read without it prices as it always did.
    */
   min_billed_slots?: number | null;
+  /** One full space for the period, stated (20261114090300); null on older generations. */
+  period_price_incl_cents?: number | null;
+  /** Support equipment included once per subscription; 0 on older generations. */
+  equipment_included?: number | null;
+  /** One extra equipment space for the period; null: no equipment terms. */
+  equipment_period_incl_cents?: number | null;
   status: string;
   effective_from: string | null;
   effective_to: string | null;
@@ -334,6 +340,14 @@ export type Estimate =
       /** Only meaningful when `vatRateBps > 0`. */
       subtotalExVatCents: number;
       vatCents: number;
+      /** Support equipment in use, included, charged beyond the allowance, and its price. */
+      /** The full spaces' part of gross: the stated period price x spaces billed. */
+      fullCents: number;
+      equipmentInUse: number;
+      equipmentIncluded: number;
+      equipmentCharged: number;
+      equipmentUnitCents: number;
+      equipmentCents: number;
     };
 
 /**
@@ -458,9 +472,12 @@ export function estimateNextCharge({
   vatRegistered,
   subscription,
   on,
+  equipmentInUse = 0,
 }: {
   price: PriceRow | null;
   assetCount: number;
+  /** Support equipment in use (20261114090300): charged beyond the plan's allowance. */
+  equipmentInUse?: number;
   vatRegistered: boolean;
   /** The farm's own deal, if it has one. Omitted = list price. */
   subscription?: SubscriptionDiscount | null;
@@ -476,7 +493,14 @@ export function estimateNextCharge({
   // the billed units and the price's minimum (0 on the launch list).
   const counted = Math.max(0, assetCount);
   const billed = Math.max(counted, price.min_billed_slots ?? 0);
-  const gross = unit * billed * months;
+  // The stated period price where the row has one, exactly as app.billing_space_period_cents.
+  const space = price.period_price_incl_cents ?? unit * months;
+  const equipmentIncluded = price.equipment_included ?? 0;
+  const equipmentUnit = price.equipment_period_incl_cents ?? 0;
+  const inUse = Math.max(0, Math.floor(equipmentInUse));
+  const equipmentCharged = price.equipment_period_incl_cents == null ? 0 : Math.max(0, inUse - equipmentIncluded);
+  const equipmentCents = equipmentCharged * equipmentUnit;
+  const gross = space * billed + equipmentCents;
   const discount = subscriptionDiscountCents(subscription ?? null, gross, on);
   const total = gross - discount;
   // While `billing_settings.vat_registered` is false a DB trigger pins every invoice's
@@ -499,6 +523,12 @@ export function estimateNextCharge({
     vatRateBps: rate,
     subtotalExVatCents: exVatCents(total, rate),
     vatCents: vatOfInclCents(total, rate),
+    fullCents: space * billed,
+    equipmentInUse: inUse,
+    equipmentIncluded,
+    equipmentCharged,
+    equipmentUnitCents: equipmentUnit,
+    equipmentCents,
   };
 }
 
@@ -1015,7 +1045,8 @@ export function planDiverged(
  */
 export const PRICE_COLUMNS =
   "id, version_label, plan, billing_period, per_vehicle_monthly_incl_cents, " +
-  "months_charged, vat_rate_bps, min_billed_slots, status, effective_from, effective_to";
+  "months_charged, vat_rate_bps, min_billed_slots, period_price_incl_cents, equipment_included, " +
+  "equipment_period_incl_cents, status, effective_from, effective_to";
 
 /**
  * The seller's own settings. `authenticated` may read this table in full, they are our

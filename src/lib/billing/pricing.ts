@@ -32,7 +32,14 @@
  * SCOPE: farms paying Rapid Rise for FLEETWISE. Nothing to do with `partner_documents`.
  */
 
-import { ANNUAL_MONTHS_CHARGED, type BillingPeriod, type Plan } from "@/lib/entitlements";
+import { type BillingPeriod, type Plan } from "@/lib/entitlements";
+
+/**
+ * The months an annual row of an OLDER generation charges (launch-2026 and launch-2026-11:
+ * ten for twelve). Only a fallback for a price row that does not say; the current list
+ * states its annual price outright (period_price_incl_cents, 20261114090300).
+ */
+export const LEGACY_ANNUAL_MONTHS_CHARGED = 10;
 import { exVatCents } from "@/lib/money";
 
 // == What counts as a billable vehicle =========================================
@@ -127,7 +134,7 @@ export function monthsChargedFor(period: BillingPeriod, fromPriceVersion?: numbe
     assertCount("monthsCharged", fromPriceVersion, 1);
     return fromPriceVersion;
   }
-  return period === "annual" ? ANNUAL_MONTHS_CHARGED : 1;
+  return period === "annual" ? LEGACY_ANNUAL_MONTHS_CHARGED : 1;
 }
 
 // == The quote =================================================================

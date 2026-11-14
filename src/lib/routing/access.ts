@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { currentFarmId, effectiveFarmRole, farmIsUsable, getProfile } from "@/lib/auth";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { isUuid } from "@/lib/ids";
 import { captureError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
@@ -44,7 +44,7 @@ export async function plannerAccess(tripId?: unknown): Promise<{ farmId: string 
   const role = await effectiveFarmRole(farmId, profile);
   if (role !== "owner" && role !== "manager") return deny("forbidden", 403);
   if (!(await farmIsUsable(farmId, profile))) return deny("stopped", 402);
-  if (!(await featureOn("map", farmId))) return deny("off", 404);
+  if (!(await mapsAvailable(farmId, profile))) return deny("off", 404);
   return { farmId };
 }
 

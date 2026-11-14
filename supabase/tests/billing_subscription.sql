@@ -168,8 +168,11 @@ insert into work_requests (id, farm_id, machine_id, workshop_id, kind, status, p
 -- ═════════════════════════════════════════════════════════════════════════════
 -- (0) The confirmed price list is exactly what the founder signed off
 -- ═════════════════════════════════════════════════════════════════════════════
--- The CURRENT list is launch-2026-11 (20261104200000): R49 / R79 / R99, annual ten months
--- for twelve, a five-slot minimum, and no Done-For-You row because that plan is quoted.
+-- The CURRENT list is launch-2026-11-eq (20261114090300): R49 / R79 / R99 a full space a
+-- month, R490 / R790 / R990 a year as EXPLICIT period prices, a five-space minimum, 2 / 5 / 15
+-- included support equipment and R15 a month or R150 a year for each extra one, and no
+-- Done-For-You row because that plan is quoted. launch-2026-11 (20261104200000) is retired
+-- with its money intact, like the launch list before it.
 -- The LAUNCH list (R44 / R73 / R89 / R250, 2026-09-04) is retired with its money exactly
 -- as it was, because agreements pinned to it are still priced from it.
 --
@@ -184,15 +187,23 @@ declare
   v_launch constant jsonb := jsonb_build_object(
     'essential', 4400, 'professional', 7300, 'complete', 8900, 'done_for_you', 25000
   );
-  k text; v_cents bigint; n integer; v_min integer; v_status text;
+  v_included constant jsonb := jsonb_build_object('essential', 2, 'professional', 5, 'complete', 15);
+  k text; v_cents bigint; n integer; v_min integer; v_status text; v_period bigint; v_inc integer; v_eq bigint;
 begin
   raise notice '== BILLING (0): the confirmed price lists ========================';
 
   for k in select jsonb_object_keys(v_current) loop
-    select per_vehicle_monthly_incl_cents, months_charged, min_billed_slots into v_cents, n, v_min
+    select per_vehicle_monthly_incl_cents, months_charged, min_billed_slots,
+           period_price_incl_cents, equipment_included, equipment_period_incl_cents
+      into v_cents, n, v_min, v_period, v_inc, v_eq
       from billing_price_versions
-     where version_label = 'launch-2026-11' and plan = k::farm_plan
+     where version_label = 'launch-2026-11-eq' and plan = k::farm_plan
        and billing_period = 'monthly' and status = 'active' and deleted_at is null;
+    if v_period is distinct from (v_current ->> k)::bigint or v_inc is distinct from (v_included ->> k)::integer
+       or v_eq is distinct from 1500 then
+      raise exception 'BILLING FAIL [0]: % monthly is % a space, % included, % per extra equipment; expected %, %, 1500',
+        k, v_period, v_inc, v_eq, v_current ->> k, v_included ->> k;
+    end if;
     if v_cents is distinct from (v_current ->> k)::bigint or n is distinct from 1 then
       raise exception 'BILLING FAIL [0]: % monthly is % cents over % month(s), expected % over 1 '
         '(founder decision 2026-10-29). src/lib/entitlements.ts PLAN_PRICING must carry the same figure.',
@@ -203,10 +214,18 @@ begin
     end if;
 
     -- Annual: the SAME per-vehicle price, charged for ten months, with the same minimum.
-    select per_vehicle_monthly_incl_cents, months_charged, min_billed_slots into v_cents, n, v_min
+    select per_vehicle_monthly_incl_cents, months_charged, min_billed_slots,
+           period_price_incl_cents, equipment_included, equipment_period_incl_cents
+      into v_cents, n, v_min, v_period, v_inc, v_eq
       from billing_price_versions
-     where version_label = 'launch-2026-11' and plan = k::farm_plan
+     where version_label = 'launch-2026-11-eq' and plan = k::farm_plan
        and billing_period = 'annual' and status = 'active' and deleted_at is null;
+    -- The annual price is stated, not derived: R490 / R790 / R990 a space, R150 an extra.
+    if v_period is distinct from (v_current ->> k)::bigint * 10 or v_inc is distinct from (v_included ->> k)::integer
+       or v_eq is distinct from 15000 then
+      raise exception 'BILLING FAIL [0]: % annual is % a space, % included, % per extra equipment',
+        k, v_period, v_inc, v_eq;
+    end if;
     if v_cents is distinct from (v_current ->> k)::bigint or n is distinct from 10 or v_min is distinct from 5 then
       raise exception 'BILLING FAIL [0]: % annual is % cents x % months, minimum %; expected % x 10, minimum 5',
         k, coalesce(v_cents::text, 'MISSING'), coalesce(n::text, '?'), coalesce(v_min::text, '?'), v_current ->> k;
@@ -236,7 +255,7 @@ begin
 
   -- Rapid Rise is not VAT-registered (decision #8), so every seeded row is 0%.
   select count(*) into n from billing_price_versions
-   where version_label in ('launch-2026', 'launch-2026-11') and vat_rate_bps <> 0 and deleted_at is null;
+   where version_label in ('launch-2026', 'launch-2026-11', 'launch-2026-11-eq') and vat_rate_bps <> 0 and deleted_at is null;
   if n <> 0 then
     raise exception 'BILLING FAIL [0]: % price row(s) carry a non-zero VAT rate while Rapid Rise is '
       'not registered. Registering means RETIRING a generation and adding a new one.', n;
@@ -245,10 +264,23 @@ begin
   -- The minimum is frozen with the money once a row is live.
   begin
     update billing_price_versions set min_billed_slots = 1
-     where version_label = 'launch-2026-11' and plan = 'essential' and billing_period = 'monthly';
+     where version_label = 'launch-2026-11-eq' and plan = 'essential' and billing_period = 'monthly';
     raise exception 'BILLING FAIL [0]: an active price row''s minimum could be edited';
   exception when check_violation then null;
   end;
+  -- The equipment terms are part of the price too.
+  begin
+    update billing_price_versions set equipment_included = 20
+     where version_label = 'launch-2026-11-eq' and plan = 'essential' and billing_period = 'monthly';
+    raise exception 'BILLING FAIL [0]: an active price row''s included equipment could be edited';
+  exception when check_violation then null;
+  end;
+  -- The retired November list keeps its money for the agreements pinned to it.
+  select count(*) into n from billing_price_versions
+   where version_label = 'launch-2026-11' and status = 'retired' and per_vehicle_monthly_incl_cents in (4900, 7900, 9900);
+  if n <> 6 then
+    raise exception 'BILLING FAIL [0]: launch-2026-11 is not retired intact (% rows)', n;
+  end if;
 
   select count(*) into n from billing_invoices;
   if n <> 0 then
@@ -1357,7 +1389,11 @@ declare
     -- they are reached only through their service-role wrappers, with the actor checked.
     'billing_record_manual_payment','billing_reverse_manual_payment',
     -- Once-off service invoices (20261029110000): written only through the service wrapper.
-    'billing_raise_service_invoice'];
+    'billing_raise_service_invoice',
+    -- Support equipment capacity and previews (20261114090300). They read the subscription and
+    -- its price to count spaces; granted to nobody, reached only through the public previews
+    -- and the conversion, which check the caller and strip the money for anyone but the payer.
+    'billing_subscription_for','lock_billing_for','asset_capacity_state','equipment_migration_state'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',

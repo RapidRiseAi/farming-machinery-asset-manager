@@ -279,7 +279,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                     <Td label={t("reports.labour", locale)} className="text-right tabular-nums">{rands(r.labour)}</Td>
                     <Td label={t("reports.other", locale)} className="text-right tabular-nums">{rands(r.other)}</Td>
                     <Td label={t("reports.spend", locale)} className="text-right tabular-nums">{rands(r.total)}</Td>
-                    <Td label={t("reports.tco", locale)} className="text-right font-medium tabular-nums">{rands(r.tco)}</Td>
+                    <Td label={t("reports.tco", locale)} className="text-right font-medium tabular-nums">{r.equipment ? t("reports.equipmentNoTco", locale) : rands(r.tco)}</Td>
                     <Td label={t("reports.perHour", locale)} className="text-right tabular-nums">{r.perHour != null ? rands(r.perHour) : "-"}</Td>
                     <Td label={t("reports.perKm", locale)} className="text-right tabular-nums">{r.perKm != null ? rands(r.perKm) : "-"}</Td>
                   </Tr>
@@ -289,6 +289,22 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           </div>
         )}
       </Card>
+
+      {/* Support equipment's maintenance is never left out of the company total, and never
+          mixed into fleet ownership analytics (20261114090200). */}
+      {data.maintenanceByProfile.equipment.assets > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("reports.maintenanceSplit", locale)}</CardTitle>
+          </CardHeader>
+          <StatGrid columns={3}>
+            <Stat size="md" label={t("reports.maintenanceFleet", locale)} value={rands(data.maintenanceByProfile.full.total)} />
+            <Stat size="md" label={t("reports.maintenanceEquipment", locale)} value={rands(data.maintenanceByProfile.equipment.total)} />
+            <Stat size="md" label={t("reports.maintenanceTotal", locale)} value={rands(data.maintenanceByProfile.full.total + data.maintenanceByProfile.equipment.total)} />
+          </StatGrid>
+          <p className="mt-2 text-sm text-sand-600">{t("reports.maintenanceSplitNote", locale)}</p>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader action={csvLink("/reports/by-type.csv")}>

@@ -13,7 +13,7 @@ export const API_RESOURCES = {
   machines: {
     table: "machines",
     columns:
-      "id,name,type,make,model,year,serial_no,reg_no,meter_type,status,current_reading,current_reading_date,warranty_expiry_date,warranty_expiry_hours,location,cost_centre,department,created_at",
+      "id,name,type,profile,make,model,year,serial_no,reg_no,meter_type,status,current_reading,current_reading_date,warranty_expiry_date,warranty_expiry_hours,location,cost_centre,department,created_at",
     machineFilter: null,
     statusFilter: "status",
     dateColumn: "created_at",

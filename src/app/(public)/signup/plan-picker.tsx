@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { rands } from "@/lib/money";
-import { FEATURE_MIN_PLAN, MIN_BILLED_SLOTS, isPlan, planAllows, type Feature } from "@/lib/entitlements";
+import { FEATURE_MIN_PLAN, MIN_BILLED_SLOTS, NOT_YET_ADVERTISED, isPlan, planAllows, type Feature } from "@/lib/entitlements";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { CheckIcon } from "@/components/ui/icons";
 
@@ -104,7 +104,8 @@ export function PlanPicker({
    */
   const matrix: { key: string; label: string; has: (p: string) => boolean }[] = [
     ...coreFeatures.map((label, i) => ({ key: `core-${i}`, label, has: () => true })),
-    ...(Object.keys(FEATURE_MIN_PLAN) as Feature[]).map((f) => ({
+    // A feature still waiting for its verification is gated but not advertised (decision 31).
+    ...(Object.keys(FEATURE_MIN_PLAN) as Feature[]).filter((f) => !NOT_YET_ADVERTISED.includes(f)).map((f) => ({
       key: f,
       label: featureLabels[f],
       has: (p: string) => isPlan(p) && planAllows(p, f),

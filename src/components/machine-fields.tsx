@@ -26,6 +26,7 @@ export function MachineFields({
   departments,
   locations,
   financialsLoaded = false,
+  equipment = false,
 }: {
   machine?: MachineFieldDefaults;
   operators?: OperatorOption[];
@@ -39,6 +40,8 @@ export function MachineFields({
    * to wipe the price and withdraw its cost entry.
    */
   financialsLoaded?: boolean;
+  /** Support equipment: its own type list and fields (machine-fields-form.tsx). */
+  equipment?: boolean;
 }) {
   const picked: MachineFieldDefaults | undefined = machine
     ? {
@@ -73,6 +76,7 @@ export function MachineFields({
       costCentres={costCentres}
       departments={departments}
       locations={locations}
+      equipment={equipment}
     />
     </>
   );

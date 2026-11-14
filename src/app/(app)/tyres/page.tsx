@@ -101,6 +101,8 @@ export default async function TyresPage({
       .from("machines")
       .select("id, name, meter_type, current_reading")
       .is("deleted_at", null)
+      // Detailed tyre fitment is a full asset's (20261114090200).
+      .eq("profile", "full")
       .order("name"),
   ]);
   // A failed read showed "no tyres yet" and a tyre spend of R0.

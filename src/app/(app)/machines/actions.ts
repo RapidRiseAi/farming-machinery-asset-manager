@@ -12,7 +12,7 @@ import {
   requireProfile,
   requireRole,
 } from "@/lib/auth";
-import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES } from "@/lib/machine-options";
+import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES, isEquipmentEligible } from "@/lib/machine-options";
 import { uploadMachinePhotoDataUrl } from "@/lib/machine-photo";
 import { todayLocal } from "@/lib/format";
 import { readTab, withTab } from "@/components/ui/tabs-url";
@@ -147,10 +147,16 @@ export async function createMachine(formData: FormData) {
         "/machines?error=forbidden",
       );
 
+      // Which kind (20261114090100): a fleet asset by default, support equipment when asked.
+      // The database refuses an ineligible type and an add past capacity on every path; these
+      // checks only give the person the sentence first.
+      const assetProfile = formData.get("profile") === "equipment" ? "equipment" : "full";
+      const back = assetProfile === "equipment" ? "/machines/new?profile=equipment&" : "/machines/new?";
       const name = str(formData, "name");
       const type = String(formData.get("type") ?? "");
-      if (!name) redirect("/machines/new?error=Name+is+required");
-      if (!inList(MACHINE_TYPES, type)) redirect("/machines/new?error=Invalid+type");
+      if (!name) redirect(`error=Name+is+required`);
+      if (!inList(MACHINE_TYPES, type)) redirect(`error=Invalid+type`);
+      if (assetProfile === "equipment" && !isEquipmentEligible(type)) redirect(`error=equipment-type-not-eligible`);
 
       const meterInput = String(formData.get("meter_type") ?? "hours");
       const meter_type = inList(METER_TYPES, meterInput) ? meterInput : "hours";
@@ -166,7 +172,7 @@ export async function createMachine(formData: FormData) {
       //
       // `null` means there is no ceiling on this farm (no quota was ever bought), which is
       // every farm that predates the quota model. It must never be read as "no room".
-      const free = await vehicleSlotsFree(supabase, farmId);
+      const free = assetProfile === "full" ? await vehicleSlotsFree(supabase, farmId) : null;
       if (free !== null && free < 1) {
         redirect("/machines/new?error=vehicle-limit-reached");
       }
@@ -182,7 +188,8 @@ export async function createMachine(formData: FormData) {
           model: str(formData, "model"),
           year: intOrNull(formData, "year"),
           serial_no: str(formData, "serial_no"),
-          fuel_tank_litres: tankLitres(formData),
+          fuel_tank_litres: assetProfile === "equipment" ? null : tankLitres(formData),
+          profile: assetProfile,
           reg_no: str(formData, "reg_no"),
           meter_type,
           current_reading,
@@ -198,8 +205,8 @@ export async function createMachine(formData: FormData) {
       // Never the raw database message: it is English prose a farmer cannot act on. The
       // ceiling trigger's refusal (a second tab took the last slot after the check above)
       // is the same sentence as the check; anything else not refused on purpose is reported.
-      if (error && /^BILLING: vehicle limit reached/.test(error.message)) redirect("/machines/new?error=vehicle-limit-reached");
-      if (error || !data) redirect(`/machines/new?error=${errorCode(error, "machines:create", "save-failed")}`);
+      if (error && /^(BILLING: vehicle limit reached|vehicle-limit-reached)/.test(error.message)) redirect(`error=vehicle-limit-reached`);
+      if (error || !data) redirect(`error=${errorCode(error, "machines:create", "save-failed")}`);
 
       // Optional primary photo captured on the add form (compressed client-side to a
       // base64 data URL). Upload it, then mark it primary. A photo failure never blocks
@@ -416,8 +423,12 @@ export async function importMachines(formData: FormData) {
       // fleet that silently stops at the limit, but "50 rows into 10 free slots" is a
       // different quality of answer from a constraint violation.
       // Same rule, read the same way: null is "no ceiling", not "no room".
+      // Full spaces are checked here for the sentence; equipment spaces, and both again under
+      // the subscription lock, by the database, which refuses the whole insert if either is
+      // short, so an import is all or nothing (20261114090300).
       const slotsFree = await vehicleSlotsFree(importClient, farmId);
-      if (slotsFree !== null && valid.length > slotsFree) {
+      const fullRows = valid.filter((m) => m.profile !== "equipment" && m.status !== "retired" && m.status !== "sold").length;
+      if (slotsFree !== null && fullRows > slotsFree) {
         redirect("/machines/import?error=vehicle-limit-import");
       }
 
@@ -439,9 +450,11 @@ export async function importMachines(formData: FormData) {
           current_reading_date: m.current_reading != null ? (m.current_reading_date ?? today) : null,
           status: m.status,
           notes: m.notes,
+          profile: m.profile,
         }))
       );
 
+      if (error && /^(BILLING: vehicle limit reached|vehicle-limit-reached)/.test(error.message)) redirect("/machines/import?error=vehicle-limit-import");
       if (error) redirect(`/machines/import?error=${errorCode(error, "app/machines/actions:importMachines")}`);
 
       revalidatePath("/machines");

@@ -98,7 +98,8 @@
     "map": "Map",
     "adminFeatures": "Features in testing",
     "trips": "{{Trips}}",
-    "adminUsage": "Usage"
+    "adminUsage": "Usage",
+    "adminEquipmentReviews": "Equipment reviews"
   },
   "assistant": {
     "title": "Voice assistant",
@@ -574,7 +575,9 @@
       "serial_twice": "Serial number twice in this file",
       "reg_on_farm": "Registration already in your fleet",
       "reg_twice": "Registration twice in this file",
-      "name_on_farm": "A {{asset}} with this name is already in your fleet"
+      "name_on_farm": "A {{asset}} with this name is already in your fleet",
+      "profile_invalid": "Unknown profile (use full or equipment)",
+      "profile_not_eligible": "A vehicle cannot be support equipment"
     },
     "identityCard": "Details",
     "purchaseDate": "Purchase date",
@@ -663,7 +666,8 @@
     "problemsFilter": "Problems",
     "problemsOpen": "With an open problem",
     "tankLitres": "Fuel tank size (litres)",
-    "tankLitresHint": "Used to spot a fuel card fill that is more than the tank holds."
+    "tankLitresHint": "Used to spot a fuel card fill that is more than the tank holds.",
+    "profile": "Profile"
   },
   "machineType": {
     "tractor": "Tractor",
@@ -683,7 +687,10 @@
     "motorcycle": "Motorcycle",
     "forklift": "Forklift",
     "earthmoving": "Earthmoving / Plant",
-    "boat": "Boat"
+    "boat": "Boat",
+    "compressor": "Compressor",
+    "workshop_tool": "Workshop tool",
+    "other_equipment": "Other equipment (not self-propelled)"
   },
   "machineStatus": {
     "active": "Active",
@@ -1152,7 +1159,9 @@
       "multi_site": "the combined view of your {{orgs}}",
       "whatsapp": "WhatsApp alerts",
       "api_access": "API access",
-      "financials": "Running the books"
+      "financials": "Running the books",
+      "trips": "trip scheduling and trip finance",
+      "maps": "maps and location tracking"
     },
     "bodyOwner": "{feature} is available on the {plan} plan and above. You're on {current}. You can change your plan on the Billing screen.",
     "bodyPartner": "{feature} is available on the {plan} product and above. You're on {current}. Ask FLEETWISE to move you up.",
@@ -1597,7 +1606,13 @@
     "nothingYet": "None in this period",
     "tabCosts": "Costs",
     "tabService": "Service",
-    "tabUsage": "Use and downtime"
+    "tabUsage": "Use and downtime",
+    "equipmentNoTco": "Support equipment",
+    "maintenanceSplit": "Maintenance spend, fleet and support equipment",
+    "maintenanceFleet": "Fleet assets",
+    "maintenanceEquipment": "Support equipment",
+    "maintenanceTotal": "All maintenance",
+    "maintenanceSplitNote": "Support equipment's repairs and parts count in the total. Ownership cost, cost per hour or km, fuel use and depreciation are worked out for fleet assets only."
   },
   "faults": {
     "pages": "Fault list pages",
@@ -5495,7 +5510,32 @@
     "applicationMissing": "That request could not be found, or it is already approved.",
     "applicationEmailTaken": "That address already belongs to a {{org}} or staff login. Ask them for another address.",
     "applicationFailed": "The account could not be made. Nothing was approved. Please try again.",
-    "signupCompany": "Choose what kind of business this is."
+    "signupCompany": "Choose what kind of business this is.",
+    "equipmentRefusedDriver": "Support equipment has no driving log or driver records. Convert it to a full fleet space to use them.",
+    "equipmentRefusedTracking": "Support equipment has no maps or location tracking. Its written location still works.",
+    "equipmentRefusedFuel": "Fuel is not recorded against support equipment. Record the draw without an asset, or convert it to a full fleet space.",
+    "equipmentRefusedBudgets": "Budgets are for full fleet assets. Support equipment keeps its repair costs.",
+    "equipmentRefusedFinance": "Loans and leases are for full fleet assets. Service contracts, warranties and insurance still work for support equipment.",
+    "equipmentRefusedTyres": "Detailed tyre fitment is for full fleet assets. Record a tyre replacement on support equipment as an ordinary repair.",
+    "equipmentRefusedTrips": "Support equipment has no trips of its own. A trailer can still be named on a vehicle's trip.",
+    "equipmentRefusedLicensing": "Licence discs, roadworthies and road permits are for full fleet assets. Insurance and other dates still work for support equipment.",
+    "equipmentRefusedDepreciation": "Support equipment keeps its purchase details but has no depreciation. Convert it to a full fleet space to use it.",
+    "equipmentTypeNotEligible": "This type is a vehicle, so it needs a full fleet space. Support equipment is for pumps, generators, compressors, tools, attachments and trailers.",
+    "equipmentReviewReason": "Say in a few words what is unusual about this asset.",
+    "equipmentReviewBad": "Choose confirmed or declined.",
+    "equipmentReviewClosed": "That review has already been answered.",
+    "planFeatureTrips": "Trip scheduling and trip finance are on Professional and Complete. The driving log works on every plan.",
+    "planFeatureMaps": "Maps, routes and location tracking are on Complete.",
+    "equipmentLimitReached": "Every support equipment space is in use. Add an equipment space on the billing page, or retire equipment first.",
+    "equipmentNotInAgreement": "Your current agreement was set up before support equipment existed. Ask FLEETWISE to move you to the current price list to add equipment.",
+    "equipmentRetired": "This equipment is retired. Restore it first to record new work; restoring needs a free equipment space.",
+    "capacityNeeded": "This change needs a space that is not paid for yet. Add the space on the billing page first, then try again.",
+    "previewChanged": "The numbers changed since you looked. Check the new totals and confirm again.",
+    "equipmentConvertSame": "The asset already has that profile.",
+    "equipmentConvertOpenDriving": "A driving log is open on this vehicle. Finish it before converting.",
+    "equipmentConvertOpenTrips": "This vehicle has planned or running trips. Finish or cancel them before converting.",
+    "equipmentConvertTrackerLinked": "A tracker is linked to this vehicle. Ask FLEETWISE to unlink it before converting.",
+    "previewBadQuantity": "Choose a quantity from 0 to 10 000."
   },
   "billing": {
     "title": "Billing",
@@ -5696,7 +5736,8 @@
     "atMinimum": "Billed at the plan minimum of {n} slots. You can add vehicles up to {n} at no extra cost.",
     "quoteSlotsMinimum": "Your plan is billed for at least five vehicle slots, so the number cannot go below that.",
     "quotePlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan.",
-    "eftReference": "Use {ref} as the reference. We record the payment on your account, usually within one working day."
+    "eftReference": "Use {ref} as the reference. We record the payment on your account, usually within one working day.",
+    "equipmentLine": "{n} extra support equipment ({included} included)"
   },
   "adminBilling": {
     "title": "Subscriptions",
@@ -6054,7 +6095,9 @@
       "voice_ai": "Voice capture and assistant",
       "multi_site": "Combined view across your {{orgs}}",
       "whatsapp": "WhatsApp alerts",
-      "api_access": "API access for your own systems"
+      "api_access": "API access for your own systems",
+      "trips": "Trip scheduling, deliveries and trip profit",
+      "maps": "Maps and vehicle locations"
     },
     "compareFeature": "Feature",
     "compareChosen": "Your choice",
@@ -8149,5 +8192,56 @@
     "difference": "Difference",
     "tolerance": "Allowed difference (%)",
     "toleranceHint": "A {{trip}} further or shorter than this, by the odometer, is flagged."
+  },
+  "assets": {
+    "viewFleet": "Fleet assets",
+    "viewEquipment": "Support equipment",
+    "viewsLabel": "Which assets to show",
+    "equipmentLead": "Pumps, generators, compressors, tools, attachments and trailers, kept for their maintenance, repairs, papers and QR codes.",
+    "capacityLabel": "Spaces",
+    "capacityFull": "Full fleet spaces: {active} in use of {purchased}, {free} free now. The next renewal bills {next}.",
+    "capacityFullMetered": "Full fleet spaces: {active} in use, billed as counted.",
+    "capacityEquipment": "Support equipment: {active} in use, {included} included and {extra} extra paid, {free} free now. The next renewal charges {next} extra.",
+    "capacityEquipmentMetered": "Support equipment: {active} in use, {included} included.",
+    "capacityEquipmentNoTerms": "Support equipment is not part of your current agreement yet.",
+    "makeModelHint": "If you know it. An old or homemade item can be left blank.",
+    "kindQuestion": "What are you adding?",
+    "kindChosen": "Chosen",
+    "kindFleetTitle": "A fleet asset (full space)",
+    "kindFleetWho": "Cars, bakkies, trucks, tractors, harvesters, forklifts and other vehicles. Equipment can use a full space too, for the extra tools.",
+    "kindFleetHas1": "Everything support equipment has, plus driving logs and, on your plan, trips",
+    "kindFleetHas2": "Fuel, licence discs, tyre fitments, loans and leases",
+    "kindFleetHas3": "Running cost, cost per hour or km, budgets and depreciation on Professional and Complete",
+    "kindEquipmentTitle": "Support equipment",
+    "kindEquipmentWho": "Pumps, generators, compressors, workshop tools, attachments such as ploughs, and trailers. Not for vehicles, even parked ones.",
+    "kindEquipmentHas1": "Photo, location, hour readings and service reminders",
+    "kindEquipmentHas2": "Faults, checklists, repair jobs with parts, labour and costs",
+    "kindEquipmentHas3": "Documents, QR codes, sale and warranty packs",
+    "kindEquipmentNot": "No trips, fuel, tracking, licence discs, budgets, depreciation, loans or leases. A trailer can still be named on a vehicle's trip.",
+    "equipmentNoteTitle": "This is support equipment",
+    "equipmentNoteKeeps": "It keeps its readings, service plan, faults, repair jobs and costs, documents and QR code.",
+    "equipmentNoteConvert": "Fuel, running cost, budgets, depreciation, trips and licence discs come with a full fleet space: use Convert to a full fleet space in this asset's menu.",
+    "converted": "The asset's profile was changed. Its history stays with it.",
+    "reviewSent": "Thanks. FLEETWISE will look at how this asset is classified and get back to you. Nothing changes on your bill meanwhile.",
+    "convertToFull": "Convert to a full fleet space",
+    "convertToEquipment": "Convert to support equipment",
+    "convertToFullLead": "The asset keeps its history and gets the full tools your plan has. It takes a full fleet space.",
+    "convertToEquipmentLead": "The asset keeps its history. New work follows support equipment: no new fuel, trips, licence discs, budgets or depreciation. It frees a full fleet space for another vehicle.",
+    "convertConfirm": "Convert",
+    "convertNeedsSpace": "This needs {full} more full space(s) and {equipment} more equipment space(s) than you have paid for. Add them on the billing page first.",
+    "convertKeepsHistory": "Old fuel, trip and cost records stay readable and exportable. Your five-space minimum does not change; you may give a freed full space back at your next renewal.",
+    "factFullAfter": "Full fleet spaces after",
+    "factInUseOf": "{n} in use of {of}",
+    "factEquipmentAfter": "Support equipment after",
+    "factEquipmentOf": "{n} in use, {included} included, {extra} extra paid",
+    "factRenewal": "Next renewal",
+    "factBeforeAfter": "{before} now, {after} after",
+    "plansForMix": "Each plan's renewal for this mix",
+    "planCurrent": "your plan",
+    "plansNeverSwitched": "Shown to compare. Your plan never changes unless you change it.",
+    "reviewRequest": "Ask FLEETWISE to check its classification",
+    "reviewHint": "For an unusual item: say what it is and how it is used. A person looks at it; nothing is billed or changed automatically.",
+    "reviewReason": "What is unusual about it",
+    "reviewSend": "Send"
   }
 }

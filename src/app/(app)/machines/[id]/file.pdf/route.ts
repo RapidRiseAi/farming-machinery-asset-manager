@@ -1,4 +1,4 @@
-import { getProfile, farmAllows } from "@/lib/auth";
+import { getProfile, machineAllows } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
 import { must, mustAll } from "@/lib/supabase/must";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 type Machine = {
   id: string; farm_id: string; name: string; type: string; make: string | null; model: string | null; year: number | null;
   serial_no: string | null; reg_no: string | null; meter_type: string; current_reading: number | null;
-  current_reading_date: string | null; status: string;
+  current_reading_date: string | null; status: string; profile: string;
 };
 type JC = { id: string; type: string; status: string; total_cents: number; date_out: string | null; created_at: string };
 type Plan = { task: string; interval_hours: number | null; interval_months: number | null; last_done_reading: number | null; last_done_date: string | null; next_due_reading: number | null; next_due_date: string | null; status: string };
@@ -29,13 +29,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const supabase = await createClient();
   const data = must(await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, profile")
     .eq("id", id).is("deleted_at", null).maybeSingle(), "machine-file:machine");
   const m = data as Machine | null;
   if (!m) return new Response("Not found", { status: 404 });
   const costsVisible = await canViewFarmCosts(supabase, m.farm_id);
-  // Spend is a record; cost per hour is total cost of ownership arithmetic, Professional.
-  const perHourVisible = costsVisible && (await farmAllows(m.farm_id, "tco", profile));
+  // Spend is a record; cost per hour is total cost of ownership arithmetic: Professional, and
+  // never for support equipment (20261114090200).
+  const perHourVisible = costsVisible && (await machineAllows(m, "tco", profile));
 
   // A failed read would print "No job cards" and a lifetime spend of R0 as the machine's
   // service book; a 500 is the honest answer.

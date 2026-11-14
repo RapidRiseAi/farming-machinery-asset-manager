@@ -86,6 +86,21 @@ this codebase has one idea about "an issuer who may not charge VAT", not two.
 
 ## 5. Prices
 
+> **Superseded on 2026-11-14 (20261114090300), decision register of 12 November 2026.** The
+> current generation is `launch-2026-11-eq`. Each row STATES its price for the whole billing
+> period (`period_price_incl_cents`: R49 / R79 / R99 a month, R490 / R790 / R990 a year), its
+> included support equipment (`equipment_included`: 2 / 5 / 15, once per customer subscription)
+> and the price of an extra equipment space (`equipment_period_incl_cents`: R15 a month, R150 a
+> year). The older columns stay filled and a check holds `per_vehicle_monthly_incl_cents x
+> months_charged` equal to the stated price, so no quote path can disagree with the invoice;
+> the invoice run prices from the stated price. Renewal = full spaces (at least five) x space
+> price + max(0, equipment in use - included) x equipment price, raised by
+> `app.billing_renewal_cents` and mirrored by `src/lib/billing/calculator.ts`. `launch-2026-11` is
+> retired with its money intact; agreements without a price were pinned to it first, and an
+> agreement on it or older has no equipment terms (adding equipment there is refused,
+> `equipment-not-in-agreement`, until the customer moves to the current list). Still not VAT
+> registered: 0%. What follows describes the November list and is kept for history.
+
 `billing_price_versions` holds a **versioned** price list: one row per (version, plan,
 billing period), priced per vehicle per month, **VAT-inclusive**, in integer cents.
 
@@ -165,6 +180,16 @@ restate last year's bill. What may still change is what has been **paid**, and w
 has been voided. Deleting an issued invoice is refused outright.
 
 ## 6. What counts as a billable vehicle
+
+> **Amended 2026-11-14 (20261114090300).** `app.billable_asset_count` and `farms.asset_count`
+> count FULL-profile assets only. Support equipment is counted apart
+> (`app.billable_equipment_count`) and charged beyond the plan's allowance at renewal; retired,
+> sold and deleted equipment is not counted, so retiring equipment stops its extra charge at the
+> next renewal (decision 6), while retiring a full asset only frees a purchased space. Capacity:
+> `billing_subscriptions.asset_quota` full spaces, and included + `equipment_extra_quota`
+> equipment spaces, pooled through the main site. `app.billing_enforce_vehicle_quota` locks the
+> subscription row before it counts, on every insert, restore, site move, conversion and
+> undelete, so concurrent adds cannot oversell. Buying capacity mid-period is task A2's.
 
 Non-deleted machines, **excluding** `retired` and `sold`. **A vehicle that is out of
 service still counts**, it keeps its history and its papers, and a farm that could stop

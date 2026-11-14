@@ -13,6 +13,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { createMachine } from "../actions";
 import { RequestIdInput } from "@/components/ui/request-id-input";
+import { AssetKindChooser } from "@/components/machines/asset-kind";
+import { readAssetView } from "@/components/machines/asset-views";
 
 /** Sorted distinct non-empty values, for the form's datalist suggestions. */
 function distinct(values: (string | null)[]): string[] {
@@ -24,11 +26,13 @@ function distinct(values: (string | null)[]): string[] {
 export default async function NewMachinePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; profile?: string }>;
 }) {
   const profile = await requireRole(["owner", "manager"]);
   const locale = profile.lang;
   const sp = await searchParams;
+  // Which kind is being added: asked plainly first, with what each can do (BRIEF section 5).
+  const kind = readAssetView(sp.profile);
 
   const supabase = await createClient();
   const farmId = await currentFarmId(profile);
@@ -59,16 +63,18 @@ export default async function NewMachinePage({
           then left them to go and find it. The one person who can act on this is the owner:
           a manager sees the same wall and cannot buy anything, so the button is theirs
           alone and everyone else keeps the sentence without a dead end attached. */}
-      {sp.error === "vehicle-limit-reached" && profile.role === "owner" ? (
+      {(sp.error === "vehicle-limit-reached" || sp.error === "equipment-limit-reached") && profile.role === "owner" ? (
         // `manage` opens the disclosure the slots form lives behind on /billing; the
         // fragment alone would scroll to a form inside a closed box.
         <Link href="/billing?manage=slots#slots" className={buttonVariants({ variant: "primary" })}>
           {t("machines.limitAddSlots", locale)}
         </Link>
       ) : null}
+      <AssetKindChooser current={kind} hrefFor={(k) => (k === "equipment" ? "/machines/new?profile=equipment" : "/machines/new")} locale={locale} />
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">
           <RequestIdInput action="machines:create" />
+          <input type="hidden" name="profile" value={kind === "equipment" ? "equipment" : "full"} />
           {/* The photo leads, because the first-run hint says so ("Take a photo, give it
               the name everyone actually calls it") and because that is how a driver
               recognises the machine on the list. */}
@@ -82,6 +88,7 @@ export default async function NewMachinePage({
             costCentres={distinct(dims.map((d) => d.cost_centre))}
             departments={distinct(dims.map((d) => d.department))}
             locations={distinct(dims.map((d) => d.location))}
+            equipment={kind === "equipment"}
           />
           {/* Save stays in reach on a phone once a section is open, sitting just above
               the tab bar; from lg it is simply the end of the form. */}

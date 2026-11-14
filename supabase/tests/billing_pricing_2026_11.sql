@@ -25,8 +25,8 @@ begin
     raise exception 'PRICE FAIL [a]: a three-vehicle sign-up holds % slots, expected the minimum 5', s.asset_quota;
   end if;
   if i.total_incl_cents <> 24500 or i.asset_count <> 5 or i.unit_price_incl_cents <> 4900
-     or i.months_charged <> 1 or i.price_version_label <> 'launch-2026-11' then
-    raise exception 'PRICE FAIL [a]: first invoice is % for % x % over % (%), expected 24500 for 5 x 4900 over 1 (launch-2026-11)',
+     or i.months_charged <> 1 or i.price_version_label <> 'launch-2026-11-eq' then
+    raise exception 'PRICE FAIL [a]: first invoice is % for % x % over % (%), expected 24500 for 5 x 4900 over 1 (launch-2026-11-eq, the current list since 20261114090300)',
       i.total_incl_cents, i.asset_count, i.unit_price_incl_cents, i.months_charged, i.price_version_label;
   end if;
   if l.line_total_incl_cents <> 24500 or l.qty <> 5 then
@@ -209,8 +209,8 @@ begin
   perform app.apply_pending_plan_changes();
 
   select * into s from billing_subscriptions where id = 'e7600000-0000-4000-9000-000000000041';
-  if s.billing_period <> 'annual' or s.price_version_label <> 'launch-2026-11' or s.asset_quota <> 5 then
-    raise exception 'PRICE FAIL [e]: a scheduled move onto the new annual list left % on % with % slots, expected annual, launch-2026-11, 5',
+  if s.billing_period <> 'annual' or s.price_version_label <> 'launch-2026-11-eq' or s.asset_quota <> 5 then
+    raise exception 'PRICE FAIL [e]: a scheduled move onto the new annual list left % on % with % slots, expected annual, launch-2026-11-eq, 5',
       s.billing_period, s.price_version_label, s.asset_quota;
   end if;
 
