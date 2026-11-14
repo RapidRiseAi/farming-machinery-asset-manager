@@ -423,8 +423,12 @@ export async function importMachines(formData: FormData) {
       // fleet that silently stops at the limit, but "50 rows into 10 free slots" is a
       // different quality of answer from a constraint violation.
       // Same rule, read the same way: null is "no ceiling", not "no room".
+      // Full spaces are checked here for the sentence; equipment spaces, and both again under
+      // the subscription lock, by the database, which refuses the whole insert if either is
+      // short, so an import is all or nothing (20261114090300).
       const slotsFree = await vehicleSlotsFree(importClient, farmId);
-      if (slotsFree !== null && valid.length > slotsFree) {
+      const fullRows = valid.filter((m) => m.profile !== "equipment" && m.status !== "retired" && m.status !== "sold").length;
+      if (slotsFree !== null && fullRows > slotsFree) {
         redirect("/machines/import?error=vehicle-limit-import");
       }
 
@@ -446,9 +450,11 @@ export async function importMachines(formData: FormData) {
           current_reading_date: m.current_reading != null ? (m.current_reading_date ?? today) : null,
           status: m.status,
           notes: m.notes,
+          profile: m.profile,
         }))
       );
 
+      if (error && /^(BILLING: vehicle limit reached|vehicle-limit-reached)/.test(error.message)) redirect("/machines/import?error=vehicle-limit-import");
       if (error) redirect(`/machines/import?error=${errorCode(error, "app/machines/actions:importMachines")}`);
 
       revalidatePath("/machines");
