@@ -2,8 +2,8 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
-import { accessibleFarms, currentPlan, effectiveFarmRole, farmAllows } from "@/lib/auth";
-import { planAllows, requiredPlan } from "@/lib/entitlements";
+import { accessibleFarms, currentPlan, effectiveFarmRole, machineAllows } from "@/lib/auth";
+import { planAllows, profileRefuses, requiredPlan } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
@@ -107,6 +107,8 @@ type Machine = {
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null; location: string | null; notes: string | null;
   assigned_operator_id: string | null; cost_centre: string | null; department: string | null;
   primary_attachment_id: string | null;
+  /** Management profile (20261114090100): full, or support equipment. */
+  profile: string;
   finance_provider: string | null; finance_total_cents: number | null; finance_monthly_cents: number | null;
   finance_term_months: number | null; finance_interest_bps: number | null;
 };
@@ -154,7 +156,7 @@ export default async function MachineDetailPage({
 }) {
   // Governing plan for entitlement gates (null = rr_admin/workshop bypass).
   const { profile, plan } = await currentPlan();
-  const fuelAllowed = plan == null ? true : planAllows(plan, "fuel");   // Professional+
+  const planFuelAllowed = plan == null ? true : planAllows(plan, "fuel");   // Professional+
   const aartoAllowed = plan == null ? true : planAllows(plan, "aarto"); // Complete+
   const { id } = await params;
   if (!isUuid(id)) notFound();
@@ -167,7 +169,7 @@ export default async function MachineDetailPage({
   // A failed read is the error screen, not "this machine does not exist".
   const data = must(await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, previous_machine_id, moved_to_machine_id, fuel_tank_litres")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, previous_machine_id, moved_to_machine_id, fuel_tank_litres, profile")
     .eq("id", id)
     .maybeSingle(), "machine:machine");
   const machineBase = data as Omit<Machine, "purchase_price_cents" | "supplier" | "finance_provider" | "finance_total_cents" | "finance_monthly_cents" | "finance_term_months" | "finance_interest_bps"> | null;
@@ -192,7 +194,11 @@ export default async function MachineDetailPage({
   // records is a plan question, asked of the machine's own farm: total cost of ownership,
   // cost per hour or km, the repair-or-replace ratio and budgets are Professional (`tco`).
   // The cost records themselves stay on every plan for whoever may see costs.
-  const analyticsVisible = costsVisible && (await farmAllows(machineBase.farm_id, "tco", profile));
+  // Support equipment keeps its cost records and never gets the analytics, on any plan
+  // (20261114090200): the whole matrix, plan and profile, through machineAllows.
+  const analyticsVisible = costsVisible && (await machineAllows(machineBase, "tco", profile));
+  const isEquipment = machineBase.profile === "equipment";
+  const fuelAllowed = planFuelAllowed && !profileRefuses(machineBase.profile, "fuel");
   const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
   // Finance agreements, leases and contracts: owners and managers only (founder default,
   // `app.can_view_farm_finance`), narrower than costs. Interest and lease payments still

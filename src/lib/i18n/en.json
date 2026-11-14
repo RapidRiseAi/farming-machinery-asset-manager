@@ -1155,7 +1155,9 @@
       "multi_site": "the combined view of your {{orgs}}",
       "whatsapp": "WhatsApp alerts",
       "api_access": "API access",
-      "financials": "Running the books"
+      "financials": "Running the books",
+      "trips": "trip scheduling and trip finance",
+      "maps": "maps and location tracking"
     },
     "bodyOwner": "{feature} is available on the {plan} plan and above. You're on {current}. You can change your plan on the Billing screen.",
     "bodyPartner": "{feature} is available on the {plan} product and above. You're on {current}. Ask FLEETWISE to move you up.",
@@ -1600,7 +1602,13 @@
     "nothingYet": "None in this period",
     "tabCosts": "Costs",
     "tabService": "Service",
-    "tabUsage": "Use and downtime"
+    "tabUsage": "Use and downtime",
+    "equipmentNoTco": "Support equipment",
+    "maintenanceSplit": "Maintenance spend, fleet and support equipment",
+    "maintenanceFleet": "Fleet assets",
+    "maintenanceEquipment": "Support equipment",
+    "maintenanceTotal": "All maintenance",
+    "maintenanceSplitNote": "Support equipment's repairs and parts count in the total. Ownership cost, cost per hour or km, fuel use and depreciation are worked out for fleet assets only."
   },
   "faults": {
     "pages": "Fault list pages",
@@ -5498,7 +5506,22 @@
     "applicationMissing": "That request could not be found, or it is already approved.",
     "applicationEmailTaken": "That address already belongs to a {{org}} or staff login. Ask them for another address.",
     "applicationFailed": "The account could not be made. Nothing was approved. Please try again.",
-    "signupCompany": "Choose what kind of business this is."
+    "signupCompany": "Choose what kind of business this is.",
+    "equipmentRefusedDriver": "Support equipment has no driving log or driver records. Convert it to a full fleet space to use them.",
+    "equipmentRefusedTracking": "Support equipment has no maps or location tracking. Its written location still works.",
+    "equipmentRefusedFuel": "Fuel is not recorded against support equipment. Record the draw without an asset, or convert it to a full fleet space.",
+    "equipmentRefusedBudgets": "Budgets are for full fleet assets. Support equipment keeps its repair costs.",
+    "equipmentRefusedFinance": "Loans and leases are for full fleet assets. Service contracts, warranties and insurance still work for support equipment.",
+    "equipmentRefusedTyres": "Detailed tyre fitment is for full fleet assets. Record a tyre replacement on support equipment as an ordinary repair.",
+    "equipmentRefusedTrips": "Support equipment has no trips of its own. A trailer can still be named on a vehicle's trip.",
+    "equipmentRefusedLicensing": "Licence discs, roadworthies and road permits are for full fleet assets. Insurance and other dates still work for support equipment.",
+    "equipmentRefusedDepreciation": "Support equipment keeps its purchase details but has no depreciation. Convert it to a full fleet space to use it.",
+    "equipmentTypeNotEligible": "This type is a vehicle, so it needs a full fleet space. Support equipment is for pumps, generators, compressors, tools, attachments and trailers.",
+    "equipmentReviewReason": "Say in a few words what is unusual about this asset.",
+    "equipmentReviewBad": "Choose confirmed or declined.",
+    "equipmentReviewClosed": "That review has already been answered.",
+    "planFeatureTrips": "Trip scheduling and trip finance are on Professional and Complete. The driving log works on every plan.",
+    "planFeatureMaps": "Maps, routes and location tracking are on Complete."
   },
   "billing": {
     "title": "Billing",
@@ -6057,7 +6080,9 @@
       "voice_ai": "Voice capture and assistant",
       "multi_site": "Combined view across your {{orgs}}",
       "whatsapp": "WhatsApp alerts",
-      "api_access": "API access for your own systems"
+      "api_access": "API access for your own systems",
+      "trips": "Trip scheduling, deliveries and trip profit",
+      "maps": "Maps and vehicle locations"
     },
     "compareFeature": "Feature",
     "compareChosen": "Your choice",

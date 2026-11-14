@@ -37,6 +37,12 @@ export const FEATURE_MIN_PLAN = {
   advanced_reports: "professional",
   fuel: "professional",
   tco: "professional",
+  // Trip scheduling, assignments, deliveries and trip finance (decision 16). The driving
+  // log with written stops is on every plan (`driving_log` below).
+  trips: "professional",
+  // In-app maps, route planning, reported positions and driving paths (decision 18). The
+  // `map` feature flag (src/lib/features.ts) is the readiness switch on top of the plan.
+  maps: "complete",
   aarto: "complete",
   voice_ai: "complete",
   multi_site: "complete",
@@ -46,16 +52,88 @@ export const FEATURE_MIN_PLAN = {
 
 export type Feature = keyof typeof FEATURE_MIN_PLAN;
 
+/**
+ * Gated features that exist but are not yet advertised on the plan comparison: they wait
+ * for their verification (decision 31). Their gates still apply.
+ */
+export const NOT_YET_ADVERTISED: readonly Feature[] = ["maps"];
+
+/**
+ * Every capability the matrix names: the gated features above, two analytics that share
+ * `tco`'s placement but are refused for support equipment by name, and the every-plan
+ * capabilities the equipment profile is judged against. Mirrors app.feature_min_rank
+ * (20261114090200); entitlements.test.ts reads that migration to keep them equal.
+ */
+export const CAPABILITY_MIN_PLAN = {
+  ...FEATURE_MIN_PLAN,
+  budgets: "professional",
+  depreciation: "professional",
+  driving_log: "essential",
+  driver_workflow: "essential",
+  road_licensing: "essential",
+  finance_agreements: "essential",
+  tyre_detail: "essential",
+  sale_warranty_packs: "essential",
+  general_chat: "essential",
+} as const satisfies Record<string, Plan>;
+
+export type Capability = keyof typeof CAPABILITY_MIN_PLAN;
+
+/**
+ * The management/billing profile of an asset (20261114090100). Kept here rather than
+ * imported from machine-options.ts so this module stays free of the i18n dictionaries.
+ */
+export type AssetProfileKey = "full" | "equipment";
+
+/**
+ * What each profile can never have, on any plan, Complete included (decisions 3 and 33).
+ * Support equipment keeps identification, photos, a written location, hour readings,
+ * service reminders, faults, checklists and inspections, repair jobs with ordinary parts,
+ * labour and cost lines, documents, QR codes, sale and warranty packs and chat. Mirrors
+ * app.profile_refuses (20261114090200).
+ */
+export const PROFILE_REFUSES: Record<AssetProfileKey, readonly Capability[]> = {
+  full: [],
+  equipment: [
+    "driving_log",
+    "driver_workflow",
+    "trips",
+    "maps",
+    "road_licensing",
+    "fuel",
+    "tco",
+    "depreciation",
+    "finance_agreements",
+    "budgets",
+    "tyre_detail",
+  ],
+};
+
 /** The minimum plan that unlocks `feature`. */
-export function requiredPlan(feature: Feature): Plan {
-  return FEATURE_MIN_PLAN[feature];
+export function requiredPlan(feature: Capability): Plan {
+  return CAPABILITY_MIN_PLAN[feature];
 }
 
 /** Does `plan` unlock `feature`? Unknown/ungated features are always allowed. */
-export function planAllows(plan: Plan, feature: Feature): boolean {
-  const need = FEATURE_MIN_PLAN[feature];
+export function planAllows(plan: Plan, feature: Capability): boolean {
+  const need = CAPABILITY_MIN_PLAN[feature];
   if (!need) return true;
   return PLAN_RANK[plan] >= PLAN_RANK[need];
+}
+
+/** Does this profile refuse `feature` outright, whatever the plan? */
+export function profileRefuses(profile: AssetProfileKey | string | null | undefined, feature: Capability): boolean {
+  if (profile !== "equipment") return false;
+  return PROFILE_REFUSES.equipment.includes(feature);
+}
+
+/**
+ * The whole matrix for one asset: its business's plan AND its own profile. A full asset
+ * follows its plan; support equipment never gets a refused tool, however high the plan.
+ * Mirrors app.asset_allows.
+ */
+export function assetAllows(plan: Plan, profile: AssetProfileKey | string | null | undefined, feature: Capability): boolean {
+  return planAllows(plan, feature) && !profileRefuses(profile, feature);
 }
 
 export function isPlan(value: string): value is Plan {

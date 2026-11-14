@@ -85,3 +85,61 @@ test("a CSV cell that would run as a spreadsheet formula is written as text", ()
   assert.equal(csvCell('Say "hi"'), '"Say ""hi"""');
   assert.equal(toCsv([["a", 1], ["=1", "b"]]), '"a","1"\r\n"\'=1","b"');
 });
+
+function profileFixture() {
+  const rows: Record<string, unknown[]> = {
+    machines: [
+      { id: "truck", name: "Truck", status: "active", current_reading: 1000, meter_type: "km", location: null, profile: "full" },
+      { id: "pump", name: "Pump", status: "active", current_reading: 500, meter_type: "hours", location: null, profile: "equipment" },
+    ],
+    job_cards_visible: [
+      { id: "j1", machine_id: "truck", type: "repair", parts_total_cents: 1000, labour_total_cents: 500, other_total_cents: 0, total_cents: 1500, date_out: "2026-09-05" },
+      { id: "j2", machine_id: "pump", type: "repair", parts_total_cents: 120000, labour_total_cents: 0, other_total_cents: 0, total_cents: 120000, date_out: "2026-09-06" },
+    ],
+    cost_entries: [
+      { machine_id: "truck", amount_cents: 50000, type: "parts", occurred_on: "2026-09-05" },
+      { machine_id: "pump", amount_cents: 120000, type: "parts", occurred_on: "2026-09-06" },
+    ],
+    fuel_issues_visible: [
+      // A draw recorded before the pump was converted: it stays in the totals, never in fuel-use analysis.
+      { id: "f1", machine_id: "pump", date: "2026-09-07", litres: 20, meter_reading: 490, cost_cents: 4000 },
+      { id: "f2", machine_id: "truck", date: "2026-09-07", litres: 60, meter_reading: 990, cost_cents: 12000 },
+    ],
+  };
+  return {
+    from(table: string) {
+      const query = {
+        select() { return query; }, is() { return query; }, eq() { return query; }, gte() { return query; },
+        lte() { return query; }, order() { return query; }, range() { return query; },
+        maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+        then(resolve: (value: unknown) => unknown) {
+          return Promise.resolve({ data: rows[table] ?? [], error: null }).then(resolve);
+        },
+      };
+      return query;
+    },
+    rpc() { return Promise.resolve({ data: [], error: null }); },
+  } as unknown as SupabaseClient;
+}
+
+test("support equipment's repairs count in the company total, never in ownership or fuel analytics", async () => {
+  const report = await getReportData(profileFixture(), filters, "farm-1");
+  const pump = report.costPerMachine.find((r) => r.machineId === "pump");
+  const truck = report.costPerMachine.find((r) => r.machineId === "truck");
+  assert.ok(pump && truck);
+  // The repair spend is there, labelled as equipment...
+  assert.equal(pump.total, 120000);
+  assert.equal(pump.equipment, true);
+  // ...but no total cost of ownership or cost per hour is worked out for it.
+  assert.equal(pump.tco, 0);
+  assert.equal(pump.perHour, null);
+  assert.equal(truck.tco, 50000);
+  assert.equal(truck.equipment, false);
+  assert.deepEqual(report.maintenanceByProfile, {
+    full: { assets: 1, total: 1500 },
+    equipment: { assets: 1, total: 120000 },
+  });
+  // Fuel: the pump's old draw is in the period total, not in the per-asset analysis.
+  assert.equal(report.fuel.totalLitres, 80);
+  assert.deepEqual(report.fuel.perMachine.map((r) => r.machineId), ["truck"]);
+});

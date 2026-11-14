@@ -12,7 +12,7 @@ import {
   checkWorkshopEntitlement,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { hiddenMenuHrefs } from "@/lib/modules";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
@@ -205,7 +205,7 @@ export default async function AppLayout({
         ?.settings as Record<string, unknown> | null | undefined) ?? null)
     : null;
   // A feature in testing appears only where Rapid Rise has turned it on (/admin/features).
-  const mapOn = !isWorkshop && !isAdmin && (await featureOn("map", currentFarm));
+  const mapOn = !isWorkshop && !isAdmin && (await mapsAvailable(currentFarm, profile));
   const [alertsUnread, inboxDecisions, supportWaiting] = await Promise.all([
     countInboxUnread(countsClient, profile.id),
     canUseInbox ? countInboxDecisions(countsClient, currentFarm) : Promise.resolve(0),

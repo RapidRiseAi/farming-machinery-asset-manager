@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Plan x profile x feature: the matrix functions and the rule on a restricted table.
+  "20261114090200": "select to_regprocedure('app.profile_refuses(public.asset_profile,text)') is not null and to_regprocedure('public.has_asset_entitlement(uuid,text)') is not null and exists (select 1 from pg_trigger where tgname = 'fuel_issues_equipment_refuse') and exists (select 1 from pg_trigger where tgname = 'trips_plan_gate') and app.feature_min_rank('maps') = 3",
   // The equipment profile on machines, its eligibility answer, the guard and the review list.
   "20261114090100": "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'machines' and column_name = 'profile') and to_regprocedure('app.equipment_eligible(public.machine_type)') is not null and to_regclass('public.asset_classification_reviews') is not null and to_regprocedure('public.equipment_profile_candidates(uuid)') is not null",
   // Compressors, workshop tools and other equipment as machine types.

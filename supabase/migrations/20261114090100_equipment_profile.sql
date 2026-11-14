@@ -105,12 +105,12 @@ as $$
 begin
   if tg_op = 'UPDATE' and new.profile is distinct from old.profile
      and current_user in ('authenticated', 'anon', 'service_role') then
-    raise exception 'EQUIPMENT: change the profile through its preview'
-      using errcode = '42501', hint = 'equipment-convert-through-preview';
+    raise exception 'equipment-convert-through-preview'
+      using errcode = '42501', hint = 'Change the profile through public.convert_asset_profile.';
   end if;
   if new.profile = 'equipment' and not coalesce(app.equipment_eligible(new.type), false) then
-    raise exception 'EQUIPMENT: a % cannot use the equipment profile', new.type
-      using errcode = '22023', hint = 'equipment-type-not-eligible';
+    raise exception 'equipment-type-not-eligible'
+      using errcode = '22023', detail = format('type %s', new.type);
   end if;
   return new;
 end
@@ -213,7 +213,7 @@ begin
   end if;
   perform app.require_open_farm(v_farm, true);
   if coalesce(length(btrim(p_reason)), 0) not between 1 and 500 then
-    raise exception 'EQUIPMENT: say what is unusual about it' using errcode = '22023', hint = 'equipment-review-reason';
+    raise exception 'equipment-review-reason' using errcode = '22023';
   end if;
   select r.id into v_id from public.asset_classification_reviews r where r.machine_id = p_machine and r.status = 'open';
   if v_id is not null then return v_id; end if;
@@ -239,14 +239,14 @@ begin
     raise exception 'Rapid Rise only' using errcode = '42501';
   end if;
   if p_status is null or p_status not in ('confirmed', 'declined') then
-    raise exception 'EQUIPMENT: confirmed or declined' using errcode = '22023';
+    raise exception 'equipment-review-bad' using errcode = '22023';
   end if;
   update public.asset_classification_reviews
      set status = p_status, decided_by = auth.uid(), decided_at = now(),
          decision_note = nullif(btrim(coalesce(p_note, '')), '')
    where id = p_review and status = 'open';
   if not found then
-    raise exception 'EQUIPMENT: no open review' using errcode = '22023';
+    raise exception 'equipment-review-closed' using errcode = '22023';
   end if;
 end
 $$;

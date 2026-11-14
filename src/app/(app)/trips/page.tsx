@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { currentFarmId, effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
+import { checkEntitlement, currentFarmId, effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { errorMessage } from "@/lib/errors";
 import { num, shortDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -50,7 +51,10 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
   const locale = profile.lang;
   const farmId = (await currentFarmId(profile)) ?? "";
   const role = await effectiveFarmRole(farmId, profile);
-  const canPlan = role === "owner" || role === "manager";
+  // Trip scheduling and trip finance are Professional and up (decision 16); the database
+  // refuses a new trip on a lower plan too (20261114090200). Saved trips stay readable.
+  const tripsGate = await checkEntitlement("trips", profile);
+  const canPlan = (role === "owner" || role === "manager") && tripsGate.allowed;
 
   const supabase = await createClient();
   const results = await Promise.all([
@@ -61,18 +65,20 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(200),
-    supabase.from("machines").select("id, name, type").eq("farm_id", farmId).is("deleted_at", null).neq("status", "retired").order("name").limit(2000),
+    supabase.from("machines").select("id, name, type, profile").eq("farm_id", farmId).is("deleted_at", null).neq("status", "retired").order("name").limit(2000),
     supabase.from("users").select("id, name").eq("farm_id", farmId).eq("active", true).is("deleted_at", null).order("name").limit(1000),
   ]);
   mustAll(results, "trips:page");
   const [{ data: tripData }, { data: machineData }, { data: peopleData }] = results;
   const trips = (tripData ?? []) as Row[];
-  const machines = (machineData ?? []) as { id: string; name: string; type: string }[];
+  const machines = (machineData ?? []) as { id: string; name: string; type: string; profile: string }[];
   const people = (peopleData ?? []) as { id: string; name: string }[];
   const vehicleName = new Map(machines.map((m) => [m.id, m.name]));
   const personName = new Map(people.map((p) => [p.id, p.name]));
+  // A trailer on the equipment profile can still be named on a vehicle's trip (decision 32);
+  // other support equipment never goes on a trip, and only a full vehicle has trips.
   const trailers = machines.filter((m) => TRAILER_TYPES.includes(m.type));
-  const vehicles = machines.filter((m) => !TRAILER_TYPES.includes(m.type));
+  const vehicles = machines.filter((m) => !TRAILER_TYPES.includes(m.type) && m.profile !== "equipment");
 
   const underway = trips.filter((x) => x.status === "underway").length;
   const planned = trips.filter((x) => x.status === "planned").length;
@@ -158,6 +164,16 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
         }
       />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
+      {!tripsGate.allowed ? (
+        <UpgradeNotice
+          feature="trips"
+          requiredPlan={tripsGate.requiredPlan}
+          currentPlan={tripsGate.plan}
+          locale={locale}
+          compact
+          canUpgrade={role === "owner"}
+        />
+      ) : null}
 
       <StatGrid columns={2}>
         <Stat label={t("trips.statUnderway", locale)} value={num(underway)} size="md" />

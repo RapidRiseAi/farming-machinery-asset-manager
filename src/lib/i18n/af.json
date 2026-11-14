@@ -1155,7 +1155,9 @@
       "multi_site": "die gesamentlike oorsig van jou {{orgs}}",
       "whatsapp": "WhatsApp-kennisgewings",
       "api_access": "API-toegang",
-      "financials": "Om die boeke te hou"
+      "financials": "Om die boeke te hou",
+      "trips": "riteskedulering en ritfinansies",
+      "maps": "kaarte en liggingnasporing"
     },
     "bodyOwner": "{feature} is beskikbaar op die {plan}-plan en hoër. Jy is op {current}. Jy kan jou plan op die Rekening-skerm verander.",
     "bodyPartner": "{feature} is beskikbaar op die {plan}-produk en hoër. Jy is op {current}. Vra FLEETWISE om jou op te gradeer.",
@@ -1600,7 +1602,13 @@
     "nothingYet": "Geen in hierdie tydperk nie",
     "tabCosts": "Koste",
     "tabService": "Diens",
-    "tabUsage": "Gebruik en staantyd"
+    "tabUsage": "Gebruik en staantyd",
+    "equipmentNoTco": "Ondersteuningstoerusting",
+    "maintenanceSplit": "Onderhoudsbesteding, vloot en ondersteuningstoerusting",
+    "maintenanceFleet": "Vlootbates",
+    "maintenanceEquipment": "Ondersteuningstoerusting",
+    "maintenanceTotal": "Alle onderhoud",
+    "maintenanceSplitNote": "Ondersteuningstoerusting se herstelwerk en onderdele tel in die totaal. Eienaarskoste, koste per uur of km, brandstofverbruik en waardevermindering word net vir vlootbates bereken."
   },
   "faults": {
     "pages": "Foutlysbladsye",
@@ -5498,7 +5506,22 @@
     "applicationMissing": "Daardie versoek kon nie gevind word nie, of dit is reeds goedgekeur.",
     "applicationEmailTaken": "Daardie adres behoort reeds aan 'n {{org}}- of personeelaanmelding. Vra hulle vir 'n ander adres.",
     "applicationFailed": "Die rekening kon nie gemaak word nie. Niks is goedgekeur nie. Probeer asseblief weer.",
-    "signupCompany": "Kies watter soort besigheid dit is."
+    "signupCompany": "Kies watter soort besigheid dit is.",
+    "equipmentRefusedDriver": "Ondersteuningstoerusting het geen rylogboek of bestuurderrekords nie. Skakel dit om na 'n volle vlootplek om dit te gebruik.",
+    "equipmentRefusedTracking": "Ondersteuningstoerusting het geen kaarte of liggingnasporing nie. Die geskrewe ligging werk steeds.",
+    "equipmentRefusedFuel": "Brandstof word nie teen ondersteuningstoerusting aangeteken nie. Teken die onttrekking sonder 'n bate aan, of skakel dit om na 'n volle vlootplek.",
+    "equipmentRefusedBudgets": "Begrotings is vir volle vlootbates. Ondersteuningstoerusting hou sy herstelkoste.",
+    "equipmentRefusedFinance": "Lenings en huurkontrakte is vir volle vlootbates. Dienskontrakte, waarborge en versekering werk steeds vir ondersteuningstoerusting.",
+    "equipmentRefusedTyres": "Gedetailleerde bandmontering is vir volle vlootbates. Teken 'n bandvervanging op ondersteuningstoerusting as 'n gewone herstelwerk aan.",
+    "equipmentRefusedTrips": "Ondersteuningstoerusting het geen eie ritte nie. 'n Sleepwa kan steeds op 'n voertuig se rit genoem word.",
+    "equipmentRefusedLicensing": "Lisensieskywe, padwaardigheidsertifikate en padpermitte is vir volle vlootbates. Versekering en ander datums werk steeds vir ondersteuningstoerusting.",
+    "equipmentRefusedDepreciation": "Ondersteuningstoerusting hou sy aankoopbesonderhede, maar het geen waardevermindering nie. Skakel dit om na 'n volle vlootplek om dit te gebruik.",
+    "equipmentTypeNotEligible": "Hierdie tipe is 'n voertuig en het dus 'n volle vlootplek nodig. Ondersteuningstoerusting is vir pompe, kragopwekkers, kompressors, gereedskap, aanbouwerktuie en sleepwaens.",
+    "equipmentReviewReason": "Sê in 'n paar woorde wat ongewoon aan hierdie bate is.",
+    "equipmentReviewBad": "Kies bevestig of afgekeur.",
+    "equipmentReviewClosed": "Daardie hersiening is reeds beantwoord.",
+    "planFeatureTrips": "Riteskedulering en ritfinansies is op Professioneel en Volledig. Die rylogboek werk op elke plan.",
+    "planFeatureMaps": "Kaarte, roetes en liggingnasporing is op Volledig."
   },
   "billing": {
     "title": "Rekening",
@@ -6057,7 +6080,9 @@
       "voice_ai": "Stemopname en assistent",
       "multi_site": "Gesamentlike oorsig oor jou {{orgs}}",
       "whatsapp": "WhatsApp-waarskuwings",
-      "api_access": "API-toegang vir jou eie stelsels"
+      "api_access": "API-toegang vir jou eie stelsels",
+      "trips": "Riteskedulering, aflewerings en ritwins",
+      "maps": "Kaarte en voertuigliggings"
     },
     "compareFeature": "Kenmerk",
     "compareChosen": "Jou keuse",

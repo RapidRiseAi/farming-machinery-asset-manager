@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { currentFarmId, effectiveFarmRole, getProfile, farmIsUsable } from "@/lib/auth";
-import { featureOn } from "@/lib/features";
+import { effectiveFarmRole, getProfile, farmIsUsable } from "@/lib/auth";
+import { mapsAvailable } from "@/lib/features";
 import { isUuid } from "@/lib/ids";
 import { cleanPoints } from "@/lib/map-data";
 import { captureError } from "@/lib/observability";
@@ -35,9 +35,8 @@ export async function POST(request: Request) {
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   if (!(await farmIsUsable(farmId, profile))) return NextResponse.json({ error: "stopped" }, { status: 402 });
 
-  // A feature in testing answers only for the business it is on for.
-  const current = await currentFarmId(profile);
-  if (!(await featureOn("map", current === farmId ? current : farmId))) {
+  // Complete, and the map released to this business (the session's own business decides).
+  if (!(await mapsAvailable(farmId, profile))) {
     return NextResponse.json({ error: "off" }, { status: 404 });
   }
 

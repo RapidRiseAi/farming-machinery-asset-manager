@@ -42,8 +42,8 @@ import {
   type Role,
   currentFarmId,
   effectiveFarmRole,
-  farmAllows,
   getProfile,
+  machineAllows,
 } from "@/lib/auth";
 import {
   DEFAULT_LICENCE_LEAD_DAYS,
@@ -76,7 +76,7 @@ const MACHINE_COLUMNS =
   "id, farm_id, name, type, status, make, model, year, serial_no, reg_no, location, " +
   "meter_type, current_reading, current_reading_date, purchase_date, " +
   "warranty_expiry_date, warranty_expiry_hours, assigned_operator_id, " +
-  "primary_attachment_id";
+  "primary_attachment_id, profile";
 
 const LICENCE_COLUMNS = "machine_id, type, number, expiry_date, reminder_lead_days, notes";
 const PLAN_COLUMNS =
@@ -91,7 +91,7 @@ const JOBCARD_COLUMNS =
   "machine_id, type, status, date_in, date_out, meter_reading, work_performed, total_cents, created_at";
 const READING_COLUMNS = "machine_id, reading, reading_date, source";
 
-type MachineRow = PackMachine & { farm_id: string; primary_attachment_id: string | null };
+type MachineRow = PackMachine & { farm_id: string; primary_attachment_id: string | null; profile?: string | null };
 type MachineBaseRow = Omit<MachineRow, "purchase_price_cents" | "supplier">;
 
 const withoutFinancials = (machine: MachineBaseRow): MachineRow => ({
@@ -331,8 +331,9 @@ export async function gatherSale(auth: MachinePackAuth): Promise<SaleInput> {
   // nothing.
   const [issuer, gate, licRes, planRes, jcRes, faultRes, readRes, photoRes] = await Promise.all([
     loadIssuer(supabase, farmId, profile),
-    // The machine's own farm decides, not the farm the person has selected.
-    farmAllows(machine.farm_id, "tco", profile),
+    // The machine's own farm decides, not the farm the person has selected; support
+    // equipment never has the cost analysis section (20261114090200), on any plan.
+    machineAllows(machine, "tco", profile),
     readAll(() => supabase.from("licences").select(LICENCE_COLUMNS)
       .eq("machine_id", id).is("deleted_at", null).order("expiry_date")),
     readAll(() => supabase.from("service_plan_lines").select(PLAN_COLUMNS)

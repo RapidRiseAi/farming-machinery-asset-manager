@@ -22,7 +22,34 @@ calculator and capacity, assets UI, tests for scenarios 1, 2, 3, 4, 5, 9, 14, 15
 ## In progress
 
 Step 3: entitlements matrix in `src/lib/entitlements.ts`, SQL mirror and the database
-rules on child tables (migration `20261114090200_equipment_entitlements.sql`).
+rules on child tables (migration `20261114090200_equipment_entitlements.sql`, written:
+feature_min_rank with trips 2, maps 3, budgets 2, depreciation 2 and every-plan keys;
+app.profile_refuses; app.farm_plan_allows; app.asset_allows; public.has_asset_entitlement
+(listed open in pay_gate_functions.sql); app.refuse_equipment_work trigger on
+driving_sessions, driver_device_links, asset_positions, fuel_issues,
+fuel_card_transactions, budgets, finance_agreements, tyre_fitments, trips; trailer guard on
+trips; licence road types; asset_contracts lease/rental; depreciation method on equipment;
+plan gates on insert: trips/trip_jobs/trip_income/trip_expenses = trips (Professional),
+trip_routes/asset_positions = maps (Complete); driving_vehicles and farm_book_values leave
+equipment out).
+
+Done in step 3 (WIP commit): `supabase/tests/equipment_restrictions.sql` (passes on
+PGlite; 5 mutations caught: fuel rule, tco refusal, trailer guard, trips rank, depreciation),
+probe and run.sh line; slugs instead of English in 20261114090100's refusals (not yet
+applied anywhere, so edited in place); `src/lib/entitlements.ts` CAPABILITY_MIN_PLAN,
+PROFILE_REFUSES, profileRefuses, assetAllows, NOT_YET_ADVERTISED (maps hidden on the
+signup comparison) + `entitlements.test.ts` pinning both to the migration;
+`machineAllows` in auth.ts used by machine page (analyticsVisible, fuelAllowed),
+file.pdf, sale pack (pack-data); `mapsAvailable` in features.ts (Complete AND flag) used by
+every former `featureOn("map")` site incl. /api/positions and routing access; trips page
+gated by `trips` with UpgradeNotice and no equipment as vehicles; reports data split
+`maintenanceByProfile`, equipment rows no TCO/cost per hour, no fuel analysis; reports
+page shows the labelled subtotal; error codes `equipment-refused-*`, `plan-feature-*`,
+`equipment-type-not-eligible`, `equipment-review-*` in errors.ts with EN/AF keys.
+
+Next in step 3: run the new report test through `pnpm -s test` (it needs the server-only
+shim; `npx tsx --test` alone fails on `server-only`), API v1 `profile` column, full gates,
+then the step-3-done commit.
 
 Step 2 delivered: `20261114090000_machine_types_equipment.sql` (compressor, workshop_tool,
 other_equipment), `20261114090100_equipment_profile.sql` (`machines.profile`,

@@ -268,5 +268,7 @@ pg "$DB" < "$ROOT/supabase/tests/billing_review_5.sql"
 pg "$DB" < "$ROOT/supabase/tests/billing_pricing_2026_11.sql"
 echo "==> running equipment profile tests (eligibility, direct changes refused, the review list)"
 pg "$DB" < "$ROOT/supabase/tests/equipment_profile.sql"
+echo "==> running equipment restriction tests (plan x profile x feature at the table, the trailer link)"
+pg "$DB" < "$ROOT/supabase/tests/equipment_restrictions.sql"
 
 echo "==> OK"

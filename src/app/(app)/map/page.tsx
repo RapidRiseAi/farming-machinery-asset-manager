@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { currentFarmId, requireProfile } from "@/lib/auth";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { dateTime, num, relativeDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { isUuid } from "@/lib/ids";
@@ -35,7 +35,7 @@ type PlannedRoute = { trip_id: string; waypoints: { lat: number; lng: number; la
 export default async function MapPage({ searchParams }: { searchParams: Promise<{ session?: string; trip?: string }> }) {
   const profile = await requireProfile();
   const farmId = await currentFarmId(profile);
-  if (!(await featureOn("map", farmId))) notFound();
+  if (!(await mapsAvailable(farmId, profile))) notFound();
   const sp = await searchParams;
   const locale = profile.lang;
   const chosen = isUuid(sp.session) ? sp.session : null;

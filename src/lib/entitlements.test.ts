@@ -11,10 +11,82 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { t } from "@/lib/i18n";
-import { FEATURE_MIN_PLAN, PLANS, planAllows, type Feature } from "./entitlements";
+import {
+  CAPABILITY_MIN_PLAN,
+  FEATURE_MIN_PLAN,
+  NOT_YET_ADVERTISED,
+  PLANS,
+  PROFILE_REFUSES,
+  assetAllows,
+  planAllows,
+  profileRefuses,
+  type Capability,
+  type Feature,
+} from "./entitlements";
 
 const FEATURES = Object.keys(FEATURE_MIN_PLAN) as Feature[];
+const RANK = { essential: 1, professional: 2, complete: 3, done_for_you: 4 } as const;
+const MATRIX_SQL = readFileSync(
+  join(process.cwd(), "supabase", "migrations", "20261114090200_equipment_entitlements.sql"),
+  "utf8",
+);
+
+function sqlBody(fn: string): string {
+  const start = MATRIX_SQL.indexOf(`function ${fn}(`);
+  assert.ok(start >= 0, `${fn} is not in the matrix migration`);
+  return MATRIX_SQL.slice(start, MATRIX_SQL.indexOf("$$;", start));
+}
+
+test("the plan part of the matrix is the database's app.feature_min_rank, key for key", () => {
+  const ranks = new Map<string, number>();
+  for (const m of sqlBody("app.feature_min_rank").matchAll(/when '([a-z_]+)'\s+then (\d)/g)) ranks.set(m[1], Number(m[2]));
+  for (const [cap, plan] of Object.entries(CAPABILITY_MIN_PLAN)) {
+    assert.equal(ranks.get(cap), RANK[plan], `${cap}: TS ${plan} (${RANK[plan]}), SQL ${ranks.get(cap)}`);
+  }
+  assert.deepEqual([...ranks.keys()].sort(), Object.keys(CAPABILITY_MIN_PLAN).sort(), "a key exists on one side only");
+});
+
+test("the profile part of the matrix is the database's app.profile_refuses", () => {
+  const listed = [...sqlBody("app.profile_refuses").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).filter((v) => v !== "equipment");
+  assert.deepEqual([...listed].sort(), [...PROFILE_REFUSES.equipment].sort());
+});
+
+test("support equipment never gets a refused tool, even on Complete or Done-For-You", () => {
+  for (const plan of PLANS) {
+    for (const cap of PROFILE_REFUSES.equipment) {
+      assert.equal(assetAllows(plan, "equipment", cap), false, `${plan} gave equipment ${cap}`);
+    }
+    // What equipment keeps on every plan.
+    for (const cap of ["sale_warranty_packs", "general_chat"] as Capability[]) {
+      assert.equal(assetAllows(plan, "equipment", cap), true, `${plan} took ${cap} from equipment`);
+    }
+  }
+});
+
+test("a full asset follows its plan: trips Professional, maps Complete, core records everywhere", () => {
+  assert.equal(assetAllows("essential", "full", "trips"), false);
+  assert.equal(assetAllows("essential", "full", "driving_log"), true);
+  assert.equal(assetAllows("essential", "full", "finance_agreements"), true);
+  assert.equal(assetAllows("essential", "full", "tyre_detail"), true);
+  assert.equal(assetAllows("essential", "full", "tco"), false);
+  assert.equal(assetAllows("professional", "full", "trips"), true);
+  assert.equal(assetAllows("professional", "full", "budgets"), true);
+  assert.equal(assetAllows("professional", "full", "depreciation"), true);
+  assert.equal(assetAllows("professional", "full", "maps"), false);
+  assert.equal(assetAllows("complete", "full", "maps"), true);
+  // An unknown profile is never treated as equipment's cheaper set nor as a bypass.
+  assert.equal(profileRefuses(null, "fuel"), false);
+  assert.equal(profileRefuses("equipment", "fuel"), true);
+});
+
+test("a feature waiting for verification is gated but not on the comparison", () => {
+  for (const f of NOT_YET_ADVERTISED) assert.ok(f in FEATURE_MIN_PLAN, `${f} is not a gated feature`);
+  assert.ok(NOT_YET_ADVERTISED.includes("maps"));
+});
 
 test("every gated feature has a comparison label, in both languages", () => {
   for (const f of FEATURES) {

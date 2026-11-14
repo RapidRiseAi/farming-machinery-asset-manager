@@ -19,7 +19,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { DrivingLocation } from "@/components/driving-location";
 import { RouteRecorder } from "@/components/map/route-recorder";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { recordActivity } from "./actions";
 import { isUuid } from "@/lib/ids";
 
@@ -62,7 +62,7 @@ export default async function ActivityPage({
   );
   const manage = role === "owner" || role === "manager";
   const locale = profile.lang;
-  const mapOn = await featureOn("map", farm);
+  const mapOn = await mapsAvailable(farm, profile);
   const db = await createClient();
   const page = Math.max(
     0,

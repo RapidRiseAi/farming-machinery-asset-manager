@@ -16,10 +16,16 @@ type CostRow = {
   machineId: string; name: string;
   parts: number; labour: number; other: number; total: number;
   tco: number; perHour: number | null; perKm: number | null; meterType: string;
+  /** Support equipment (20261114090100) keeps its repair spend; TCO and cost per hour/km are
+   *  not computed for it (tco 0, perHour/perKm null), on any plan. */
+  equipment: boolean;
 };
 export type ReportData = {
   costPerMachine: CostRow[];
   byType: { type: string; total: number }[];
+  /** Period maintenance spend (job cards) split by profile, so a company total never
+   *  silently omits support equipment and the two are labelled apart. */
+  maintenanceByProfile: { full: { assets: number; total: number }; equipment: { assets: number; total: number } };
   compliance: { ok: number; dueSoon: number; overdue: number; overdueList: { name: string; task: string }[] };
   problems: {
     topParts: { name: string; count: number }[];
@@ -60,7 +66,7 @@ export type ReportData = {
   groups: string[];
 };
 
-type Machine = { id: string; name: string; status: string; current_reading: number | null; meter_type: string; location: string | null };
+type Machine = { id: string; name: string; status: string; current_reading: number | null; meter_type: string; location: string | null; profile?: string | null };
 type JC = { id: string; machine_id: string; type: string; parts_total_cents: number; labour_total_cents: number; other_total_cents: number; total_cents: number; date_out: string | null };
 type Cost = { machine_id: string | null; amount_cents: number | null; type: string; occurred_on: string | null };
 type WR = { id: string; machine_id: string; workshop_id: string | null; status: string; quote_amount_cents: number | null; invoice_amount_cents: number | null; created_at: string };
@@ -102,7 +108,7 @@ export async function getReportData(
   // Analysis window for utilisation/downtime (bounded; a trailing window for "all time").
   const win = analysisWindow(f.from, f.to);
   const results = await Promise.all([
-    byFarm(supabase.from("machines").select("id, name, status, current_reading, meter_type, location").is("deleted_at", null)),
+    byFarm(supabase.from("machines").select("id, name, status, current_reading, meter_type, location, profile").is("deleted_at", null)),
     readAll(() => byFarm(supabase.from(operational("job_cards")).select("id, machine_id, type, parts_total_cents, labour_total_cents, other_total_cents, total_cents, date_out").is("deleted_at", null))),
     readAll(() => byFarm(supabase.from("job_card_lines").select("description, job_card_id").eq("kind", "part").is("deleted_at", null))),
     readAll(() => byFarm(supabase.from("faults").select("category, machine_id, created_at").is("deleted_at", null))),
@@ -133,10 +139,13 @@ export async function getReportData(
   const jcs = ((jcData as JC[] | null) ?? []).filter((j) => allowed.has(j.machine_id) && inRange(j.date_out, f));
   const jcById = Object.fromEntries(jcs.map((j) => [j.id, j]));
 
+  // Support equipment: maintenance spend yes, ownership analytics no (20261114090200).
+  const isEquipment = (id: string) => mById[id]?.profile === "equipment";
+
   // Lifetime TCO per machine (all cost types; not period-filtered, TCO is a lifetime metric).
   const tcoByMachine = new Map<string, number>();
   for (const c of (costData as Cost[] | null) ?? []) {
-    if (c.machine_id == null || !allowed.has(c.machine_id)) continue;
+    if (c.machine_id == null || !allowed.has(c.machine_id) || isEquipment(c.machine_id)) continue;
     tcoByMachine.set(c.machine_id, (tcoByMachine.get(c.machine_id) ?? 0) + (c.amount_cents ?? 0));
   }
 
@@ -153,12 +162,21 @@ export async function getReportData(
       const a = agg.get(id) ?? { parts: 0, labour: 0, other: 0, total: 0 };
       const tco = tcoByMachine.get(id) ?? 0;
       const reading = m?.current_reading ?? null;
-      const perHour = m?.meter_type === "hours" ? costPerMeter(tco, reading) : null;
-      const perKm = m?.meter_type === "km" ? costPerMeter(tco, reading) : null;
-      return { machineId: id, name: m?.name ?? "-", ...a, tco, perHour, perKm, meterType: m?.meter_type ?? "none" };
+      const equipment = isEquipment(id);
+      const perHour = !equipment && m?.meter_type === "hours" ? costPerMeter(tco, reading) : null;
+      const perKm = !equipment && m?.meter_type === "km" ? costPerMeter(tco, reading) : null;
+      return { machineId: id, name: m?.name ?? "-", ...a, tco, perHour, perKm, meterType: m?.meter_type ?? "none", equipment };
     })
     .filter((r) => r.tco > 0 || r.total > 0)
     .sort((x, y) => y.tco - x.tco || y.total - x.total);
+
+  // 1b) The same period spend, fleet assets and support equipment labelled apart.
+  const maintenanceByProfile = { full: { assets: 0, total: 0 }, equipment: { assets: 0, total: 0 } };
+  for (const [id, a] of agg) {
+    const side = isEquipment(id) ? maintenanceByProfile.equipment : maintenanceByProfile.full;
+    side.assets += 1;
+    side.total += a.total;
+  }
 
   // 2) Spend by job type (period).
   const typeMap = new Map<string, number>();
@@ -209,7 +227,9 @@ export async function getReportData(
   for (const i of fuelIssues) {
     const inP = inRange(i.date, f);
     if (inP) { totalLitres += i.litres ?? 0; totalSpend += i.cost_cents ?? 0; }
-    if (i.machine_id == null) continue;
+    // Fuel-use analysis is never shown for support equipment, even for draws recorded before
+    // it was converted; they still count in the period totals above.
+    if (i.machine_id == null || isEquipment(i.machine_id)) continue;
     const all = allIssuesByMachine.get(i.machine_id) ?? [];
     all.push({ id: i.id, date: i.date, litres: i.litres, meter_reading: i.meter_reading, cost_cents: i.cost_cents });
     allIssuesByMachine.set(i.machine_id, all);
@@ -354,7 +374,7 @@ export async function getReportData(
     .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || b.downtimeDays - a.downtimeDays);
 
   return {
-    costPerMachine, byType, compliance,
+    costPerMachine, byType, maintenanceByProfile, compliance,
     problems: { topParts: top(partMap), topFaults: top(faultMap), breaksMostOften },
     fuel: { perMachine: fuelPerMachine, totalLitres, totalSpend, purchasedLitres, purchasedSpend },
     contractors: {

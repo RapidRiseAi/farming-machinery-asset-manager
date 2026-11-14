@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
+import { farmAllows, type Profile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -26,3 +27,15 @@ export const featureOn = cache(async (key: Feature, farmId: string | null): Prom
     .maybeSingle();
   return !accessError && !!data;
 });
+
+/**
+ * Maps, route planning, reported positions and driving paths: the business is on Complete
+ * (decision 18, `maps` in src/lib/entitlements.ts) AND the map has been released to it (the
+ * `map` readiness flag). Both, on every screen, route and provider call; the database
+ * refuses a saved route or a position below Complete as well (20261114090200).
+ */
+export async function mapsAvailable(farmId: string | null, profile: Profile): Promise<boolean> {
+  if (!farmId) return false;
+  if (!(await featureOn("map", farmId))) return false;
+  return farmAllows(farmId, "maps", profile);
+}

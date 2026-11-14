@@ -70,7 +70,7 @@ do $t$ begin
       ('ea100000-0000-4000-9000-000000000001', 'Cheap truck', 'truck', 'equipment');
     raise exception 'a truck took the equipment profile';
   exception when invalid_parameter_value then
-    if sqlerrm not like 'EQUIPMENT:%' then raise; end if;
+    if sqlerrm <> 'equipment-type-not-eligible' then raise; end if;
   end;
 
   -- Renaming the trailer a truck keeps it a vehicle that must convert first.

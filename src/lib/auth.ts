@@ -11,8 +11,10 @@ import { captureError } from "@/lib/observability";
 import {
   type Plan,
   type Feature,
+  type Capability,
   isPlan,
   planAllows,
+  profileRefuses,
   requiredPlan as minPlanFor,
 } from "@/lib/entitlements";
 import {
@@ -609,10 +611,25 @@ export async function checkEntitlement(
  * its Professional analytics because their other farm is on Complete. The same bypass as
  * `currentPlan`: Rapid Rise staff and workshops are not the billing subject.
  */
-export async function farmAllows(farmId: string | null, feature: Feature, profile: Profile): Promise<boolean> {
+export async function farmAllows(farmId: string | null, feature: Capability, profile: Profile): Promise<boolean> {
   if (profile.role === "rr_admin" || profile.role === "workshop") return true;
   if (!farmId) return false;
   return planAllows(await getFarmPlan(farmId), feature);
+}
+
+/**
+ * The whole matrix for one asset: the plan of the asset's own farm AND the asset's own
+ * profile (20261114090200, mirrored by app.asset_allows). Support equipment never gets a
+ * refused tool, and unlike the plan part nobody bypasses that: not Rapid Rise staff, not a
+ * workshop. The database refuses the same writes, so this decides what a screen offers.
+ */
+export async function machineAllows(
+  machine: { farm_id: string | null; profile?: string | null },
+  feature: Capability,
+  profile: Profile,
+): Promise<boolean> {
+  if (profileRefuses(machine.profile, feature)) return false;
+  return farmAllows(machine.farm_id, feature, profile);
 }
 
 /**
