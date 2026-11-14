@@ -38,25 +38,48 @@ decisions 8 to 13, scenarios 21, 22, 23, 27, 28. Steps, committed one by one:
   and exemption, DATABASE.md; `src/lib/upload/sniff.ts` + `media-fixtures.ts` + tests.
   Mutation-tested 7 SQL guards (scratchpad b1/mutate.mjs; all killed).
 
+- Step 2 complete (2a d75303a database, 2b a4be848 + 63e79e5 server, 2c a265350 + 9e09ee0
+  client, TUS, UploadField). Full gates green at 1c18eff: tsc, 1138 unit tests, dashes,
+  i18n parity and keys, design lint, errors, migrate_check --suite (77 suites).
+- Step 3 complete (e1aa817 .. 1c18eff): every attachment path uploads straight to Storage
+  and finishes through the pipeline, older pages' multipart still accepted:
+  machine gallery and add-vehicle photo; faults online, offline queue and member QR (fault
+  first in a small request, then files with stableRequestId(client_id|field, file), farm id
+  now in /api/sync and /api/public/fault answers); job card media; work request media;
+  finance documents; supplier documents (/api/documents/upload, commits on every success
+  answer); receipts attached to an expense; trip delivery photo; billing proofs (a refusal
+  asks whether a payment already names the proof before removing it); checklist photos
+  (client-chosen instance id). The sweep finishes, never removes, a file a record uses.
+- Step 4 largely done (5870ccd): src/lib/upload/compress.ts used by UploadField, fault
+  capture and checklists. Still to note in LIMITS.md "Photo reduction".
+
 ## In progress
 
-Step 2 parts all committed (2a database, 2b server, 2c client + control 9e09ee0); full gate
-run for "step 2 done" still to record. Step 4 compressor committed early (5870ccd,
-src/lib/upload/compress.ts). Step 3 under way (WIP commits):
-- done: machine gallery (machine-photos.tsx uses UploadField, finish generic); add-vehicle
-  photo (page picks new_machine_id, MachinePhotoNew uploads finish caller as
-  primary_photo_intent, createMachine inserts with that id then finishAttachment; legacy
-  primary_photo_data still accepted). Helpers verifiedIntentFor / finishAttachment in
-  src/lib/upload/server.ts.
-- next, in order: faults (fault-capture online via /api/sync without files then uploads
-  to the fault with stableRequestId(client_id|field); offline flush the same; public QR
-  /api/public/fault the same with the member session), job cards (/api/jobcards/media
-  accepts upload_intent_id), work requests, finance docs, partner documents, receipts,
-  trip delivery photo, billing proofs, checklists (needs client instance id).
+Step 5: long audio (voice notes done in fault capture at 10 minutes; spoken commands next).
 
 ## Next
 
-Step 3.
+Step 5 plan: command audio recorded with an explicit bitrate up to COMMAND_AUDIO_MAX_MS when a
+spoken command passes the instant path's one minute; uploaded as purpose command_audio to
+target assistant_command (bucket command-audio); a durable job table
+assistant_command_jobs (status, attempts, lease, cancel, idempotency = intent id) processed
+by POST /api/assistant/commands/[id]/run within maxDuration 300 (OpenAI transcription
+through the existing AI usage hold with hearingHoldUnits on the recorded length), client
+polls; transcript becomes the voice request (input up to ASSISTANT_SPOKEN_MAX_CHARS,
+16,000; DB checks raised); on completion the audio is deleted; failed or unfinished kept
+COMMAND_AUDIO_RECOVERY_MS (72 h) with "try again", then the nightly sweep removes it.
+Then step 6 (remaining scenario tests), step 7 (docs), REPORT-B1.md.
+
+## Known limits of what is built
+
+- A new expense's receipt chosen in the create form still goes with the form (4.5 MB
+  bound): that form does not choose the expense id first. Attaching a receipt afterwards
+  uses the pipeline.
+- A checklist whose value rows fail to save soft-deletes its inspection; a retry with the
+  same screen then collides with that id and fails. Rare; the person reloads the page.
+- app.upload_settings.enforce_reserved_paths is off. Switch it on (SQL below) once the
+  release is live and no older page is in use: update app.upload_settings set
+  enforce_reserved_paths = true, updated_at = now();
 
 ## Decisions and assumptions
 
