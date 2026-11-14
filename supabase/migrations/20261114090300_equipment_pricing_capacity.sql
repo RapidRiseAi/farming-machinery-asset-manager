@@ -918,3 +918,371 @@ begin
 
   return v_sent;
 end $$;
+
+-- == Capacity and previews =================================================================
+-- What the customer has and uses, pooled through the main site. No caller check: the public
+-- functions below decide who may ask, and strip the money for anyone who is not the payer.
+create or replace function app.asset_capacity_state(p_farm uuid, p_full_delta integer default 0, p_equipment_delta integer default 0)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_root  uuid := app.billing_root(p_farm);
+  v_sub   public.billing_subscriptions%rowtype;
+  v_price public.billing_price_versions%rowtype;
+  v_full_active integer := app.billable_asset_count(v_root);
+  v_eq_active   integer := app.billable_equipment_count(v_root);
+  v_full_after  integer;
+  v_eq_after    integer;
+  v_terms   boolean;
+  v_metered boolean;
+  v_full_cap integer;
+  v_eq_cap   integer;
+  v_need_full integer := 0;
+  v_need_eq   integer := 0;
+  v_f_now  integer;
+  v_f_after integer;
+begin
+  v_full_after := greatest(v_full_active + coalesce(p_full_delta, 0), 0);
+  v_eq_after   := greatest(v_eq_active + coalesce(p_equipment_delta, 0), 0);
+  select * into v_sub from public.billing_subscriptions where id = app.billing_subscription_for(p_farm);
+  if not found then
+    return jsonb_build_object(
+      'root', v_root, 'subscription_id', null, 'ceiling', false,
+      'full', jsonb_build_object('active', v_full_active, 'after', v_full_after),
+      'equipment', jsonb_build_object('active', v_eq_active, 'after', v_eq_after),
+      'needs', jsonb_build_object('full_spaces', 0, 'equipment_spaces', 0),
+      'fits_now', true, 'blocked', null);
+  end if;
+
+  select * into v_price from app.billing_price_for_subscription(v_sub.id);
+  v_terms   := v_price.id is not null and v_price.equipment_period_incl_cents is not null;
+  v_metered := v_sub.asset_quota is null;
+  v_full_cap := v_sub.asset_quota;
+  v_eq_cap   := case when v_terms then coalesce(v_price.equipment_included, 0) + v_sub.equipment_extra_quota end;
+  if not v_metered then
+    v_need_full := greatest(v_full_after - v_full_cap, 0);
+    if v_terms and coalesce(p_equipment_delta, 0) > 0 then
+      v_need_eq := greatest(v_eq_after - v_eq_cap, 0);
+    end if;
+  end if;
+  v_f_now   := coalesce(v_sub.asset_quota, v_full_active);
+  v_f_after := case when v_metered then v_full_after else v_sub.asset_quota + v_need_full end;
+
+  return jsonb_build_object(
+    'root', v_root,
+    'subscription_id', v_sub.id,
+    'ceiling', not v_metered,
+    'plan', v_sub.plan,
+    'billing_period', v_sub.billing_period,
+    'price_version', v_price.version_label,
+    'equipment_terms', v_terms,
+    'full', jsonb_build_object(
+      'active', v_full_active, 'after', v_full_after,
+      'purchased', v_sub.asset_quota, 'minimum', coalesce(v_price.min_billed_slots, 0),
+      'free_now', case when v_metered then null else greatest(v_full_cap - v_full_active, 0) end,
+      'next_renewal', coalesce(v_sub.pending_quota, v_sub.asset_quota, v_full_active)),
+    'equipment', jsonb_build_object(
+      'active', v_eq_active, 'after', v_eq_after,
+      'included', coalesce(v_price.equipment_included, 0),
+      'extra_paid', v_sub.equipment_extra_quota,
+      'free_now', case when v_metered or not v_terms then null else greatest(v_eq_cap - v_eq_active, 0) end,
+      'extra_next_renewal', greatest(v_eq_after - coalesce(v_price.equipment_included, 0), 0)),
+    'needs', jsonb_build_object('full_spaces', v_need_full, 'equipment_spaces', v_need_eq),
+    'fits_now', v_need_full = 0 and v_need_eq = 0 and (v_terms or coalesce(p_equipment_delta, 0) <= 0),
+    'blocked', case when not v_terms and coalesce(p_equipment_delta, 0) > 0 then 'equipment-not-in-agreement' end,
+    -- Buying the missing capacity today is priced pro rata to the renewal date by task A2.
+    'charge_now', jsonb_build_object(
+      'status', case when v_need_full = 0 and v_need_eq = 0 then 'none' else 'quote_pending' end,
+      'cents', case when v_need_full = 0 and v_need_eq = 0 then 0 end),
+    'renewal', jsonb_build_object(
+      'before_cents', app.billing_renewal_cents(v_price, v_f_now, v_eq_active),
+      'after_cents', app.billing_renewal_cents(v_price, v_f_after, v_eq_after)),
+    'plans', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'plan', p.plan,
+               'renewal_cents', app.billing_renewal_cents(p, v_f_after, v_eq_after),
+               'current', p.plan = v_sub.plan) order by app.plan_rank(p.plan)), '[]'::jsonb)
+        from public.billing_price_versions p
+       where p.status = 'active' and p.deleted_at is null
+         and p.billing_period = v_sub.billing_period
+         and p.plan in ('essential', 'professional', 'complete')
+         and (p.effective_from is null or p.effective_from <= current_date)
+         and (p.effective_to is null or p.effective_to >= current_date)));
+end
+$$;
+revoke all on function app.asset_capacity_state(uuid, integer, integer) from public, anon, authenticated;
+grant execute on function app.asset_capacity_state(uuid, integer, integer) to service_role;
+
+-- Money is the payer's business (app.is_farm_billing_admin, BILLING.md section 10): a
+-- manager sees spaces, never amounts.
+create or replace function app.asset_preview_for_caller(p_farm uuid, p_state jsonb)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select case when app.is_farm_billing_admin(app.billing_root(p_farm)) then p_state
+              else (p_state - 'renewal' - 'plans' - 'charge_now')
+                   || jsonb_build_object('charge_now', jsonb_build_object('status', p_state #>> '{charge_now,status}')) end;
+$$;
+revoke all on function app.asset_preview_for_caller(uuid, jsonb) from public, anon, authenticated;
+
+-- Spaces in use, paid for now, and scheduled for the next renewal.
+create or replace function public.asset_capacity_summary(p_farm uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null or not app.asset_profile_manager(p_farm) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform app.require_open_farm(p_farm, false);
+  return app.asset_preview_for_caller(p_farm, app.asset_capacity_state(p_farm, 0, 0));
+end
+$$;
+revoke all on function public.asset_capacity_summary(uuid) from public, anon;
+grant execute on function public.asset_capacity_summary(uuid) to authenticated;
+
+-- Adding assets of either profile: what it needs, today and at renewal, and every plan's
+-- renewal for the resulting mix (the screen marks the lowest that has what is needed).
+create or replace function public.asset_add_preview(p_farm uuid, p_full integer, p_equipment integer)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null or not app.asset_profile_manager(p_farm) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform app.require_open_farm(p_farm, false);
+  if coalesce(p_full, 0) < 0 or coalesce(p_equipment, 0) < 0 or coalesce(p_full, 0) + coalesce(p_equipment, 0) > 10000 then
+    raise exception 'preview-bad-quantity' using errcode = '22023';
+  end if;
+  return app.asset_preview_for_caller(p_farm, app.asset_capacity_state(p_farm, coalesce(p_full, 0), coalesce(p_equipment, 0)));
+end
+$$;
+revoke all on function public.asset_add_preview(uuid, integer, integer) from public, anon;
+grant execute on function public.asset_add_preview(uuid, integer, integer) to authenticated;
+
+-- == Converting between profiles =========================================================
+create table if not exists public.asset_profile_changes (
+  id                    uuid primary key default gen_random_uuid(),
+  farm_id               uuid not null references public.farms(id),
+  machine_id            uuid not null,
+  from_profile          public.asset_profile not null,
+  to_profile            public.asset_profile not null,
+  changed_by            uuid references public.users(id) on delete set null,
+  changed_at            timestamptz not null default now(),
+  renewal_before_cents  bigint,
+  renewal_after_cents   bigint,
+  preview               jsonb not null default '{}'::jsonb,
+  constraint asset_profile_changes_machine_fk foreign key (machine_id, farm_id) references public.machines(id, farm_id),
+  constraint asset_profile_changes_differ_ck check (from_profile <> to_profile)
+);
+create index if not exists asset_profile_changes_machine_idx on public.asset_profile_changes (machine_id, changed_at desc);
+comment on table public.asset_profile_changes is
+  'Every change of an asset''s management profile, with the preview it was accepted on '
+  '(20261114090300). Written only by public.convert_asset_profile.';
+alter table public.asset_profile_changes enable row level security;
+alter table public.asset_profile_changes force row level security;
+drop policy if exists asset_profile_changes_sel on public.asset_profile_changes;
+create policy asset_profile_changes_sel on public.asset_profile_changes
+  for select to authenticated using ((select app.asset_profile_manager(farm_id)));
+revoke all on public.asset_profile_changes from public, anon, authenticated;
+grant select on public.asset_profile_changes to authenticated;
+grant all on public.asset_profile_changes to service_role;
+select app.pay_gate_apply('asset_profile_changes');
+drop trigger if exists asset_profile_changes_audit on public.asset_profile_changes;
+create trigger asset_profile_changes_audit after insert or update or delete on public.asset_profile_changes
+  for each row execute function public.app_audit();
+insert into app.audit_table_rules (table_name, scope, reason) values
+  ('asset_profile_changes', 'farm', 'when an asset moved between the full and the equipment profile, and on what preview')
+on conflict (table_name) do nothing;
+
+-- What would stop a conversion, before any money.
+create or replace function app.asset_conversion_blocker(p_machine uuid, p_to public.asset_profile)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare m public.machines%rowtype;
+begin
+  select * into m from public.machines where id = p_machine and deleted_at is null;
+  if not found then return 'not-found'; end if;
+  if m.profile = p_to then return 'equipment-convert-same'; end if;
+  if p_to = 'equipment' then
+    if not coalesce(app.equipment_eligible(m.type), false) then return 'equipment-type-not-eligible'; end if;
+    if exists (select 1 from public.driving_sessions d where d.machine_id = p_machine and d.ended_at is null) then
+      return 'equipment-convert-open-driving';
+    end if;
+    if exists (select 1 from public.trips t where t.machine_id = p_machine and t.deleted_at is null
+                and t.status in ('planned', 'underway')) then
+      return 'equipment-convert-open-trips';
+    end if;
+    if exists (select 1 from public.driver_device_links l where l.machine_id = p_machine) then
+      return 'equipment-convert-tracker-linked';
+    end if;
+  end if;
+  return null;
+end
+$$;
+revoke all on function app.asset_conversion_blocker(uuid, public.asset_profile) from public, anon, authenticated;
+
+create or replace function public.asset_conversion_preview(p_machine uuid, p_to public.asset_profile)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  m public.machines%rowtype;
+  v_in_use boolean;
+  v_state jsonb;
+begin
+  select * into m from public.machines where id = p_machine and deleted_at is null;
+  if not found or auth.uid() is null or not app.asset_profile_manager(m.farm_id) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform app.require_open_farm(m.farm_id, false);
+  v_in_use := m.status not in ('retired', 'sold');
+  v_state := app.asset_capacity_state(m.farm_id,
+    case when not v_in_use then 0 when p_to = 'full' then 1 else -1 end,
+    case when not v_in_use then 0 when p_to = 'equipment' then 1 else -1 end);
+  return app.asset_preview_for_caller(m.farm_id, v_state)
+    || jsonb_build_object('machine_id', m.id, 'from', m.profile, 'to', p_to,
+                          'conversion_blocked', app.asset_conversion_blocker(p_machine, p_to));
+end
+$$;
+revoke all on function public.asset_conversion_preview(uuid, public.asset_profile) from public, anon;
+grant execute on function public.asset_conversion_preview(uuid, public.asset_profile) to authenticated;
+
+-- Accept a conversion. Recomputes the preview under the subscription lock; refuses when the
+-- renewal total the person accepted is no longer the one that applies, when capacity would
+-- have to be bought first (task A2), or when a blocker stands. History stays with the asset.
+create or replace function public.convert_asset_profile(p_machine uuid, p_to public.asset_profile, p_accepted_renewal_cents bigint default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  m public.machines%rowtype;
+  v_blocker text;
+  v_state jsonb;
+  v_in_use boolean;
+  v_sub uuid;
+begin
+  select * into m from public.machines where id = p_machine and deleted_at is null;
+  if not found or auth.uid() is null or not app.asset_profile_manager(m.farm_id) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform app.require_open_farm(m.farm_id, true);
+
+  -- The same lock every add path takes, so a conversion and an add cannot both take the
+  -- last space.
+  v_sub := app.billing_subscription_for(m.farm_id);
+  if v_sub is not null then
+    perform 1 from public.billing_subscriptions where id = v_sub for update;
+  end if;
+  select * into m from public.machines where id = p_machine for update;
+
+  v_blocker := app.asset_conversion_blocker(p_machine, p_to);
+  if v_blocker is not null then
+    raise exception '%', v_blocker using errcode = 'P0001';
+  end if;
+  v_in_use := m.status not in ('retired', 'sold');
+  v_state := app.asset_capacity_state(m.farm_id,
+    case when not v_in_use then 0 when p_to = 'full' then 1 else -1 end,
+    case when not v_in_use then 0 when p_to = 'equipment' then 1 else -1 end);
+  if v_state ->> 'blocked' is not null then
+    raise exception '%', v_state ->> 'blocked' using errcode = 'P0001';
+  end if;
+  if not (v_state ->> 'fits_now')::boolean then
+    raise exception 'capacity-needed' using errcode = 'P0001',
+      hint = 'Buy the extra space first; the conversion needs capacity that is not paid for yet.';
+  end if;
+  if p_accepted_renewal_cents is not null
+     and p_accepted_renewal_cents is distinct from (v_state #>> '{renewal,after_cents}')::bigint then
+    raise exception 'preview-changed' using errcode = 'P0001',
+      hint = 'The quantities changed since the preview; look at the new totals and accept again.';
+  end if;
+
+  update public.machines
+     set profile = p_to,
+         -- Equipment keeps its purchase details but no depreciation method (20261114090200).
+         depreciation_method = case when p_to = 'equipment' then 'none'::depreciation_method else depreciation_method end
+   where id = p_machine;
+
+  insert into public.asset_profile_changes (farm_id, machine_id, from_profile, to_profile, changed_by,
+                                            renewal_before_cents, renewal_after_cents, preview)
+  values (m.farm_id, m.id, m.profile, p_to, auth.uid(),
+          (v_state #>> '{renewal,before_cents}')::bigint, (v_state #>> '{renewal,after_cents}')::bigint, v_state);
+
+  return app.asset_preview_for_caller(m.farm_id, v_state)
+    || jsonb_build_object('machine_id', m.id, 'from', m.profile, 'to', p_to);
+end
+$$;
+revoke all on function public.convert_asset_profile(uuid, public.asset_profile, bigint) from public, anon;
+grant execute on function public.convert_asset_profile(uuid, public.asset_profile, bigint) to authenticated;
+
+-- == The migration preview, with money =================================================
+-- For one customer: the full assets that could move to the equipment profile, and what the
+-- renewal would be keeping every full space, or giving back one per moved asset (never below
+-- the minimum or the full assets still in use). Read-only: nothing moves (BRIEF section 24).
+create or replace function public.equipment_migration_preview(p_farm uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_root uuid := app.billing_root(p_farm);
+  v_sub public.billing_subscriptions%rowtype;
+  v_price public.billing_price_versions%rowtype;
+  v_n integer;
+  v_full integer := app.billable_asset_count(v_root);
+  v_eq integer := app.billable_equipment_count(v_root);
+  v_f integer;
+  v_reduced integer;
+begin
+  if auth.uid() is null or not app.is_farm_billing_admin(v_root) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform app.require_open_farm(p_farm, false);
+  select count(*)::integer into v_n
+    from public.machines m
+   where (m.farm_id = v_root or m.farm_id in (select f.id from public.farms f where f.billed_through = v_root))
+     and m.deleted_at is null and m.profile = 'full' and m.status not in ('retired', 'sold')
+     and coalesce(app.equipment_eligible(m.type), false);
+  select * into v_sub from public.billing_subscriptions where id = app.billing_subscription_for(p_farm);
+  if found then select * into v_price from app.billing_price_for_subscription(v_sub.id); end if;
+  v_f := coalesce(v_sub.asset_quota, v_full);
+  v_reduced := greatest(v_f - v_n, coalesce(v_price.min_billed_slots, 0), v_full - v_n);
+  return jsonb_build_object(
+    'candidates', v_n,
+    'full_active', v_full, 'equipment_active', v_eq,
+    'equipment_terms', v_price.equipment_period_incl_cents is not null,
+    'renewal_now_cents', app.billing_renewal_cents(v_price, v_f, v_eq),
+    'renewal_all_moved_keep_spaces_cents', case when v_price.equipment_period_incl_cents is null then null
+      else app.billing_renewal_cents(v_price, v_f, v_eq + v_n) end,
+    'renewal_all_moved_fewer_spaces_cents', case when v_price.equipment_period_incl_cents is null then null
+      else app.billing_renewal_cents(v_price, v_reduced, v_eq + v_n) end,
+    'full_spaces_if_reduced', v_reduced);
+end
+$$;
+revoke all on function public.equipment_migration_preview(uuid) from public, anon;
+grant execute on function public.equipment_migration_preview(uuid) to authenticated;
