@@ -31,9 +31,23 @@ decisions 8 to 13, scenarios 21, 22, 23, 27, 28. Steps, committed one by one:
   the inventory now reads the catalogue. Gates green: tsc, 1081 unit tests, dashes, i18n
   parity and keys, design lint, errors, migrate_check --suite (73 suites PASS).
 
+- Step 2a, `d75303a`: migration `20261115090000_upload_pipeline.sql` (upload_intents,
+  upload_begin / upload_mark_verified / upload_commit / upload_fail, sweep, quota hooks,
+  bucket limits, command-audio bucket, inert reserved-path Storage policies), suite
+  `supabase/tests/upload_pipeline.sql` (in run.sh), probe in apply_pending, fence trigger
+  and exemption, DATABASE.md; `src/lib/upload/sniff.ts` + `media-fixtures.ts` + tests.
+  Mutation-tested 7 SQL guards (scratchpad b1/mutate.mjs; all killed).
+
 ## In progress
 
-Step 2 (upload pipeline).
+Step 2b (WIP, committed): `src/lib/upload/protocol.ts` (target kinds, codes, begin answer),
+`src/lib/upload/server.ts` (beginUpload, verifyUpload with range reads, commitUpload,
+failUpload, storageReader, error mapping, UPLOAD_GLOBAL_LIMIT_BYTES readiness),
+`/api/uploads/begin`, `/api/uploads/finalise` (generic attachments). Still to do in 2b:
+unit tests for server.ts with fake db/svc/reader (lost response, expired, revoked,
+spoofed), i18n sentences for every UploadCode in errors.ts + en/af, nightly sweep step
+(`src/lib/upload/sweep.ts` + step in cron/nightly). Then 2c client helper
+(`src/lib/upload/client.ts`, `tus.ts`, `src/components/ui/upload-field.tsx`).
 
 ## Next
 
