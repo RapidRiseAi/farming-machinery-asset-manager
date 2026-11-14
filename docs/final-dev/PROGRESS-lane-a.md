@@ -52,9 +52,22 @@ docs/PUBLIC_API.md line; tsc, 1086 unit tests, all gates and 75 PGlite suites pa
 Left for step 5 (UI): the machines list TCO column per row, hiding refused tabs on an
 equipment asset page (`isEquipment` is already computed in machines/[id]/page.tsx).
 
-Step 4 (now): migration `20261114090300_equipment_pricing_capacity.sql` (explicit period
-prices and equipment terms on a new price generation, equipment capacity on the
-subscription, atomic capacity reservation, conversion, preview), `src/lib/billing/calculator.ts`.
+Step 4 (now): migration `20261114090300_equipment_pricing_capacity.sql`. Written and
+committed (WIP, not yet run): price version columns period_price_incl_cents,
+equipment_included, equipment_period_incl_cents + check + freeze; app.billing_space_period_cents,
+app.billing_renewal_cents; pin then retire launch-2026-11, insert launch-2026-11-eq;
+app.self_service_max_full_spaces (200); billing_subscriptions.equipment_extra_quota;
+app.billing_root, billable_asset_count (full only), billable_equipment_count,
+recount_farm_assets (full only), billing_subscription_for; capacity trigger (locks the
+subscription row; slugs vehicle-limit-reached, equipment-limit-reached,
+equipment-not-in-agreement); farm_vehicle_allowance pooled; retired-equipment work
+refused (equipment-retired) on job_cards, faults, meter_readings, checklist_instances,
+work_requests; invoice equipment columns, derive totals, freeze; generator with
+equipment line; renewal notice with equipment.
+Next: asset_profile_changes + public.convert_asset_profile, public.asset_capacity_summary,
+public.asset_change_preview (charge_now quote_pending for A2), equipment_migration_preview;
+then run the migration on PGlite, SQL suite asset_capacity.sql, TS calculator
+`src/lib/billing/calculator.ts` + tests, ANNUAL_MONTHS_CHARGED callers, createMachine regex.
 
 Step 2 delivered: `20261114090000_machine_types_equipment.sql` (compressor, workshop_tool,
 other_equipment), `20261114090100_equipment_profile.sql` (`machines.profile`,
