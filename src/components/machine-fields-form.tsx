@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { machineTypesFor, METER_TYPES, defaultMeterFor } from "@/lib/machine-options";
+import { machineTypesFor, METER_TYPES, defaultMeterFor, isEquipmentEligible } from "@/lib/machine-options";
 import { meterUnit } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
 import { Field } from "@/components/ui/field";
@@ -62,6 +62,7 @@ export function MachineFieldsForm({
   costCentres = [],
   departments = [],
   locations = [],
+  equipment = false,
 }: {
   machine?: MachineFieldDefaults;
   operators?: MachineFieldOperator[];
@@ -69,11 +70,18 @@ export function MachineFieldsForm({
   costCentres?: string[];
   departments?: string[];
   locations?: string[];
+  /**
+   * Support equipment (20261114090100): only the types that may hold the profile, make and
+   * model asked up front (where known), no fuel tank. The database refuses any other type.
+   */
+  equipment?: boolean;
 }) {
   const isNew = !machine;
   const m = machine ?? {};
-  const [type, setType] = useState<string>(m.type ?? "tractor");
-  const [meter, setMeter] = useState<string>(m.meter_type ?? defaultMeterFor(m.type ?? "tractor"));
+  const firstType = equipment ? "pump_generator" : "tractor";
+  const [type, setType] = useState<string>(m.type ?? firstType);
+  const [meter, setMeter] = useState<string>(m.meter_type ?? defaultMeterFor(m.type ?? firstType));
+  const typeOptions = machineTypesFor(locale, m.type).filter((ty) => !equipment || isEquipmentEligible(ty));
   const [meterChosen, setMeterChosen] = useState(!isNew);
 
   const onType = (next: string) => {
@@ -98,7 +106,7 @@ export function MachineFieldsForm({
         </div>
         <Field label={t("machines.type", locale)} htmlFor="type">
           <Select id="type" name="type" value={type} onChange={(e) => onType(e.target.value)}>
-            {machineTypesFor(locale, m.type).map((ty) => (
+            {typeOptions.map((ty) => (
               <option key={ty} value={ty}>
                 {t(`machineType.${ty}`, locale)}
               </option>
@@ -122,9 +130,11 @@ export function MachineFieldsForm({
             ))}
           </Select>
         </Field>
-        <Field label={t("machines.tankLitres", locale)} htmlFor="fuel_tank_litres" hint={t("machines.tankLitresHint", locale)}>
-          <Input id="fuel_tank_litres" name="fuel_tank_litres" type="number" inputMode="decimal" min={0} defaultValue={m.fuel_tank_litres ?? ""} />
-        </Field>
+        {equipment ? null : (
+          <Field label={t("machines.tankLitres", locale)} htmlFor="fuel_tank_litres" hint={t("machines.tankLitresHint", locale)}>
+            <Input id="fuel_tank_litres" name="fuel_tank_litres" type="number" inputMode="decimal" min={0} defaultValue={m.fuel_tank_litres ?? ""} />
+          </Field>
+        )}
         {/* The reading is only asked for when the machine is added: after that it moves
             through Log reading, and the Edit dialog's old box saved nothing at all. */}
         {isNew && meter !== "none" ? (
@@ -143,9 +153,9 @@ export function MachineFieldsForm({
 
         <DialogSection
           title={t("machines.sections.details", locale)}
-          defaultOpen={!isNew && has(m.make, m.model, m.year, m.reg_no, m.serial_no)}
+          defaultOpen={equipment || (!isNew && has(m.make, m.model, m.year, m.reg_no, m.serial_no))}
         >
-          <Field label={t("machines.make", locale)} htmlFor="make">
+          <Field label={t("machines.make", locale)} htmlFor="make" hint={equipment ? t("assets.makeModelHint", locale) : undefined}>
             <Input id="make" name="make" defaultValue={m.make ?? ""} />
           </Field>
           <Field label={t("machines.model", locale)} htmlFor="model">

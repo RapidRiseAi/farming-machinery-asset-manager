@@ -83,12 +83,27 @@ person's dashboard), `sync_log`.
 
 ## Vehicles and machinery
 
-`machines` (every vehicle or machine; `meter_type` hours or km), `meter_readings`,
+`machines` (every vehicle or machine; `meter_type` hours or km; `profile` full or equipment,
+which only `convert_asset_profile` changes and `app.equipment_eligible(type)` limits to
+support equipment, 20261114090100), `asset_classification_reviews` (an owner or an
+other-equipment asset asks Rapid Rise to check a classification; never bills by itself),
+`asset_profile_changes` (every conversion between profiles with the preview it was accepted on,
+20261114090300), `meter_readings`,
 `meter_replacements`, `attachments` (photos and files), `asset_aliases` (the names people
 say), `asset_contracts` (leases, rentals, service contracts), `asset_positions` (where a
 vehicle was, kept 180 days), `licences`, `driver_credentials`, `tyres`, `tyre_fitments`,
 `tyre_checks`, `watch_items`, `cost_entries` (every cost against a machine), `budgets`,
 `billing_asset_snapshots` (what was billed for, per period).
+
+**Plan x profile x feature is enforced at the table** (20261114090200): `app.profile_refuses`,
+`app.asset_allows` and `public.has_asset_entitlement` mirror `src/lib/entitlements.ts`; a trigger on
+`driving_sessions`, `driver_device_links`, `asset_positions`, `fuel_issues`, `fuel_card_transactions`,
+`budgets`, `finance_agreements`, `tyre_fitments` and `trips` refuses new restricted work for support
+equipment (slug `equipment-refused-<feature>`); a trip may name an equipment trailer only; road
+licences, leases and a depreciation method are refused for equipment; a new trip, load or trip
+money needs Professional, a planned route or position Complete (`plan-feature-*`). New ordinary
+work on retired or sold equipment is refused (`equipment-retired`, 20261114090300). A move to another
+site keeps the profile, and equipment keeps only insurance and other dated papers (20261114090400).
 
 ## Work: faults, job cards, service, parts
 
@@ -130,6 +145,12 @@ invoices, corrections), `partner_payments`, `partner_expenses`, `document_emails
 `billing_invoice_lines`, `billing_payments`, `billing_payment_attempts`,
 `billing_payment_methods`, `billing_webhook_events`, `billing_promo_codes`,
 `billing_service_catalogue`, `done_for_you_quotes`, `usage_logs`, `usage_rates`, `fx_rates`.
+Since 20261114090300 a price row states its period price and its equipment terms
+(`period_price_incl_cents`, `equipment_included`, `equipment_period_incl_cents`; current generation
+`launch-2026-11-eq`), a subscription holds `equipment_extra_quota`, an invoice carries its equipment
+count and price, and `app.billing_enforce_vehicle_quota` locks the subscription before it counts
+either profile. `public.asset_capacity_summary`, `asset_add_preview`, `asset_conversion_preview`,
+`convert_asset_profile` and `equipment_migration_preview` are the previews and the conversion.
 `docs/BILLING.md`.
 
 ## AI and voice

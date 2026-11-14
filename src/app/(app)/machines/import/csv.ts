@@ -1,7 +1,7 @@
 // Small, dependency-free CSV parser + machine-row validator, shared by the client
 // preview and the server insert action so both agree on what's valid.
 
-import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES, defaultMeterFor as defaultMeterOf } from "@/lib/machine-options";
+import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES, defaultMeterFor as defaultMeterOf, isEquipmentEligible } from "@/lib/machine-options";
 import { MACHINE_IMPORT_MAX_ROWS } from "@/lib/limits";
 
 export const IMPORT_COLUMNS = [
@@ -19,6 +19,9 @@ export const IMPORT_COLUMNS = [
   "reading_date",
   "status",
   "notes",
+  // full (a fleet asset, the default) or equipment (support equipment, 20261114090100).
+  // Last, so a sheet made from the older template still lines up.
+  "profile",
 ] as const;
 
 export const MAX_IMPORT_ROWS = MACHINE_IMPORT_MAX_ROWS;
@@ -81,6 +84,7 @@ type MachineInsert = {
   current_reading_date: string | null;
   status: string;
   notes: string | null;
+  profile: "full" | "equipment";
 };
 
 type RowResult = {
@@ -209,6 +213,18 @@ export function validateCsv(
     if (!statusRaw) warnings.push("status_defaulted");
     if (!MACHINE_STATUSES.includes(status as (typeof MACHINE_STATUSES)[number])) errors.push("status_invalid");
 
+    // The profile: blank is a fleet asset; equipment only for a type that may hold it. The
+    // database refuses the same, and counts the space, on the insert.
+    const profileRaw = get("profile").toLowerCase().replace(/[^a-z]/g, "");
+    const profile: "full" | "equipment" | null =
+      profileRaw === "" || ["full", "fleet", "fleetasset", "vol", "vloot", "vlootbate"].includes(profileRaw)
+        ? "full"
+        : ["equipment", "supportequipment", "support", "toerusting", "ondersteuningstoerusting"].includes(profileRaw)
+          ? "equipment"
+          : null;
+    if (profile === null) errors.push("profile_invalid");
+    else if (profile === "equipment" && type && !isEquipmentEligible(type)) errors.push("profile_not_eligible");
+
     const yearStr = get("year");
     let year: number | null = null;
     if (yearStr) {
@@ -285,6 +301,7 @@ export function validateCsv(
             current_reading_date,
             status,
             notes: get("notes") || null,
+            profile: profile ?? "full",
           }
         : undefined,
     });
@@ -303,9 +320,9 @@ export function validateCsv(
 export function templateCsv(): string {
   const header = IMPORT_COLUMNS.join(",");
   const example = [
-    "Groen John Deere,tractor,John Deere,6155M,2019,1LV6155MABC123,CA123456,hours,4200,2026-10-01,active,Main tractor",
-    "Rooi Massey,tractor,Massey Ferguson,5710,2016,,,hours,7800,15/09/2026,active,",
-    "Waterpomp Noord,pump_generator,Honda,WB30,2021,,,none,,,standby,Borehole 3",
+    "Groen John Deere,tractor,John Deere,6155M,2019,1LV6155MABC123,CA123456,hours,4200,2026-10-01,active,Main tractor,full",
+    "Rooi Massey,tractor,Massey Ferguson,5710,2016,,,hours,7800,15/09/2026,active,,full",
+    "Waterpomp Noord,pump_generator,Honda,WB30,2021,,,none,,,standby,Borehole 3,equipment",
   ].join("\n");
   return `${header}\n${example}\n`;
 }
@@ -341,6 +358,7 @@ const ALIASES: Record<(typeof IMPORT_COLUMNS)[number], string[]> = {
   reading_date: ["readingdate", "dateread", "readon", "lesingdatum", "datumgelees", "meterdate", "meterdatum"],
   status: ["status", "toestand", "state", "condition"],
   notes: ["notes", "note", "notas", "nota", "opmerkings", "comment", "comments", "kommentaar", "remarks"],
+  profile: ["profile", "profiel", "assetkind", "batesoort", "equipment", "toerusting"],
 };
 
 /** Strip everything that varies between spellings: case, spaces, punctuation. */

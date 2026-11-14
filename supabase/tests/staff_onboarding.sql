@@ -26,7 +26,7 @@ begin
   if s.status <> 'pending' or s.asset_quota <> 5 or not s.opened_by_staff or s.trial_ends_on is not null then
     raise exception 'ONBOARD FAIL [a]: subscription is % with % slots, staff %, trial %', s.status, s.asset_quota, s.opened_by_staff, s.trial_ends_on;
   end if;
-  if i.status <> 'open' or i.total_incl_cents <> 39500 or i.price_version_label <> 'launch-2026-11' then
+  if i.status <> 'open' or i.total_incl_cents <> 39500 or i.price_version_label <> 'launch-2026-11-eq' then
     raise exception 'ONBOARD FAIL [a]: first invoice % for %, label %; expected open, 39500 (5 x R79)', i.status, i.total_incl_cents, i.price_version_label;
   end if;
   if (select plan from public.farms where id = '9e000000-0000-4000-9000-000000000001') <> 'professional' then

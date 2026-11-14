@@ -11,7 +11,7 @@ import { isUuid } from "@/lib/ids";
 import { captureError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { planRoutes, RouteError, validPoints } from "@/lib/routing";
 import { EXPENSE_KINDS, randsToCents } from "@/lib/trips";
 import { PHOTO_MAX_BYTES as MAX_PHOTO_BYTES } from "@/lib/limits";
@@ -298,7 +298,7 @@ export async function saveTripRoute(formData: FormData) {
   // its searches: someone who runs two businesses plans the trips of either.
   await requireFarmRole(trip.farm_id as string, ["owner", "manager"], `/trips/${tripId}`, profile);
   if (trip.status === "completed" || trip.status === "cancelled") redirect(`/trips/${tripId}?error=route-closed`);
-  if (!(await featureOn("map", trip.farm_id as string))) redirect(`/trips/${tripId}`);
+  if (!(await mapsAvailable(trip.farm_id as string, profile))) redirect(`/trips/${tripId}`);
 
   let planned: Awaited<ReturnType<typeof planRoutes>> | null = null;
   let failed: string | null = null;

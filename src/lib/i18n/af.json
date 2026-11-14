@@ -98,7 +98,8 @@
     "map": "Kaart",
     "adminFeatures": "Funksies in toetsing",
     "trips": "{{Trips}}",
-    "adminUsage": "Gebruik"
+    "adminUsage": "Gebruik",
+    "adminEquipmentReviews": "Toerustinghersienings"
   },
   "assistant": {
     "title": "Stemassistent",
@@ -574,7 +575,9 @@
       "serial_twice": "Serienommer twee keer in hierdie lêer",
       "reg_on_farm": "Registrasie reeds in jou vloot",
       "reg_twice": "Registrasie twee keer in hierdie lêer",
-      "name_on_farm": "'n {{Asset}} met hierdie naam is reeds in jou vloot"
+      "name_on_farm": "'n {{Asset}} met hierdie naam is reeds in jou vloot",
+      "profile_invalid": "Onbekende profiel (gebruik full of equipment)",
+      "profile_not_eligible": "'n Voertuig kan nie ondersteuningstoerusting wees nie"
     },
     "identityCard": "Besonderhede",
     "purchaseDate": "Aankoopdatum",
@@ -663,7 +666,8 @@
     "problemsFilter": "Probleme",
     "problemsOpen": "Met 'n oop probleem",
     "tankLitres": "Brandstoftenkgrootte (liter)",
-    "tankLitresHint": "Word gebruik om 'n brandstofkaartvulling te sien wat meer is as wat die tenk hou."
+    "tankLitresHint": "Word gebruik om 'n brandstofkaartvulling te sien wat meer is as wat die tenk hou.",
+    "profile": "Profiel"
   },
   "machineType": {
     "tractor": "Trekker",
@@ -683,7 +687,10 @@
     "motorcycle": "Motorfiets",
     "forklift": "Vurkhyser",
     "earthmoving": "Grondverskuiwing / Aanleg",
-    "boat": "Boot"
+    "boat": "Boot",
+    "compressor": "Kompressor",
+    "workshop_tool": "Werkswinkelgereedskap",
+    "other_equipment": "Ander toerusting (nie selfaangedrewe nie)"
   },
   "machineStatus": {
     "active": "Aktief",
@@ -1152,7 +1159,9 @@
       "multi_site": "die gesamentlike oorsig van jou {{orgs}}",
       "whatsapp": "WhatsApp-kennisgewings",
       "api_access": "API-toegang",
-      "financials": "Om die boeke te hou"
+      "financials": "Om die boeke te hou",
+      "trips": "riteskedulering en ritfinansies",
+      "maps": "kaarte en liggingnasporing"
     },
     "bodyOwner": "{feature} is beskikbaar op die {plan}-plan en hoër. Jy is op {current}. Jy kan jou plan op die Rekening-skerm verander.",
     "bodyPartner": "{feature} is beskikbaar op die {plan}-produk en hoër. Jy is op {current}. Vra FLEETWISE om jou op te gradeer.",
@@ -1597,7 +1606,13 @@
     "nothingYet": "Geen in hierdie tydperk nie",
     "tabCosts": "Koste",
     "tabService": "Diens",
-    "tabUsage": "Gebruik en staantyd"
+    "tabUsage": "Gebruik en staantyd",
+    "equipmentNoTco": "Ondersteuningstoerusting",
+    "maintenanceSplit": "Onderhoudsbesteding, vloot en ondersteuningstoerusting",
+    "maintenanceFleet": "Vlootbates",
+    "maintenanceEquipment": "Ondersteuningstoerusting",
+    "maintenanceTotal": "Alle onderhoud",
+    "maintenanceSplitNote": "Ondersteuningstoerusting se herstelwerk en onderdele tel in die totaal. Eienaarskoste, koste per uur of km, brandstofverbruik en waardevermindering word net vir vlootbates bereken."
   },
   "faults": {
     "pages": "Foutlysbladsye",
@@ -5495,7 +5510,32 @@
     "applicationMissing": "Daardie versoek kon nie gevind word nie, of dit is reeds goedgekeur.",
     "applicationEmailTaken": "Daardie adres behoort reeds aan 'n {{org}}- of personeelaanmelding. Vra hulle vir 'n ander adres.",
     "applicationFailed": "Die rekening kon nie gemaak word nie. Niks is goedgekeur nie. Probeer asseblief weer.",
-    "signupCompany": "Kies watter soort besigheid dit is."
+    "signupCompany": "Kies watter soort besigheid dit is.",
+    "equipmentRefusedDriver": "Ondersteuningstoerusting het geen rylogboek of bestuurderrekords nie. Skakel dit om na 'n volle vlootplek om dit te gebruik.",
+    "equipmentRefusedTracking": "Ondersteuningstoerusting het geen kaarte of liggingnasporing nie. Die geskrewe ligging werk steeds.",
+    "equipmentRefusedFuel": "Brandstof word nie teen ondersteuningstoerusting aangeteken nie. Teken die onttrekking sonder 'n bate aan, of skakel dit om na 'n volle vlootplek.",
+    "equipmentRefusedBudgets": "Begrotings is vir volle vlootbates. Ondersteuningstoerusting hou sy herstelkoste.",
+    "equipmentRefusedFinance": "Lenings en huurkontrakte is vir volle vlootbates. Dienskontrakte, waarborge en versekering werk steeds vir ondersteuningstoerusting.",
+    "equipmentRefusedTyres": "Gedetailleerde bandmontering is vir volle vlootbates. Teken 'n bandvervanging op ondersteuningstoerusting as 'n gewone herstelwerk aan.",
+    "equipmentRefusedTrips": "Ondersteuningstoerusting het geen eie ritte nie. 'n Sleepwa kan steeds op 'n voertuig se rit genoem word.",
+    "equipmentRefusedLicensing": "Lisensieskywe, padwaardigheidsertifikate en padpermitte is vir volle vlootbates. Versekering en ander datums werk steeds vir ondersteuningstoerusting.",
+    "equipmentRefusedDepreciation": "Ondersteuningstoerusting hou sy aankoopbesonderhede, maar het geen waardevermindering nie. Skakel dit om na 'n volle vlootplek om dit te gebruik.",
+    "equipmentTypeNotEligible": "Hierdie tipe is 'n voertuig en het dus 'n volle vlootplek nodig. Ondersteuningstoerusting is vir pompe, kragopwekkers, kompressors, gereedskap, aanbouwerktuie en sleepwaens.",
+    "equipmentReviewReason": "Sê in 'n paar woorde wat ongewoon aan hierdie bate is.",
+    "equipmentReviewBad": "Kies bevestig of afgekeur.",
+    "equipmentReviewClosed": "Daardie hersiening is reeds beantwoord.",
+    "planFeatureTrips": "Riteskedulering en ritfinansies is op Professioneel en Volledig. Die rylogboek werk op elke plan.",
+    "planFeatureMaps": "Kaarte, roetes en liggingnasporing is op Volledig.",
+    "equipmentLimitReached": "Elke plek vir ondersteuningstoerusting is in gebruik. Voeg 'n toerustingplek op die faktureringsbladsy by, of stel eers toerusting buite gebruik.",
+    "equipmentNotInAgreement": "Jou huidige ooreenkoms is opgestel voordat ondersteuningstoerusting bestaan het. Vra FLEETWISE om jou na die huidige pryslys te skuif om toerusting by te voeg.",
+    "equipmentRetired": "Hierdie toerusting is buite gebruik gestel. Herstel dit eers om nuwe werk aan te teken; herstel het 'n vrye toerustingplek nodig.",
+    "capacityNeeded": "Hierdie verandering het 'n plek nodig waarvoor nog nie betaal is nie. Voeg eers die plek op die faktureringsbladsy by en probeer dan weer.",
+    "previewChanged": "Die syfers het verander sedert jy gekyk het. Kyk na die nuwe totale en bevestig weer.",
+    "equipmentConvertSame": "Die bate het reeds daardie profiel.",
+    "equipmentConvertOpenDriving": "'n Rylogboek is oop op hierdie voertuig. Voltooi dit voordat jy omskakel.",
+    "equipmentConvertOpenTrips": "Hierdie voertuig het beplande of lopende ritte. Voltooi of kanselleer hulle voordat jy omskakel.",
+    "equipmentConvertTrackerLinked": "'n Spoorder is aan hierdie voertuig gekoppel. Vra FLEETWISE om dit te ontkoppel voordat jy omskakel.",
+    "previewBadQuantity": "Kies 'n hoeveelheid van 0 tot 10 000."
   },
   "billing": {
     "title": "Rekening",
@@ -5696,7 +5736,8 @@
     "atMinimum": "Gefaktureer teen die planminimum van {n} plekke. Jy kan tot {n} voertuie byvoeg sonder ekstra koste.",
     "quoteSlotsMinimum": "Jou plan word vir minstens vyf voertuigplekke gefaktureer, so die getal kan nie laer as dit wees nie.",
     "quotePlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan.",
-    "eftReference": "Gebruik {ref} as die verwysing. Ons teken die betaling op jou rekening aan, gewoonlik binne een werksdag."
+    "eftReference": "Gebruik {ref} as die verwysing. Ons teken die betaling op jou rekening aan, gewoonlik binne een werksdag.",
+    "equipmentLine": "{n} ekstra ondersteuningstoerusting ({included} ingesluit)"
   },
   "adminBilling": {
     "title": "Intekeninge",
@@ -6054,7 +6095,9 @@
       "voice_ai": "Stemopname en assistent",
       "multi_site": "Gesamentlike oorsig oor jou {{orgs}}",
       "whatsapp": "WhatsApp-waarskuwings",
-      "api_access": "API-toegang vir jou eie stelsels"
+      "api_access": "API-toegang vir jou eie stelsels",
+      "trips": "Riteskedulering, aflewerings en ritwins",
+      "maps": "Kaarte en voertuigliggings"
     },
     "compareFeature": "Kenmerk",
     "compareChosen": "Jou keuse",
@@ -8171,5 +8214,56 @@
       "unavailable": "Oplaai werk nie nou nie. Jou besonderhede bly gestoor: probeer oor 'n paar minute weer.",
       "interrupted": "Die verbinding het tydens die oplaai weggeval. Dit gaan voort van waar dit gestop het wanneer jy weer probeer."
     }
+  },
+  "assets": {
+    "viewFleet": "Vlootbates",
+    "viewEquipment": "Ondersteuningstoerusting",
+    "viewsLabel": "Watter bates om te wys",
+    "equipmentLead": "Pompe, kragopwekkers, kompressors, gereedskap, aanbouwerktuie en sleepwaens, gehou vir hul onderhoud, herstelwerk, papiere en QR-kodes.",
+    "capacityLabel": "Plekke",
+    "capacityFull": "Volle vlootplekke: {active} in gebruik van {purchased}, {free} nou vry. Die volgende hernuwing faktureer {next}.",
+    "capacityFullMetered": "Volle vlootplekke: {active} in gebruik, gefaktureer soos getel.",
+    "capacityEquipment": "Ondersteuningstoerusting: {active} in gebruik, {included} ingesluit en {extra} ekstra betaal, {free} nou vry. Die volgende hernuwing hef {next} ekstra.",
+    "capacityEquipmentMetered": "Ondersteuningstoerusting: {active} in gebruik, {included} ingesluit.",
+    "capacityEquipmentNoTerms": "Ondersteuningstoerusting is nog nie deel van jou huidige ooreenkoms nie.",
+    "makeModelHint": "As jy dit weet. 'n Ou of tuisgemaakte item kan leeg gelaat word.",
+    "kindQuestion": "Wat voeg jy by?",
+    "kindChosen": "Gekies",
+    "kindFleetTitle": "'n Vlootbate (volle plek)",
+    "kindFleetWho": "Motors, bakkies, vragmotors, trekkers, stropers, vurkhysers en ander voertuie. Toerusting kan ook 'n volle plek gebruik, vir die ekstra gereedskap.",
+    "kindFleetHas1": "Alles wat ondersteuningstoerusting het, plus rylogboeke en, op jou plan, ritte",
+    "kindFleetHas2": "Brandstof, lisensieskywe, bandmonterings, lenings en huurkontrakte",
+    "kindFleetHas3": "Bedryfskoste, koste per uur of km, begrotings en waardevermindering op Professioneel en Volledig",
+    "kindEquipmentTitle": "Ondersteuningstoerusting",
+    "kindEquipmentWho": "Pompe, kragopwekkers, kompressors, werkswinkelgereedskap, aanbouwerktuie soos ploeë, en sleepwaens. Nie vir voertuie nie, selfs nie geparkeerdes nie.",
+    "kindEquipmentHas1": "Foto, ligging, uurlesings en diensherinneringe",
+    "kindEquipmentHas2": "Foute, kontrolelyste, herstelwerk met onderdele, arbeid en koste",
+    "kindEquipmentHas3": "Dokumente, QR-kodes, verkoop- en waarborgpakke",
+    "kindEquipmentNot": "Geen ritte, brandstof, nasporing, lisensieskywe, begrotings, waardevermindering, lenings of huurkontrakte nie. 'n Sleepwa kan steeds op 'n voertuig se rit genoem word.",
+    "equipmentNoteTitle": "Dit is ondersteuningstoerusting",
+    "equipmentNoteKeeps": "Dit hou sy lesings, diensplan, foute, herstelwerk en koste, dokumente en QR-kode.",
+    "equipmentNoteConvert": "Brandstof, bedryfskoste, begrotings, waardevermindering, ritte en lisensieskywe kom met 'n volle vlootplek: gebruik Skakel om na 'n volle vlootplek in hierdie bate se kieslys.",
+    "converted": "Die bate se profiel is verander. Sy geskiedenis bly by hom.",
+    "reviewSent": "Dankie. FLEETWISE sal kyk hoe hierdie bate geklassifiseer is en jou laat weet. Niks op jou rekening verander intussen nie.",
+    "convertToFull": "Skakel om na 'n volle vlootplek",
+    "convertToEquipment": "Skakel om na ondersteuningstoerusting",
+    "convertToFullLead": "Die bate hou sy geskiedenis en kry die volle gereedskap wat jou plan het. Dit neem 'n volle vlootplek.",
+    "convertToEquipmentLead": "Die bate hou sy geskiedenis. Nuwe werk volg ondersteuningstoerusting: geen nuwe brandstof, ritte, lisensieskywe, begrotings of waardevermindering nie. Dit maak 'n volle vlootplek vry vir 'n ander voertuig.",
+    "convertConfirm": "Skakel om",
+    "convertNeedsSpace": "Dit het {full} meer volle plek(ke) en {equipment} meer toerustingplek(ke) nodig as waarvoor jy betaal het. Voeg hulle eers op die faktureringsbladsy by.",
+    "convertKeepsHistory": "Ou brandstof-, rit- en kosterekords bly leesbaar en uitvoerbaar. Jou minimum van vyf plekke verander nie; jy kan 'n vrygemaakte volle plek by jou volgende hernuwing teruggee.",
+    "factFullAfter": "Volle vlootplekke daarna",
+    "factInUseOf": "{n} in gebruik van {of}",
+    "factEquipmentAfter": "Ondersteuningstoerusting daarna",
+    "factEquipmentOf": "{n} in gebruik, {included} ingesluit, {extra} ekstra betaal",
+    "factRenewal": "Volgende hernuwing",
+    "factBeforeAfter": "{before} nou, {after} daarna",
+    "plansForMix": "Elke plan se hernuwing vir hierdie samestelling",
+    "planCurrent": "jou plan",
+    "plansNeverSwitched": "Gewys om te vergelyk. Jou plan verander nooit tensy jy dit verander nie.",
+    "reviewRequest": "Vra FLEETWISE om die klassifikasie na te gaan",
+    "reviewHint": "Vir 'n ongewone item: sê wat dit is en hoe dit gebruik word. 'n Persoon kyk daarna; niks word outomaties gefaktureer of verander nie.",
+    "reviewReason": "Wat ongewoon daaraan is",
+    "reviewSend": "Stuur"
   }
 }

@@ -12,7 +12,7 @@ import {
   checkWorkshopEntitlement,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { hiddenMenuHrefs } from "@/lib/modules";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
@@ -205,7 +205,7 @@ export default async function AppLayout({
         ?.settings as Record<string, unknown> | null | undefined) ?? null)
     : null;
   // A feature in testing appears only where Rapid Rise has turned it on (/admin/features).
-  const mapOn = !isWorkshop && !isAdmin && (await featureOn("map", currentFarm));
+  const mapOn = !isWorkshop && !isAdmin && (await mapsAvailable(currentFarm, profile));
   const [alertsUnread, inboxDecisions, supportWaiting] = await Promise.all([
     countInboxUnread(countsClient, profile.id),
     canUseInbox ? countInboxDecisions(countsClient, currentFarm) : Promise.resolve(0),
@@ -361,9 +361,10 @@ export default async function AppLayout({
   const adminDriverIntegrations: NavItemData = { href: "/admin/driver-integrations", label: t("adminHome.navDriverIntegrations", locale), icon: "pin" };
   const adminPartners: NavItemData = { href: "/admin/partners", label: t("nav.adminPartners", locale), icon: "partners" };
   const adminFeatures: NavItemData = { href: "/admin/features", label: t("nav.adminFeatures", locale), icon: "settings" };
+  const adminEquipmentReviews: NavItemData = { href: "/admin/equipment-reviews", label: t("nav.adminEquipmentReviews", locale), icon: "settings" };
   const adminUsage: NavItemData = { href: "/admin/usage", label: t("nav.adminUsage", locale), icon: "receipt" };
   const adminTemplates: NavItemData = { href: "/admin/templates", label: t("nav.adminTemplates", locale), icon: "documents" };
-  const rapidRiseItems: NavItemData[] = [adminOverview, adminSupport, admin, adminBilling, adminAi, adminPartners, adminFeatures, adminUsage, adminTemplates, adminDriverIntegrations];
+  const rapidRiseItems: NavItemData[] = [adminOverview, adminSupport, admin, adminBilling, adminAi, adminPartners, adminFeatures, adminEquipmentReviews, adminUsage, adminTemplates, adminDriverIntegrations];
   // Reached from the account menu and the palette, not listed in the sidebar: the menu
   // on the row that names you is where people look for their own account.
   const yourAccount: NavItemData = { href: "/account", label: t("nav.account", locale), icon: "settings" };

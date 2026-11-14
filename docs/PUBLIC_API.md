@@ -51,6 +51,9 @@ List endpoints accept:
 - `status`: available on machines, service plan lines, faults, and job cards.
 - `from` and `to`: inclusive `YYYY-MM-DD` date bounds.
 
+A machine carries `profile`: `full` (a full-priced fleet space) or `equipment` (support
+equipment, which has no trips, fuel, tracking or ownership analytics; 20261114090100).
+
 Unknown or repeated query parameters are rejected. Responses never include farm IDs, QR tokens, assigned user IDs, reporter details, finance details, or internal deletion fields. Every query is scoped to the farm derived from the bearer credential and excludes soft-deleted records.
 
 Example:

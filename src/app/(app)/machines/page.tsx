@@ -15,9 +15,11 @@ import {
   MACHINE_TYPES,
   machineTypesFor,
   MACHINE_STATUSES,
+  isEquipmentEligible,
   typeLabel,
   statusLabel,
 } from "@/lib/machine-options";
+import { AssetViews, CapacityFacts, readAssetView, type CapacitySummary } from "@/components/machines/asset-views";
 import { Card } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -57,9 +59,12 @@ type MachineRow = {
   current_reading_date: string | null;
   cost_centre: string | null;
   primary_attachment_id: string | null;
+  profile: string;
 };
 
 type SP = {
+  /** fleet (default) or equipment: the two views of one register. */
+  view?: string;
   type?: string;
   status?: string;
   q?: string;
@@ -108,6 +113,9 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   // "With an open problem", the dashboard's "Machines with problems": at least one problem
   // not yet resolved, the same rule the widget counts by.
   const problemsOpen = sp.problems === "open";
+  // Fleet assets or support equipment (20261114090100): one register, two views.
+  const view = readAssetView(raw.view);
+  const viewProfile = view === "equipment" ? "equipment" : "full";
 
   const supabase = await createClient();
   // Multi-site (F7): scope the list to the farm the user is currently acting in. For a
@@ -121,15 +129,18 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   const hasFullFleetGrant = permissionState.grants.has("see_all_vehicles");
   // Cost per hour or km is total cost of ownership arithmetic: a Professional feature
   // (`tco`) on top of the role's cost visibility, decided on the farm being listed.
-  const costsVisible = (profile.role === "rr_admin" || await canViewFarmCosts(supabase, farmId))
+  // Never for support equipment, on any plan (20261114090200).
+  const costsVisible = view === "fleet"
+    && (profile.role === "rr_admin" || await canViewFarmCosts(supabase, farmId))
     && await farmAllows(farmId, "tco", profile);
 
   // The list query has no range: a farm's fleet is bounded by its vehicle slots, and the
   // service filter and "needs attention" sort below need the whole set to be honest.
   let query = supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, reg_no, status, meter_type, current_reading, current_reading_date, cost_centre, primary_attachment_id")
+    .select("id, farm_id, name, type, make, model, year, reg_no, status, meter_type, current_reading, current_reading_date, cost_centre, primary_attachment_id, profile")
     .is("deleted_at", null)
+    .eq("profile", viewProfile)
     .order("name", { ascending: true });
   if (farmId) query = query.eq("farm_id", farmId);
   if (sp.type) query = query.eq("type", sp.type);
@@ -150,7 +161,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   // plus the unfiltered fleet totals the header needs ("12 on the farm").
   let dimQuery = supabase
     .from("machines")
-    .select("id, cost_centre, department, status")
+    .select("id, cost_centre, department, status, profile")
     .is("deleted_at", null);
   if (farmId) dimQuery = dimQuery.eq("farm_id", farmId);
 
@@ -179,11 +190,20 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
   ]);
   // A failed read showed a farm with a fleet "add your first machine". Fail honestly instead.
   mustAll(results, "machines:list");
+  // Spaces in use, free now and at the next renewal: decoration for owners and managers,
+  // so a failed read hides the line rather than the list (the database still refuses an add).
+  const capacity = canEdit && farmId
+    ? (soft(await supabase.rpc("asset_capacity_summary", { p_farm: farmId }), "machines:capacity") as CapacitySummary | null)
+    : null;
   const [{ data }, { data: dimData }, { data: splData }, costResult, farmResult, openFaultResult] = results;
   const withProblems = new Set(((openFaultResult.data as { machine_id: string }[] | null) ?? []).map((f) => f.machine_id));
   const fetched = (data as MachineRow[] | null) ?? [];
 
-  const allRows = (dimData as { id: string; cost_centre: string | null; department: string | null; status: string }[] | null) ?? [];
+  const everyRow = (dimData as { id: string; cost_centre: string | null; department: string | null; status: string; profile: string }[] | null) ?? [];
+  const inUse = (r: { status: string }) => r.status !== "retired" && r.status !== "sold";
+  const fleetCount = everyRow.filter((r) => r.profile !== "equipment" && inUse(r)).length;
+  const equipmentCount = everyRow.filter((r) => r.profile === "equipment" && inUse(r)).length;
+  const allRows = everyRow.filter((r) => (r.profile === "equipment" ? "equipment" : "full") === viewProfile);
   const costCentres = [...new Set(allRows.map((r) => r.cost_centre).filter((v): v is string => !!v))].sort();
   const departments = [...new Set(allRows.map((r) => r.department).filter((v): v is string => !!v))].sort();
   const liveRows = allRows.filter((r) => r.status !== "retired" && r.status !== "sold");
@@ -307,6 +327,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   // The current query string, so chips, sort links and search preserve everything else.
   const currentParams = new URLSearchParams();
+  if (view === "equipment") currentParams.set("view", "equipment");
   if (sp.type) currentParams.set("type", sp.type);
   if (sp.status) currentParams.set("status", sp.status);
   if (sp.q) currentParams.set("q", sp.q);
@@ -334,7 +355,9 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   const typeOptions: ChipOption[] = [
     { value: "", label: t("machines.presetAll", locale) },
-    ...machineTypesFor(locale).map((ty) => ({ value: ty, label: typeLabel(ty, locale) })),
+    ...machineTypesFor(locale)
+      .filter((ty) => view === "fleet" || isEquipmentEligible(ty))
+      .map((ty) => ({ value: ty, label: typeLabel(ty, locale) })),
   ];
   const statusOptions: ChipOption[] = [
     { value: "", label: t("filters.all", locale) },
@@ -601,7 +624,7 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
 
   const headerActions = canEdit ? (
     <div className="flex w-full items-center gap-2 sm:w-auto">
-      <Link href="/machines/new" className={buttonVariants({ variant: "primary", className: "flex-1 sm:flex-none" })}>
+      <Link href={view === "equipment" ? "/machines/new?profile=equipment" : "/machines/new"} className={buttonVariants({ variant: "primary", className: "flex-1 sm:flex-none" })}>
         <PlusIcon className="text-lg" />
         {t("machines.add", locale)}
       </Link>
@@ -654,6 +677,16 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
         locale={locale}
         actions={headerActions}
       />
+
+      <AssetViews
+        current={view}
+        fleetCount={fleetCount}
+        equipmentCount={equipmentCount}
+        hrefFor={(v) => (v === "equipment" ? "/machines?view=equipment" : "/machines")}
+        locale={locale}
+      />
+      {view === "equipment" ? <p className="text-sm text-sand-600">{t("assets.equipmentLead", locale)}</p> : null}
+      <CapacityFacts summary={capacity} locale={locale} />
 
       <Flash
         tone="success"

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { localeOf, t } from "@/lib/i18n";
 import { attributionFor, routingConfig } from "@/lib/routing";
 import { must } from "@/lib/supabase/must";
@@ -43,7 +43,7 @@ export default async function TripRoutePage({
 
   const role = await effectiveFarmRole(trip.farm_id, profile);
   if (role !== "owner" && role !== "manager") redirect(`/trips/${id}`);
-  if (!(await featureOn("map", trip.farm_id))) notFound();
+  if (!(await mapsAvailable(trip.farm_id, profile))) notFound();
   if (trip.status === "completed" || trip.status === "cancelled") redirect(`/trips/${id}?error=route-closed`);
 
   const saved = must(

@@ -31,7 +31,9 @@ export async function importStatement(formData: FormData) {
 
   const supabase = await createClient();
   const vehicles = must(
-    await readAll(() => supabase.from("machines").select("id, reg_no, fuel_tank_litres").eq("farm_id", farmId).is("deleted_at", null)),
+    // Support equipment never takes fuel (20261114090200), so a fill is never matched to it:
+    // the table would refuse the whole statement.
+    await readAll(() => supabase.from("machines").select("id, reg_no, fuel_tank_litres").eq("farm_id", farmId).eq("profile", "full").is("deleted_at", null)),
     "fuel-cards:vehicles",
   ) as { id: string; reg_no: string | null; fuel_tank_litres: number | null }[] | null;
 

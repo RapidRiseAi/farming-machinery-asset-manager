@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { dateTime, num } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -105,7 +105,7 @@ export default async function TripPage({
   const names = new Map(machineRows.map((m) => [m.id, m.name]));
   // An hour meter says nothing about distance, so only a km reading is held against the plan.
   const kmMeter = machineRows.find((m) => m.id === trip.machine_id)?.meter_type === "km";
-  const mapOn = await featureOn("map", trip.farm_id);
+  const mapOn = await mapsAvailable(trip.farm_id, profile);
   const driverName = (must(driver, "trip:driver") as { name?: string } | null)?.name ?? null;
   const incomeRow = must(income, "trip:income") as { amount_cents: number; invoice_ref: string | null } | null;
   const expenseRows = (must(expenses, "trip:expenses") ?? []) as { id: string; kind: string; amount_cents: number; note: string | null }[];

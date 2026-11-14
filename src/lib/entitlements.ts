@@ -37,6 +37,12 @@ export const FEATURE_MIN_PLAN = {
   advanced_reports: "professional",
   fuel: "professional",
   tco: "professional",
+  // Trip scheduling, assignments, deliveries and trip finance (decision 16). The driving
+  // log with written stops is on every plan (`driving_log` below).
+  trips: "professional",
+  // In-app maps, route planning, reported positions and driving paths (decision 18). The
+  // `map` feature flag (src/lib/features.ts) is the readiness switch on top of the plan.
+  maps: "complete",
   aarto: "complete",
   voice_ai: "complete",
   multi_site: "complete",
@@ -46,16 +52,88 @@ export const FEATURE_MIN_PLAN = {
 
 export type Feature = keyof typeof FEATURE_MIN_PLAN;
 
+/**
+ * Gated features that exist but are not yet advertised on the plan comparison: they wait
+ * for their verification (decision 31). Their gates still apply.
+ */
+export const NOT_YET_ADVERTISED: readonly Feature[] = ["maps"];
+
+/**
+ * Every capability the matrix names: the gated features above, two analytics that share
+ * `tco`'s placement but are refused for support equipment by name, and the every-plan
+ * capabilities the equipment profile is judged against. Mirrors app.feature_min_rank
+ * (20261114090200); entitlements.test.ts reads that migration to keep them equal.
+ */
+export const CAPABILITY_MIN_PLAN = {
+  ...FEATURE_MIN_PLAN,
+  budgets: "professional",
+  depreciation: "professional",
+  driving_log: "essential",
+  driver_workflow: "essential",
+  road_licensing: "essential",
+  finance_agreements: "essential",
+  tyre_detail: "essential",
+  sale_warranty_packs: "essential",
+  general_chat: "essential",
+} as const satisfies Record<string, Plan>;
+
+export type Capability = keyof typeof CAPABILITY_MIN_PLAN;
+
+/**
+ * The management/billing profile of an asset (20261114090100). Kept here rather than
+ * imported from machine-options.ts so this module stays free of the i18n dictionaries.
+ */
+export type AssetProfileKey = "full" | "equipment";
+
+/**
+ * What each profile can never have, on any plan, Complete included (decisions 3 and 33).
+ * Support equipment keeps identification, photos, a written location, hour readings,
+ * service reminders, faults, checklists and inspections, repair jobs with ordinary parts,
+ * labour and cost lines, documents, QR codes, sale and warranty packs and chat. Mirrors
+ * app.profile_refuses (20261114090200).
+ */
+export const PROFILE_REFUSES: Record<AssetProfileKey, readonly Capability[]> = {
+  full: [],
+  equipment: [
+    "driving_log",
+    "driver_workflow",
+    "trips",
+    "maps",
+    "road_licensing",
+    "fuel",
+    "tco",
+    "depreciation",
+    "finance_agreements",
+    "budgets",
+    "tyre_detail",
+  ],
+};
+
 /** The minimum plan that unlocks `feature`. */
-export function requiredPlan(feature: Feature): Plan {
-  return FEATURE_MIN_PLAN[feature];
+export function requiredPlan(feature: Capability): Plan {
+  return CAPABILITY_MIN_PLAN[feature];
 }
 
 /** Does `plan` unlock `feature`? Unknown/ungated features are always allowed. */
-export function planAllows(plan: Plan, feature: Feature): boolean {
-  const need = FEATURE_MIN_PLAN[feature];
+export function planAllows(plan: Plan, feature: Capability): boolean {
+  const need = CAPABILITY_MIN_PLAN[feature];
   if (!need) return true;
   return PLAN_RANK[plan] >= PLAN_RANK[need];
+}
+
+/** Does this profile refuse `feature` outright, whatever the plan? */
+export function profileRefuses(profile: AssetProfileKey | string | null | undefined, feature: Capability): boolean {
+  if (profile !== "equipment") return false;
+  return PROFILE_REFUSES.equipment.includes(feature);
+}
+
+/**
+ * The whole matrix for one asset: its business's plan AND its own profile. A full asset
+ * follows its plan; support equipment never gets a refused tool, however high the plan.
+ * Mirrors app.asset_allows.
+ */
+export function assetAllows(plan: Plan, profile: AssetProfileKey | string | null | undefined, feature: Capability): boolean {
+  return planAllows(plan, feature) && !profileRefuses(profile, feature);
 }
 
 export function isPlan(value: string): value is Plan {
@@ -72,42 +150,46 @@ export function planNameKey(plan: Plan): string {
 }
 
 export type PlanPrice = {
-  /** Per-vehicle-per-month, VAT-inclusive, in cents. null = price on application (bespoke). */
+  /** One full space for a month, VAT-inclusive cents. null = price on application (quoted). */
   perVehicleMonthlyCents: number | null;
+  /**
+   * One full space for a YEAR, VAT-inclusive cents, as stated: R490 / R790 / R990. Never
+   * derived from the monthly price (BRIEF section 4, decision 7). null = quoted.
+   */
+  perVehicleAnnualCents: number | null;
+  /** Support equipment included once per customer subscription (2 / 5 / 15). */
+  includedEquipment: number;
 };
 
 /**
- * THE NOVEMBER 2026 LIST: R49 / R79 / R99, Done-For-You quoted.
+ * THE CURRENT LIST, launch-2026-11-eq (20261114090300): R49 / R79 / R99 a full space a
+ * month, R490 / R790 / R990 a year, five spaces at least, 2 / 5 / 15 support equipment
+ * included and R15 a month or R150 a year for each extra one (src/lib/billing/calculator.ts).
  *
- * Founder decisions of 29 October 2026, published on the FLEETWISE website on
- * 4 November 2026 and seeded as the `launch-2026-11` generation by migration
- * 20261104200000. The launch list (R44 / R73 / R89 / R250, 4 September 2026) is retired
- * and still prices the agreements pinned to it; nobody's price moved.
+ * The full-space prices are unchanged since the November list (20261104200000); the
+ * launch list (R44 / R73 / R89 / R250) and the November list are retired and still price
+ * the agreements pinned to them.
  *
  * Done-For-You is remote fleet management QUOTED per customer (from R170 per vehicle a
  * month, at least R2,500 a month). A marketing floor is not a price anybody can be
- * auto-invoiced at, so it is null here and has no current row in the catalogue: sign-up,
- * plan changes and the invoice run all treat it as price on application.
+ * auto-invoiced at, so it is null here and has no current row in the catalogue.
  *
  * This table is DISPLAY. The money that is actually charged comes from
- * `billing_price_versions`, because an invoice must be defensible from its own snapshot
- * years later. `safety.test.ts` reads the migration and
- * `supabase/tests/billing_subscription.sql` §(0) asserts the rows, so the quote and the
+ * `billing_price_versions`. `safety.test.ts` and `calculator.test.ts` read the migration
+ * and `supabase/tests/billing_subscription.sql` (0) asserts the rows, so the quote and the
  * bill cannot drift apart silently.
  */
 export const PLAN_PRICING: Record<Plan, PlanPrice> = {
-  essential: { perVehicleMonthlyCents: 4900 },
-  professional: { perVehicleMonthlyCents: 7900 },
-  complete: { perVehicleMonthlyCents: 9900 },
-  done_for_you: { perVehicleMonthlyCents: null },
+  essential: { perVehicleMonthlyCents: 4900, perVehicleAnnualCents: 49000, includedEquipment: 2 },
+  professional: { perVehicleMonthlyCents: 7900, perVehicleAnnualCents: 79000, includedEquipment: 5 },
+  complete: { perVehicleMonthlyCents: 9900, perVehicleAnnualCents: 99000, includedEquipment: 15 },
+  done_for_you: { perVehicleMonthlyCents: null, perVehicleAnnualCents: null, includedEquipment: 0 },
 };
 
 /**
- * The fewest vehicle slots a subscription on the current list is billed for: five, so
- * R245 / R395 / R495 a month (`billing_price_versions.min_billed_slots`). Sign-up starts
- * here and will not go below it; a slot change refuses to. Per subscription, which today
- * is per farm: the website's pooled multi-site subscription is set up by staff until a
- * billing-customer grouping exists.
+ * The fewest full spaces a subscription on the current list is billed for: five, so
+ * R245 / R395 / R495 a month (`billing_price_versions.min_billed_slots`). Once per customer
+ * subscription: sites billed through a main site share it (farms.billed_through).
  */
 export const MIN_BILLED_SLOTS = 5;
 
@@ -116,33 +198,26 @@ export function billedSlots(requested: number): number {
   return Math.max(MIN_BILLED_SLOTS, Math.max(0, Math.floor(requested)));
 }
 
-/** Annual pre-pay gives 2 months free (pay for 10). Effective monthly = list × 10/12. */
-export const ANNUAL_MONTHS_CHARGED = 10;
-
 /**
- * Effective per-vehicle-per-month price (cents, VAT-inclusive) for a plan + billing
- * period, DISPLAY ONLY. Returns null for a price-on-application (bespoke) plan.
+ * One full space's price for one billing period, DISPLAY: the stated monthly or annual
+ * price. Null for a quoted plan. Replaces the old "ten months" derivation.
  */
-export function perVehicleMonthlyCents(plan: Plan, period: BillingPeriod): number | null {
-  const base = PLAN_PRICING[plan].perVehicleMonthlyCents;
-  if (base == null) return null;
-  if (period === "annual") return Math.round((base * ANNUAL_MONTHS_CHARGED) / 12);
-  return base;
+export function perVehiclePeriodCents(plan: Plan, period: BillingPeriod): number | null {
+  return period === "annual" ? PLAN_PRICING[plan].perVehicleAnnualCents : PLAN_PRICING[plan].perVehicleMonthlyCents;
 }
 
 /**
- * Indicative recurring subtotal (cents, VAT-inclusive) for `assetCount` vehicles, at
- * least the minimum, DISPLAY ONLY. Monthly period → per-month total; annual period → per-YEAR total (list ×
- * ANNUAL_MONTHS_CHARGED). Returns null for a bespoke plan.
+ * Indicative recurring subtotal for full spaces only (cents, VAT-inclusive), at least the
+ * minimum, DISPLAY ONLY: a month's total for monthly, a YEAR's total for annual, from the
+ * stated prices. Support equipment is added by `renewal` in src/lib/billing/calculator.ts.
+ * Returns null for a quoted plan.
  */
 export function subscriptionSubtotalCents(
   plan: Plan,
   period: BillingPeriod,
   assetCount: number
 ): number | null {
-  const base = PLAN_PRICING[plan].perVehicleMonthlyCents;
-  if (base == null) return null;
-  const n = billedSlots(assetCount);
-  if (period === "annual") return base * ANNUAL_MONTHS_CHARGED * n;
-  return base * n;
+  const unit = perVehiclePeriodCents(plan, period);
+  if (unit == null) return null;
+  return unit * billedSlots(assetCount);
 }

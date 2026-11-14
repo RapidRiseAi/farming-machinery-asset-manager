@@ -2,8 +2,8 @@ import Link from "next/link";
 import { errorMessage } from "@/lib/errors";
 import { Photo } from "@/components/ui/photo";
 import { notFound } from "next/navigation";
-import { accessibleFarms, currentPlan, effectiveFarmRole, farmAllows } from "@/lib/auth";
-import { planAllows, requiredPlan } from "@/lib/entitlements";
+import { accessibleFarms, currentPlan, effectiveFarmRole, machineAllows } from "@/lib/auth";
+import { planAllows, profileRefuses, requiredPlan } from "@/lib/entitlements";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
@@ -12,6 +12,9 @@ import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { canViewFarmFinance } from "@/lib/asset-finance-read";
 import { financeSavedKey } from "@/lib/asset-finance";
 import { MachineFinanceSection } from "@/components/asset-finance/machine-finance-section";
+import { EquipmentProfileNote } from "@/components/machines/asset-views";
+import { ConversionReview, type ConversionPreview } from "@/components/machines/conversion-review";
+import { convertAssetProfile, requestClassificationReview } from "./profile-actions";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
 import {
@@ -26,7 +29,7 @@ import { computeConsumption, formatConsumption, activityLabel, latestInterval, f
 import { addFuelIssue } from "@/app/(app)/fuel/actions";
 import { FuelTrend } from "@/components/fuel-trend";
 import { t } from "@/lib/i18n";
-import { MACHINE_STATUSES, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
+import { MACHINE_STATUSES, isEquipmentEligible, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
 import { MachinePhotos } from "@/components/machine-photos";
 import { DocumentPacks } from "@/components/machines/document-packs";
@@ -60,6 +63,7 @@ import { cn } from "@/components/ui/cn";
 import { StatusPill, StatusBadge, Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -107,6 +111,8 @@ type Machine = {
   warranty_expiry_date: string | null; warranty_expiry_hours: number | null; location: string | null; notes: string | null;
   assigned_operator_id: string | null; cost_centre: string | null; department: string | null;
   primary_attachment_id: string | null;
+  /** Management profile (20261114090100): full, or support equipment. */
+  profile: string;
   finance_provider: string | null; finance_total_cents: number | null; finance_monthly_cents: number | null;
   finance_term_months: number | null; finance_interest_bps: number | null;
 };
@@ -142,6 +148,8 @@ const savedMsg: Record<string, string> = {
   "meter-replaced": "machine.savedMeterReplaced",
   // Straight from the Add machine form.
   created: "machines.created",
+  profile: "assets.converted",
+  review: "assets.reviewSent",
   reading: "ui.saved", status: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", budget: "ui.saved", "1": "ui.saved",
 };
 
@@ -154,7 +162,7 @@ export default async function MachineDetailPage({
 }) {
   // Governing plan for entitlement gates (null = rr_admin/workshop bypass).
   const { profile, plan } = await currentPlan();
-  const fuelAllowed = plan == null ? true : planAllows(plan, "fuel");   // Professional+
+  const planFuelAllowed = plan == null ? true : planAllows(plan, "fuel");   // Professional+
   const aartoAllowed = plan == null ? true : planAllows(plan, "aarto"); // Complete+
   const { id } = await params;
   if (!isUuid(id)) notFound();
@@ -167,7 +175,7 @@ export default async function MachineDetailPage({
   // A failed read is the error screen, not "this machine does not exist".
   const data = must(await supabase
     .from("machines")
-    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, previous_machine_id, moved_to_machine_id, fuel_tank_litres")
+    .select("id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, current_reading, current_reading_date, status, purchase_date, warranty_expiry_date, warranty_expiry_hours, location, cost_centre, department, notes, assigned_operator_id, primary_attachment_id, previous_machine_id, moved_to_machine_id, fuel_tank_litres, profile")
     .eq("id", id)
     .maybeSingle(), "machine:machine");
   const machineBase = data as Omit<Machine, "purchase_price_cents" | "supplier" | "finance_provider" | "finance_total_cents" | "finance_monthly_cents" | "finance_term_months" | "finance_interest_bps"> | null;
@@ -192,7 +200,14 @@ export default async function MachineDetailPage({
   // records is a plan question, asked of the machine's own farm: total cost of ownership,
   // cost per hour or km, the repair-or-replace ratio and budgets are Professional (`tco`).
   // The cost records themselves stay on every plan for whoever may see costs.
-  const analyticsVisible = costsVisible && (await farmAllows(machineBase.farm_id, "tco", profile));
+  // Support equipment keeps its cost records and never gets the analytics, on any plan
+  // (20261114090200): the whole matrix, plan and profile, through machineAllows.
+  const analyticsVisible = costsVisible && (await machineAllows(machineBase, "tco", profile));
+  const isEquipment = machineBase.profile === "equipment";
+  const fuelAllowed = planFuelAllowed && !profileRefuses(machineBase.profile, "fuel");
+  // Road licensing (licence disc, roadworthy, permits) is a full asset's; equipment keeps
+  // insurance and other dated papers (20261114090200 refuses the rest at the table).
+  const licenceTypes = isEquipment ? LICENCE_TYPES.filter((lt) => lt === "insurance" || lt === "other") : LICENCE_TYPES;
   const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
   // Finance agreements, leases and contracts: owners and managers only (founder default,
   // `app.can_view_farm_finance`), narrower than costs. Interest and lease payments still
@@ -713,6 +728,7 @@ export default async function MachineDetailPage({
           costCentres={distinctValues(dims.map((d) => d.cost_centre))}
           departments={distinctValues(dims.map((d) => d.department))}
           locations={distinctValues(dims.map((d) => d.location))}
+          equipment={isEquipment}
         />
         <DialogActions cancelLabel={cancelLabel}>
           <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
@@ -720,6 +736,59 @@ export default async function MachineDetailPage({
       </form>
     </DialogForm>
   );
+
+  // Converting between the full and the equipment profile, through its preview
+  // (20261114090300). Offered to owners and managers for an asset that may take the other
+  // profile; the money lines reach only the payer (the database strips them for others).
+  const convertTo = isEquipment ? "full" : "equipment";
+  const canConvert = canEdit && (isEquipment || isEquipmentEligible(machine.type));
+  const conversion = canConvert
+    ? (soft(await supabase.rpc("asset_conversion_preview", { p_machine: machine.id, p_to: convertTo }), "machine:conversion-preview") as ConversionPreview | null)
+    : null;
+  const convertDialog = conversion ? (
+    <DialogForm
+      triggerLook="menuItem"
+      trigger={t(isEquipment ? "assets.convertToFull" : "assets.convertToEquipment", locale)}
+      title={t(isEquipment ? "assets.convertToFull" : "assets.convertToEquipment", locale)}
+      description={machine.name}
+      closeLabel={closeLabel}
+      size="md"
+    >
+      <ConversionReview preview={conversion} locale={locale} />
+      {conversion.conversion_blocked || conversion.fits_now === false ? null : (
+        <form action={convertAssetProfile}>
+          <input type="hidden" name="id" value={machine.id} />
+          <input type="hidden" name="to" value={convertTo} />
+          <input type="hidden" name="accepted_renewal_cents" value={conversion.renewal?.after_cents ?? ""} />
+          <DialogActions cancelLabel={cancelLabel}>
+            <SubmitButton variant="primary">{t("assets.convertConfirm", locale)}</SubmitButton>
+          </DialogActions>
+        </form>
+      )}
+    </DialogForm>
+  ) : null;
+  const reviewDialog = canEdit ? (
+    <DialogForm
+      triggerLook="menuItem"
+      trigger={t("assets.reviewRequest", locale)}
+      title={t("assets.reviewRequest", locale)}
+      description={t("assets.reviewHint", locale)}
+      closeLabel={closeLabel}
+      size="md"
+    >
+      <form action={requestClassificationReview}>
+        <input type="hidden" name="id" value={machine.id} />
+        <DialogFields columns={1}>
+          <Field label={t("assets.reviewReason", locale)} htmlFor="review-reason" required>
+            <Textarea id="review-reason" name="reason" rows={3} maxLength={500} required />
+          </Field>
+        </DialogFields>
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary">{t("assets.reviewSend", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  ) : null;
 
   // The machine's own record, stated (it could only be read inside the edit form).
   const details: { label: string; value: string }[] = [
@@ -867,6 +936,8 @@ export default async function MachineDetailPage({
               trigger={t("nav.more", locale)}
             >
               {canEdit ? editMachineDialog("menuItem") : null}
+              {convertDialog}
+              {reviewDialog}
               {canEdit ? (
                 <DialogForm
                   triggerLook="menuItem"
@@ -1305,7 +1376,11 @@ export default async function MachineDetailPage({
               ) : (
                 <Card>
                   <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
-                  <UpgradeNotice feature="fuel" requiredPlan={requiredPlan("fuel")} currentPlan={plan} locale={locale} compact />
+                  {isEquipment ? (
+                    <EquipmentProfileNote locale={locale} />
+                  ) : (
+                    <UpgradeNotice feature="fuel" requiredPlan={requiredPlan("fuel")} currentPlan={plan} locale={locale} compact />
+                  )}
                 </Card>
               )}
 
@@ -1728,7 +1803,12 @@ export default async function MachineDetailPage({
               label: t("machine.tabCosts", locale),
               content: (
                 <div className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
-              {!analyticsVisible ? (
+              {isEquipment ? (
+                <div className="xl:[column-span:all]">
+                  <EquipmentProfileNote locale={locale} />
+                </div>
+              ) : null}
+              {!analyticsVisible && !isEquipment ? (
                 <div className="xl:[column-span:all]">
                 <UpgradeNotice
                   feature="tco"
@@ -2319,7 +2399,7 @@ export default async function MachineDetailPage({
                                       <DialogFields>
                                         <Field label={t("compliance.type", locale)} htmlFor={`lc-type-${l.id}`}>
                                           <Select id={`lc-type-${l.id}`} name="type" defaultValue={l.type}>
-                                            {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                                            {licenceTypes.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
                                           </Select>
                                         </Field>
                                         <Field label={t("compliance.number", locale)} htmlFor={`lc-no-${l.id}`}>
@@ -2390,7 +2470,7 @@ export default async function MachineDetailPage({
                           <DialogFields>
                             <Field label={t("compliance.type", locale)} htmlFor="lc-new-type">
                               <Select id="lc-new-type" name="type" defaultValue="vehicle_licence">
-                                {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                                {licenceTypes.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
                               </Select>
                             </Field>
                             <Field label={t("compliance.number", locale)} htmlFor="lc-new-no">

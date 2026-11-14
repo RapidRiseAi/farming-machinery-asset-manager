@@ -181,6 +181,7 @@ declare
   v_open text[] := array[
     -- paying and the gate
     'farm_billing_gate', 'farm_vehicle_allowance', 'update_farm_billing', 'has_entitlement',
+    'has_asset_entitlement',
     -- the person's own account and rights
     'ai_notice_ack', 'set_notification_prefs', 'erase_personal_data', 'export_personal_data',
     'whatsapp_manage_link', 'whatsapp_link_status',
@@ -193,7 +194,7 @@ declare
     'support_badge', 'support_holiday_remove', 'support_holiday_set', 'support_mark_emailed',
     'support_open_for_customer', 'support_overview', 'support_queue', 'support_reply',
     'support_set_status', 'support_staff', 'support_ticket', 'support_update_settings',
-    'support_visit_end', 'support_visit_start',
+    'support_visit_end', 'support_visit_start', 'decide_asset_classification_review',
     -- a contractor's own books
     'next_document_number', 'revise_document', 'write_off_document', 'run_recurring_invoice',
     'run_recurring_expense', 'update_document_layout',

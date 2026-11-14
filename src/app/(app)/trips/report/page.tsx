@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { requireRole } from "@/lib/auth";
-import { featureOn } from "@/lib/features";
+import { mapsAvailable } from "@/lib/features";
 import { kmCheck, type KmCheck } from "@/lib/routing/geometry";
 import { OWNED_FIELD, SETTING_NUMBERS } from "@/lib/settings";
 import { num } from "@/lib/format";
@@ -40,7 +40,7 @@ export default async function TripReportPage() {
   ]);
   mustAll(results, "trips:report");
   const [{ data: tripData }, { data: incomeData }, { data: expenseData }, { data: machineData }, { data: routeData }, { data: farmData }] = results;
-  const mapOn = await featureOn("map", farmId);
+  const mapOn = await mapsAvailable(farmId, profile);
 
   type Trip = { id: string; number: number; machine_id: string; opening_reading: number | null; closing_reading: number | null };
   const income = new Map(((incomeData ?? []) as { trip_id: string; amount_cents: number }[]).map((r) => [r.trip_id, Number(r.amount_cents)]));

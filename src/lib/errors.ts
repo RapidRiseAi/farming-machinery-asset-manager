@@ -613,6 +613,36 @@ const CODE_KEYS: Record<string, string> = {
   "billing-extend-access-by-up-to-60-days": "errors.billingExtendBad",
   "billing-say-why-access-is-extended": "errors.billingExtendReason",
   "billing-only-a-paused-or-overdue-farm-can-be-kept-open": "errors.billingExtendNotOverdue",
+  // == Support equipment and plan gates on new work (20261114090100, 20261114090200) ===
+  // The tables refuse restricted work for an equipment asset with these slugs, whatever
+  // path wrote it (screen, offline replay, assistant, import, API).
+  "equipment-refused-driver-workflow": "errors.equipmentRefusedDriver",
+  "equipment-refused-driving-log": "errors.equipmentRefusedDriver",
+  "equipment-refused-maps": "errors.equipmentRefusedTracking",
+  "equipment-refused-fuel": "errors.equipmentRefusedFuel",
+  "equipment-refused-budgets": "errors.equipmentRefusedBudgets",
+  "equipment-refused-finance-agreements": "errors.equipmentRefusedFinance",
+  "equipment-refused-tyre-detail": "errors.equipmentRefusedTyres",
+  "equipment-refused-trips": "errors.equipmentRefusedTrips",
+  "equipment-refused-road-licensing": "errors.equipmentRefusedLicensing",
+  "equipment-refused-depreciation": "errors.equipmentRefusedDepreciation",
+  "equipment-type-not-eligible": "errors.equipmentTypeNotEligible",
+  "equipment-review-reason": "errors.equipmentReviewReason",
+  "equipment-review-bad": "errors.equipmentReviewBad",
+  "equipment-review-closed": "errors.equipmentReviewClosed",
+  "plan-feature-trips": "errors.planFeatureTrips",
+  "plan-feature-maps": "errors.planFeatureMaps",
+  // Capacity and conversion (20261114090300).
+  "equipment-limit-reached": "errors.equipmentLimitReached",
+  "equipment-not-in-agreement": "errors.equipmentNotInAgreement",
+  "equipment-retired": "errors.equipmentRetired",
+  "capacity-needed": "errors.capacityNeeded",
+  "preview-changed": "errors.previewChanged",
+  "equipment-convert-same": "errors.equipmentConvertSame",
+  "equipment-convert-open-driving": "errors.equipmentConvertOpenDriving",
+  "equipment-convert-open-trips": "errors.equipmentConvertOpenTrips",
+  "equipment-convert-tracker-linked": "errors.equipmentConvertTrackerLinked",
+  "preview-bad-quantity": "errors.previewBadQuantity",
 };
 
 /**

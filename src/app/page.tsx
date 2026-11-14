@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { t } from "@/lib/i18n";
 import { deviceLocale } from "@/lib/locale";
 import { rands } from "@/lib/money";
-import { PLANS, perVehicleMonthlyCents } from "@/lib/entitlements";
+import { PLANS, perVehiclePeriodCents } from "@/lib/entitlements";
 import { PublicShell, SITE_GUTTER, Tick } from "@/components/public-shell";
 import { ArrowRightIcon, ArrowUpRightIcon, CalendarIcon, CashIcon, DeviceIcon } from "@/components/ui/icons";
 
@@ -60,7 +60,7 @@ export default async function LandingPage({
   // The cheapest plan that is actually on sale. Not hard-coded: `entitlements.ts` is the
   // same source the sign-up page and the invoice both price from.
   const cheapest = PLANS
-    .map((p) => perVehicleMonthlyCents(p, "monthly"))
+    .map((p) => perVehiclePeriodCents(p, "monthly"))
     .filter((c): c is number => typeof c === "number")
     .sort((a, b) => a - b)[0];
 
