@@ -16,8 +16,8 @@ calculator and capacity, assets UI, tests for scenarios 1, 2, 3, 4, 5, 9, 14, 15
 | 2 | Equipment profile model | done |
 | 3 | Central entitlements matrix and server enforcement | done |
 | 4 | Pricing calculator and capacity | done |
-| 5 | Assets UI | in progress |
-| 6 | Tests and docs | not started |
+| 5 | Assets UI | done |
+| 6 | Tests and docs | in progress |
 
 ## In progress
 
@@ -77,11 +77,19 @@ LEGACY_ANNUAL_MONTHS_CHARGED for old rows); billing estimate and page show the e
 line; capacity refusal slugs in errors.ts EN/AF. Gates: tsc, 1094 unit tests, dashes,
 parity, keys, design, errors, 76 PGlite suites pass.
 
-Step 5 (now): `src/components/machines/asset-views.tsx` (AssetViews, CapacityFacts),
-`asset-kind.tsx` (AssetKindChooser); machines list `?view=equipment`; add page with
-`?profile=equipment`; machine form `equipment` prop. Next: createMachine reads `profile`,
-assets.* i18n keys, machine page (hide refused tabs, conversion dialog, review request),
-import profile column, admin review list page.
+Step 5 DONE: `src/components/machines/asset-views.tsx` (AssetViews, CapacityFacts,
+EquipmentProfileNote), `asset-kind.tsx` (AssetKindChooser), `conversion-review.tsx`;
+machines list `?view=equipment` with counts and capacity; add page asks which kind
+(`?profile=equipment`), equipment form (eligible types, make/model where known, no tank);
+createMachine and importMachines carry the profile (import `profile` column, aliases,
+profile_invalid / profile_not_eligible); machine page: equipment note instead of upgrade
+prompts, licence kinds limited, Convert dialog with the preview, classification review;
+`/admin/equipment-reviews` (Rapid Rise, English like the console) with nav entry;
+fuel cards never match equipment, tyres never offer it. Not checked in a browser: no
+.env.local in this worktree (ui:check needs the app running against a database).
+Gates: tsc, 1095 unit tests, all lints; SQL unchanged since step 4 (76 suites).
+
+Step 6 (now): PLAN_FEATURES.md, BILLING.md, REQUIREMENTS.md states, REPORT-A1.md.
 
 Step 2 delivered: `20261114090000_machine_types_equipment.sql` (compressor, workshop_tool,
 other_equipment), `20261114090100_equipment_profile.sql` (`machines.profile`,
