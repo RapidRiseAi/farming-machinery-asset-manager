@@ -607,6 +607,13 @@ declare
   v_expired integer;
   v_objects jsonb;
 begin
+  -- A file a record already uses is never swept, whatever its intent says: an upload whose
+  -- commit answer was lost after its attachment was written is finished, not abandoned.
+  update public.upload_intents i
+     set status = 'finalised', finalised_at = now()
+   where i.status = 'uploaded'
+     and exists (select 1 from public.attachments a where a.storage_path = i.object_path and a.deleted_at is null);
+
   with lapsed as (
     update public.upload_intents
        set status = 'expired'
@@ -616,9 +623,10 @@ begin
 
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'bucket', x.bucket, 'path', x.object_path)), '[]'::jsonb)
     into v_objects
-    from (select id, bucket, object_path from public.upload_intents
-           where status in ('expired', 'failed') and object_removed_at is null
-           order by created_at
+    from (select i.id, i.bucket, i.object_path from public.upload_intents i
+           where i.status in ('expired', 'failed') and i.object_removed_at is null
+             and not exists (select 1 from public.attachments a where a.storage_path = i.object_path)
+           order by i.created_at
            limit greatest(1, least(coalesce(p_limit, 500), 1000))) x;
   return jsonb_build_object('expired', v_expired, 'objects', v_objects);
 end $$;

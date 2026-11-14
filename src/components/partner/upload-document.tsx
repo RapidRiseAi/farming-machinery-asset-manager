@@ -8,12 +8,12 @@ import { Field, TextField, SelectField } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
-import { supplierFileHash } from "@/lib/supplier-document-upload";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { reportClientError } from "@/lib/client-report";
 import { asError } from "@/lib/single-flight";
 import { ReportPending } from "@/components/ui/pending-guard";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { UploadField } from "@/components/upload/upload-field";
 
 /**
  * "I already made this in my own system" (F14b).
@@ -37,6 +37,7 @@ export function UploadDocument({
   parties,
   isPartner,
   work,
+  farmId = null,
 }: {
   locale: Lang;
   actorId: string;
@@ -45,11 +46,18 @@ export function UploadDocument({
   isPartner: boolean;
   /** A supplied document belongs to this request, rather than an unrelated bill. */
   work?: { id: string; farmId: string; machineId: string; workshopId: string; kind: "quote" | "invoice" };
+  /** The farm receiving a document (a farm-side upload); a partner picks the farm in the form. */
+  farmId?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pending = useRef<{ signature: string; capture: string } | null>(null);
+  // The document's id, chosen when the form opens: its file goes straight to Storage under it
+  // (the upload pipeline), and a retry of the same form saves the same document once.
+  const capture = useRef<string>(crypto.randomUUID());
+  const [round, setRound] = useState(0);
+  const [chosenFarm, setChosenFarm] = useState<string>(isPartner ? (parties[0]?.id ?? "") : "");
+  const targetFarm = work?.farmId ?? (isPartner ? chosenFarm : farmId);
   const fileId = useId();
 
   if (parties.length === 0) return null;
@@ -65,19 +73,9 @@ export function UploadDocument({
     let leaving = false;
     try {
       const form = new FormData(e.currentTarget);
-      const file = form.get("file");
-      if (!(file instanceof File) || file.size === 0) { setError(t("doc.uploadError.missing_file", locale)); return; }
-      const fingerprint = await supplierFileHash(new Uint8Array(await file.arrayBuffer()));
-      const signature = actorId + JSON.stringify([...form.entries()].filter(([key]) => key !== "file")) + fingerprint;
-      const receiptKey = `fleetwise:supplier-upload:${actorId}:${work?.id ?? (isPartner ? "provider" : "receiver")}`;
-      let capture = pending.current?.signature === signature ? pending.current.capture : crypto.randomUUID();
-      try {
-        const previous = JSON.parse(sessionStorage.getItem(receiptKey) ?? "null") as { signature: string; capture: string } | null;
-        if (previous?.signature === signature) capture = previous.capture;
-        sessionStorage.setItem(receiptKey, JSON.stringify({ signature, capture }));
-      } catch { /* Upload remains usable when browser storage is unavailable. */ }
-      pending.current = { signature, capture };
-      form.set("capture_id", capture);
+      // The file is in Storage already; without its upload id there is nothing to attach yet.
+      if (!form.get("upload_intent_id")) { setError(t("upload.stillSending", locale)); return; }
+      form.set("capture_id", capture.current);
       const res = await fetchWithTimeout("/api/documents/upload", { method: "POST", body: form });
       const body = (await res.json()) as { ok?: boolean; id?: string; error?: string };
       if (!res.ok || !body.ok) {
@@ -90,8 +88,8 @@ export function UploadDocument({
           : errorMessage(body.error, locale) ?? t("doc.uploadError.failed", locale));
         return;
       }
-      try { sessionStorage.removeItem(receiptKey); } catch { /* Optional browser storage. */ }
-      pending.current = null;
+      capture.current = crypto.randomUUID();
+      setRound((n) => n + 1);
       leaving = true;
       router.push(`/documents/${body.id}`);
     } catch (failure) {
@@ -115,6 +113,7 @@ export function UploadDocument({
           <input type="hidden" name="kind" value={work.kind} />
         </> : <SelectField
           name={isPartner ? "farm_id" : "workshop_id"}
+          onChange={isPartner ? (event: React.ChangeEvent<HTMLSelectElement>) => setChosenFarm(event.target.value) : undefined}
           label={t(isPartner ? "doc.newCustomer" : "doc.from", locale)}
           fieldClassName="sm:col-span-2"
           required
@@ -150,7 +149,15 @@ export function UploadDocument({
             hint={t("doc.uploadFileHint", locale)}
             className="sm:col-span-2"
           >
-            <Input id={fileId} name="file" type="file" accept="application/pdf,image/*" required />
+            <UploadField
+              key={`${round}:${targetFarm}`}
+              locale={locale}
+              accept="document"
+              uploadLabel="document"
+              finish="caller"
+              scope={`supplier-doc:${capture.current}`}
+              target={targetFarm ? { kind: "partner_document", id: capture.current, farmId: targetFarm } : null}
+            />
           </Field>
 
           {error ? (

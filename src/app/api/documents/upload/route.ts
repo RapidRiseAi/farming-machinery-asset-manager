@@ -7,6 +7,7 @@ import { brandingFrom, snapshotOf } from "@/lib/branding";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
 import { FUNCTION_BODY_MAX_BYTES, maxBytesForMime } from "@/lib/limits";
+import { commitUpload, verifiedIntentFor } from "@/lib/upload/server";
 import { sameSupplierUpload, supplierFileHash, validSupplierTotal, type SupplierDocumentReceipt } from "@/lib/supplier-document-upload";
 import { captureError } from "@/lib/observability";
 import { classifyFailure, type DbFailure } from "@/lib/action-errors";
@@ -66,9 +67,20 @@ export async function POST(request: Request) {
   if (!farmId || !workshopId) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   if (!supplierNumber || supplierNumber.length > 120) return NextResponse.json({ error: "document-number-required" }, { status: 400 });
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(capture)) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
-  if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "missing_file" }, { status: 400 });
-  if (!(file.type.startsWith("image/") || file.type === "application/pdf")) return NextResponse.json({ error: "bad-file-type" }, { status: 400 });
-  if (file.size > maxBytesForMime(file.type)) return NextResponse.json({ error: "file_too_large" }, { status: 413 });
+  // The current form sends the document straight to Storage first (the upload pipeline,
+  // up to 50 MB) and names its upload here, for this document id; an older form posts it.
+  const intentId = String(form.get("upload_intent_id") ?? "");
+  let direct: Awaited<ReturnType<typeof verifiedIntentFor>> | null = null;
+  if (intentId) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(capture)) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+    direct = await verifiedIntentFor(intentId, profile.id, { kind: "partner_document", targetId: capture });
+    if (direct.state === "refused") return NextResponse.json({ error: direct.code }, { status: direct.status });
+    if (direct.intent.farm_id !== farmId) return NextResponse.json({ error: "upload-target" }, { status: 400 });
+  } else {
+    if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "missing_file" }, { status: 400 });
+    if (!(file.type.startsWith("image/") || file.type === "application/pdf")) return NextResponse.json({ error: "bad-file-type" }, { status: 400 });
+    if (file.size > maxBytesForMime(file.type)) return NextResponse.json({ error: "file_too_large" }, { status: 413 });
+  }
   if (!validSupplierTotal(kind, totalIncl)) return NextResponse.json({ error: "missing_total" }, { status: 400 });
 
   const supabase = await createClient();
@@ -82,9 +94,11 @@ export async function POST(request: Request) {
   if (!link) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const requestId = String(form.get("work_request_id") ?? "").trim() || null;
   const machineId = String(form.get("machine_id") ?? "").trim() || null;
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const fileHash = await supplierFileHash(bytes);
-  const path = `${farmId}/${capture}/document-${fileHash}.${file.type === "application/pdf" ? "pdf" : "image"}`;
+  const legacyFile = direct ? null : (file as File);
+  const bytes: Uint8Array<ArrayBuffer> | null = legacyFile ? new Uint8Array(await legacyFile.arrayBuffer()) : null;
+  const path = direct?.state === "verified"
+    ? direct.intent.object_path
+    : `${farmId}/${capture}/document-${await supplierFileHash(bytes as Uint8Array<ArrayBuffer>)}.${legacyFile?.type === "application/pdf" ? "pdf" : "image"}`;
   const receipt: SupplierDocumentReceipt = {
     id: capture, farm_id: farmId, workshop_id: workshopId, machine_id: machineId,
     work_request_id: requestId, kind, source: "uploaded", created_by: profile.id,
@@ -94,6 +108,15 @@ export async function POST(request: Request) {
   };
   const receiptColumns = "id,farm_id,workshop_id,machine_id,work_request_id,kind,source,created_by,total_cents,subject,issue_date,due_date,upload_path,status,number";
   type SavedReceipt = SupplierDocumentReceipt & { status: string };
+  // Every success answer first finishes a direct upload, so its file is never left for the
+  // nightly sweep to take as abandoned.
+  const answerIssued = async (number: string | null | undefined) => {
+    if (direct?.state === "verified") {
+      const committed = await commitUpload(supabase, direct.svc, direct.intent, { recordId: capture });
+      if (committed.state === "refused") return NextResponse.json({ error: committed.code }, { status: committed.status });
+    }
+    return NextResponse.json({ ok: true, id: capture, number });
+  };
   const readReceipt = async () => await supabase.from("partner_documents").select(receiptColumns).eq("id", capture).is("deleted_at", null).maybeSingle();
   const initial = await readReceipt();
   if (initial.error) {
@@ -103,7 +126,7 @@ export async function POST(request: Request) {
   let saved = initial.data as SavedReceipt | null;
   if (saved && !sameSupplierUpload(saved, receipt)) return NextResponse.json({ error: "work-changed" }, { status: 409 });
   // The receipt is authoritative even if another session has since closed the work.
-  if (saved && saved.status !== "draft") return NextResponse.json({ ok: true, id: saved.id, number: saved.number });
+  if (saved && saved.status !== "draft") return await answerIssued(saved.number);
   if (requestId) {
     const { data: work, error: workError } = await supabase.from("work_requests").select("farm_id, machine_id, workshop_id, status")
       .eq("id", requestId).is("deleted_at", null).maybeSingle();
@@ -155,11 +178,13 @@ export async function POST(request: Request) {
     saved = result.data as SavedReceipt | null;
     if (error?.code === "23505" && !result.error && !saved) return NextResponse.json({ error: "document-number-used" }, { status: 409 });
     if (result.error || !saved || !sameSupplierUpload(saved, receipt)) return NextResponse.json({ error: "work-changed" }, { status: 409 });
-    if (saved.status !== "draft") return NextResponse.json({ ok: true, id: saved.id, number: saved.number });
+    if (saved.status !== "draft") return await answerIssued(saved.number);
   }
 
   const svc = createServiceClient();
-  const { error: uploadError } = await svc.storage.from("partner-docs").upload(path, bytes, { contentType: file.type, upsert: false });
+  const { error: uploadError } = bytes && legacyFile
+    ? await svc.storage.from("partner-docs").upload(path, bytes, { contentType: legacyFile.type, upsert: false })
+    : { error: null };
   if (uploadError && !["409", "Duplicate"].includes(String(uploadError.statusCode ?? uploadError.name))) {
     captureError(uploadError, { where: "documents:upload:storage" });
     return NextResponse.json({ error: "upload_failed" }, { status: 500 });
@@ -180,7 +205,7 @@ export async function POST(request: Request) {
     const result = await readReceipt();
     const concurrent = result.data as SavedReceipt | null;
     if (!result.error && concurrent && concurrent.status !== "draft" && sameSupplierUpload(concurrent, receipt)) {
-      return NextResponse.json({ ok: true, id: capture, number: concurrent.number });
+      return await answerIssued(concurrent.number);
     }
     // Retain the draft and receipt so an uncertain upload can safely be retried. A failed
     // call is reported, and only our own SQL's refusals keep their words in the answer.
@@ -195,5 +220,5 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: "upload_failed", id: capture }, { status: 409 });
   }
-  return NextResponse.json({ ok: true, id: capture, number: saved.number });
+  return await answerIssued(saved.number);
 }

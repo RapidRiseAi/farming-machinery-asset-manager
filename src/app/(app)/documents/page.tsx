@@ -246,7 +246,7 @@ export default async function DocumentsPage({
             <>
               {/* The secondary way in sits before the one filled primary, so New stays
                   rightmost on a wide screen. */}
-              <UploadDocument locale={locale} actorId={profile.id} parties={parties} isPartner={isPartner} />
+              <UploadDocument locale={locale} actorId={profile.id} parties={parties} isPartner={isPartner} farmId={farmId} />
               {isPartner ? <NewDocument locale={locale} canBuild={canBuild} /> : null}
             </>
           ) : undefined

@@ -361,6 +361,27 @@ begin
   if exists (select 1 from jsonb_array_elements(v->'objects') o where (o->>'id')::uuid = ten) then
     raise exception 'a removed object was named again';
   end if;
+  -- An uploaded file a record already uses (its commit answer lost) is finished, never swept.
+  update public.upload_intents set status = 'uploaded', expires_at = now() - interval '1 hour', actual_bytes = 1000,
+    actual_mime = 'audio/webm' where id = (select id from t_ids where name = 'mismatch');
+  insert into public.attachments (id, farm_id, parent_type, parent_id, kind, storage_path)
+  select gen_random_uuid(), farm_id, 'fault', target_id, 'voice', object_path
+    from public.upload_intents where id = (select id from t_ids where name = 'mismatch');
+  v := app.upload_expire_sweep(100);
+  if (select status from public.upload_intents where id = (select id from t_ids where name = 'mismatch')) <> 'finalised' then
+    raise exception 'a file in use was expired';
+  end if;
+  if exists (select 1 from jsonb_array_elements(v->'objects') o where (o->>'id')::uuid = (select id from t_ids where name = 'mismatch')) then
+    raise exception 'the sweep named a file a record uses';
+  end if;
+  -- Nor is a refused or lapsed upload's object once a record names that path.
+  insert into public.attachments (id, farm_id, parent_type, parent_id, kind, storage_path)
+  select gen_random_uuid(), farm_id, 'fault', target_id, 'voice', object_path
+    from public.upload_intents where id = (select id from t_ids where name = 'eleven');
+  v := app.upload_expire_sweep(100);
+  if exists (select 1 from jsonb_array_elements(v->'objects') o where (o->>'id')::uuid = (select id from t_ids where name = 'eleven')) then
+    raise exception 'the sweep named a refused upload''s object that a record uses';
+  end if;
   -- A finalised file is never swept.
   if exists (select 1 from jsonb_array_elements(v->'objects') o where (o->>'id')::uuid = (select id from t_ids where name = 'first')) then
     raise exception 'the sweep named a finalised attachment';
