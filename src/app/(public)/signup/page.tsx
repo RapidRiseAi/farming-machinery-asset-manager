@@ -6,8 +6,7 @@ import { deviceLocale } from "@/lib/locale";
 import { errorMessage } from "@/lib/errors";
 import {
   PLANS,
-  perVehicleMonthlyCents,
-  ANNUAL_MONTHS_CHARGED,
+  perVehiclePeriodCents,
   FEATURE_MIN_PLAN,
   type Feature,
 } from "@/lib/entitlements";
@@ -53,15 +52,14 @@ export default async function SignUpPage({
   const captcha = turnstileWidget(locale);
 
   const options = PLANS.map((plan) => {
-    const monthly = perVehicleMonthlyCents(plan, "monthly");
     return {
       plan,
       label: t(`plan.${plan}`, locale),
       blurb: t(`signup.blurb.${plan}`, locale),
-      monthlyCents: monthly,
-      // Annual is billed as ten months of the list price (founder decision: two months
-      // free). Shown per vehicle per YEAR, because that is what leaves the bank.
-      annualCents: monthly == null ? null : monthly * ANNUAL_MONTHS_CHARGED,
+      monthlyCents: perVehiclePeriodCents(plan, "monthly"),
+      // The stated annual price per full space (R490 / R790 / R990), never a monthly price
+      // times a number of months. Shown per YEAR, because that is what leaves the bank.
+      annualCents: perVehiclePeriodCents(plan, "annual"),
     };
   });
 
