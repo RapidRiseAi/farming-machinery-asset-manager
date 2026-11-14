@@ -15,8 +15,8 @@ calculator and capacity, assets UI, tests for scenarios 1, 2, 3, 4, 5, 9, 14, 15
 | 1 | Requirement register `docs/final-dev/REQUIREMENTS.md` | done |
 | 2 | Equipment profile model | done |
 | 3 | Central entitlements matrix and server enforcement | done |
-| 4 | Pricing calculator and capacity | in progress |
-| 5 | Assets UI | not started |
+| 4 | Pricing calculator and capacity | done |
+| 5 | Assets UI | in progress |
 | 6 | Tests and docs | not started |
 
 ## In progress
@@ -64,10 +64,24 @@ equipment-not-in-agreement); farm_vehicle_allowance pooled; retired-equipment wo
 refused (equipment-retired) on job_cards, faults, meter_readings, checklist_instances,
 work_requests; invoice equipment columns, derive totals, freeze; generator with
 equipment line; renewal notice with equipment.
-Next: asset_profile_changes + public.convert_asset_profile, public.asset_capacity_summary,
-public.asset_change_preview (charge_now quote_pending for A2), equipment_migration_preview;
-then run the migration on PGlite, SQL suite asset_capacity.sql, TS calculator
-`src/lib/billing/calculator.ts` + tests, ANNUAL_MONTHS_CHARGED callers, createMachine regex.
+Step 4 DONE: also asset_profile_changes, public.convert_asset_profile (lock, blockers,
+capacity-needed, preview-changed), public.asset_capacity_summary, asset_add_preview,
+asset_conversion_preview (charge_now.status quote_pending for A2), equipment_migration_preview
+(app.equipment_migration_state); billing reads behind app helpers listed in
+billing_subscription.sql's sweep; `supabase/tests/asset_capacity.sql` (scenarios 1 to 5, 9;
+6 mutations caught); billing (0), pricing 2026-11 and onboarding suites moved to the
+-eq generation; `src/lib/billing/calculator.ts` + `calculator.test.ts` (2 mutations caught);
+PLAN_PRICING has perVehicleAnnualCents and includedEquipment, ANNUAL_MONTHS_CHARGED and
+perVehicleMonthlyCents gone (perVehiclePeriodCents; pricing.ts keeps
+LEGACY_ANNUAL_MONTHS_CHARGED for old rows); billing estimate and page show the equipment
+line; capacity refusal slugs in errors.ts EN/AF. Gates: tsc, 1094 unit tests, dashes,
+parity, keys, design, errors, 76 PGlite suites pass.
+
+Step 5 (now): `src/components/machines/asset-views.tsx` (AssetViews, CapacityFacts),
+`asset-kind.tsx` (AssetKindChooser); machines list `?view=equipment`; add page with
+`?profile=equipment`; machine form `equipment` prop. Next: createMachine reads `profile`,
+assets.* i18n keys, machine page (hide refused tabs, conversion dialog, review request),
+import profile column, admin review list page.
 
 Step 2 delivered: `20261114090000_machine_types_equipment.sql` (compressor, workshop_tool,
 other_equipment), `20261114090100_equipment_profile.sql` (`machines.profile`,
