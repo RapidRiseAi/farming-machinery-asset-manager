@@ -199,3 +199,209 @@ comment on table public.billing_price_versions is
 create or replace function app.self_service_max_full_spaces() returns integer
 language sql immutable set search_path = public, pg_temp as $$ select 200 $$;
 grant execute on function app.self_service_max_full_spaces() to authenticated, service_role;
+
+-- == Equipment capacity on the subscription ===========================================
+alter table public.billing_subscriptions add column if not exists equipment_extra_quota integer not null default 0;
+alter table public.billing_subscriptions drop constraint if exists billing_subscriptions_equipment_extra_ck;
+alter table public.billing_subscriptions add constraint billing_subscriptions_equipment_extra_ck
+  check (equipment_extra_quota between 0 and 100000);
+comment on column public.billing_subscriptions.equipment_extra_quota is
+  'Extra support-equipment spaces paid for the current period, beyond the plan''s included '
+  'equipment (20261114090300). Reset at each renewal to the extra equipment then in use.';
+
+-- == Counting, once per customer ======================================================
+-- The billing site: the main site a site is billed through, or the site itself.
+create or replace function app.billing_root(p_farm uuid) returns uuid
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce((select f.billed_through from public.farms f where f.id = p_farm), p_farm);
+$$;
+revoke all on function app.billing_root(uuid) from public, anon, authenticated;
+grant execute on function app.billing_root(uuid) to service_role;
+
+-- Full spaces in use: this site's full assets and those of every site billed through it.
+-- Support equipment is not a full space (20261114090300).
+create or replace function app.billable_asset_count(p_farm uuid) returns integer
+language sql stable security definer set search_path = public, pg_temp as $$
+  select count(*)::integer
+    from public.machines m
+   where (m.farm_id = p_farm
+          or m.farm_id in (select f.id from public.farms f where f.billed_through = p_farm and f.deleted_at is null))
+     and m.deleted_at is null
+     and m.status not in ('retired', 'sold')
+     and m.profile = 'full';
+$$;
+
+-- Support equipment in use, the same way.
+create or replace function app.billable_equipment_count(p_farm uuid) returns integer
+language sql stable security definer set search_path = public, pg_temp as $$
+  select count(*)::integer
+    from public.machines m
+   where (m.farm_id = p_farm
+          or m.farm_id in (select f.id from public.farms f where f.billed_through = p_farm and f.deleted_at is null))
+     and m.deleted_at is null
+     and m.status not in ('retired', 'sold')
+     and m.profile = 'equipment';
+$$;
+revoke all on function app.billable_equipment_count(uuid) from public, anon, authenticated;
+grant execute on function app.billable_equipment_count(uuid) to service_role;
+
+-- farms.asset_count stays the site's own full spaces in use, the same rule as above.
+create or replace function app.recount_farm_assets(p_farm uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if p_farm is null then return; end if;
+  update public.farms f
+     set asset_count = (
+       select count(*) from public.machines m
+       where m.farm_id = p_farm
+         and m.deleted_at is null
+         and m.status not in ('retired','sold')
+         and m.profile = 'full'
+     )
+   where f.id = p_farm;
+end;
+$$;
+
+-- The subscription a business is billed under: its main site's, newest live one.
+create or replace function app.billing_subscription_for(p_farm uuid) returns uuid
+language sql stable security definer set search_path = public, pg_temp as $$
+  select s.id from public.billing_subscriptions s
+   where s.farm_id = app.billing_root(p_farm) and s.deleted_at is null
+   order by s.created_at desc
+   limit 1;
+$$;
+revoke all on function app.billing_subscription_for(uuid) from public, anon, authenticated;
+grant execute on function app.billing_subscription_for(uuid) to service_role;
+
+-- == The capacity guard on every add path ===============================================
+-- Replaces app.billing_enforce_vehicle_quota (20261107150000) under the same trigger.
+-- Fires before an insert, a restore (retired or sold back into use), a site move, a
+-- conversion between profiles and an undelete. The subscription row is locked first, so
+-- concurrent adds wait for each other and the second one counts the first one's asset.
+create or replace function app.billing_enforce_vehicle_quota()
+ returns trigger
+ language plpgsql
+ security definer
+ set search_path to 'public', 'pg_temp'
+as $function$
+declare
+  v_root   uuid;
+  v_sub    public.billing_subscriptions%rowtype;
+  v_price  public.billing_price_versions%rowtype;
+  v_used   integer;
+  v_cap    integer;
+begin
+  -- Only an asset that will actually be in use takes a space.
+  if new.deleted_at is not null or new.status in ('retired', 'sold') then
+    return new;
+  end if;
+
+  -- On an update, only a move INTO use, into another customer, or onto the other profile
+  -- takes a space. Editing an asset where it stands never fails for capacity.
+  if tg_op = 'UPDATE'
+     and old.deleted_at is null
+     and old.status not in ('retired', 'sold')
+     and old.profile = new.profile
+     and app.billing_root(old.farm_id) = app.billing_root(new.farm_id) then
+    return new;
+  end if;
+
+  v_root := app.billing_root(new.farm_id);
+  select * into v_sub from public.billing_subscriptions s
+   where s.farm_id = v_root and s.deleted_at is null
+   order by s.created_at desc
+   limit 1
+   for update;
+
+  -- No subscription: grandfathered and admin-created businesses have no ceiling.
+  if not found then
+    return new;
+  end if;
+
+  if new.profile = 'full' then
+    -- No quota, no ceiling: a metered subscription bills what it counts.
+    if v_sub.asset_quota is null then return new; end if;
+    v_used := app.billable_asset_count(v_root);
+    if v_used >= v_sub.asset_quota then
+      raise exception 'vehicle-limit-reached'
+        using errcode = 'check_violation',
+              detail = format('%s of %s full spaces are in use', v_used, v_sub.asset_quota),
+              hint = 'Add more full spaces on the billing screen, or retire an asset first.';
+    end if;
+    return new;
+  end if;
+
+  -- Support equipment needs an agreement with equipment terms.
+  select * into v_price from app.billing_price_for_subscription(v_sub.id);
+  if v_price.id is null or v_price.equipment_period_incl_cents is null then
+    raise exception 'equipment-not-in-agreement'
+      using errcode = 'check_violation',
+            hint = 'This subscription''s agreement predates support equipment.';
+  end if;
+  -- Metered: no ceiling; the renewal counts what is in use.
+  if v_sub.asset_quota is null then return new; end if;
+  v_used := app.billable_equipment_count(v_root);
+  v_cap := coalesce(v_price.equipment_included, 0) + coalesce(v_sub.equipment_extra_quota, 0);
+  if v_used >= v_cap then
+    raise exception 'equipment-limit-reached'
+      using errcode = 'check_violation',
+            detail = format('%s of %s equipment spaces are in use', v_used, v_cap),
+            hint = 'Add an equipment space on the billing screen, or retire equipment first.';
+  end if;
+  return new;
+end $function$;
+
+-- Fire on the columns that can take a space (it was every update before).
+drop trigger if exists a_billing_vehicle_quota on public.machines;
+create trigger a_billing_vehicle_quota
+  before insert or update of status, deleted_at, farm_id, profile on public.machines
+  for each row execute function app.billing_enforce_vehicle_quota();
+
+-- The allowance a screen reads, now pooled through the main site like the trigger.
+create or replace function app.farm_vehicle_allowance(p_farm uuid)
+returns table (enforced boolean, quota integer, used integer, remaining integer)
+language sql stable security definer set search_path = public, pg_temp as $$
+  select
+    s.asset_quota is not null,
+    s.asset_quota,
+    app.billable_asset_count(app.billing_root(p_farm)),
+    case when s.asset_quota is null then null
+         else greatest(s.asset_quota - app.billable_asset_count(app.billing_root(p_farm)), 0) end
+  from public.billing_subscriptions s
+  where s.id = app.billing_subscription_for(p_farm)
+  union all
+  select false, null::integer, app.billable_asset_count(app.billing_root(p_farm)), null::integer
+  where app.billing_subscription_for(p_farm) is null
+  limit 1;
+$$;
+
+-- == No new ordinary work on retired or sold equipment ==================================
+-- Retiring equipment stops its charge at renewal; work posted to it afterwards would be
+-- active use without a space. Restore it first (which needs a free space).
+create or replace function app.refuse_retired_equipment_work()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.machine_id is not null and exists (
+       select 1 from public.machines m
+        where m.id = new.machine_id and m.profile = 'equipment' and m.status in ('retired', 'sold')) then
+    raise exception 'equipment-retired' using errcode = 'P0001',
+      hint = 'Restore the equipment first; restoring needs a free equipment space.';
+  end if;
+  return new;
+end
+$$;
+revoke all on function app.refuse_retired_equipment_work() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['job_cards', 'faults', 'meter_readings', 'checklist_instances', 'work_requests'] loop
+    execute format('drop trigger if exists %I on public.%I', t || '_retired_equipment', t);
+    execute format('create trigger %I before insert on public.%I for each row execute function app.refuse_retired_equipment_work()',
+                   t || '_retired_equipment', t);
+  end loop;
+end $$;
