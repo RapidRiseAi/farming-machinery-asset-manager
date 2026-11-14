@@ -17,9 +17,15 @@ calculator and capacity, assets UI, tests for scenarios 1, 2, 3, 4, 5, 9, 14, 15
 | 3 | Central entitlements matrix and server enforcement | done |
 | 4 | Pricing calculator and capacity | done |
 | 5 | Assets UI | done |
-| 6 | Tests and docs | in progress |
+| 6 | Tests and docs | done |
+
+**TASK A1 COMPLETE** (14 Nov 2026). Final gates on the last commit: tsc clean, 1095 unit
+tests, dashes, parity, keys, design, errors clean, and all 76 PGlite suites pass (287
+migrations). CI on real Postgres is the manager's next check.
 
 ## In progress
+
+(nothing: A1 is complete; the history below is kept for whoever resumes this lane)
 
 Step 3: entitlements matrix in `src/lib/entitlements.ts`, SQL mirror and the database
 rules on child tables (migration `20261114090200_equipment_entitlements.sql`, written:
