@@ -7,6 +7,7 @@ import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
 import { drainNotifications } from "@/lib/notifications/drain-delivery";
 import { alertCronFailure } from "@/lib/cron/alert";
 import { runDueReportSchedules } from "@/lib/scheduled-reports";
+import { sweepUploads } from "@/lib/upload/sweep";
 import {
   checkGatewayCredits,
   detectModelFailures,
@@ -152,6 +153,9 @@ export async function GET(request: Request) {
   await run("positions_purge", "cron_purge_positions");
   // Place search answers older than a month (20261111130000).
   await run("place_cache_purge", "cron_purge_place_cache");
+  // Direct uploads that lapsed or were refused: reservations released, objects removed
+  // (20261115090000).
+  await step("upload_sweep", () => sweepUploads(supabase));
 
   await step("ai_fx_rate", () => refreshFxRate(supabase));
   await step("ai_prices", () => refreshPrices(supabase));

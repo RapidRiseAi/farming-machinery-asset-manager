@@ -70,7 +70,7 @@ export function refusalFromFailure(reason: string | null | undefined): Refusal {
     case "empty": return refuse("upload-empty", 422);
     case "forbidden": return refuse("forbidden", 403);
     case "expired": return refuse("upload-expired", 410);
-    default: return refuse("upload-failed", 422);
+    default: return refuse("upload-not-attached", 422);
   }
 }
 

@@ -31,7 +31,7 @@ export type UploadCode =
   | "upload-too-large" | "upload-too-large-for-storage" | "upload-wrong-type" | "upload-storage-full"
   | "upload-target" | "upload-too-many" | "upload-request-reused" | "upload-expired" | "upload-too-long"
   | "upload-not-received" | "upload-malformed" | "upload-too-many-pixels" | "upload-unsupported-codec"
-  | "upload-video-not-supported" | "upload-empty" | "upload-failed" | "upload-unavailable" | "upload-interrupted";
+  | "upload-video-not-supported" | "upload-empty" | "upload-not-attached" | "upload-unavailable" | "upload-interrupted";
 
 export type BeginAnswer =
   | {

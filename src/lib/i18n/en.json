@@ -8149,5 +8149,27 @@
     "difference": "Difference",
     "tolerance": "Allowed difference (%)",
     "toleranceHint": "A {{trip}} further or shorter than this, by the odometer, is flagged."
+  },
+  "upload": {
+    "err": {
+      "tooLarge": "This file is too big. Photos can be up to {photoMb} MB, PDFs up to {pdfMb} MB and voice notes up to {voiceMb} MB. Your other details are kept: choose a smaller file and try again.",
+      "tooLargeForStorage": "This file is bigger than the storage settings allow at the moment. Your details are kept: choose a smaller file, or ask support to raise the setting.",
+      "wrongType": "This kind of file cannot be attached. Attach a photo (JPEG, PNG, WebP or HEIC), a PDF or a voice note. Your details are kept.",
+      "storageFull": "Your {{org}}'s storage for attachments is full. Records without attachments still save. Ask the owner to add storage, then attach the file again. Your details are kept.",
+      "target": "This record cannot take attachments any more: it may have been closed or removed. Your details are kept.",
+      "tooMany": "Too many uploads are still finishing. Let them finish, then try again.",
+      "requestReused": "The file changed while it was uploading. Choose it again to start a fresh upload.",
+      "expired": "This upload took too long and was stopped. Choose the file again to send it.",
+      "tooLong": "This recording is longer than {minutes} minutes. Record a shorter note, or split it in two.",
+      "notReceived": "The file did not arrive. Check your connection and try again: the upload carries on where it stopped.",
+      "malformed": "This file is damaged or incomplete and cannot be read. Choose another copy of it.",
+      "tooManyPixels": "This picture is far too large in pixels to show. Take or choose a smaller photo.",
+      "unsupportedCodec": "This recording's format is not supported. Record the note in the app instead.",
+      "videoNotSupported": "Video cannot be attached. Attach a photo or a voice note instead.",
+      "empty": "The file is empty. Choose it again.",
+      "failed": "The file could not be attached. Your details are kept: try again.",
+      "unavailable": "Uploads are not working right now. Your details are kept: try again in a few minutes.",
+      "interrupted": "The connection dropped during the upload. It carries on from where it stopped when you try again."
+    }
   }
 }

@@ -8149,5 +8149,27 @@
     "difference": "Verskil",
     "tolerance": "Toegelate verskil (%)",
     "toleranceHint": "'n {{Trip}} wat volgens die odometer verder of korter as dit is, word gemerk."
+  },
+  "upload": {
+    "err": {
+      "tooLarge": "Hierdie lêer is te groot. Foto's kan tot {photoMb} MB wees, PDF's tot {pdfMb} MB en stemnotas tot {voiceMb} MB. Jou ander besonderhede bly gestoor: kies 'n kleiner lêer en probeer weer.",
+      "tooLargeForStorage": "Hierdie lêer is groter as wat die bergingsinstellings tans toelaat. Jou besonderhede bly gestoor: kies 'n kleiner lêer, of vra ondersteuning om die instelling te verhoog.",
+      "wrongType": "Hierdie soort lêer kan nie aangeheg word nie. Heg 'n foto (JPEG, PNG, WebP of HEIC), 'n PDF of 'n stemnota aan. Jou besonderhede bly gestoor.",
+      "storageFull": "Jou {{org}} se berging vir aanhegsels is vol. Rekords sonder aanhegsels stoor steeds. Vra die eienaar om berging by te voeg en heg die lêer dan weer aan. Jou besonderhede bly gestoor.",
+      "target": "Hierdie rekord kan nie meer aanhegsels kry nie: dit is dalk gesluit of verwyder. Jou besonderhede bly gestoor.",
+      "tooMany": "Te veel oplaaie is nog besig om klaar te maak. Laat hulle klaarmaak en probeer dan weer.",
+      "requestReused": "Die lêer het verander terwyl dit opgelaai is. Kies dit weer om van voor af te begin.",
+      "expired": "Hierdie oplaai het te lank geneem en is gestop. Kies die lêer weer om dit te stuur.",
+      "tooLong": "Hierdie opname is langer as {minutes} minute. Neem 'n korter nota op, of verdeel dit in twee.",
+      "notReceived": "Die lêer het nie aangekom nie. Kyk na jou verbinding en probeer weer: die oplaai gaan voort waar dit gestop het.",
+      "malformed": "Hierdie lêer is beskadig of onvolledig en kan nie gelees word nie. Kies 'n ander kopie daarvan.",
+      "tooManyPixels": "Hierdie prent het heeltemal te veel pieksels om te wys. Neem of kies 'n kleiner foto.",
+      "unsupportedCodec": "Hierdie opname se formaat word nie ondersteun nie. Neem die nota eerder in die app op.",
+      "videoNotSupported": "Video kan nie aangeheg word nie. Heg eerder 'n foto of 'n stemnota aan.",
+      "empty": "Die lêer is leeg. Kies dit weer.",
+      "failed": "Die lêer kon nie aangeheg word nie. Jou besonderhede bly gestoor: probeer weer.",
+      "unavailable": "Oplaai werk nie nou nie. Jou besonderhede bly gestoor: probeer oor 'n paar minute weer.",
+      "interrupted": "Die verbinding het tydens die oplaai weggeval. Dit gaan voort van waar dit gestop het wanneer jy weer probeer."
+    }
   }
 }

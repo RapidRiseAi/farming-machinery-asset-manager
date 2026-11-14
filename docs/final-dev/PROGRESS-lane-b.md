@@ -40,14 +40,14 @@ decisions 8 to 13, scenarios 21, 22, 23, 27, 28. Steps, committed one by one:
 
 ## In progress
 
-Step 2b (WIP, committed): `src/lib/upload/protocol.ts` (target kinds, codes, begin answer),
-`src/lib/upload/server.ts` (beginUpload, verifyUpload with range reads, commitUpload,
-failUpload, storageReader, error mapping, UPLOAD_GLOBAL_LIMIT_BYTES readiness),
-`/api/uploads/begin`, `/api/uploads/finalise` (generic attachments). Still to do in 2b:
-unit tests for server.ts with fake db/svc/reader (lost response, expired, revoked,
-spoofed), i18n sentences for every UploadCode in errors.ts + en/af, nightly sweep step
-(`src/lib/upload/sweep.ts` + step in cron/nightly). Then 2c client helper
-(`src/lib/upload/client.ts`, `tus.ts`, `src/components/ui/upload-field.tsx`).
+Step 2b (WIP, committed): protocol.ts, server.ts (begin, verify by range reads, commit,
+fail, reader, error mapping, UPLOAD_GLOBAL_LIMIT_BYTES), routes /api/uploads/begin and
+/api/uploads/finalise, server.test.ts (12 tests: boundaries, lost response, never-arrived,
+spoofed, revoked, sentences), sweep.ts + nightly step upload_sweep + sweep.test.ts,
+upload.err.* sentences in en/af mapped in errors.ts (numbers filled from the catalogue by
+withLimits). Next: 2c client helper (src/lib/upload/client.ts with signed PUT and an
+in-house TUS client in tus.ts, progress, pause/resume, retry, reload survival by intent),
+the reusable control src/components/ui/upload-field.tsx, then step 3.
 
 ## Next
 
