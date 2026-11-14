@@ -1357,7 +1357,11 @@ declare
     -- they are reached only through their service-role wrappers, with the actor checked.
     'billing_record_manual_payment','billing_reverse_manual_payment',
     -- Once-off service invoices (20261029110000): written only through the service wrapper.
-    'billing_raise_service_invoice'];
+    'billing_raise_service_invoice',
+    -- Support equipment capacity and previews (20261114090300). They read the subscription and
+    -- its price to count spaces; granted to nobody, reached only through the public previews
+    -- and the conversion, which check the caller and strip the money for anyone but the payer.
+    'billing_subscription_for','lock_billing_for','asset_capacity_state','equipment_migration_state'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
