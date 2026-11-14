@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // A site move keeps the asset's profile; equipment keeps only insurance and other papers.
+  "20261114090400": "select (select prosrc like '%m.profile%' from pg_proc where oid = 'public.move_machine_to_site(uuid,uuid,uuid)'::regprocedure) and (select prosrc like '%not in (''insurance'', ''other'')%' from pg_proc where oid = 'app.licences_equipment_guard()'::regprocedure)",
   // Equipment on the bill: the new price generation, equipment capacity, previews, conversion.
   "20261114090300": "select exists (select 1 from public.billing_price_versions where version_label = 'launch-2026-11-eq') and to_regprocedure('public.convert_asset_profile(uuid,public.asset_profile,bigint)') is not null and to_regclass('public.asset_profile_changes') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_subscriptions' and column_name = 'equipment_extra_quota')",
   // Plan x profile x feature: the matrix functions and the rule on a restricted table.

@@ -137,6 +137,11 @@ begin
                       values ('eb100000-0000-4000-9000-000000000003', 'eb120000-0000-4000-9000-000000000002',
                               'vehicle_licence', 'DISC-1', date '2027-06-30')$s$);
   if v <> 'equipment-refused-road_licensing' then raise exception 'licence disc on equipment: %', v; end if;
+  -- A certificate of fitness is a road paper too (20261114090400).
+  v := pg_temp.try($s$insert into public.licences (farm_id, machine_id, type, number, expiry_date)
+                      values ('eb100000-0000-4000-9000-000000000003', 'eb120000-0000-4000-9000-000000000002',
+                              'cof', 'COF-9', date '2027-06-30')$s$);
+  if v <> 'equipment-refused-road_licensing' then raise exception 'a COF on equipment: %', v; end if;
   v := pg_temp.try($s$insert into public.licences (farm_id, machine_id, type, number, expiry_date)
                       values ('eb100000-0000-4000-9000-000000000003', 'eb120000-0000-4000-9000-000000000003',
                               'insurance', 'POL-1', date '2027-06-30')$s$);
@@ -238,6 +243,22 @@ begin
   if v_text = 'applied' then raise exception 'the offline queue drew diesel for a generator'; end if;
   if exists (select 1 from public.fuel_issues where machine_id = 'eb120000-0000-4000-9000-000000000003') then
     raise exception 'a fuel draw reached the generator through the offline queue';
+  end if;
+end $t$;
+
+-- == A move between the customer's own sites keeps the profile (20261114090400) ===========
+insert into public.farms (id, name, plan, status, billing_period) values
+  ('eb100000-0000-4000-9000-000000000004', 'Complete second site', 'complete', 'active', 'monthly');
+insert into public.user_farm_memberships (user_id, farm_id, role, active) values
+  ('eb110000-0000-4000-9000-000000000003', 'eb100000-0000-4000-9000-000000000004', 'owner', true)
+on conflict (user_id, farm_id) do update set role = excluded.role, active = true;
+do $t$
+declare v_new uuid;
+begin
+  v_new := public.move_machine_to_site('eb120000-0000-4000-9000-000000000004', 'eb100000-0000-4000-9000-000000000004',
+                                       'eb110000-0000-4000-9000-000000000003');
+  if (select profile from public.machines where id = v_new) <> 'equipment' then
+    raise exception 'a moved compressor arrived as a full asset';
   end if;
 end $t$;
 
