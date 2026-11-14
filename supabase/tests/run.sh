@@ -270,5 +270,7 @@ echo "==> running equipment profile tests (eligibility, direct changes refused, 
 pg "$DB" < "$ROOT/supabase/tests/equipment_profile.sql"
 echo "==> running equipment restriction tests (plan x profile x feature at the table, the trailer link)"
 pg "$DB" < "$ROOT/supabase/tests/equipment_restrictions.sql"
+echo "==> running asset capacity tests (fixtures, pooling, no overselling, retirement, conversion)"
+pg "$DB" < "$ROOT/supabase/tests/asset_capacity.sql"
 
 echo "==> OK"
