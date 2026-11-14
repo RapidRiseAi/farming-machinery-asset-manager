@@ -823,3 +823,98 @@ begin
 
   return v_made;
 end $$;
+
+-- The renewal notice states the same sum the invoice run raises, equipment included.
+create or replace function app.enqueue_billing_renewal_notices() returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  s        public.billing_subscriptions%rowtype;
+  v_set    public.billing_settings%rowtype;
+  v_days   integer;
+  v_due    date;
+  v_units  integer;
+  v_price  public.billing_price_versions%rowtype;
+  v_amount bigint;
+  v_eq     integer;
+  v_ai_on  boolean := app.ai_billing_from() is not null;
+  v_ai     bigint;
+  v_rate   integer;
+  v_sent   integer := 0;
+begin
+  select * into v_set from public.billing_settings where singleton limit 1;
+
+  for s in
+    select * from public.billing_subscriptions
+     where deleted_at is null
+       -- ACTIVE only. A farm in `past_due` or `grace` is already being told about a
+       -- payment that failed; adding "and another one is coming" to that is noise on top
+       -- of a problem. `pending` has never paid and `non_renewing` is not renewing.
+       and status = 'active'
+       and not cancel_at_period_end
+  loop
+    v_days := case s.billing_period
+                when 'annual' then coalesce(v_set.renewal_notice_days_annual, 14)
+                else coalesce(v_set.renewal_notice_days_monthly, 3)
+              end;
+    continue when v_days <= 0;
+
+    v_due := coalesce(s.next_billing_on, s.current_period_end);
+    continue when v_due is null;
+    -- The window is the single day the notice is due, not "any time before". Anything
+    -- wider re-sends every night until the charge lands.
+    continue when v_due - v_days <> current_date;
+
+    -- SILENT if there is no price: quoting a figure the generator will not produce would
+    -- be worse than saying nothing, this message exists to make the deduction recognisable.
+    select * into v_price from app.billing_price_for_subscription(s.id);
+    continue when v_price.id is null or v_price.per_vehicle_monthly_incl_cents is null;
+
+    -- `coalesce(quota, counted)`, the same rule app.billing_billable_units applies, so
+    -- the warned amount and the invoiced amount agree.
+    -- With the plan minimum (20261104200000), exactly as the invoice run applies it.
+    v_units  := greatest(app.billing_billable_units(s.id), coalesce(v_price.min_billed_slots, 0));
+    -- Full spaces and extra support equipment, the sum the invoice run will raise
+    -- (app.billing_renewal_cents, 20261114090300).
+    v_eq     := case when v_price.equipment_period_incl_cents is null then 0
+                     else app.billable_equipment_count(s.farm_id) end;
+    v_amount := coalesce(app.billing_renewal_cents(v_price, v_units, v_eq), 0);
+    v_amount := v_amount - coalesce(app.billing_discount_cents(s.id, v_amount, v_due), 0);
+
+    v_ai := 0;
+    if v_ai_on then
+      v_rate := case when v_set.vat_registered then coalesce(v_price.vat_rate_bps, 0) else 0 end;
+      v_ai := round(app.ai_unbilled_cents(s.farm_id, now()) * (10000 + v_rate) / 10000)::bigint;
+    end if;
+    continue when v_amount <= 0 and v_ai <= 0;
+
+    -- One per farm per period. Keyed off the DUE DATE in the payload rather than a time
+    -- window, so a re-run, a double-fired schedule and a manual pass all land on the row
+    -- that is already there.
+    if exists (
+      select 1 from public.notifications n
+       where n.farm_id = s.farm_id
+         and n.template = 'billing_renewal_due'
+         and n.payload->>'due_on' = v_due::text
+    ) then
+      continue;
+    end if;
+
+    perform app.notify_farm(
+      s.farm_id,
+      'billing_renewal_due',
+      jsonb_build_object(
+        'due_on',         v_due,
+        'amount_cents',   greatest(v_amount, 0),
+        'plan',           s.plan,
+        'billing_period', s.billing_period,
+        'units',          v_units,
+        'equipment',      v_eq,
+        'ai_billed',      v_ai_on,
+        'ai_cents',       v_ai
+      )
+    );
+    v_sent := v_sent + 1;
+  end loop;
+
+  return v_sent;
+end $$;
