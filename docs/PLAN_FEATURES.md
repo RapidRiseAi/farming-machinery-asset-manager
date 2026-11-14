@@ -62,7 +62,7 @@ assistant, WhatsApp, import, API, tracker feed): `equipment_restrictions.sql`.
 | Printable QR labels, selected offline capture | All | ungated; QR fuel capture is `fuel` | OK |
 | Users, roles, permissions, no seat fee | All | ungated | OK |
 | Finance, lease and contract records | All (finance permission) | `can_view_farm_finance`; exports `advanced_reports` in `asset-finance-export.ts` | OK |
-| Attachment storage 100 MB per paid asset, min 1 GB | All | **not metered or enforced** | Open: approved terms are billed only once metering works (founder decision) |
+| Attachment storage 100 MB per paid asset, min 1 GB | All | **not metered or enforced** | Superseded by decision 14 (max(2 GB, 100 MB a full space + 25 MB an equipment space)); task A3 |
 | Fuel capture, consumption, alerts | Professional | `fuel` on page, actions, driver home, QR, CSV, SARS logbook | OK |
 | Total cost of ownership, cost per hour or km | Professional | `tco`: machine list column, machine page (overview figure, lifetime stats, repair ratio), machine file PDF cost per hour, sale pack cost section | **Fixed**: these relied on cost visibility alone |
 | Budgets and replacement insights | Professional | `tco`: machine page budgets card; add, edit and delete budget actions on the budget's own farm | **Fixed**: the actions had no plan gate and checked the role on the selected farm |
