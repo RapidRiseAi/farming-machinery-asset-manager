@@ -89,6 +89,7 @@ import {
   adminSetEftDetails,
 } from "./actions";
 import { TextareaField } from "@/components/ui/field";
+import { UploadField } from "@/components/upload/upload-field";
 import { RequestIdInput } from "@/components/ui/request-id-input";
 
 export const dynamic = "force-dynamic";
@@ -133,6 +134,8 @@ export default async function AdminBillingPage({
 }) {
   const profile = await requireRole(["rr_admin"]);
   const locale = profile.lang;
+  // Where a manual payment's proof is uploaded before the form is sent (the upload pipeline).
+  const proofSlot = crypto.randomUUID();
   const sp = await searchParams;
   const selectedFarmId = sp.farm && /^[0-9a-f-]{36}$/i.test(sp.farm) ? sp.farm : null;
   const savedHere = savedNotice(sp.saved);
@@ -1328,7 +1331,15 @@ export default async function AdminBillingPage({
                         <Input id="record-reference" name="reference" required maxLength={80} />
                       </Field>
                       <Field label={t("adminBilling.recordProof", locale)} htmlFor="record-proof">
-                        <Input id="record-proof" name="proof" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required />
+                        {/* Straight to Storage (a PDF unchanged, up to 50 MB), service-only bucket. */}
+                        <UploadField
+                          locale={locale}
+                          accept="document"
+                          uploadLabel="proof"
+                          finish="caller"
+                          scope={`billing-proof:${selected.sub.farm_id}:${proofSlot}`}
+                          target={{ kind: "billing_payment", id: proofSlot, farmId: selected.sub.farm_id }}
+                        />
                       </Field>
                       <Field label={t("adminBilling.recordNote", locale)} htmlFor="record-note">
                         <Input id="record-note" name="note" maxLength={500} />
