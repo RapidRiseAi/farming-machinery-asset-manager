@@ -405,3 +405,116 @@ begin
                    t || '_retired_equipment', t);
   end loop;
 end $$;
+-- == Equipment on the invoice ===========================================================
+alter table public.billing_invoices add column if not exists equipment_active integer not null default 0;
+alter table public.billing_invoices add column if not exists equipment_included integer not null default 0;
+alter table public.billing_invoices add column if not exists equipment_count integer not null default 0;
+alter table public.billing_invoices add column if not exists equipment_unit_incl_cents bigint not null default 0;
+alter table public.billing_invoices drop constraint if exists billing_invoices_equipment_ck;
+alter table public.billing_invoices add constraint billing_invoices_equipment_ck check (
+  equipment_active >= 0 and equipment_included >= 0 and equipment_count >= 0 and equipment_unit_incl_cents >= 0);
+comment on column public.billing_invoices.equipment_count is
+  'Extra support-equipment spaces charged on this invoice: max(0, in use - included) at '
+  'renewal (20261114090300). equipment_unit_incl_cents is the price of one for the period.';
+alter table public.billing_asset_snapshots add column if not exists equipment_count integer;
+
+create or replace function app.billing_derive_invoice_totals() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_gross bigint;
+  v_discount bigint;
+begin
+  -- Full spaces, plus extra support equipment for the period (20261114090300). Both are
+  -- the plan's price, so a subscription's discount applies to both.
+  v_gross := new.unit_price_incl_cents * new.asset_count * new.months_charged
+             + coalesce(new.equipment_unit_incl_cents, 0) * coalesce(new.equipment_count, 0);
+
+  if new.kind = 'service' then
+    new.discount_cents := 0;
+    new.ai_usage_ex_vat_cents := 0;
+    new.ai_usage_incl_cents := 0;
+    new.total_incl_cents := coalesce(
+      (select sum(l.line_total_incl_cents) from public.billing_invoice_lines l where l.invoice_id = new.id), 0);
+    new.subtotal_ex_vat_cents := app.ex_vat_cents(new.total_incl_cents, new.vat_rate_bps);
+    new.vat_cents := new.total_incl_cents - new.subtotal_ex_vat_cents;
+    new.updated_at := now();
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' or new.status = 'draft' then
+    v_discount := coalesce(
+      app.billing_discount_cents(new.subscription_id, v_gross, new.period_start), 0);
+    new.discount_cents := least(v_discount, v_gross);
+    if new.discount_cents > 0 and new.discount_label is null then
+      new.discount_label := (
+        select coalesce(s.discount_label, s.discount_code)
+          from public.billing_subscriptions s where s.id = new.subscription_id);
+    end if;
+  else
+    new.discount_cents := least(coalesce(new.discount_cents, 0), v_gross);
+  end if;
+
+  new.ai_usage_ex_vat_cents := coalesce(new.ai_usage_ex_vat_cents, 0);
+  new.ai_usage_incl_cents   := new.ai_usage_ex_vat_cents
+    + round(new.ai_usage_ex_vat_cents::numeric * coalesce(new.vat_rate_bps, 0) / 10000)::bigint;
+
+  new.total_incl_cents      := v_gross - new.discount_cents + new.ai_usage_incl_cents;
+  new.subtotal_ex_vat_cents := app.ex_vat_cents(new.total_incl_cents, new.vat_rate_bps);
+  new.vat_cents             := new.total_incl_cents - new.subtotal_ex_vat_cents;
+  new.updated_at            := now();
+  return new;
+end $$;
+revoke execute on function app.billing_derive_invoice_totals() from public, anon, authenticated;
+
+create or replace function app.billing_freeze_invoice() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if tg_op = 'DELETE' then
+    if old.status <> 'draft' then
+      raise exception 'BILLING: invoice % has been issued and cannot be deleted (void it instead)',
+        old.invoice_ref using errcode = 'check_violation';
+    end if;
+    return old;
+  end if;
+
+  if old.status = 'draft' then
+    return new;
+  end if;
+
+  if new.invoice_ref       is distinct from old.invoice_ref
+     or new.farm_id        is distinct from old.farm_id
+     or new.period_start   is distinct from old.period_start
+     or new.period_end     is distinct from old.period_end
+     or new.plan           is distinct from old.plan
+     or new.billing_period is distinct from old.billing_period
+     or new.asset_count    is distinct from old.asset_count
+     or new.unit_price_incl_cents is distinct from old.unit_price_incl_cents
+     or new.months_charged is distinct from old.months_charged
+     or new.price_version_id      is distinct from old.price_version_id
+     or new.price_version_label   is distinct from old.price_version_label
+     or new.vat_rate_bps          is distinct from old.vat_rate_bps
+     or new.seller_vat_number     is distinct from old.seller_vat_number
+     or new.subtotal_ex_vat_cents is distinct from old.subtotal_ex_vat_cents
+     or new.vat_cents             is distinct from old.vat_cents
+     or new.total_incl_cents      is distinct from old.total_incl_cents
+     or new.currency              is distinct from old.currency
+     or new.ai_usage_ex_vat_cents is distinct from old.ai_usage_ex_vat_cents
+     or new.ai_usage_incl_cents   is distinct from old.ai_usage_incl_cents
+     or new.ai_usage_from         is distinct from old.ai_usage_from
+     or new.ai_usage_to           is distinct from old.ai_usage_to
+     or new.ai_usage_people       is distinct from old.ai_usage_people
+     -- Support equipment on the invoice (20261114090300).
+     or new.equipment_active          is distinct from old.equipment_active
+     or new.equipment_included        is distinct from old.equipment_included
+     or new.equipment_count           is distinct from old.equipment_count
+     or new.equipment_unit_incl_cents is distinct from old.equipment_unit_incl_cents
+     or new.seller_snapshot       is distinct from old.seller_snapshot
+     or new.bill_to_snapshot      is distinct from old.bill_to_snapshot then
+    raise exception
+      'BILLING: invoice % is issued; its pricing snapshot is immutable (status/payment/void may still change)',
+      old.invoice_ref using errcode = 'check_violation';
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+revoke execute on function app.billing_freeze_invoice() from public, anon, authenticated;
