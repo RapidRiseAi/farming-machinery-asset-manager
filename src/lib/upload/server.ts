@@ -289,3 +289,33 @@ export function storageReader(): ObjectReader {
     },
   };
 }
+
+/**
+ * For a route or action that saves its own record with an uploaded file: judge the upload
+ * (service key) and hand back the verified intent, or the refusal. The caller then writes
+ * its record with `intent.object_path` and calls commitUpload with its record id.
+ */
+export async function verifiedIntentFor(
+  intentId: unknown, userId: string, expect: { kind: TargetKind; targetId?: string },
+  deps: { svc?: SupabaseClient; reader?: ObjectReader } = {},
+): Promise<{ state: "verified"; intent: IntentRow; svc: SupabaseClient } | Refusal> {
+  if (!isUuid(intentId)) return refuse("upload-target", 400);
+  const { createServiceClient } = await import("@/lib/supabase/service");
+  const svc = deps.svc ?? createServiceClient();
+  const verified = await verifyUpload(svc, deps.reader ?? storageReader(), intentId, userId);
+  if (verified.state === "refused") return verified;
+  if (verified.intent.target_kind !== expect.kind || (expect.targetId && verified.intent.target_id !== expect.targetId)) {
+    return refuse("upload-target", 400);
+  }
+  return { state: "verified", intent: verified.intent, svc };
+}
+
+/** Judge and save an ordinary attachment in one call (a new vehicle's photo after it exists). */
+export async function finishAttachment(
+  db: SupabaseClient, intentId: unknown, userId: string, expect: { kind: TargetKind; targetId?: string },
+  options: { attachmentKind?: "photo" | "voice" | "doc" | "invoice" } = {},
+): Promise<{ state: "finalised"; recordId: string | null } | Refusal> {
+  const verified = await verifiedIntentFor(intentId, userId, expect);
+  if (verified.state === "refused") return verified;
+  return commitUpload(db, verified.svc, verified.intent, options);
+}

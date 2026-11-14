@@ -40,18 +40,19 @@ decisions 8 to 13, scenarios 21, 22, 23, 27, 28. Steps, committed one by one:
 
 ## In progress
 
-Step 2b (WIP, committed): protocol.ts, server.ts (begin, verify by range reads, commit,
-fail, reader, error mapping, UPLOAD_GLOBAL_LIMIT_BYTES), routes /api/uploads/begin and
-/api/uploads/finalise, server.test.ts (12 tests: boundaries, lost response, never-arrived,
-spoofed, revoked, sentences), sweep.ts + nightly step upload_sweep + sweep.test.ts,
-upload.err.* sentences in en/af mapped in errors.ts (numbers filled from the catalogue by
-withLimits). Step 2c (WIP, committed): src/lib/upload/tus.ts (in-house TUS 1.0 client: create, PATCH in
-6 MiB chunks, HEAD to resume, 409 recovery; signed PUT; XHR transport for progress),
-src/lib/upload/client.ts (uploadFile: begin, PUT or TUS with resume URL kept per intent in
-localStorage, finalise; refusals as codes; stableRequestId for online/offline sharing),
-client.test.ts (fake TUS server: interrupted and resumed, paused, expired URL, refusals).
-Next: src/components/ui/upload-field.tsx (reusable control: progress, pause/resume, retry,
-keep-original for photos), then step 3 (move every path).
+Step 2 parts all committed (2a database, 2b server, 2c client + control 9e09ee0); full gate
+run for "step 2 done" still to record. Step 4 compressor committed early (5870ccd,
+src/lib/upload/compress.ts). Step 3 under way (WIP commits):
+- done: machine gallery (machine-photos.tsx uses UploadField, finish generic); add-vehicle
+  photo (page picks new_machine_id, MachinePhotoNew uploads finish caller as
+  primary_photo_intent, createMachine inserts with that id then finishAttachment; legacy
+  primary_photo_data still accepted). Helpers verifiedIntentFor / finishAttachment in
+  src/lib/upload/server.ts.
+- next, in order: faults (fault-capture online via /api/sync without files then uploads
+  to the fault with stableRequestId(client_id|field); offline flush the same; public QR
+  /api/public/fault the same with the member session), job cards (/api/jobcards/media
+  accepts upload_intent_id), work requests, finance docs, partner documents, receipts,
+  trip delivery photo, billing proofs, checklists (needs client instance id).
 
 ## Next
 

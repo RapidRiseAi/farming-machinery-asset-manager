@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { signedUrlsByPath } from "@/lib/signed-urls";
-import { compressImage } from "@/lib/image-compress";
 import { t, type Lang } from "@/lib/i18n";
 import { setPrimaryPhoto, clearPrimaryPhoto } from "@/app/(app)/machines/actions";
-import { looksLikeImage, photoUploadErrorKey } from "@/lib/machine-photo-upload-error";
+import { UploadField } from "@/components/upload/upload-field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { reportClientError } from "@/lib/client-report";
 import { asError } from "@/lib/single-flight";
@@ -17,7 +16,8 @@ type Photo = { id: string; url: string | null };
  * Machine photo gallery + uploader. Photos live in `attachments` (kind=photo) and the
  * private `machine-photos` bucket; one can be marked the machine's PRIMARY image
  * (machines.primary_attachment_id, 0280) which then shows on list cards + the detail
- * header. Uploads are compressed client-side (~200-400 KB) to suit low bandwidth.
+ * header. Uploads go straight to Storage through the upload pipeline (UploadField):
+ * reduced unless the original is kept, checked on the server, saved once.
  */
 /** A stale row (its file deleted) fails to sign on every visit; one report per page session. */
 let signReported = false;
@@ -36,7 +36,6 @@ export function MachinePhotos({
   locale?: Lang;
 }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Set when the list itself could not be read, so the gallery does not also say
   // "No photos yet" under the error: a failed read is not an empty gallery.
@@ -82,41 +81,6 @@ export function MachinePhotos({
     load();
   }, [load]);
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (!looksLikeImage(file)) {
-      setErr(t("machine.uploadNotImage", locale));
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    try {
-      const supabase = createClient();
-      const blob = await compressImage(file);
-      const path = `${farmId}/${machineId}/${crypto.randomUUID()}.jpg`;
-      const up = await supabase.storage
-        .from("machine-photos")
-        .upload(path, blob, { contentType: "image/jpeg" });
-      if (up.error) throw up.error;
-      const ins = await supabase.from("attachments").insert({
-        farm_id: farmId,
-        parent_type: "machine",
-        parent_id: machineId,
-        kind: "photo",
-        storage_path: path,
-      });
-      if (ins.error) throw ins.error;
-      await load();
-    } catch (e2) {
-      // Never the raw message: storage and RLS errors are English prose for developers.
-      setErr(t(photoUploadErrorKey(e2, navigator.onLine), locale));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   // Primary first, so the gallery leads with the image shown elsewhere.
   const ordered = photos
     .slice()
@@ -126,20 +90,22 @@ export function MachinePhotos({
     <section>
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-semibold text-sand-900">{t("machine.photos", locale)}</h2>
-        {canEdit ? (
-          <label className="focus-ring inline-flex cursor-pointer items-center gap-1.5 min-h-[48px] rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
-            {busy ? t("machine.uploading", locale) : t("machine.addPhoto", locale)}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="sr-only"
-              onChange={onFile}
-              disabled={busy}
-            />
-          </label>
-        ) : null}
       </div>
+      {canEdit ? (
+        <UploadField
+          className="mb-3"
+          locale={locale}
+          label={t("machine.addPhoto", locale)}
+          accept="photo"
+          capture
+          uploadLabel="photo"
+          finish="generic"
+          attachmentKind="photo"
+          scope={`machine-photo:${machineId}`}
+          target={{ kind: "machine", id: machineId, farmId }}
+          onDone={() => { setErr(null); void load(); }}
+        />
+      ) : null}
       {err ? <p role="alert" className="mb-2 text-sm text-status-overdue">{err}</p> : null}
       <div className="grid grid-cols-3 gap-2">
         {ordered.map((p) => {
