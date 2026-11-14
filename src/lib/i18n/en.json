@@ -98,7 +98,8 @@
     "map": "Map",
     "adminFeatures": "Features in testing",
     "trips": "{{Trips}}",
-    "adminUsage": "Usage"
+    "adminUsage": "Usage",
+    "adminEquipmentReviews": "Equipment reviews"
   },
   "assistant": {
     "title": "Voice assistant",

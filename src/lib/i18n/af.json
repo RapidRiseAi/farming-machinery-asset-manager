@@ -98,7 +98,8 @@
     "map": "Kaart",
     "adminFeatures": "Funksies in toetsing",
     "trips": "{{Trips}}",
-    "adminUsage": "Gebruik"
+    "adminUsage": "Gebruik",
+    "adminEquipmentReviews": "Toerustinghersienings"
   },
   "assistant": {
     "title": "Stemassistent",
