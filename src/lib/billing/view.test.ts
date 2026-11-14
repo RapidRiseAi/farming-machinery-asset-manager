@@ -1005,3 +1005,30 @@ test("the migration's refusal wording is what the screen and the actions match o
   assert.ok(re(slots![1]).test("BILLING: the minimum on this plan is 5 vehicle slots"));
   assert.ok(re(plan![1]).test("BILLING: that plan needs at least 5 vehicle slots; add slots first"));
 });
+
+test("the estimate prices support equipment beyond the allowance, as the invoice run does", () => {
+  const row = (plan: string, period: string, unit: number, months: number, periodPrice: number, included: number, eq: number) => ({
+    id: `${plan}-${period}`, version_label: "launch-2026-11-eq", plan, billing_period: period,
+    per_vehicle_monthly_incl_cents: unit, months_charged: months, vat_rate_bps: 0, min_billed_slots: 5,
+    period_price_incl_cents: periodPrice, equipment_included: included, equipment_period_incl_cents: eq,
+    status: "active", effective_from: null, effective_to: null,
+  });
+  // Five full and twenty equipment on Complete monthly: R495 + 5 x R15 = R570.
+  const c = estimateNextCharge({ price: row("complete", "monthly", 9900, 1, 9900, 15, 1500), assetCount: 5, vatRegistered: false, equipmentInUse: 20 });
+  assert.equal(c.kind, "priced");
+  if (c.kind === "priced") {
+    assert.equal(c.totalInclCents, 57000);
+    assert.equal(c.fullCents, 49500);
+    assert.equal(c.equipmentCharged, 5);
+    assert.equal(c.equipmentCents, 7500);
+  }
+  // Essential annual, five and twenty: R2,450 + 18 x R150 = R5,150, from the stated prices.
+  const a = estimateNextCharge({ price: row("essential", "annual", 4900, 10, 49000, 2, 15000), assetCount: 5, vatRegistered: false, equipmentInUse: 20 });
+  assert.equal(a.kind === "priced" ? a.totalInclCents : null, 515000);
+  // An older generation has no equipment terms: nothing is charged for equipment there.
+  const old = estimateNextCharge({
+    price: { ...row("professional", "monthly", 7900, 1, 7900, 0, 0), period_price_incl_cents: null, equipment_period_incl_cents: null },
+    assetCount: 5, vatRegistered: false, equipmentInUse: 3,
+  });
+  assert.equal(old.kind === "priced" ? old.totalInclCents : null, 39500);
+});
