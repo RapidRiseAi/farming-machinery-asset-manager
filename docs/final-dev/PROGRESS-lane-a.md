@@ -121,4 +121,35 @@ keys, design and errors gates clean.
 
 ## For task A2
 
-(filled in at the end of A1)
+- Buy capacity mid-period: extend the quota change (or a sibling) to raise
+  `billing_subscriptions.equipment_extra_quota` pro rata to the renewal, and fill
+  `charge_now.cents` in `app.asset_capacity_state` (status `quote_pending` today). Until then a
+  conversion or add that needs a paid space is refused with `capacity-needed` /
+  `equipment-limit-reached`. The invoice run resets `equipment_extra_quota` at each renewal.
+- `app.billing_plan_change_quote` prices full spaces only: add the allowance difference
+  (scenarios 7 and 8: 5 full + 15 equipment, Professional R545 vs Complete R495).
+- `create_pending_signup` needs an equipment quantity (`equipment_extra_quota` =
+  max(0, E - A); the first invoice already bills it for a pending subscription) and the 200
+  line (`app.self_service_max_full_spaces()`, `signupRoute` in calculator.ts).
+- Agreements on `launch-2026` / `launch-2026-11` have no equipment terms (refused with
+  `equipment-not-in-agreement`); moving one to `launch-2026-11-eq` is an accepted change.
+- Quote functions still read per_vehicle x months; a price-row check keeps that equal to
+  `period_price_incl_cents`. Move them to `app.billing_space_period_cents` before any annual
+  price that is not a whole multiple. The billing page's annual note says ten months.
+- Lane B: chat key `general_chat`; maps via `mapsAvailable`; trips need Professional at the
+  table (`plan-feature-trips`), routes/positions Complete (`plan-feature-maps`); equipment
+  refusals are `equipment-refused-<feature>`; `public.has_asset_entitlement` for the assistant.
+
+## Risks recorded at the end of A1
+
+1. `app.billable_asset_count` and `farms.asset_count` now count full assets only.
+2. New trips need Professional at the table; Essential businesses keep old trips readable.
+3. Maps need Complete plus the flag; a Professional business testing the map loses it.
+4. The capacity trigger fires only on status, deleted_at, farm_id and profile updates.
+5. `20261114090100` was edited after `7b25ff5` (slugs) before any merge; apply its final form.
+6. Concurrency is proven by the lock (structural) and sequential refusals, not by two sessions.
+7. New screens are type-checked and linted only: no browser run (no .env.local here).
+
+The full A1 report (done with commits, scenarios by test, not done, assumptions, risks,
+blockers, handover) is in the worker's final message: writing a separate REPORT-A1.md file
+was refused by the agent harness.
