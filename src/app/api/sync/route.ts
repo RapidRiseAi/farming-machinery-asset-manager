@@ -49,12 +49,15 @@ export async function POST(request: Request) {
     if (!result || !["applied", "conflict"].includes(result.status ?? "")) {
       return NextResponse.json({ error: "sync_unavailable" }, { status: 503 });
     }
-    if (type === "report_fault" && result.status === "applied" && result.farm_id && result.entity_id) {
+    if (type === "report_fault" && result.status === "applied" && result.farm_id && result.entity_id
+        && (form.get("photo") instanceof File || form.get("voice") instanceof File)) {
+      // An installed older app still sends its files here (bounded by Vercel's 4.5 MB); the
+      // current one sends them straight to Storage afterwards (src/lib/offline/media.ts).
       // Media retries use the committed fault; they cannot create a second fault.
       const media = await uploadFaultMedia(svc, form, result.farm_id, result.entity_id, profile?.id ?? null, clientId);
       if (!media.ok) return NextResponse.json({ error: "media_retry", entity_id: result.entity_id }, { status: 503 });
     }
-    return NextResponse.json({ status: result.status, client_id: clientId, entity_id: result.entity_id });
+    return NextResponse.json({ status: result.status, client_id: clientId, entity_id: result.entity_id, farm_id: result.farm_id });
   } catch {
     return NextResponse.json({ error: "sync_unavailable" }, { status: 503 });
   }

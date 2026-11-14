@@ -5,6 +5,7 @@
 import { dequeue, enqueue, listMutations, pendingCount } from "./queue";
 import type { QueuedMutation } from "./types";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { sendCaptureMedia } from "./media";
 
 let flushing = false;
 let armed = false;
@@ -13,8 +14,12 @@ export function isOnline(): boolean {
   return typeof navigator === "undefined" ? true : navigator.onLine !== false;
 }
 
-/** Rebuild the multipart body the /api/sync route expects for one mutation. */
-export function buildFormData(m: QueuedMutation): FormData {
+/**
+ * Rebuild the multipart body the /api/sync route expects for one mutation. Its files are not
+ * in it: they go straight to Storage afterwards (media.ts). The withMedia shape is the older
+ * one, which the server route still accepts from installed older apps.
+ */
+export function buildFormData(m: QueuedMutation, { withMedia = false }: { withMedia?: boolean } = {}): FormData {
   const fd = new FormData();
   fd.set("client_id", m.client_id);
   fd.set("client_ts", m.client_ts);
@@ -22,8 +27,8 @@ export function buildFormData(m: QueuedMutation): FormData {
   fd.set("scope", m.scope);
   if (m.actor_id) fd.set("actor_id", m.actor_id);
   fd.set("payload", JSON.stringify(m.fields));
-  if (m.photo) fd.set("photo", m.photo, "photo.jpg");
-  if (m.voice) fd.set("voice", m.voice, "voice.webm");
+  if (withMedia && m.photo) fd.set("photo", m.photo, "photo.jpg");
+  if (withMedia && m.voice) fd.set("voice", m.voice, "voice.webm");
   return fd;
 }
 
@@ -63,8 +68,22 @@ export async function flush(): Promise<{ applied: number; remaining: number }> {
       } catch {
         break; // network dropped mid-flush
       }
-      const body = await res.json().catch(() => null) as { status?: string; error?: string } | null;
+      const body = await res.json().catch(() => null) as { status?: string; error?: string; entity_id?: string; farm_id?: string } | null;
       if (res.ok && body?.status === "applied") {
+        // The fault is saved; its photo and voice note follow, straight to Storage.
+        const faultId = body.entity_id ?? m.entity_id;
+        const farmId = body.farm_id ?? m.farm_id;
+        if (m.type === "report_fault" && (m.photo || m.voice) && faultId && farmId) {
+          const media = await sendCaptureMedia(m, { id: faultId, farmId });
+          if (media.state === "transient") {
+            await enqueue({ ...m, entity_id: faultId, farm_id: farmId });
+            break; // the connection is poor: try the rest later
+          }
+          if (media.state === "refused") {
+            await enqueue({ ...m, entity_id: faultId, farm_id: farmId, sync_error: media.code });
+            continue;
+          }
+        }
         await dequeue(m.client_id);
         applied += 1;
       } else if (res.status === 429 || res.status >= 500) {
