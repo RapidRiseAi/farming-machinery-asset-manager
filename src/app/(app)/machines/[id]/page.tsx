@@ -13,6 +13,8 @@ import { canViewFarmFinance } from "@/lib/asset-finance-read";
 import { financeSavedKey } from "@/lib/asset-finance";
 import { MachineFinanceSection } from "@/components/asset-finance/machine-finance-section";
 import { EquipmentProfileNote } from "@/components/machines/asset-views";
+import { ConversionReview, type ConversionPreview } from "@/components/machines/conversion-review";
+import { convertAssetProfile, requestClassificationReview } from "./profile-actions";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
 import {
@@ -27,7 +29,7 @@ import { computeConsumption, formatConsumption, activityLabel, latestInterval, f
 import { addFuelIssue } from "@/app/(app)/fuel/actions";
 import { FuelTrend } from "@/components/fuel-trend";
 import { t } from "@/lib/i18n";
-import { MACHINE_STATUSES, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
+import { MACHINE_STATUSES, isEquipmentEligible, typeLabel, statusLabel, meterLabel } from "@/lib/machine-options";
 import { MachineFields, type OperatorOption } from "@/components/machine-fields";
 import { MachinePhotos } from "@/components/machine-photos";
 import { DocumentPacks } from "@/components/machines/document-packs";
@@ -61,6 +63,7 @@ import { cn } from "@/components/ui/cn";
 import { StatusPill, StatusBadge, Badge } from "@/components/ui/badge";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -145,6 +148,8 @@ const savedMsg: Record<string, string> = {
   "meter-replaced": "machine.savedMeterReplaced",
   // Straight from the Add machine form.
   created: "machines.created",
+  profile: "assets.converted",
+  review: "assets.reviewSent",
   reading: "ui.saved", status: "ui.saved", watch: "ui.saved", service: "ui.saved", template: "ui.saved", licence: "ui.saved", kit: "ui.saved", checklist: "ui.saved", budget: "ui.saved", "1": "ui.saved",
 };
 
@@ -720,6 +725,7 @@ export default async function MachineDetailPage({
           costCentres={distinctValues(dims.map((d) => d.cost_centre))}
           departments={distinctValues(dims.map((d) => d.department))}
           locations={distinctValues(dims.map((d) => d.location))}
+          equipment={isEquipment}
         />
         <DialogActions cancelLabel={cancelLabel}>
           <SubmitButton variant="primary">{t("common.save", locale)}</SubmitButton>
@@ -727,6 +733,59 @@ export default async function MachineDetailPage({
       </form>
     </DialogForm>
   );
+
+  // Converting between the full and the equipment profile, through its preview
+  // (20261114090300). Offered to owners and managers for an asset that may take the other
+  // profile; the money lines reach only the payer (the database strips them for others).
+  const convertTo = isEquipment ? "full" : "equipment";
+  const canConvert = canEdit && (isEquipment || isEquipmentEligible(machine.type));
+  const conversion = canConvert
+    ? (soft(await supabase.rpc("asset_conversion_preview", { p_machine: machine.id, p_to: convertTo }), "machine:conversion-preview") as ConversionPreview | null)
+    : null;
+  const convertDialog = conversion ? (
+    <DialogForm
+      triggerLook="menuItem"
+      trigger={t(isEquipment ? "assets.convertToFull" : "assets.convertToEquipment", locale)}
+      title={t(isEquipment ? "assets.convertToFull" : "assets.convertToEquipment", locale)}
+      description={machine.name}
+      closeLabel={closeLabel}
+      size="md"
+    >
+      <ConversionReview preview={conversion} locale={locale} />
+      {conversion.conversion_blocked || conversion.fits_now === false ? null : (
+        <form action={convertAssetProfile}>
+          <input type="hidden" name="id" value={machine.id} />
+          <input type="hidden" name="to" value={convertTo} />
+          <input type="hidden" name="accepted_renewal_cents" value={conversion.renewal?.after_cents ?? ""} />
+          <DialogActions cancelLabel={cancelLabel}>
+            <SubmitButton variant="primary">{t("assets.convertConfirm", locale)}</SubmitButton>
+          </DialogActions>
+        </form>
+      )}
+    </DialogForm>
+  ) : null;
+  const reviewDialog = canEdit ? (
+    <DialogForm
+      triggerLook="menuItem"
+      trigger={t("assets.reviewRequest", locale)}
+      title={t("assets.reviewRequest", locale)}
+      description={t("assets.reviewHint", locale)}
+      closeLabel={closeLabel}
+      size="md"
+    >
+      <form action={requestClassificationReview}>
+        <input type="hidden" name="id" value={machine.id} />
+        <DialogFields columns={1}>
+          <Field label={t("assets.reviewReason", locale)} htmlFor="review-reason" required>
+            <Textarea id="review-reason" name="reason" rows={3} maxLength={500} required />
+          </Field>
+        </DialogFields>
+        <DialogActions cancelLabel={cancelLabel}>
+          <SubmitButton variant="primary">{t("assets.reviewSend", locale)}</SubmitButton>
+        </DialogActions>
+      </form>
+    </DialogForm>
+  ) : null;
 
   // The machine's own record, stated (it could only be read inside the edit form).
   const details: { label: string; value: string }[] = [
@@ -874,6 +933,8 @@ export default async function MachineDetailPage({
               trigger={t("nav.more", locale)}
             >
               {canEdit ? editMachineDialog("menuItem") : null}
+              {convertDialog}
+              {reviewDialog}
               {canEdit ? (
                 <DialogForm
                   triggerLook="menuItem"
