@@ -270,8 +270,15 @@ language sql stable security definer set search_path = public, pg_temp as $$
    order by s.created_at desc
    limit 1;
 $$;
-revoke all on function app.billing_subscription_for(uuid) from public, anon, authenticated;
-grant execute on function app.billing_subscription_for(uuid) to service_role;
+revoke all on function app.billing_subscription_for(uuid) from public, anon, authenticated, service_role;
+
+-- Lock it, for a change that takes or frees capacity outside the machines trigger.
+create or replace function app.lock_billing_for(p_farm uuid) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  perform 1 from public.billing_subscriptions where id = app.billing_subscription_for(p_farm) for update;
+end $$;
+revoke all on function app.lock_billing_for(uuid) from public, anon, authenticated, service_role;
 
 -- == The capacity guard on every add path ===============================================
 -- Replaces app.billing_enforce_vehicle_quota (20261107150000) under the same trigger.
@@ -1014,8 +1021,7 @@ begin
          and (p.effective_to is null or p.effective_to >= current_date)));
 end
 $$;
-revoke all on function app.asset_capacity_state(uuid, integer, integer) from public, anon, authenticated;
-grant execute on function app.asset_capacity_state(uuid, integer, integer) to service_role;
+revoke all on function app.asset_capacity_state(uuid, integer, integer) from public, anon, authenticated, service_role;
 
 -- Money is the payer's business (app.is_farm_billing_admin, BILLING.md section 10): a
 -- manager sees spaces, never amounts.
@@ -1183,7 +1189,6 @@ declare
   v_blocker text;
   v_state jsonb;
   v_in_use boolean;
-  v_sub uuid;
 begin
   select * into m from public.machines where id = p_machine and deleted_at is null;
   if not found or auth.uid() is null or not app.asset_profile_manager(m.farm_id) then
@@ -1193,10 +1198,7 @@ begin
 
   -- The same lock every add path takes, so a conversion and an add cannot both take the
   -- last space.
-  v_sub := app.billing_subscription_for(m.farm_id);
-  if v_sub is not null then
-    perform 1 from public.billing_subscriptions where id = v_sub for update;
-  end if;
+  perform app.lock_billing_for(m.farm_id);
   select * into m from public.machines where id = p_machine for update;
 
   v_blocker := app.asset_conversion_blocker(p_machine, p_to);
@@ -1242,7 +1244,7 @@ grant execute on function public.convert_asset_profile(uuid, public.asset_profil
 -- For one customer: the full assets that could move to the equipment profile, and what the
 -- renewal would be keeping every full space, or giving back one per moved asset (never below
 -- the minimum or the full assets still in use). Read-only: nothing moves (BRIEF section 24).
-create or replace function public.equipment_migration_preview(p_farm uuid)
+create or replace function app.equipment_migration_state(p_farm uuid)
 returns jsonb
 language plpgsql
 stable
@@ -1259,10 +1261,6 @@ declare
   v_f integer;
   v_reduced integer;
 begin
-  if auth.uid() is null or not app.is_farm_billing_admin(v_root) then
-    raise exception 'forbidden' using errcode = '42501';
-  end if;
-  perform app.require_open_farm(p_farm, false);
   select count(*)::integer into v_n
     from public.machines m
    where (m.farm_id = v_root or m.farm_id in (select f.id from public.farms f where f.billed_through = v_root))
@@ -1282,6 +1280,24 @@ begin
     'renewal_all_moved_fewer_spaces_cents', case when v_price.equipment_period_incl_cents is null then null
       else app.billing_renewal_cents(v_price, v_reduced, v_eq + v_n) end,
     'full_spaces_if_reduced', v_reduced);
+end
+$$;
+revoke all on function app.equipment_migration_state(uuid) from public, anon, authenticated, service_role;
+
+-- The payer (or Rapid Rise) reads it; it moves nothing.
+create or replace function public.equipment_migration_preview(p_farm uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if auth.uid() is null or not app.is_farm_billing_admin(app.billing_root(p_farm)) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform app.require_open_farm(p_farm, false);
+  return app.equipment_migration_state(p_farm);
 end
 $$;
 revoke all on function public.equipment_migration_preview(uuid) from public, anon;
