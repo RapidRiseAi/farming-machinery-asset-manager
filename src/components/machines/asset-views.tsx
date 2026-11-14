@@ -101,3 +101,17 @@ export function CapacityFacts({ summary, locale }: { summary: CapacitySummary | 
     </ul>
   );
 }
+
+/**
+ * On a support equipment asset's page, in place of a tool it does not have: what it keeps,
+ * what a full fleet space adds, and how to get it (convert, from the asset's menu).
+ */
+export function EquipmentProfileNote({ locale }: { locale: Lang }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg bg-surface-sunken p-3 text-sm text-sand-700">
+      <p className="font-semibold text-sand-900">{t("assets.equipmentNoteTitle", locale)}</p>
+      <p>{t("assets.equipmentNoteKeeps", locale)}</p>
+      <p>{t("assets.equipmentNoteConvert", locale)}</p>
+    </div>
+  );
+}

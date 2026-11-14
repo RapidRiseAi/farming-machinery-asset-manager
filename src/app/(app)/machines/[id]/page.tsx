@@ -12,6 +12,7 @@ import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { canViewFarmFinance } from "@/lib/asset-finance-read";
 import { financeSavedKey } from "@/lib/asset-finance";
 import { MachineFinanceSection } from "@/components/asset-finance/machine-finance-section";
+import { EquipmentProfileNote } from "@/components/machines/asset-views";
 import { rands } from "@/lib/money";
 import { summariseCosts, costPerMeter, COST_TYPES } from "@/lib/cost";
 import {
@@ -1311,7 +1312,11 @@ export default async function MachineDetailPage({
               ) : (
                 <Card>
                   <CardHeader><CardTitle>{t("machine.fuelTitle", locale)}</CardTitle></CardHeader>
-                  <UpgradeNotice feature="fuel" requiredPlan={requiredPlan("fuel")} currentPlan={plan} locale={locale} compact />
+                  {isEquipment ? (
+                    <EquipmentProfileNote locale={locale} />
+                  ) : (
+                    <UpgradeNotice feature="fuel" requiredPlan={requiredPlan("fuel")} currentPlan={plan} locale={locale} compact />
+                  )}
                 </Card>
               )}
 
@@ -1734,7 +1739,12 @@ export default async function MachineDetailPage({
               label: t("machine.tabCosts", locale),
               content: (
                 <div className="flex flex-col gap-4 xl:block xl:columns-2 xl:gap-4 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
-              {!analyticsVisible ? (
+              {isEquipment ? (
+                <div className="xl:[column-span:all]">
+                  <EquipmentProfileNote locale={locale} />
+                </div>
+              ) : null}
+              {!analyticsVisible && !isEquipment ? (
                 <div className="xl:[column-span:all]">
                 <UpgradeNotice
                   feature="tco"
