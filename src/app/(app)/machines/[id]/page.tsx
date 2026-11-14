@@ -205,6 +205,9 @@ export default async function MachineDetailPage({
   const analyticsVisible = costsVisible && (await machineAllows(machineBase, "tco", profile));
   const isEquipment = machineBase.profile === "equipment";
   const fuelAllowed = planFuelAllowed && !profileRefuses(machineBase.profile, "fuel");
+  // Road licensing (licence disc, roadworthy, permits) is a full asset's; equipment keeps
+  // insurance and other dated papers (20261114090200 refuses the rest at the table).
+  const licenceTypes = isEquipment ? LICENCE_TYPES.filter((lt) => lt === "insurance" || lt === "other") : LICENCE_TYPES;
   const financials = costsVisible ? await readMachineFinancials(supabase, id) : null;
   // Finance agreements, leases and contracts: owners and managers only (founder default,
   // `app.can_view_farm_finance`), narrower than costs. Interest and lease payments still
@@ -2396,7 +2399,7 @@ export default async function MachineDetailPage({
                                       <DialogFields>
                                         <Field label={t("compliance.type", locale)} htmlFor={`lc-type-${l.id}`}>
                                           <Select id={`lc-type-${l.id}`} name="type" defaultValue={l.type}>
-                                            {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                                            {licenceTypes.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
                                           </Select>
                                         </Field>
                                         <Field label={t("compliance.number", locale)} htmlFor={`lc-no-${l.id}`}>
@@ -2467,7 +2470,7 @@ export default async function MachineDetailPage({
                           <DialogFields>
                             <Field label={t("compliance.type", locale)} htmlFor="lc-new-type">
                               <Select id="lc-new-type" name="type" defaultValue="vehicle_licence">
-                                {LICENCE_TYPES.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
+                                {licenceTypes.map((lt) => <option key={lt} value={lt}>{licenceTypeLabel(lt, locale)}</option>)}
                               </Select>
                             </Field>
                             <Field label={t("compliance.number", locale)} htmlFor="lc-new-no">
