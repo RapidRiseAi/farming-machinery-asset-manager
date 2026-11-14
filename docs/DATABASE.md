@@ -99,7 +99,7 @@ vehicle was, kept 180 days), `licences`, `driver_credentials`, `tyres`, `tyre_fi
 `app.asset_allows` and `public.has_asset_entitlement` mirror `src/lib/entitlements.ts`; a trigger on
 `driving_sessions`, `driver_device_links`, `asset_positions`, `fuel_issues`, `fuel_card_transactions`,
 `budgets`, `finance_agreements`, `tyre_fitments` and `trips` refuses new restricted work for support
-`equipment (slug `equipment-refused-<feature>`); a trip may name an equipment trailer only; road
+equipment (slug `equipment-refused-<feature>`); a trip may name an equipment trailer only; road
 licences, leases and a depreciation method are refused for equipment; a new trip, load or trip
 money needs Professional, a planned route or position Complete (`plan-feature-*`). New ordinary
 work on retired or sold equipment is refused (`equipment-retired`, 20261114090300).
