@@ -102,7 +102,8 @@ vehicle was, kept 180 days), `licences`, `driver_credentials`, `tyres`, `tyre_fi
 equipment (slug `equipment-refused-<feature>`); a trip may name an equipment trailer only; road
 licences, leases and a depreciation method are refused for equipment; a new trip, load or trip
 money needs Professional, a planned route or position Complete (`plan-feature-*`). New ordinary
-work on retired or sold equipment is refused (`equipment-retired`, 20261114090300).
+work on retired or sold equipment is refused (`equipment-retired`, 20261114090300). A move to another
+site keeps the profile, and equipment keeps only insurance and other dated papers (20261114090400).
 
 ## Work: faults, job cards, service, parts
 
