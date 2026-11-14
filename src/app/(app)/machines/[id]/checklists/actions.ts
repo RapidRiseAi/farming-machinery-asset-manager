@@ -8,6 +8,7 @@ import { withTab } from "@/components/ui/tabs-url";
 import type { Role } from "@/lib/auth";
 import { isChecklistFieldType, type ChecklistFieldType } from "@/lib/checklists";
 import { uploadChecklistPhotoDataUrl } from "@/lib/checklist-media";
+import { finishAttachment } from "@/lib/upload/server";
 import { claimRequest } from "@/lib/request-claim";
 import { readRequestId } from "@/lib/request-id";
 import { captureError } from "@/lib/observability";
@@ -30,6 +31,8 @@ export type ChecklistValueInput = {
   value_text: string | null;
   notes: string | null;
   photo_data_url: string | null;
+  /** The photo sent straight to Storage under this inspection (the upload pipeline). */
+  upload_intent_id?: string | null;
 };
 
 export type ChecklistInstanceInput = {
@@ -42,6 +45,8 @@ export type ChecklistInstanceInput = {
   values: ChecklistValueInput[];
   /** The screen's request id: a retry whose answer was lost is not saved twice. */
   request_id?: string | null;
+  /** The inspection's id, chosen by the screen so its photos could be uploaded under it first. */
+  instance_id?: string | null;
 };
 
 /**
@@ -105,6 +110,7 @@ async function saveChecklist(
   const { data: created, error: insErr } = await supabase
     .from("checklist_instances")
     .insert({
+      ...(input.instance_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.instance_id) ? { id: input.instance_id } : {}),
       farm_id: farmId,
       machine_id: machineId,
       template_id: input.template_id,
@@ -126,7 +132,13 @@ async function saveChecklist(
   for (const v of input.values) {
     if (!isChecklistFieldType(v.field_type)) continue;
     let attachmentId: string | null = null;
-    if (v.field_type === "photo" && v.photo_data_url) {
+    if (v.field_type === "photo" && v.upload_intent_id) {
+      // Sent straight to Storage under this inspection: judged and saved now that it exists.
+      // A photo that will not save never blocks the inspection; it is reported.
+      const saved = await finishAttachment(supabase, v.upload_intent_id, profile.id, { kind: "checklist_instance", targetId: instanceId }, { attachmentKind: "photo" });
+      if (saved.state === "finalised") attachmentId = saved.recordId;
+      else captureError(new Error(saved.code), { where: "checklists:create:photo", farmId });
+    } else if (v.field_type === "photo" && v.photo_data_url) {
       attachmentId = await uploadChecklistPhotoDataUrl(supabase, farmId, instanceId, v.photo_data_url, profile.id);
     }
     rows.push({
