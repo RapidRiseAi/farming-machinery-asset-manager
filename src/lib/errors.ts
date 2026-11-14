@@ -602,6 +602,17 @@ const CODE_KEYS: Record<string, string> = {
   "equipment-review-closed": "errors.equipmentReviewClosed",
   "plan-feature-trips": "errors.planFeatureTrips",
   "plan-feature-maps": "errors.planFeatureMaps",
+  // Capacity and conversion (20261114090300).
+  "equipment-limit-reached": "errors.equipmentLimitReached",
+  "equipment-not-in-agreement": "errors.equipmentNotInAgreement",
+  "equipment-retired": "errors.equipmentRetired",
+  "capacity-needed": "errors.capacityNeeded",
+  "preview-changed": "errors.previewChanged",
+  "equipment-convert-same": "errors.equipmentConvertSame",
+  "equipment-convert-open-driving": "errors.equipmentConvertOpenDriving",
+  "equipment-convert-open-trips": "errors.equipmentConvertOpenTrips",
+  "equipment-convert-tracker-linked": "errors.equipmentConvertTrackerLinked",
+  "preview-bad-quantity": "errors.previewBadQuantity",
 };
 
 /**

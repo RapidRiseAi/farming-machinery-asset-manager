@@ -5521,7 +5521,17 @@
     "equipmentReviewBad": "Choose confirmed or declined.",
     "equipmentReviewClosed": "That review has already been answered.",
     "planFeatureTrips": "Trip scheduling and trip finance are on Professional and Complete. The driving log works on every plan.",
-    "planFeatureMaps": "Maps, routes and location tracking are on Complete."
+    "planFeatureMaps": "Maps, routes and location tracking are on Complete.",
+    "equipmentLimitReached": "Every support equipment space is in use. Add an equipment space on the billing page, or retire equipment first.",
+    "equipmentNotInAgreement": "Your current agreement was set up before support equipment existed. Ask FLEETWISE to move you to the current price list to add equipment.",
+    "equipmentRetired": "This equipment is retired. Restore it first to record new work; restoring needs a free equipment space.",
+    "capacityNeeded": "This change needs a space that is not paid for yet. Add the space on the billing page first, then try again.",
+    "previewChanged": "The numbers changed since you looked. Check the new totals and confirm again.",
+    "equipmentConvertSame": "The asset already has that profile.",
+    "equipmentConvertOpenDriving": "A driving log is open on this vehicle. Finish it before converting.",
+    "equipmentConvertOpenTrips": "This vehicle has planned or running trips. Finish or cancel them before converting.",
+    "equipmentConvertTrackerLinked": "A tracker is linked to this vehicle. Ask FLEETWISE to unlink it before converting.",
+    "previewBadQuantity": "Choose a quantity from 0 to 10 000."
   },
   "billing": {
     "title": "Billing",
@@ -5722,7 +5732,8 @@
     "atMinimum": "Billed at the plan minimum of {n} slots. You can add vehicles up to {n} at no extra cost.",
     "quoteSlotsMinimum": "Your plan is billed for at least five vehicle slots, so the number cannot go below that.",
     "quotePlanNeedsSlots": "That plan needs at least five vehicle slots. Add slots first, then change the plan.",
-    "eftReference": "Use {ref} as the reference. We record the payment on your account, usually within one working day."
+    "eftReference": "Use {ref} as the reference. We record the payment on your account, usually within one working day.",
+    "equipmentLine": "{n} extra support equipment ({included} included)"
   },
   "adminBilling": {
     "title": "Subscriptions",

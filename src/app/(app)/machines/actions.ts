@@ -198,7 +198,7 @@ export async function createMachine(formData: FormData) {
       // Never the raw database message: it is English prose a farmer cannot act on. The
       // ceiling trigger's refusal (a second tab took the last slot after the check above)
       // is the same sentence as the check; anything else not refused on purpose is reported.
-      if (error && /^BILLING: vehicle limit reached/.test(error.message)) redirect("/machines/new?error=vehicle-limit-reached");
+      if (error && /^(BILLING: vehicle limit reached|vehicle-limit-reached)/.test(error.message)) redirect("/machines/new?error=vehicle-limit-reached");
       if (error || !data) redirect(`/machines/new?error=${errorCode(error, "machines:create", "save-failed")}`);
 
       // Optional primary photo captured on the add form (compressed client-side to a

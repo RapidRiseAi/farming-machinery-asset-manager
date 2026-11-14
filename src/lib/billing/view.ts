@@ -341,6 +341,8 @@ export type Estimate =
       subtotalExVatCents: number;
       vatCents: number;
       /** Support equipment in use, included, charged beyond the allowance, and its price. */
+      /** The full spaces' part of gross: the stated period price x spaces billed. */
+      fullCents: number;
       equipmentInUse: number;
       equipmentIncluded: number;
       equipmentCharged: number;
@@ -521,6 +523,7 @@ export function estimateNextCharge({
     vatRateBps: rate,
     subtotalExVatCents: exVatCents(total, rate),
     vatCents: vatOfInclCents(total, rate),
+    fullCents: space * billed,
     equipmentInUse: inUse,
     equipmentIncluded,
     equipmentCharged,

@@ -219,7 +219,7 @@ export default async function BillingPage({
     // Every generation, retired ones too: a farm still on the launch list is priced from
     // its own row (subscriptionPrice), not today's.
     supabase.from("billing_price_versions").select(PRICE_COLUMNS),
-    supabase.from("machines").select("status").eq("farm_id", farmId).is("deleted_at", null),
+    supabase.from("machines").select("status, profile").eq("farm_id", farmId).is("deleted_at", null),
     supabase
       .from("billing_invoices")
       .select(INVOICE_COLUMNS)
@@ -262,7 +262,10 @@ export default async function BillingPage({
   const settings = (settingsData as BillingSettingsRow | null) ?? null;
   const sub = (subData as SubscriptionRow | null) ?? null;
   const prices = (priceData as PriceRow[] | null) ?? [];
-  const statuses = ((machineData as { status: string }[] | null) ?? []).map((m) => m.status);
+  // Full spaces and support equipment are counted apart (20261114090300), as the invoice run does.
+  const machineRows = (machineData as { status: string; profile?: string | null }[] | null) ?? [];
+  const statuses = machineRows.filter((m) => m.profile !== "equipment").map((m) => m.status);
+  const equipmentInUse = machineRows.filter((m) => m.profile === "equipment" && m.status !== "retired" && m.status !== "sold").length;
   const invoices = (invoiceData as InvoiceRow[] | null) ?? [];
   const payments = (paymentData as PaymentRow[] | null) ?? [];
   const attempts = (attemptData as AttemptRow[] | null) ?? [];
@@ -363,6 +366,7 @@ export default async function BillingPage({
     assetCount: unitsBilled,
     vatRegistered,
     subscription: sub,
+    equipmentInUse,
     on: sub?.next_billing_on ?? undefined,
   });
   const next = nextChargeState(sub, estimate);
@@ -1055,8 +1059,20 @@ export default async function BillingPage({
                     {/* The running total BEFORE any deal. It used to read the final total,
                         which was the same number until a discount existed and then quietly
                         stopped being the product of the two lines above it. */}
-                    {rands(estimate.grossInclCents)}
+                    {rands(estimate.fullCents)}
                   </dd>
+                </>
+              ) : null}
+
+              {/* Support equipment beyond the plan's allowance, counted, never labelled per item. */}
+              {estimate.equipmentCents > 0 ? (
+                <>
+                  <dt className="text-sand-600">
+                    {t("billing.equipmentLine", locale)
+                      .replace("{n}", String(estimate.equipmentCharged))
+                      .replace("{included}", String(estimate.equipmentIncluded))}
+                  </dt>
+                  <dd className="tabular-nums text-sand-900 text-right">{rands(estimate.equipmentCents)}</dd>
                 </>
               ) : null}
 

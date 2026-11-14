@@ -5521,7 +5521,17 @@
     "equipmentReviewBad": "Kies bevestig of afgekeur.",
     "equipmentReviewClosed": "Daardie hersiening is reeds beantwoord.",
     "planFeatureTrips": "Riteskedulering en ritfinansies is op Professioneel en Volledig. Die rylogboek werk op elke plan.",
-    "planFeatureMaps": "Kaarte, roetes en liggingnasporing is op Volledig."
+    "planFeatureMaps": "Kaarte, roetes en liggingnasporing is op Volledig.",
+    "equipmentLimitReached": "Elke plek vir ondersteuningstoerusting is in gebruik. Voeg 'n toerustingplek op die faktureringsbladsy by, of stel eers toerusting buite gebruik.",
+    "equipmentNotInAgreement": "Jou huidige ooreenkoms is opgestel voordat ondersteuningstoerusting bestaan het. Vra FLEETWISE om jou na die huidige pryslys te skuif om toerusting by te voeg.",
+    "equipmentRetired": "Hierdie toerusting is buite gebruik gestel. Herstel dit eers om nuwe werk aan te teken; herstel het 'n vrye toerustingplek nodig.",
+    "capacityNeeded": "Hierdie verandering het 'n plek nodig waarvoor nog nie betaal is nie. Voeg eers die plek op die faktureringsbladsy by en probeer dan weer.",
+    "previewChanged": "Die syfers het verander sedert jy gekyk het. Kyk na die nuwe totale en bevestig weer.",
+    "equipmentConvertSame": "Die bate het reeds daardie profiel.",
+    "equipmentConvertOpenDriving": "'n Rylogboek is oop op hierdie voertuig. Voltooi dit voordat jy omskakel.",
+    "equipmentConvertOpenTrips": "Hierdie voertuig het beplande of lopende ritte. Voltooi of kanselleer hulle voordat jy omskakel.",
+    "equipmentConvertTrackerLinked": "'n Spoorder is aan hierdie voertuig gekoppel. Vra FLEETWISE om dit te ontkoppel voordat jy omskakel.",
+    "previewBadQuantity": "Kies 'n hoeveelheid van 0 tot 10 000."
   },
   "billing": {
     "title": "Rekening",
@@ -5722,7 +5732,8 @@
     "atMinimum": "Gefaktureer teen die planminimum van {n} plekke. Jy kan tot {n} voertuie byvoeg sonder ekstra koste.",
     "quoteSlotsMinimum": "Jou plan word vir minstens vyf voertuigplekke gefaktureer, so die getal kan nie laer as dit wees nie.",
     "quotePlanNeedsSlots": "Daardie plan het minstens vyf voertuigplekke nodig. Voeg eers plekke by en verander dan die plan.",
-    "eftReference": "Gebruik {ref} as die verwysing. Ons teken die betaling op jou rekening aan, gewoonlik binne een werksdag."
+    "eftReference": "Gebruik {ref} as die verwysing. Ons teken die betaling op jou rekening aan, gewoonlik binne een werksdag.",
+    "equipmentLine": "{n} ekstra ondersteuningstoerusting ({included} ingesluit)"
   },
   "adminBilling": {
     "title": "Intekeninge",
