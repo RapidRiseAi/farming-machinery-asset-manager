@@ -10,7 +10,10 @@ the BRIEF's section 23 numbers.
 States: **E** existing and verified (by reading code and its tests), **C** existing but needs
 changes, **M** missing, **X** implemented locally, awaiting external verification, **EX**
 excluded from the current offer. Workers update the State column of their own rows when they
-finish; a row's ID never changes.
+finish; a row's ID never changes. "Code today" is the code found at `6e3830a`; **E (A1)** means
+task A1 built it (migrations `20261114090000` to `20261114090300`, see
+`docs/final-dev/REPORT-A1.md`) and it passed locally (unit tests and PGlite); CI on real
+Postgres confirms it on merge. A state in brackets names what another task still owes.
 
 ## 1. Requirements
 
@@ -19,17 +22,17 @@ finish; a row's ID never changes.
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
 | R-001 | Full space R49/R79/R99 monthly | S4, D carried | `src/lib/entitlements.ts` PLAN_PRICING; `billing_price_versions` launch-2026-11 (20261104200000) | E | A1 | Sc1 |
-| R-002 | Annual R490/R790/R990 as explicit annual cents, not derived from monthly | S4, D7 | annual = monthly x `months_charged` 10 (`ANNUAL_MONTHS_CHARGED`, generator in 20261104200000) | C | A1 | Sc1 |
+| R-002 | Annual R490/R790/R990 as explicit annual cents, not derived from monthly | S4, D7 | annual = monthly x `months_charged` 10 (`ANNUAL_MONTHS_CHARGED`, generator in 20261104200000) | E (A1) | A1 | calculator.test.ts, safety.test.ts, billing_subscription.sql (0) |
 | R-003 | Minimum 5 full spaces per customer subscription | S4 | `min_billed_slots` 5; signup, quota and plan quotes | E | A1 | Sc2 |
-| R-004 | Included equipment 2/5/15 once per customer subscription | S4, D2, D22 | none | M | A1 | Sc1, Sc3 |
-| R-005 | Extra equipment R15 monthly, R150 annual | S4, D7 | none | M | A1 | Sc1 |
-| R-006 | Renewal formula F x rate + max(0, E - A) x equipment rate; four monthly fixtures and annual equivalents | S4 | none | M | A1 | Sc1 |
-| R-007 | Purchased full capacity distinct from active full-asset count; retiring frees a space, does not reduce the purchase | S4, D27 | `asset_quota` vs `app.billable_asset_count` (20260910230000) | C | A1 | Sc5 |
-| R-008 | Equipment counted as a quantity (no per-item free/paid label) | S4, D-pricing | none | M | A1 | Sc1, Sc5 |
-| R-009 | Self-service 5 to 200 full spaces; 201+ routed to capacity check and quote; not a combined equipment cap | S4, D39 | signup picker clamps 5..200 (`src/app/(public)/signup/plan-picker.tsx`); server has no ceiling | C | A1 (rule), A2 (signup route) | Sc2 |
-| R-010 | One plan across a customer's sites; capacity, allowance, storage and budget pooled once; no grouping inferred from email | S4, D2, D22 | `farms.billed_through` main-site grouping (20261107150000) | C | A1 (equipment), A3 (storage, budget) | Sc3 |
-| R-011 | Lowest-total plan that supplies the needed features is recommended; never auto-switch | S4 | none | M | A1 | Sc1 |
-| R-012 | Money in integer cents; snapshot currency, tax, prices, contract version; issued invoices immutable; old prices pinned | S4 | `billing_freeze_invoice`, `billing_freeze_price_version`, `billing_price_for_subscription` | E | A1 (new version), A2 | Sc11 |
+| R-004 | Included equipment 2/5/15 once per customer subscription | S4, D2, D22 | none | E (A1) | A1 | asset_capacity.sql [1] [3], calculator.test.ts |
+| R-005 | Extra equipment R15 monthly, R150 annual | S4, D7 | none | E (A1) | A1 | asset_capacity.sql [1], calculator.test.ts |
+| R-006 | Renewal formula F x rate + max(0, E - A) x equipment rate; four monthly fixtures and annual equivalents | S4 | none | E (A1) | A1 | Sc1: asset_capacity.sql [1], calculator.test.ts, view.test.ts |
+| R-007 | Purchased full capacity distinct from active full-asset count; retiring frees a space, does not reduce the purchase | S4, D27 | `asset_quota` vs `app.billable_asset_count` (20260910230000) | E (A1) | A1 | Sc5: asset_capacity.sql [5] |
+| R-008 | Equipment counted as a quantity (no per-item free/paid label) | S4, D-pricing | none | E (A1) | A1 | asset_capacity.sql [5], calculator.test.ts |
+| R-009 | Self-service 5 to 200 full spaces; 201+ routed to capacity check and quote; not a combined equipment cap | S4, D39 | signup picker clamps 5..200 (`src/app/(public)/signup/plan-picker.tsx`); server has no ceiling | C (A1 rule done; A2 signup route) | A1 (rule), A2 (signup route) | Sc2: calculator.test.ts signupRoute, asset_capacity.sql [2] |
+| R-010 | One plan across a customer's sites; capacity, allowance, storage and budget pooled once; no grouping inferred from email | S4, D2, D22 | `farms.billed_through` main-site grouping (20261107150000) | C (A1 equipment and full pooled; A3 storage, budget) | A1 (equipment), A3 (storage, budget) | Sc3: asset_capacity.sql [3] |
+| R-011 | Lowest-total plan that supplies the needed features is recommended; never auto-switch | S4 | none | E (A1) | A1 | calculator.test.ts comparePlans; previews list every plan |
+| R-012 | Money in integer cents; snapshot currency, tax, prices, contract version; issued invoices immutable; old prices pinned | S4 | `billing_freeze_invoice`, `billing_freeze_price_version`, `billing_price_for_subscription` | E (A1) | A1 (new version), A2 | billing_subscription.sql (0), asset_capacity.sql [5] |
 | R-013 | Check seller VAT status before touching tax; not VAT registered today | S4 | `billing_settings.vat_registered` false, `app.billing_force_vat_rate` | E | A1 | billing_subscription.sql (h3) |
 | R-014 | Essential/Professional: individually authorised sites; Complete adds consolidated reporting; site switching not gated | S4, S7 | `multi_site` gate on `/sites`; site switcher ungated | E | A1 | Sc18 |
 
@@ -37,35 +40,35 @@ finish; a row's ID never changes.
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-020 | Fleet Assets and Support Equipment views under Assets, one asset identity and history | S5, D-eng | `/machines` list only | M | A1 | Sc9 |
-| R-021 | Physical type, management/billing profile, site and lifecycle status kept separate | S5 | type + status on `machines`; no profile | M | A1 | Sc9 |
-| R-022 | Eligibility by type in one place used by SQL and TS (eligible: pumps, generators, compressors, workshop tools, unpowered attachments, trailers; never: self-propelled vehicles) | S5, D1, D4 | `src/lib/machine-options.ts` types only | M | A1 | Sc9 |
-| R-023 | Equipment entry needs a type and make/model where known; photo and serial optional | S5, D5 | add form (`src/app/(app)/machines/new`) | C | A1 | Sc9 |
-| R-024 | Human-review path for unusual classifications; no automatic billing from a photo | S5, D5 | none | M | A1 | Sc9 |
-| R-025 | Equipment profile capabilities: identification, photo, site/location, hours, reminders, faults, inspections, repair jobs and costs, documents, QR, sale/warranty packs | S5, D3 | all core features ungated | E | A1 | Sc16 |
-| R-026 | Equipment refused on every plan: driver workflow, own trips, tracking, road licensing, fuel-use analysis, TCO, depreciation, loan/lease, budgets, detailed tyres | S5, D3, D33 | none | M | A1 | Sc14 |
-| R-027 | Trailer on the equipment profile may be referenced by a full vehicle's trip without gaining any refused tool | S5, D32 | `trips.trailer_id`, `second_trailer_id` | C | A1 | Sc15 |
-| R-028 | Eligible equipment may take the full profile; vehicles never take the equipment profile | S5, D1, D27 | none | M | A1 | Sc9 |
-| R-029 | Conversion keeps identity, documents, history; previews extra capacity and current/renewal totals; audited | S5, D27 | none | M | A1 (preview, convert), A2 (proration) | Sc9 |
-| R-030 | Retiring equipment stops its extra charge at next renewal; no current-period refund; history kept | S5, D6 | `retired` excluded from `billable_asset_count` | C | A1 (count), A2 (renewal) | Sc5 |
-| R-031 | Restore needs available capacity; no archive/restore cycling to dodge fees or charge twice; no new work on retired equipment | S5, D6 | `returnMachineToService` (out_of_service only); quota trigger | C | A1 | Sc4, Sc5 |
-| R-032 | Transfers within a customer do not consume capacity twice; cross-customer handover explicit | S5 | `move_machine_to_site` (20261107110000) | C | A1 (capacity), A6 (handover audit) | Sc4 |
-| R-033 | Existing assets default to full; no automatic reclassification or repricing; read-only migration preview of candidates | S24 | none | M | A1 | equipment suite |
-| R-034 | Company reports keep equipment maintenance spend as a labelled subtotal; equipment excluded from TCO/fuel/depreciation analytics | S5, D-eng | reports in `src/app/(app)/reports` | C | A1 | Sc16 |
+| R-020 | Fleet Assets and Support Equipment views under Assets, one asset identity and history | S5, D-eng | `/machines` list only | E (A1) | A1 | Sc9; machines list ?view=equipment (not browser-tested) |
+| R-021 | Physical type, management/billing profile, site and lifecycle status kept separate | S5 | type + status on `machines`; no profile | E (A1) | A1 | equipment_profile.sql |
+| R-022 | Eligibility by type in one place used by SQL and TS (eligible: pumps, generators, compressors, workshop tools, unpowered attachments, trailers; never: self-propelled vehicles) | S5, D1, D4 | `src/lib/machine-options.ts` types only | E (A1) | A1 | machine-options.test.ts, equipment_profile.sql |
+| R-023 | Equipment entry needs a type and make/model where known; photo and serial optional | S5, D5 | add form (`src/app/(app)/machines/new`) | E (A1) | A1 | add page ?profile=equipment, csv.test.ts |
+| R-024 | Human-review path for unusual classifications; no automatic billing from a photo | S5, D5 | none | E (A1) | A1 | equipment_profile.sql (review list) |
+| R-025 | Equipment profile capabilities: identification, photo, site/location, hours, reminders, faults, inspections, repair jobs and costs, documents, QR, sale/warranty packs | S5, D3 | all core features ungated | E (A1) | A1 | Sc16: equipment_restrictions.sql |
+| R-026 | Equipment refused on every plan: driver workflow, own trips, tracking, road licensing, fuel-use analysis, TCO, depreciation, loan/lease, budgets, detailed tyres | S5, D3, D33 | none | E (A1) | A1 | Sc14: equipment_restrictions.sql |
+| R-027 | Trailer on the equipment profile may be referenced by a full vehicle's trip without gaining any refused tool | S5, D32 | `trips.trailer_id`, `second_trailer_id` | E (A1) | A1 | Sc15: equipment_restrictions.sql |
+| R-028 | Eligible equipment may take the full profile; vehicles never take the equipment profile | S5, D1, D27 | none | E (A1) | A1 | equipment_profile.sql, asset_capacity.sql [9] |
+| R-029 | Conversion keeps identity, documents, history; previews extra capacity and current/renewal totals; audited | S5, D27 | none | C (A1 preview, conversion, audit; A2 prices the space bought today) | A1 (preview, convert), A2 (proration) | Sc9: asset_capacity.sql [9] |
+| R-030 | Retiring equipment stops its extra charge at next renewal; no current-period refund; history kept | S5, D6 | `retired` excluded from `billable_asset_count` | E (A1) | A1 (count), A2 (renewal) | Sc5: asset_capacity.sql [5] |
+| R-031 | Restore needs available capacity; no archive/restore cycling to dodge fees or charge twice; no new work on retired equipment | S5, D6 | `returnMachineToService` (out_of_service only); quota trigger | E (A1) | A1 | Sc4, Sc5: asset_capacity.sql [4] [5] |
+| R-032 | Transfers within a customer do not consume capacity twice; cross-customer handover explicit | S5 | `move_machine_to_site` (20261107110000) | C (A1 capacity; A6 handover audit) | A1 (capacity), A6 (handover audit) | Sc4: asset_capacity.sql [4] |
+| R-033 | Existing assets default to full; no automatic reclassification or repricing; read-only migration preview of candidates | S24 | none | E (A1) | A1 | equipment_profile.sql, asset_capacity.sql (migration preview) |
+| R-034 | Company reports keep equipment maintenance spend as a labelled subtotal; equipment excluded from TCO/fuel/depreciation analytics | S5, D-eng | reports in `src/app/(app)/reports` | E (A1) | A1 | reports/data.test.ts |
 
 ### Plan and permission enforcement (S6, S7)
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-040 | One central matrix plan x profile x feature in TS mirrored in SQL | S6 | `FEATURE_MIN_PLAN` + `app.feature_min_rank` (0251) | C | A1 | entitlements tests |
-| R-041 | Profile check on every server path: pages, actions, API, RPC, policies, imports, offline sync, exports, jobs, assistant, WhatsApp, partner links, public API | S6, D19 | none for profile | M | A1 (DB rules), B4 (assistant/WhatsApp wording) | Sc14 |
-| R-042 | Essential keeps job costs, parts/labour lines, finance documents, repair records, core tyres and loan/lease for full assets | S6, D33 | `can_view_farm_costs`, `can_view_farm_finance` ungated by plan | E | A1 | Sc16 |
-| R-043 | Budgets, TCO, depreciation on Professional+ for full assets | S6, S7, D33 | `tco` gate (PLAN_FEATURES.md) | C | A1 | Sc16 |
-| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | C | A1 (key), B3 (workflow) | Sc13 |
-| R-045 | Trip scheduling, assignments, trailer reference, delivery evidence, trip finance on Professional and Complete | S8, D16 | trips ungated by plan (`src/app/(app)/trips/actions.ts`) | C | A1 (gate), B3 (workflow) | Sc13 |
-| R-046 | Maps, route planning, reported locations, driving paths on Complete only, plus readiness flag; gate provider calls and writes | S8, D18 | `featureOn("map")` only (`src/lib/routing/access.ts`) | C | A1 (gate), B3 (provider paths) | Sc13 |
-| R-047 | Sale and warranty packs every plan for both profiles; financial section obeys plan/profile/cost permission | S7, D33 | `/api/packs/machine/[id]/sale`, `warranty` (tco on cost section) | C | A1 | Sc16 |
-| R-048 | General chat on every plan (feature key defined here, built by B2) | S14, D20 | none | M | A1 (key), B2 | Sc19 |
+| R-040 | One central matrix plan x profile x feature in TS mirrored in SQL | S6 | `FEATURE_MIN_PLAN` + `app.feature_min_rank` (0251) | E (A1) | A1 | entitlements.test.ts (pinned to 20261114090200) |
+| R-041 | Profile check on every server path: pages, actions, API, RPC, policies, imports, offline sync, exports, jobs, assistant, WhatsApp, partner links, public API | S6, D19 | none for profile | E (A1) at the table; B4 assistant and WhatsApp wording | A1 (DB rules), B4 (assistant/WhatsApp wording) | Sc14: equipment_restrictions.sql |
+| R-042 | Essential keeps job costs, parts/labour lines, finance documents, repair records, core tyres and loan/lease for full assets | S6, D33 | `can_view_farm_costs`, `can_view_farm_finance` ungated by plan | E | A1 | Sc16: equipment_restrictions.sql |
+| R-043 | Budgets, TCO, depreciation on Professional+ for full assets | S6, S7, D33 | `tco` gate (PLAN_FEATURES.md) | E (A1) | A1 | Sc16: equipment_restrictions.sql |
+| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | C (A1 key and equipment refusal; B3 written stops) | A1 (key), B3 (workflow) | equipment_restrictions.sql |
+| R-045 | Trip scheduling, assignments, trailer reference, delivery evidence, trip finance on Professional and Complete | S8, D16 | trips ungated by plan (`src/app/(app)/trips/actions.ts`) | C (A1 plan gate; B3 workflow) | A1 (gate), B3 (workflow) | equipment_restrictions.sql (plan gates) |
+| R-046 | Maps, route planning, reported locations, driving paths on Complete only, plus readiness flag; gate provider calls and writes | S8, D18 | `featureOn("map")` only (`src/lib/routing/access.ts`) | C (A1 plan gate and mapsAvailable; B3 provider paths) | A1 (gate), B3 (provider paths) | equipment_restrictions.sql (plan gates) |
+| R-047 | Sale and warranty packs every plan for both profiles; financial section obeys plan/profile/cost permission | S7, D33 | `/api/packs/machine/[id]/sale`, `warranty` (tco on cost section) | E (A1) | A1 | pack-data machineAllows |
+| R-048 | General chat on every plan (feature key defined here, built by B2) | S14, D20 | none | M (A1 key defined; B2 builds) | A1 (key), B2 | Sc19 |
 | R-049 | Costs not globally hidden on Essential | S6 | cost visibility by role only | E | A1 | Sc16 |
 | R-050 | Resource-site roles authoritative; billing authority grants no operational access | S6 | `app.effective_farm_role`, `is_farm_billing_admin` | E | A6 | Sc18 |
 | R-051 | Downgrade keeps read/export of saved higher-tier records; no new premium computation | S6, D37 | none explicit | M | B3 | Sc17 |
@@ -148,9 +151,9 @@ finish; a row's ID never changes.
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
 | R-120 | Machine import: reading dates, null unknown readings, whole-year validation, counts agree, idempotent repeat | S19 | `src/app/(app)/machines/import/csv.ts` | C | B3 | Sc14 |
-| R-121 | Bulk import applies type validation, profile entitlements and atomic capacity reservation | S19 | slot check before insert + quota trigger | C | A1 | Sc4, Sc14 |
+| R-121 | Bulk import applies type validation, profile entitlements and atomic capacity reservation | S19 | slot check before insert + quota trigger | E (A1) | A1 | csv.test.ts, asset_capacity.sql [4] |
 | R-122 | Repeat-tap gaps: work-request media id, assistant/transcribe/voice ids, activation attempt resume, contractor sync claim, service template uniqueness | S19 | LAUNCH_CHECKLIST "Taps, release 2 follow-ups" | C | B3 | Sc23 |
-| R-123 | Offline envelopes share request ids with online attempts; recheck membership/profile/plan on reconnect | S19 | `/api/sync`, `apply_offline_capture`, `src/lib/offline` | C | B3 (ids), A1 (profile rule in DB) | Sc14 |
+| R-123 | Offline envelopes share request ids with online attempts; recheck membership/profile/plan on reconnect | S19 | `/api/sync`, `apply_offline_capture`, `src/lib/offline` | C (A1 profile rule in the DB; B3 request ids) | B3 (ids), A1 (profile rule in DB) | equipment_restrictions.sql (offline replay) |
 | R-124 | Large exports and accounting summary aggregated in SQL, bounded | S19 | accounting summary sums lines in the page | C | A4 | Sc42 |
 | R-125 | Weekly digest delivery, empty states, assistant suggested actions | S19 | `cron_enqueue_weekly_digest` | C | B3 | review |
 
