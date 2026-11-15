@@ -234,6 +234,11 @@ export async function GET(request: Request) {
   // 6 == Cancellations that have reached their period end.
   await run("close_cancellations", BILLING_RPC.closeCancellations);
 
+  // 6a == The owner's notices (20261115120000): the first day a payment is late (seven days
+  // of grace), and 30, 7 and 1 days before the owner's reading of a stopped account closes.
+  // AFTER suspensions and closures, so a window opened tonight is counted from tonight.
+  await run("lifecycle_notices", BILLING_RPC.lifecycleNotices);
+
   // 7 == Tell the farm, last, once every state above has settled.
   await run("reminders", BILLING_RPC.enqueueReminders);
 

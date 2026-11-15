@@ -136,6 +136,10 @@ export const BILLING_RPC = {
   cancelQuote: "billing_cancel_quote",
   creditBalance: "billing_credit_balance",
   expireQuotes: "cron_expire_billing_quotes",
+  // The lifecycle (20261115120000): where a business stands, for the stopped screens, and the
+  // owner's notices (the first day of grace, before reading closes).
+  lifecycle: "farm_lifecycle",
+  lifecycleNotices: "cron_enqueue_billing_lifecycle_notices",
 } as const;
 
 /** `billing_attempt_kind`. */
@@ -1793,6 +1797,33 @@ export async function cancelQuote(
   return { error: null };
 }
 
+/**
+ * Where a business stands (20261115120000), from the person's own session: active, grace
+ * (a payment late, extras paused), pending, retrieval (stopped; the owner reads and exports
+ * until `retrieval_ends_on`) or closed. `outstanding_cents` is present for the payer only.
+ * Null when it cannot be read: callers decide whether that fails open or closed.
+ */
+export type FarmLifecycle = {
+  state: "active" | "grace" | "pending" | "retrieval" | "closed";
+  gate: BillingGate;
+  reason: "unpaid" | "cancelled" | "rapid_rise" | null;
+  today: string;
+  overdue_since: string | null;
+  grace_ends_on: string | null;
+  paid_through: string | null;
+  ended_on: string | null;
+  retrieval_ends_on: string | null;
+  outstanding_cents?: number;
+};
+
+export async function farmLifecycle(supabase: SupabaseClient, farmId: string): Promise<FarmLifecycle | null> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.lifecycle, { p_farm: farmId });
+  if (error) {
+    captureError(error, { where: "billing:lifecycle", farmId });
+    return null;
+  }
+  return (data as FarmLifecycle | null) ?? null;
+}
 /** The account's credit, in cents. Null when it cannot be read (the page then shows none). */
 export async function creditBalance(supabase: SupabaseClient, subscriptionId: string): Promise<number | null> {
   const { data, error } = await supabase.rpc(BILLING_RPC.creditBalance, { p_sub: subscriptionId });
