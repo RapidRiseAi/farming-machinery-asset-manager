@@ -5558,7 +5558,9 @@
     "billingCapacityQuote": "More than 200 full spaces is arranged with FLEETWISE: we check the capacity and send you a quote. Ask us from the help page.",
     "billingChangeMixed": "Add spaces and give spaces back as two separate changes.",
     "billingGraceNoExtras": "A payment is overdue, so nothing new that costs money can be added. Pay what is owed first; your records are safe and work goes on as usual.",
-    "billingChangeFailed": "The change could not be saved. Nothing was charged. Try again."
+    "billingChangeFailed": "The change could not be saved. Nothing was charged. Try again.",
+    "retrievalOwnerOnly": "Only the owner can download the records while the account is stopped.",
+    "retrievalEnded": "The time to read and export these records has ended. Pay what is owed, or start again, to open them."
   },
   "billing": {
     "title": "Billing",
@@ -5649,8 +5651,8 @@
       "nothingDeleted": "Nothing has been deleted. All your records are exactly where you left them.",
       "pastDueTitle": "A payment did not go through",
       "pastDueBody": "The bank turned down the last payment. Everything still works as normal. We will try again automatically, or you can pay now with a different card.",
-      "graceTitle": "We could not collect payment",
-      "graceBody": "We have tried a few times and the bank has turned each one down. You still have everything for now. Pay when you can and nothing changes at all.",
+      "graceTitle": "A payment is overdue",
+      "graceBody": "{amount} has been owed since {since}. Your team works as usual until {date}, but nothing new that costs money can be added, and paid AI, voice and WhatsApp are paused. If it is still unpaid after {date}, automatic renewal stops and only you can read and export for 90 days.",
       "downgradedTitle": "Your plan has been reduced",
       "downgradedBody": "Because the payments did not go through, the paid features are closed for now. Your vehicles, history and records are all untouched. One successful payment opens everything again.",
       "nonRenewingTitle": "Your plan ends at the end of this period",
@@ -6179,14 +6181,15 @@
     "title": "Your FLEETWISE {{org}} is closed",
     "reason": {
       "cancelled": "You cancelled this subscription, and the period it was paid up to has ended.",
-      "unpaid": "We could not collect payment for this {{org}}, and the time we hold an account open afterwards has passed.",
+      "unpaid": "We could not collect payment for this {{org}}, and the 90 days in which the owner could still read and export have passed.",
       "suspended": "This account has been put on hold by Rapid Rise."
     },
     "since": "Since {date}.",
     "dataSafe": "Nothing has been deleted. Every vehicle, service, job card, fault and cost is still here, and it is still yours.",
     "reopen": "Reopen my {{org}} and pay",
     "download": "Download my records",
-    "help": "Anything else, email {email} and a person will sort it out."
+    "help": "Anything else, email {email} and a person will sort it out.",
+    "payToReopen": "Pay what is owed and open it again"
   },
   "account": {
     "title": "Your account and preferences",
@@ -7408,15 +7411,15 @@
     "previewValue": "{instalment} an instalment · {interest} interest and fees over the term · {rate}% · last due {last}"
   },
   "suspended": {
-    "title": "FLEETWISE is paused for this {{org}}",
-    "lead": "A payment is more than seven days overdue, so the app is paused until it is paid. Everything comes back the moment it is.",
+    "title": "FLEETWISE is stopped for this {{org}}",
+    "lead": "A payment is more than seven days overdue, so automatic renewal has stopped and your team can no longer use the app. Paying what is owed opens everything again.",
     "pay": "Pay now",
     "askOwner": "Ask the {{org}}'s owner or manager to pay, and it will open again for everyone.",
     "eft": "Paying by EFT? Email {email} and we will send our banking details; access opens as soon as the payment is confirmed.",
     "dataSafe": "Nothing has been deleted. Every vehicle, service, job card, fault and cost is still here, and it is still yours.",
     "download": "Download my records",
     "help": "Questions about this, email {email} and a person will help.",
-    "leadMany": "More than one payment is over seven days overdue, so the app is paused until they are all paid. Everything comes back once the last one is.",
+    "leadMany": "More than one payment is over seven days overdue, so automatic renewal has stopped and your team can no longer use the app. Everything opens again once the last one is paid.",
     "owedInvoice": "{amount} is unpaid on invoice {ref}, due since {date}.",
     "moreOverdue": "After this payment, {amount} is still overdue on other invoices, so the {{org}} stays paused until that is paid too.",
     "payAmount": "Pay {amount} now",
@@ -8344,5 +8347,12 @@
     "reviewReason": "What is unusual about it",
     "reviewSend": "Send",
     "convertSpacePrice": "For the payer: buying it now costs {amount} for the days left to your renewal."
+  },
+  "lifecycle": {
+    "ownerUntil": "Until {date}, you, the owner, can read and export everything. Your team can no longer use FLEETWISE, and nothing new can be added.",
+    "ownerOnly": "Only you, the owner, can read and export the records now. Your team can no longer use FLEETWISE.",
+    "staffOwnerOnly": "Only the owner can read and export the records now. Ask them to pay, or to start again, and it opens for everyone.",
+    "readingEndedUnpaid": "Reading and exporting the records ended on {date}. Pay what is owed to open them again.",
+    "readingEndedCancelled": "Reading and exporting the records ended on {date}. Start again to open them."
   }
 }

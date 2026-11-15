@@ -5558,7 +5558,9 @@
     "billingCapacityQuote": "Meer as 200 volle plekke word met FLEETWISE gereël: ons kyk na die kapasiteit en stuur vir jou 'n kwotasie. Vra ons van die hulpbladsy af.",
     "billingChangeMixed": "Voeg plekke by en gee plekke terug as twee aparte veranderinge.",
     "billingGraceNoExtras": "'n Betaling is agterstallig, so niks nuuts wat geld kos, kan bygevoeg word nie. Betaal eers wat verskuldig is; jou rekords is veilig en werk gaan voort soos gewoonlik.",
-    "billingChangeFailed": "Die verandering kon nie gestoor word nie. Niks is gehef nie. Probeer weer."
+    "billingChangeFailed": "Die verandering kon nie gestoor word nie. Niks is gehef nie. Probeer weer.",
+    "retrievalOwnerOnly": "Net die eienaar kan die rekords aflaai terwyl die rekening gestop is.",
+    "retrievalEnded": "Die tyd om hierdie rekords te lees en uit te voer, het verby gegaan. Betaal wat verskuldig is, of begin weer, om hulle oop te maak."
   },
   "billing": {
     "title": "Rekening",
@@ -5649,8 +5651,8 @@
       "nothingDeleted": "Niks is uitgevee nie. Al jou rekords is presies waar jy hulle gelos het.",
       "pastDueTitle": "'n Betaling het nie deurgegaan nie",
       "pastDueBody": "Die bank het die laaste betaling geweier. Alles werk steeds soos normaal. Ons probeer outomaties weer, of jy kan nou met 'n ander kaart betaal.",
-      "graceTitle": "Ons kon nie betaling invorder nie",
-      "graceBody": "Ons het 'n paar keer probeer en die bank het elkeen geweier. Jy het vir eers nog alles. Betaal wanneer jy kan en niks verander nie.",
+      "graceTitle": "'n Betaling is agterstallig",
+      "graceBody": "{amount} is sedert {since} verskuldig. Jou span werk soos gewoonlik tot {date}, maar niks nuuts wat geld kos, kan bygevoeg word nie, en betaalde AI, stem en WhatsApp is gepouseer. As dit ná {date} steeds onbetaald is, stop outomatiese hernuwing en kan net jy vir 90 dae lees en uitvoer.",
       "downgradedTitle": "Jou plan is verminder",
       "downgradedBody": "Omdat die betalings nie deurgegaan het nie, is die betaalde funksies vir eers gesluit. Jou voertuie, geskiedenis en rekords is heeltemal onaangeraak, een suksesvolle betaling maak alles weer oop.",
       "nonRenewingTitle": "Jou plan eindig aan die einde van hierdie tydperk",
@@ -6178,15 +6180,16 @@
   "closed": {
     "title": "Jou FLEETWISE-{{org}} is gesluit",
     "reason": {
-      "cancelled": "Jy het hierdie intekening gekanselleer, en die tydperk waarvoor dit betaal was, is verby.",
-      "unpaid": "Ons kon nie betaling vir hierdie {{org}} invorder nie, en die tyd wat ons 'n rekening daarna oophou, is verby.",
+      "cancelled": "Jy het hierdie intekening gekanselleer, en die tydperk waarvoor dit betaal is, het geëindig.",
+      "unpaid": "Ons kon nie betaling vir hierdie {{org}} invorder nie, en die 90 dae waarin die eienaar nog kon lees en uitvoer, is verby.",
       "suspended": "Hierdie rekening is deur Rapid Rise op hou geplaas."
     },
     "since": "Sedert {date}.",
     "dataSafe": "Niks is uitgevee nie. Elke voertuig, diens, werkkaart, fout en koste is steeds hier, en dit behoort steeds aan jou.",
     "reopen": "Heropen my {{org}} en betaal",
     "download": "Laai my rekords af",
-    "help": "Vir enigiets anders, e-pos {email} en 'n mens sal dit regmaak."
+    "help": "Vir enigiets anders, e-pos {email} en 'n mens sal dit regmaak.",
+    "payToReopen": "Betaal wat verskuldig is en maak dit weer oop"
   },
   "account": {
     "title": "Jou rekening en voorkeure",
@@ -7408,15 +7411,15 @@
     "previewValue": "{instalment} per paaiement · {interest} rente en fooie oor die termyn · {rate}% · laaste betaalbaar {last}"
   },
   "suspended": {
-    "title": "FLEETWISE is vir hierdie {{org}} onderbreek",
-    "lead": "'n Betaling is meer as sewe dae agterstallig, so die toep is onderbreek totdat dit betaal is. Alles is terug sodra dit betaal is.",
+    "title": "FLEETWISE is vir hierdie {{org}} gestop",
+    "lead": "'n Betaling is meer as sewe dae agterstallig, so outomatiese hernuwing het gestop en jou span kan nie meer die toep gebruik nie. As jy betaal wat verskuldig is, gaan alles weer oop.",
     "pay": "Betaal nou",
     "askOwner": "Vra die {{org}} se eienaar of bestuurder om te betaal, dan maak dit weer vir almal oop.",
     "eft": "Betaal jy per EFT? E-pos {email} en ons stuur ons bankbesonderhede; toegang maak oop sodra die betaling bevestig is.",
     "dataSafe": "Niks is uitgevee nie. Elke voertuig, diens, werkkaart, fout en koste is nog hier, en dit is steeds joune.",
     "download": "Laai my rekords af",
     "help": "Vrae hieroor, e-pos {email} en 'n persoon sal help.",
-    "leadMany": "Meer as een betaling is langer as sewe dae agterstallig, so die toep is onderbreek totdat almal betaal is. Alles is terug sodra die laaste een betaal is.",
+    "leadMany": "Meer as een betaling is meer as sewe dae agterstallig, so outomatiese hernuwing het gestop en jou span kan nie meer die toep gebruik nie. Alles gaan weer oop sodra die laaste een betaal is.",
     "owedInvoice": "{amount} is onbetaald op faktuur {ref}, betaalbaar sedert {date}.",
     "moreOverdue": "Ná hierdie betaling is {amount} nog agterstallig op ander fakture, so die {{org}} bly onderbreek totdat dit ook betaal is.",
     "payAmount": "Betaal nou {amount}",
@@ -8344,5 +8347,12 @@
     "reviewReason": "Wat ongewoon daaraan is",
     "reviewSend": "Stuur",
     "convertSpacePrice": "Vir die betaler: om dit nou te koop kos {amount} vir die dae tot jou hernuwing."
+  },
+  "lifecycle": {
+    "ownerUntil": "Tot {date} kan jy, die eienaar, alles lees en uitvoer. Jou span kan nie meer FLEETWISE gebruik nie, en niks nuuts kan bygevoeg word nie.",
+    "ownerOnly": "Net jy, die eienaar, kan nou die rekords lees en uitvoer. Jou span kan nie meer FLEETWISE gebruik nie.",
+    "staffOwnerOnly": "Net die eienaar kan nou die rekords lees en uitvoer. Vra hulle om te betaal, of om weer te begin, en dit gaan vir almal oop.",
+    "readingEndedUnpaid": "Om die rekords te lees en uit te voer, het op {date} geëindig. Betaal wat verskuldig is om hulle weer oop te maak.",
+    "readingEndedCancelled": "Om die rekords te lees en uit te voer, het op {date} geëindig. Begin weer om hulle oop te maak."
   }
 }
