@@ -241,8 +241,8 @@ revoke all on function app.farm_paid_extras_allowed(uuid, date) from public, ano
 grant execute on function app.farm_paid_extras_allowed(uuid, date) to service_role;
 
 -- == A subscription that comes back lifts the pause =========================================
--- Whatever brought it back (a payment, a reopen inside a paid period, Rapid Rise keeping it
--- open), the farm row follows, so the engines that read farms.status start again.
+-- Whatever brought it back (a payment, a reopen, Rapid Rise keeping it open), the farm row
+-- follows, so the engines that read farms.status start again.
 create or replace function app.billing_lift_farm_pause() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
@@ -259,8 +259,11 @@ drop trigger if exists billing_subscriptions_lift_pause on public.billing_subscr
 create trigger billing_subscriptions_lift_pause
   after update of status on public.billing_subscriptions
   for each row
-  when (old.status in ('pending', 'suspended', 'cancelled')
-        and new.status in ('active', 'trialing', 'non_renewing', 'past_due', 'grace'))
+  -- Reopened (cancelled to pending) too: the gate's pending stops every read and write, as for
+  -- a new sign-up, and the invoice run, which serves only active farms, must reach it.
+  when (old.status is distinct from new.status
+        and old.status in ('pending', 'suspended', 'cancelled')
+        and new.status in ('active', 'trialing', 'non_renewing', 'past_due', 'grace', 'pending'))
   execute function app.billing_lift_farm_pause();
 
 -- == Telling the owner =====================================================================
@@ -545,6 +548,7 @@ declare
   v_grace integer;
   v_stage integer;
   v_end date;
+  rs public.billing_subscriptions%rowtype;
 begin
   select coalesce(access_grace_days, 7) into v_grace from public.billing_settings where singleton;
   v_grace := coalesce(v_grace, 7);
@@ -573,7 +577,7 @@ begin
   end loop;
 
   -- Reading is about to close.
-  for r in
+  for rs in
     select s.*
       from public.billing_subscriptions s
       join public.farms f on f.id = s.farm_id
@@ -582,17 +586,17 @@ begin
        and (s.status in ('suspended', 'cancelled') or s.ended_on is not null)
        and app.farm_billing_gate_on(s.farm_id, p_today) in ('suspended', 'closed')
   loop
-    v_end := app.billing_retrieval_ends_on(r);
+    v_end := app.billing_retrieval_ends_on(rs);
     continue when v_end is null or v_end < p_today or v_end - p_today > 30;
     v_stage := case when v_end - p_today <= 1 then 1 when v_end - p_today <= 7 then 7 else 30 end;
     continue when exists (
       select 1 from public.notifications n
-       where n.farm_id = r.farm_id and n.template = 'billing_retrieval_ending'
+       where n.farm_id = rs.farm_id and n.template = 'billing_retrieval_ending'
          and n.payload ->> 'retrieval_ends_on' = v_end::text
          and (n.payload ->> 'stage')::integer <= v_stage);
-    perform app.billing_notify_owners(r.farm_id, 'billing_retrieval_ending', jsonb_build_object(
+    perform app.billing_notify_owners(rs.farm_id, 'billing_retrieval_ending', jsonb_build_object(
       'retrieval_ends_on', v_end, 'stage', v_stage,
-      'reason', case when r.status = 'suspended' then 'unpaid' else 'cancelled' end));
+      'reason', case when rs.status = 'suspended' then 'unpaid' else 'cancelled' end));
     v_n := v_n + 1;
   end loop;
   return v_n;

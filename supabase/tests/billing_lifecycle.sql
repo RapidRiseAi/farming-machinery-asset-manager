@@ -290,11 +290,19 @@ begin
   if pg_temp.try($s$insert into public.machines (farm_id, name, type) values ('a1100000-0000-4000-9000-000000000002', 'New', 'truck')$s$) = 'ok' then
     raise exception 'LIFE FAIL [40]: a record was added in retrieval';
   end if;
+end $t$;
+reset role;
+-- The definer functions' check, asked as the suite owner with the owner's claims (a session
+-- cannot call it directly).
+do $t$
+begin
   if not app.require_open_farm('a1100000-0000-4000-9000-000000000002', false) then
     raise exception 'LIFE FAIL [11]: the owner was refused a read by a definer function';
   end if;
+  if pg_temp.try($s$select app.require_open_farm('a1100000-0000-4000-9000-000000000002', true)$s$) <> 'farm-not-active' then
+    raise exception 'LIFE FAIL [40]: a definer function would let the owner write in retrieval';
+  end if;
 end $t$;
-reset role;
 
 select pg_temp.as_user('a1120000-0000-4000-9000-000000000002');
 set local role authenticated;
@@ -303,11 +311,14 @@ declare v_n integer;
 begin
   select count(*) into v_n from public.machines where farm_id = 'a1100000-0000-4000-9000-000000000002';
   if v_n <> 0 then raise exception 'LIFE FAIL [11]: a manager read a business in retrieval'; end if;
+end $t$;
+reset role;
+do $t$
+begin
   if pg_temp.try($s$select app.require_open_farm('a1100000-0000-4000-9000-000000000002', false)$s$) <> 'farm-not-active' then
     raise exception 'LIFE FAIL [11]: a definer function let a manager read in retrieval';
   end if;
 end $t$;
-reset role;
 
 select pg_temp.as_user('a1120000-0000-4000-9000-000000000004');
 set local role authenticated;
