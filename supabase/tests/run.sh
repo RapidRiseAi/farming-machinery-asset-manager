@@ -280,5 +280,7 @@ echo "==> running mid-period change tests (quote, accept, pay, then the change; 
 pg "$DB" < "$ROOT/supabase/tests/billing_change_quotes.sql"
 echo "==> running subscription lifecycle tests (seven days of grace, 90 days owner-only, closed, coming back)"
 pg "$DB" < "$ROOT/supabase/tests/billing_lifecycle.sql"
+echo "==> running payment integrity tests (one invoice per period and kind, settles in any order)"
+pg "$DB" < "$ROOT/supabase/tests/billing_payment_integrity.sql"
 
 echo "==> OK"
