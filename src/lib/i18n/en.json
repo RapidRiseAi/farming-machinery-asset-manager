@@ -1309,7 +1309,11 @@
     "aiKeyReasonUnreadable": "it can no longer be read and must be linked again",
     "tplJobAssigned": "A work item has been assigned to you. Open it to view the details.",
     "tplBillingSuspended": "FLEETWISE is paused for your {{org}} because a payment is more than seven days overdue. Pay it to carry on; nothing has been deleted.",
-    "tplBillingResumed": "Thank you, your payment is in and FLEETWISE is open again for your {{org}}."
+    "tplBillingResumed": "Thank you, your payment is in and FLEETWISE is open again for your {{org}}.",
+    "tplBillingSuspendedUntil": "A payment is more than seven days overdue, so your team can no longer use FLEETWISE. Until {date} you, the owner, can still read and export everything and pay to open it again. Nothing has been deleted.",
+    "tplBillingGraceStarted": "A payment of {amount} is overdue. Pay it by {date}: work goes on as usual until then, but nothing new that costs money can be added. Nothing is deleted.",
+    "tplBillingAccessEnded": "Your paid period has ended. Your team can no longer use FLEETWISE; until {date} you, the owner, can still read and export everything, or start again.",
+    "tplBillingRetrievalEnding": "Your access to read and export your records ends on {date}. Download anything you need before then."
   },
   "settings": {
     "notSet": "Not set",

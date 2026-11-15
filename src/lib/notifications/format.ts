@@ -245,7 +245,26 @@ export function formatNotification(
       });
     // Seven days' grace, then access stops until paid (20261029090100).
     case "billing_suspended":
-      return t("notifications.tplBillingSuspended", locale);
+      // Since 20261115120000 the notice carries the last day the owner may read and export.
+      return p.retrieval_ends_on
+        ? fill("notifications.tplBillingSuspendedUntil", locale, { date: shortDate(String(p.retrieval_ends_on), locale) })
+        : t("notifications.tplBillingSuspended", locale);
+    // The first day a payment is late: seven days of grace, no new paid extras (decision 41).
+    case "billing_grace_started":
+      return fill("notifications.tplBillingGraceStarted", locale, {
+        amount: rands(Number(p.outstanding_cents ?? 0)),
+        date: p.grace_ends_on ? shortDate(String(p.grace_ends_on), locale) : "",
+      });
+    // A cancelled period ended: the owner's 90 days of reading begin (decision 38).
+    case "billing_access_ended":
+      return fill("notifications.tplBillingAccessEnded", locale, {
+        date: p.retrieval_ends_on ? shortDate(String(p.retrieval_ends_on), locale) : "",
+      });
+    // Before the owner's reading closes, at 30, 7 and 1 days.
+    case "billing_retrieval_ending":
+      return fill("notifications.tplBillingRetrievalEnding", locale, {
+        date: p.retrieval_ends_on ? shortDate(String(p.retrieval_ends_on), locale) : "",
+      });
     case "billing_resumed":
       return t("notifications.tplBillingResumed", locale);
     case "billing_card_expiring":
@@ -455,6 +474,9 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // Every other billing alert is about the same one page, and it is not a machine.
   // A suspended farm cannot open /billing (the app's layout sends it to /suspended).
   if (template === "billing_suspended") return "/suspended";
+  // The owner's reading after an unpaid renewal is on /suspended, after a cancellation on /closed.
+  if (template === "billing_access_ended") return "/closed";
+  if (template === "billing_retrieval_ending") return p.reason === "unpaid" ? "/suspended" : "/closed";
   if (template.startsWith("billing_")) return "/billing";
   // The limit, the usage by person and the linked key all live on one owner page.
   if (template.startsWith("ai_")) return "/settings/ai";
