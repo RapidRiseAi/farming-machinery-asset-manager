@@ -2,7 +2,38 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
-## Task
+## Current task: A2 (billing changes and the subscription lifecycle)
+
+BRIEF 15, 4 (signup range), 16 first paragraph; decisions 25, 26, 27, 38, 39, 41; scenarios
+6, 7, 8, 10, 11, 12, 40. Started 15 Nov 2026 on c75eed6 (A1 and B1 merged).
+
+| # | Step | State |
+|---|---|---|
+| 1 | Additions: quote, accept, pay, then capacity (migration 20261115110000) | in progress |
+| 2 | Plan changes: upgrade now with credit, downgrade at renewal, pending edit/cancel | todo |
+| 3 | Cancellation: period end only for owners, wording, legal flags | todo |
+| 4 | Failed renewal: grace 7 days, then 90 days owner-only retrieval, then closed (20261115120000) | todo |
+| 5 | Reactivation without duplicate charge or replay | todo |
+| 6 | Payment integrity: out-of-order settles, void invoice payments, quote version, uniqueness | todo |
+| 7 | Signup: 5 to 200 full spaces with equipment; 201+ capacity quote request | todo |
+
+Design (decided at the start, keep to it):
+- `billing_change_quotes`: one row per priced change (target plan, period, full spaces, extra
+  equipment spaces), with the basis it was priced on, charge now, credit, next renewal, expiry
+  (30 minutes or the next SAST midnight). Accept recomputes under the subscription lock and
+  refuses `quote-changed` / `quote-expired`. Mode `now` (more spaces, plan up) raises a `change`
+  invoice; capacity rises only when that invoice is PAID (trigger on billing_invoices, every
+  payment path). Mode `renewal` (fewer spaces, plan down, period change) writes the existing
+  pending_* columns. A cheaper upgrade is a credit in `billing_account_credits`, never a
+  negative payment; credit is applied to the next invoice as a payment with provider `credit`.
+- `change` invoices never count towards overdue, are never charged by the nightly run, never
+  dun on decline; unpaid ones are voided at expiry (unless a payment is in flight).
+- Lifecycle keeps `farm_billing_gate`'s four values (ok, pending, suspended, closed): grace is
+  `ok` plus `app.farm_paid_extras_allowed` false; `suspended` and billing `closed` are the 90-day
+  owner-only retrieval (reading limited to the owner in `app.stopped_farm_ids` and
+  `app.require_open_farm`), and past `retrieval_ends_on` nothing is readable.
+
+## A1 (complete)
 
 A1 of `C:\projects\output\fleetwise-final-dev\MASTER-PLAN.md`: requirement register for the
 whole BRIEF, equipment profile model, central entitlements (plan x profile x feature), pricing
