@@ -33,6 +33,18 @@ Design (decided at the start, keep to it):
   owner-only retrieval (reading limited to the owner in `app.stopped_farm_ids` and
   `app.require_open_farm`), and past `retrieval_ends_on` nothing is readable.
 
+Log:
+- Migration `20261115110000_billing_change_quotes.sql` written (SQL side of steps 1 and 2 plus
+  the settle guards of step 6): `app.billing_today` (SAST), `app.farm_payment_late`,
+  `app.billing_change_state` (pricing), quote/accept/apply/cancel/expire, change invoice, credit
+  ledger and spending, payment trigger, `due_billing_charges` and `settle_billing_attempt`
+  restated (no change invoices at night, no dunning on a declined change, a succeeded attempt is
+  final, failure duns once), `apply_pending_plan_changes` marks quotes applied, A1's
+  `asset_capacity_state` now prices `charge_now` (status `quote`). Suite
+  `billing_change_quotes.sql` passes (scenarios 6, 7, 8, 10); 15 mutations all caught.
+- Next: TypeScript side (calculator mirror, service, /billing quote review UI and actions,
+  checkout of a given invoice, cron step, receipts for change invoices, errors and i18n).
+
 ## A1 (complete)
 
 A1 of `C:\projects\output\fleetwise-final-dev\MASTER-PLAN.md`: requirement register for the

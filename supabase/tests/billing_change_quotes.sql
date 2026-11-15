@@ -84,6 +84,14 @@ begin
      v_today - 15, v_today + 14, v_today + 15, extract(day from v_today - 15)::int);
 end $fx$;
 
+-- A stored card on the first, so the nightly run's shortlist could reach its invoices.
+insert into public.billing_payment_methods (id, farm_id, authorization_code, authorization_email,
+  card_brand, last4, exp_month, exp_year, reusable, is_default, status) values
+  ('ac270000-0000-4000-9000-000000000001', 'ac200000-0000-4000-9000-000000000001',
+   'AUTH_' || 'quotesynthetic', 'owner1@quotes.test', 'visa', '4242', '12', '2030', true, true, 'active');
+update public.billing_subscriptions set default_payment_method_id = 'ac270000-0000-4000-9000-000000000001'
+ where id = 'ac260000-0000-4000-9000-000000000001';
+
 -- Five full assets and fifteen pieces of equipment on each of the first three.
 insert into public.machines (farm_id, name, type)
 select f, 'Truck ' || g, 'truck'
@@ -106,7 +114,7 @@ declare
 begin
   -- Half a monthly R15 equipment space is R7.50; half a R99 full space is R49.50.
   v := app.billing_change_state('ac260000-0000-4000-9000-000000000001', null, null, 5, 1, false, v_today);
-  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> 750
+  if v ->> 'kind' is distinct from 'now' or (v #>> '{money,charge_now_cents}')::bigint <> 750
      or (v #>> '{period,days_remaining}')::int <> 15 or (v #>> '{period,days_in_period}')::int <> 30 then
     raise exception 'QUOTES FAIL [6]: one equipment space for half a month is not R7.50: %', v;
   end if;
@@ -130,7 +138,7 @@ begin
 
   -- Annual: the stated R490 a year, for 183 of 365 days, rounded once per space.
   v := app.billing_change_state('ac260000-0000-4000-9000-000000000004', null, null, 9, 0, false, v_today);
-  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> round(49000::numeric * 183 / 365)
+  if v ->> 'kind' is distinct from 'now' or (v #>> '{money,charge_now_cents}')::bigint <> round(49000::numeric * 183 / 365)
      or (v #>> '{period,days_in_period}')::int <> 365 then
     raise exception 'QUOTES FAIL [6]: an annual full space for half a year is wrong: %', v;
   end if;
@@ -171,7 +179,7 @@ begin
   end if;
 
   r := app.billing_accept_quote(q.id, 'ac210000-0000-4000-9000-000000000001', 750, 0, q.next_renewal_cents);
-  if r ->> 'applied' <> 'awaiting_payment' then
+  if r ->> 'applied' is distinct from 'awaiting_payment' then
     raise exception 'QUOTES FAIL [6]: a paid addition did not wait for its payment: %', r;
   end if;
   select * into i from public.billing_invoices where id = (r ->> 'invoice_id')::uuid;
@@ -218,7 +226,7 @@ declare
 begin
   v := app.billing_quote_change('ac260000-0000-4000-9000-000000000002', 'complete', 'monthly', null, null, false,
                                 'ac210000-0000-4000-9000-000000000002');
-  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> 0
+  if v ->> 'kind' is distinct from 'now' or (v #>> '{money,charge_now_cents}')::bigint <> 0
      or (v #>> '{money,credit_now_cents}')::bigint <> 2500
      or (v #>> '{money,current_renewal_cents}')::bigint <> 54500
      or (v #>> '{money,next_renewal_cents}')::bigint <> 49500
@@ -226,7 +234,7 @@ begin
     raise exception 'QUOTES FAIL [7]: Professional to Complete is not a R25 credit, R545 to R495: %', v;
   end if;
   r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000002', 0, 2500, 49500);
-  if r ->> 'applied' <> 'now' then
+  if r ->> 'applied' is distinct from 'now' then
     raise exception 'QUOTES FAIL [7]: the upgrade was not made at once: %', r;
   end if;
   select * into s from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000002';
@@ -261,7 +269,7 @@ begin
   end if;
   r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000002', 750, 0,
                                 (v #>> '{money,next_renewal_cents}')::bigint);
-  if r ->> 'applied' <> 'now' or (r ->> 'outstanding_cents')::bigint <> 0 then
+  if r ->> 'applied' is distinct from 'now' or (r ->> 'outstanding_cents')::bigint <> 0 then
     raise exception 'QUOTES FAIL [7]: a change covered by credit waited for a card: %', r;
   end if;
   if (select equipment_extra_quota from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000002') <> 1
@@ -302,7 +310,7 @@ declare
 begin
   v := app.billing_quote_change('ac260000-0000-4000-9000-000000000003', 'professional', 'monthly', null, null, false,
                                 'ac210000-0000-4000-9000-000000000003');
-  if v ->> 'kind' <> 'renewal' or (v #>> '{money,current_renewal_cents}')::bigint <> 49500
+  if v ->> 'kind' is distinct from 'renewal' or (v #>> '{money,current_renewal_cents}')::bigint <> 49500
      or (v #>> '{money,next_renewal_cents}')::bigint <> 54500
      or (v #>> '{money,charge_now_cents}')::bigint <> 0 or (v #>> '{money,credit_now_cents}')::bigint <> 0
      or (v ->> 'effective_on')::date <> app.billing_today() + 15 then
@@ -311,7 +319,7 @@ begin
   v_first := (v ->> 'quote_id')::uuid;
   r := app.billing_accept_quote(v_first, 'ac210000-0000-4000-9000-000000000003', 0, 0, 54500);
   select * into s from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000003';
-  if r ->> 'applied' <> 'scheduled' or s.plan <> 'complete' or s.pending_plan <> 'professional'
+  if r ->> 'applied' is distinct from 'scheduled' or s.plan <> 'complete' or s.pending_plan <> 'professional'
      or s.pending_plan_on <> app.billing_today() + 15 then
     raise exception 'QUOTES FAIL [8]: the downgrade was not scheduled for the renewal: %, pending %', r, s.pending_plan;
   end if;
@@ -351,7 +359,7 @@ begin
   -- Annual yard: 8 bought, 5 in use (3 plus the 2 filled above).
   v := app.billing_quote_change('ac260000-0000-4000-9000-000000000004', null, null, 6, 0, false,
                                 'ac210000-0000-4000-9000-000000000004');
-  if v ->> 'kind' <> 'renewal' or (v #>> '{money,next_renewal_cents}')::bigint <> 6 * 49000 then
+  if v ->> 'kind' is distinct from 'renewal' or (v #>> '{money,next_renewal_cents}')::bigint <> 6 * 49000 then
     raise exception 'QUOTES FAIL [8]: a reduction is not at renewal for six spaces: %', v;
   end if;
   r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000004', 0, 0, 6 * 49000);
@@ -360,12 +368,12 @@ begin
     raise exception 'QUOTES FAIL [8]: the reduction was not scheduled, or it took effect now';
   end if;
   v := app.billing_change_state('ac260000-0000-4000-9000-000000000004', null, null, 4, 0, false, app.billing_today());
-  if v ->> 'reason' <> 'billing-slots-minimum' then
+  if v ->> 'reason' is distinct from 'billing-slots-minimum' then
     raise exception 'QUOTES FAIL [8]: four spaces were allowed under the minimum of five: %', v ->> 'reason';
   end if;
   insert into public.machines (farm_id, name, type) values ('ac200000-0000-4000-9000-000000000004', 'Sixth bakkie', 'truck');
   v := app.billing_change_state('ac260000-0000-4000-9000-000000000004', null, null, 5, 0, false, app.billing_today());
-  if v ->> 'reason' <> 'billing-quota-below-fleet' then
+  if v ->> 'reason' is distinct from 'billing-quota-below-fleet' then
     raise exception 'QUOTES FAIL [8]: a reduction below the six in use was allowed: %', v ->> 'reason';
   end if;
 end $t$;
@@ -407,6 +415,20 @@ begin
              'ac210000-0000-4000-9000-000000000001', v #>> '{money,charge_now_cents}', v #>> '{money,next_renewal_cents}'));
   update public.billing_subscriptions set asset_quota = 5 where id = 'ac260000-0000-4000-9000-000000000001';
   if v_msg <> 'quote-changed' then raise exception 'QUOTES FAIL [10]: a stale quote was accepted: %', v_msg; end if;
+
+  -- The basis moved without changing the price: one more equipment space bought meanwhile.
+  -- Accepting would have written the old extra back over it.
+  v2 := app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 6, null, false,
+                                 'ac210000-0000-4000-9000-000000000001');
+  update public.billing_subscriptions set equipment_extra_quota = equipment_extra_quota + 1
+   where id = 'ac260000-0000-4000-9000-000000000001';
+  v_msg := pg_temp.try(format('select app.billing_accept_quote(%L, %L, %s, 0, %s)', v2 ->> 'quote_id',
+             'ac210000-0000-4000-9000-000000000001', v2 #>> '{money,charge_now_cents}', v2 #>> '{money,next_renewal_cents}'));
+  update public.billing_subscriptions set equipment_extra_quota = equipment_extra_quota - 1
+   where id = 'ac260000-0000-4000-9000-000000000001';
+  if v_msg <> 'quote-changed' then
+    raise exception 'QUOTES FAIL [10]: a quote was accepted on a basis that had moved: %', v_msg;
+  end if;
 
   -- Only one price is live: quoting again supersedes the open one.
   v2 := app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 6, 1, false,
@@ -497,17 +519,17 @@ begin
     'essential', 'monthly', 6, 4900, 1, 'launch-2026-11-eq', 0);
   update public.billing_invoices set status = 'open' where invoice_ref = 'FW-TEST-LATE-1';
   v := app.billing_change_state('ac260000-0000-4000-9000-000000000005', null, null, 7, 0, false, app.billing_today());
-  if v ->> 'reason' <> 'billing-grace-no-extras' then
+  if v ->> 'reason' is distinct from 'billing-grace-no-extras' then
     raise exception 'QUOTES FAIL [grace]: an extra was sold in the grace: %', v;
   end if;
   v := app.billing_change_state('ac260000-0000-4000-9000-000000000005', null, null, 5, 0, false, app.billing_today());
-  if v ->> 'kind' <> 'renewal' then
+  if v ->> 'kind' is distinct from 'renewal' then
     raise exception 'QUOTES FAIL [grace]: giving a space back was refused in the grace: %', v;
   end if;
 
   -- Above the self-service line: a capacity check and a quote, not an online purchase (decision 39).
   v := app.billing_change_state('ac260000-0000-4000-9000-000000000008', null, null, 201, 0, false, app.billing_today());
-  if v ->> 'reason' <> 'billing-capacity-quote' then
+  if v ->> 'reason' is distinct from 'billing-capacity-quote' then
     raise exception 'QUOTES FAIL [39]: 201 full spaces were sold online: %', v ->> 'reason';
   end if;
 end $t$;
@@ -518,7 +540,7 @@ declare v jsonb; r jsonb;
 begin
   v := app.billing_quote_change('ac260000-0000-4000-9000-000000000006', 'professional', 'monthly', null, null, false,
                                 'ac210000-0000-4000-9000-000000000006');
-  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> round((39500 - 24500)::numeric * 15 / 30) then
+  if v ->> 'kind' is distinct from 'now' or (v #>> '{money,charge_now_cents}')::bigint <> round((39500 - 24500)::numeric * 15 / 30) then
     raise exception 'QUOTES FAIL [pool]: Essential to Professional is not the difference for the days left: %', v #> '{money}';
   end if;
   r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000006',
