@@ -444,7 +444,7 @@ begin
            'ai_interactions', 'ai_reservations', 'ai_usage', 'ai_voice_sessions', 'audit_log',
            'member_qr_receipts', 'notifications', 'push_subscriptions', 'voice_captures',
            -- A person's own direct uploads, written only by the upload functions (20261115090000).
-           'upload_intents')
+           'upload_intents', 'assistant_command_jobs')
      and not exists (select 1 from pg_trigger g join pg_proc p on p.oid = g.tgfoid
                       where g.tgrelid = ('public.' || c.table_name)::regclass and p.proname = 'fence_user_farm');
   if v is not null then raise exception 'tables tying a person to a farm, neither fenced nor exempt: %', v; end if;

@@ -182,6 +182,14 @@ Storage refuse a person's direct writes outside a reserved path, and
 `app.storage_pool_farm_ids` are the hooks task A3 replaces with the pooled allowance.
 `docs/LIMITS.md` explains the flow.
 
+`assistant_command_jobs` (20261115100000) is one spoken command longer than the instant
+hearing: its uploaded recording (an intent of purpose `command_audio` in the service-only
+`command-audio` bucket), status, attempts against a limit, a lease so a vanished runner is
+taken over, the transcript, and when its temporary audio was removed (at once when
+completed or cancelled; after the 72-hour recovery window when failed or unfinished). The
+same migration widens `voice_captures` and `ai_interactions` to 16,000-character spoken
+requests.
+
 ## Bookkeeping of the system itself
 
 `audit_log`, `app.audit_table_rules`, `app.audit_redaction_runs`, `cron_runs` (every

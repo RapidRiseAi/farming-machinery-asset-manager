@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Spoken command jobs, and spoken requests up to 16,000 characters.
+  "20261115100000": "select to_regclass('public.assistant_command_jobs') is not null and to_regprocedure('public.assistant_command_claim(uuid,integer)') is not null",
   // Direct uploads: the intents table, begin and commit, and the command-audio bucket where storage exists.
   "20261115090000": "select to_regclass('public.upload_intents') is not null and to_regprocedure('public.upload_commit(uuid,text,uuid)') is not null and (to_regclass('storage.buckets') is null or exists (select 1 from storage.buckets where id = 'command-audio'))",
   // A site move keeps the asset's profile; equipment keeps only insurance and other papers.
