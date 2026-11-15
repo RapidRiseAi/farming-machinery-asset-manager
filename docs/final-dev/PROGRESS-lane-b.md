@@ -64,14 +64,15 @@ decisions 8 to 13, scenarios 21, 22, 23, 27, 28. Steps, committed one by one:
   retry; maxDuration 300), nightly command_audio_sweep, command-client.ts, assistant client
   (live dictation and offline recording to ten minutes, 30-second warning, long recordings
   heard by the job, done removes the audio), fault voice notes to ten minutes.
-- Step 6 complete: scenario tests listed in docs/final-dev/REPORT-B1.md.
+- Step 6 complete: scenario tests listed in the final report.
 - Step 7 complete (3fe0004): LIMITS.md, DATABASE.md, SECURITY.md section 5e.
 - Final gates at 3fe0004: tsc, 1151 unit tests, dashes, i18n parity and keys, design lint,
   errors, migrate_check --suite (78 suites PASS).
 
 ## TASK B1 COMPLETE
 
-Report: docs/final-dev/REPORT-B1.md.
+Report: the harness refused to write docs/final-dev/REPORT-B1.md, so the full report is the
+worker's final message (the runner saves it).
 
 ## For later tasks
 
