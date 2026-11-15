@@ -53,22 +53,38 @@ decisions 8 to 13, scenarios 21, 22, 23, 27, 28. Steps, committed one by one:
 - Step 4 largely done (5870ccd): src/lib/upload/compress.ts used by UploadField, fault
   capture and checklists. Still to note in LIMITS.md "Photo reduction".
 
-## In progress
+- Step 4 complete (5870ccd): src/lib/upload/compress.ts (2560 px long edge, quality 0.85,
+  keep-original, PDFs untouched, original kept when decode/encode fails or would grow),
+  used everywhere a photo is chosen; LIMITS.md "Photo reduction".
+- Step 5 complete (b188acc .. 4124a9d): migration 20261115100000_command_audio_jobs.sql
+  (assistant_command_jobs, start/claim/cancel/retry/record, command audio sweep, spoken
+  requests to 16,000 characters), suite command_audio_jobs.sql (7 guards mutation-tested),
+  src/lib/assistant/command-transcribe.ts (ledger hold for the whole recording, one call,
+  fallback on failure only), /api/assistant/commands (start, run, status, done, cancel,
+  retry; maxDuration 300), nightly command_audio_sweep, command-client.ts, assistant client
+  (live dictation and offline recording to ten minutes, 30-second warning, long recordings
+  heard by the job, done removes the audio), fault voice notes to ten minutes.
+- Step 6 complete: scenario tests listed in docs/final-dev/REPORT-B1.md.
+- Step 7 complete (3fe0004): LIMITS.md, DATABASE.md, SECURITY.md section 5e.
+- Final gates at 3fe0004: tsc, 1151 unit tests, dashes, i18n parity and keys, design lint,
+  errors, migrate_check --suite (78 suites PASS).
 
-Step 5: long audio (voice notes done in fault capture at 10 minutes; spoken commands next).
+## TASK B1 COMPLETE
 
-## Next
+Report: docs/final-dev/REPORT-B1.md.
 
-Step 5 plan: command audio recorded with an explicit bitrate up to COMMAND_AUDIO_MAX_MS when a
-spoken command passes the instant path's one minute; uploaded as purpose command_audio to
-target assistant_command (bucket command-audio); a durable job table
-assistant_command_jobs (status, attempts, lease, cancel, idempotency = intent id) processed
-by POST /api/assistant/commands/[id]/run within maxDuration 300 (OpenAI transcription
-through the existing AI usage hold with hearingHoldUnits on the recorded length), client
-polls; transcript becomes the voice request (input up to ASSISTANT_SPOKEN_MAX_CHARS,
-16,000; DB checks raised); on completion the audio is deleted; failed or unfinished kept
-COMMAND_AUDIO_RECOVERY_MS (72 h) with "try again", then the nightly sweep removes it.
-Then step 6 (remaining scenario tests), step 7 (docs), REPORT-B1.md.
+## For later tasks
+
+- A3: replace app.storage_quota_bytes(farm) (null = no limit; app.storage_quota_overrides
+  for a hand-set figure) and app.storage_pool_farm_ids(farm) with the pooled customer
+  allowance and paid blocks; app.storage_pool_usage counts finalised pipeline files plus
+  open reservations; files stored before the pipeline are not in it (A3 measures real
+  usage). The reservation lock is per pool (min farm id of the pool).
+- B2: chat attachments use the pipeline: add 'chat_message' to upload_intents target_kind,
+  app.upload_bucket_for and app.upload_target_problem (membership of the conversation),
+  then UploadField with finish "caller".
+- B4: WhatsApp media staging can stage through upload_intents (service-side begin) and the
+  same sniff/verify; the WhatsApp limits stay labelled provider in limits.ts.
 
 ## Known limits of what is built
 
