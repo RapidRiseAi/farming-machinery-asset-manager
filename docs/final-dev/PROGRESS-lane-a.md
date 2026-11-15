@@ -11,10 +11,10 @@ BRIEF 15, 4 (signup range), 16 first paragraph; decisions 25, 26, 27, 38, 39, 41
 |---|---|---|
 | 1 | Additions: quote, accept, pay, then capacity (migration 20261115110000) | done |
 | 2 | Plan changes: upgrade now with credit, downgrade at renewal, pending edit/cancel | done |
-| 3 | Cancellation: period end only for owners, wording, legal flags | in progress |
-| 4 | Failed renewal: grace 7 days, then 90 days owner-only retrieval, then closed (20261115120000) | todo |
-| 5 | Reactivation without duplicate charge or replay | todo |
-| 6 | Payment integrity: out-of-order settles, void invoice payments, quote version, uniqueness | todo |
+| 3 | Cancellation: period end only for owners, wording, legal flags | done |
+| 4 | Failed renewal: grace 7 days, then 90 days owner-only retrieval, then closed (20261115120000) | done |
+| 5 | Reactivation without duplicate charge or replay | in progress (tested in billing_lifecycle.sql) |
+| 6 | Payment integrity: out-of-order settles, void invoice payments, quote version, uniqueness | in progress |
 | 7 | Signup: 5 to 200 full spaces with equipment; 201+ capacity quote request | todo |
 
 Design (decided at the start, keep to it):
