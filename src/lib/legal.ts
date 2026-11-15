@@ -19,7 +19,9 @@
  * reading the code rather than the other way round:
  *   · the seven days, the pause and coming back come from `app.farm_billing_gate`,
  *     `billing_settings.access_grace_days` and `app.billing_restore_after_payment`
- *     (20261029090100)
+ *     (20261029090100); the grace without paid extras, the owner's 90 days, cancelling at the
+ *     paid-through date from 20261115120000; changes priced, accepted and paid first, and
+ *     credit from 20261115110000
  *   · "nothing is deleted" and the export come from `/api/farm/export`
  *   · the refund position is the founder's decision of 11 September 2026, already written
  *     up in `docs/BILLING.md` §11b
@@ -38,7 +40,7 @@
  */
 
 /** The wording currently live. Recorded against every sign-up that accepts it. */
-export const TERMS_VERSION = "2026-11-13";
+export const TERMS_VERSION = "2026-11-15";
 
 export const COMPANY = {
   legalName: "Rapid Rise AI (Pty) Ltd",
@@ -89,41 +91,43 @@ export const TERMS: Clause[] = [
     ],
   },
   {
-    heading: "Changing your plan or your vehicle slots",
+    heading: "Changing your plan or your spaces",
     body: [
-      "Moving up a plan, or buying more vehicle slots, happens straight away and you pay the difference for the days left in the period you have already paid for.",
-      "Moving down a plan, or giving slots back, takes effect at the end of the period you have already paid for. We do not refund the unused part of a period.",
-      "You cannot reduce your slots below the number of vehicles you are actually running. Retire or sell a vehicle in FLEETWISE first.",
+      "You see the exact price before anything changes, and nothing changes until you accept it. A price is held for 30 minutes and never past midnight.",
+      "Buying more spaces, or moving to a higher plan, is priced for the days left until your renewal date, at your monthly or yearly price, and takes effect once that amount is paid. Your renewal date does not move. Filling a space you have already paid for, or one your plan includes, costs nothing more.",
+      "If a higher plan costs less for your mix of assets (a plan's included equipment can make it cheaper), the unused difference for the days left is kept as credit on your account and used on your next invoice. It is not paid out as cash.",
+      "Moving to a lower plan, changing between monthly and yearly, or buying fewer full spaces takes effect at your next renewal; until then you keep what you have, and you can cancel the change before it starts. We do not refund the unused part of a period.",
+      "You cannot reduce your full spaces below five, or below the number of assets you are actually using. Retire or sell an asset in FLEETWISE first.",
     ],
   },
   {
     heading: "If a payment fails",
     body: [
-      "If a payment is missed, you have seven days to pay. A card on file is tried again during those days, and we let you know each time.",
-      "If it is still unpaid after seven days, FLEETWISE is paused for your business until it is paid: you can then only pay and download your records. Nothing is deleted while it is paused.",
-      "Paying what is overdue opens it again straight away, and you are not charged for the time it was paused: if what was overdue was the period you are in, that period starts again on the day you pay; if that period was already paid, it is made longer by the days it was paused.",
+      "If a payment is missed, we tell the owner straight away and you have seven days to pay. During those days your team keeps working as normal, but nothing new that costs money can be added, and paid AI help, voice and WhatsApp messages are paused.",
+      "If it is still unpaid after seven days, automatic renewals stop and, for 90 days, only the owner can sign in to read and download the records; your team cannot use FLEETWISE or change anything. We remind the owner before those 90 days end. Nothing is deleted.",
+      "Paying what is owed, at any time, opens it again straight away, and you are not charged for the time it was stopped: if what was owed was the period you were in, a fresh period starts on the day you pay; if that period was already paid, it is made longer by the days it was stopped.",
     ],
   },
   {
     heading: "Cancelling, and coming back",
     body: [
-      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling takes effect at the end of the period you have already paid for, unless you ask for it to be immediate. While FLEETWISE is paused for a missed payment, pay what is overdue first, or ask us to close the account.",
-      "After a cancelled or unpaid account has been closed, you can reopen it yourself from the screen you land on, and pick up where you left off.",
+      "You can cancel at any time from the billing screen, without ringing anybody. Cancelling stops your next renewal; you keep full access until the end of the period you have already paid for.",
+      "After that, for 90 days, the owner can still read and download everything, and your team can no longer use FLEETWISE. We remind the owner before those 90 days end. While FLEETWISE is stopped for a missed payment, pay what is owed first, or ask us to close the account.",
+      "You can start again yourself from the screen you land on, and pick up where you left off.",
     ],
   },
   {
     heading: "Refunds",
     body: [
-      "There is no refund button, on purpose. A refund is arranged with a person: email us and say what happened.",
-      "If you ask for a refund because you no longer want the service, we refund and the subscription ends immediately.",
-      "If we refund you because something on our side went wrong, that is on us, you keep your subscription and it carries on as normal.",
+      "Cancelling does not automatically refund the unused part of a period. There is no refund button: if you believe you are owed money back, email us and say what happened, and a person will look at your request on its own facts.",
+      "If we refund you because something on our side went wrong, that is on us: you keep your subscription and it carries on as normal.",
+      "Nothing in this section takes away a right to cancel, or to a refund, that the Consumer Protection Act or any other law gives you.",
     ],
-  },
-  {
+  },  {
     heading: "Your records stay yours",
     body: [
       "Everything you put into FLEETWISE belongs to you. We do not sell it, and we do not use one customer’s data to do anything for another customer.",
-      "You can download your records as a file at any time, including after your account has been closed. Photos, voice notes and uploaded documents are not in that file, ask us and we will get them to you.",
+      "You can download your records as a file at any time while you use FLEETWISE, and the owner can for 90 days after a cancelled or unpaid account stops. Photos, voice notes and uploaded documents are not in that file, ask us and we will get them to you.",
       "We do not delete a closed account’s records as a matter of routine. If you want them deleted, ask, and we will do it and tell you when it is done.",
     ],
   },
