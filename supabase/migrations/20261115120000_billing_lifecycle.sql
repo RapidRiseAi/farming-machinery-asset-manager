@@ -605,3 +605,54 @@ language sql security definer set search_path = public, pg_temp as $$
 $$;
 revoke all on function public.cron_enqueue_billing_lifecycle_notices() from public, anon, authenticated;
 grant execute on function public.cron_enqueue_billing_lifecycle_notices() to service_role;
+-- == Paid AI, voice and WhatsApp pause (decision 41) ========================================
+-- The service-role wrappers the app calls (20261004100000) ask first. In the grace, the
+-- platform's paid AI and voice are refused with 'billing_paused' (the app says so and the
+-- free paths, typing and the forms, carry on); a business's own OpenAI key is its own money and
+-- still works. In retrieval and after, nothing runs. Rapid Rise's own support use is never the
+-- business's to pay and is left to app.ai_reserve, which records it as internal.
+create or replace function public.ai_reserve(
+  p_farm uuid, p_user uuid, p_feature text, p_model text, p_units jsonb, p_credential text default 'platform'
+) returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not exists (select 1 from public.users u where u.id = p_user and u.role = 'rr_admin') then
+    if app.farm_billing_gate(p_farm) <> 'ok'
+       or (coalesce(p_credential, 'platform') = 'platform'
+           and not app.farm_paid_extras_allowed(p_farm, app.billing_today())) then
+      return jsonb_build_object('ok', false, 'reason', 'billing_paused');
+    end if;
+  end if;
+  return app.ai_reserve(p_farm, p_user, p_feature, p_model, p_units, p_credential);
+end $$;
+
+create or replace function public.ai_open_voice_session(
+  p_farm uuid, p_user uuid, p_max_audio_ms integer, p_max_characters integer, p_client_version text,
+  p_source text default 'meter'
+) returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not exists (select 1 from public.users u where u.id = p_user and u.role = 'rr_admin')
+     and not app.farm_paid_extras_allowed(p_farm, app.billing_today()) then
+    return jsonb_build_object('ok', false, 'reason', 'billing_paused');
+  end if;
+  return app.ai_open_voice_session(p_farm, p_user, p_max_audio_ms, p_max_characters, p_client_version, p_source);
+end $$;
+
+-- WhatsApp: a member is reachable on WhatsApp only while the business is fully paid up. In
+-- the grace that pauses notifications sent there and the assistant behind it; in retrieval the
+-- farm row already stopped it (20261015175415's body otherwise unchanged).
+create or replace function app.whatsapp_member(p_user uuid, p_farm uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from public.users u join public.farms f on f.id = p_farm
+    where u.id=p_user and u.active and u.deleted_at is null
+      and u.role in ('owner','manager','mechanic','operator')
+      and f.deleted_at is null and f.status in ('active','trial')
+      and u.is_test = f.is_test
+      and app.plan_rank(f.plan) >= app.feature_min_rank('whatsapp')
+      and app.farm_paid_extras_allowed(p_farm, app.billing_today())
+      and (exists(select 1 from public.user_farm_memberships m where m.user_id=u.id
+             and m.farm_id=p_farm and m.active and m.deleted_at is null)
+        or (u.farm_id=p_farm and not exists(select 1 from public.user_farm_memberships m
+             where m.user_id=u.id and m.farm_id=p_farm)))
+  );
+$$;
