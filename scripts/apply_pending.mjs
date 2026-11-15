@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Mid-period changes: quotes, account credit, the change invoice kind and the payment trigger.
+  "20261115110000": "select to_regclass('public.billing_change_quotes') is not null and to_regclass('public.billing_account_credits') is not null and to_regprocedure('public.billing_accept_quote(uuid,uuid,bigint,bigint,bigint)') is not null and exists (select 1 from pg_trigger where tgname = 'billing_payments_z_change')",
   // Spoken command jobs, and spoken requests up to 16,000 characters.
   "20261115100000": "select to_regclass('public.assistant_command_jobs') is not null and to_regprocedure('public.assistant_command_claim(uuid,integer)') is not null",
   // Direct uploads: the intents table, begin and commit, and the command-audio bucket where storage exists.

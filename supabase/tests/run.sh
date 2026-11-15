@@ -276,5 +276,7 @@ echo "==> running equipment restriction tests (plan x profile x feature at the t
 pg "$DB" < "$ROOT/supabase/tests/equipment_restrictions.sql"
 echo "==> running asset capacity tests (fixtures, pooling, no overselling, retirement, conversion)"
 pg "$DB" < "$ROOT/supabase/tests/asset_capacity.sql"
+echo "==> running mid-period change tests (quote, accept, pay, then the change; credit; renewal changes)"
+pg "$DB" < "$ROOT/supabase/tests/billing_change_quotes.sql"
 
 echo "==> OK"

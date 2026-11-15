@@ -1393,14 +1393,22 @@ declare
     -- Support equipment capacity and previews (20261114090300). They read the subscription and
     -- its price to count spaces; granted to nobody, reached only through the public previews
     -- and the conversion, which check the caller and strip the money for anyone but the payer.
-    'billing_subscription_for','lock_billing_for','asset_capacity_state','equipment_migration_state'];
+    'billing_subscription_for','lock_billing_for','asset_capacity_state','equipment_migration_state',
+    -- Mid-period changes and account credit (20261115110000). They price, accept, make and
+    -- cancel a change, raise its invoice, spend credit and settle a change payment; granted to
+    -- nobody, reached only through the service-role wrappers below and the billing triggers.
+    'farm_payment_late','billing_change_state','billing_credit_balance','billing_quote_change',
+    'billing_apply_change','billing_apply_credit','billing_invoice_spend_credit',
+    'billing_raise_change_invoice','billing_accept_quote','billing_settle_change_payment',
+    'billing_void_change_invoice','billing_cancel_quote','billing_expire_quotes'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
     'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
     'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices',
-    'cron_generate_ai_usage_invoices','cron_apply_billing_suspensions'];
+    'cron_generate_ai_usage_invoices','cron_apply_billing_suspensions',
+    'cron_expire_billing_quotes'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1432,7 +1440,11 @@ declare
     'admin_extend_billing_access',
     -- Recording or reversing a payment made outside the app (20261029100000).
     'billing_record_manual_payment','billing_reverse_manual_payment',
-    'billing_raise_service_invoice'];
+    'billing_raise_service_invoice',
+    -- Mid-period changes (20261115110000): service role only, the actor passed and checked
+    -- again inside (app.billing_actor_may_change), the discount setter's reasoning.
+    'billing_change_preview','billing_quote_change','billing_accept_quote','billing_cancel_quote',
+    'billing_credit_balance'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.

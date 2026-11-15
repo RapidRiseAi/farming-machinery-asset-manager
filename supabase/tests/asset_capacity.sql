@@ -287,10 +287,13 @@ declare v jsonb; v_text text;
 begin
   -- The preview first: one equipment space would be needed (2 included, 2 in use, none paid)...
   v := public.asset_conversion_preview('ec120000-0000-4000-9000-000000000055', 'equipment');
-  if (v #>> '{needs,equipment_spaces}')::int <> 1 or (v ->> 'fits_now')::boolean or v #>> '{charge_now,status}' <> 'quote_pending' then
+  -- priced today for the days left to the renewal (20261115110000): R15 x days left / days.
+  if (v #>> '{needs,equipment_spaces}')::int <> 1 or (v ->> 'fits_now')::boolean or v #>> '{charge_now,status}' <> 'quote'
+     or (v #>> '{charge_now,cents}')::bigint <> round(1500::numeric * (v #>> '{charge_now,days_remaining}')::int
+                                                       / (v #>> '{charge_now,days_in_period}')::int) then
     raise exception 'CAPACITY FAIL [9]: the preview did not say a space is needed: %', v;
   end if;
-  -- ...so the conversion waits for that space to be bought (task A2 prices it).
+  -- ...so the conversion waits for that space to be bought and paid for (a change quote).
   begin
     perform public.convert_asset_profile('ec120000-0000-4000-9000-000000000055', 'equipment', null);
     raise exception 'CAPACITY FAIL [9]: converted without the capacity it needs';
