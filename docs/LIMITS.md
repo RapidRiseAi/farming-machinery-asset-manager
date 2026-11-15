@@ -187,8 +187,49 @@ their file size is bounded only by Vercel's 4.5 MB request limit; that is far ab
 
 ## Photo reduction
 
-Filled in by step 4.
+One reducer for every photo (`src/lib/upload/compress.ts`, used by the upload control, the
+fault form and checklists), decision 13:
+
+- The long edge goes down to **2560 pixels**, never up, at **JPEG quality 0.85** (never
+  below 0.80). Why: a serial plate filling a tenth of a 12 MP phone photo's width is then
+  about 256 pixels wide, so its characters are twenty-odd pixels tall; the old reduction
+  (1600 pixels at 0.7) left them at about twelve, where stamped digits and hairline cracks
+  blur. A 12 MP photo comes out at roughly 0.6 to 1.2 MB instead of 3 to 6 MB.
+- **"Keep the original photo"** sits beside every photo choice; ticked, the file goes
+  exactly as it is (up to 20 MB). The control says what reduction did ("4032 to 2560
+  pixels wide") or that the photo was sent as it is.
+- The original is also kept, unchanged, when the browser cannot decode it (HEIC on most
+  browsers other than Safari), when encoding fails, or when the reduced file would not be
+  smaller. EXIF orientation is applied while decoding, so the reduced copy is upright.
+- **PDFs and recordings are never altered.** One copy is stored either way: there is no
+  hidden second (original plus reduced) copy using the customer's storage.
+- Tested on the reducer's decisions (long edge, quality floor, keep-original, PDFs
+  untouched, failure falls back to the original). Whether a reduced photo of a real plate
+  is legible is a judgement for a real phone and a real plate (PROGRESS, "To verify").
 
 ## Command audio
 
-Filled in by step 5.
+A spoken command (decision 11) may run to ten minutes:
+
+- **Live dictation** (Azure, in the browser) runs to ten minutes, warns 30 seconds before
+  and stops itself, keeping the transcript. A turn longer than a minute is not re-heard by
+  the instant AI hearing (that route takes one minute of WAV through a function).
+- **A recorded command** (made offline, or any recording longer than a minute) is recorded
+  at 48 kbps (about 3.6 MB for ten minutes), sent straight to Storage as temporary command
+  audio (the service-only `command-audio` bucket) and heard by a durable job
+  (`assistant_command_jobs`): claimed with a lease of six minutes, tried at most three
+  times, taken over when a run vanished, run inside the request the browser makes and
+  polls (one call, at most 240 s of provider time, inside the 300 s function limit). One
+  file, one call: OpenAI takes up to 25 MB in webm, ogg, mp4 and m4a
+  (https://developers.openai.com/api/docs/guides/speech-to-text, read 2026-11-14). Paid
+  hearing is held and settled in the AI usage ledger for the recording's whole length.
+- The transcript comes back as the person's spoken request (up to 16,000 characters); the
+  assistant's confirmation before any change is unchanged. It still proposes one change per
+  turn, so a long request with several changes is confirmed one at a time, never created
+  silently.
+- **After a command completes**, its transcript and the assistant's record of what was
+  confirmed stay; the temporary audio is removed at once. **A failed or unfinished command**
+  keeps its audio for a **72-hour recovery window**, an engineering default and not a
+  contractual term, with "try again"; then the nightly job removes it. A voice note attached
+  to a fault is an attachment and is never removed by this. This is about FLEETWISE's own
+  copy; what a provider keeps is governed by that provider's terms, not promised here.
