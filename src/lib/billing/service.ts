@@ -128,6 +128,14 @@ export const BILLING_RPC = {
   // reach the invoice the visitor is about to pay.
   checkPromoCode: "billing_check_promo_code",
   setSubscriptionDiscount: "billing_set_subscription_discount",
+  // Mid-period changes (20261115110000): priced, accepted, paid, and only then made. All
+  // service-role only; the owner is checked in the action and again in the engine (p_by).
+  changePreview: "billing_change_preview",
+  quoteChange: "billing_quote_change",
+  acceptQuote: "billing_accept_quote",
+  cancelQuote: "billing_cancel_quote",
+  creditBalance: "billing_credit_balance",
+  expireQuotes: "cron_expire_billing_quotes",
 } as const;
 
 /** `billing_attempt_kind`. */
@@ -1636,6 +1644,158 @@ export async function changeSubscriptionPlan(
   });
   if (error) return { result: null, error: { message: redactMessage(error.message), code: error.code } };
   return { result: (data ?? null) as PlanChangeResult | null, error: null };
+}
+
+// == Mid-period changes (20261115110000) ======================================
+
+/** One side of a priced change: what the package is, or becomes. */
+export type ChangeSide = {
+  plan: string;
+  period: string;
+  price_version?: string | null;
+  full: number | null;
+  equipment_extra: number;
+  equipment_included: number;
+  equipment_capacity: number;
+};
+
+/**
+ * What `app.billing_change_state` answers: a change priced on today's basis. `now` is made
+ * once paid (more spaces, a higher plan); `renewal` is scheduled (fewer spaces, a lower plan,
+ * a change of term); `unavailable` carries a reason slug that `errors.ts` translates.
+ */
+export type ChangeState = {
+  kind: "now" | "renewal" | "no_change" | "unavailable";
+  reason: string | null;
+  change: "capacity" | "plan";
+  subscription_id?: string;
+  status?: string;
+  exempt?: boolean;
+  metered?: boolean;
+  today?: string;
+  effective_on?: string | null;
+  from?: ChangeSide;
+  to?: ChangeSide;
+  in_use?: { full: number; equipment: number };
+  period?: {
+    start: string | null;
+    end: string | null;
+    renewal_on: string | null;
+    days_remaining: number;
+    days_in_period: number;
+  };
+  money?: {
+    charge_now_cents: number;
+    credit_now_cents: number;
+    waived_cents: number;
+    unit_full_cents: number;
+    unit_equipment_cents: number;
+    credit_balance_cents: number;
+    pay_now_cents: number;
+    current_renewal_cents: number | null;
+    next_renewal_cents: number | null;
+  };
+  /** Present once a quote has been kept for acceptance. */
+  quote_id?: string;
+  expires_at?: string;
+};
+
+/** A change somebody asked to price. Null keeps the present value. */
+export type ChangeRequest = {
+  subscriptionId: string;
+  plan?: string | null;
+  billingPeriod?: string | null;
+  fullSpaces?: number | null;
+  equipmentExtra?: number | null;
+  /** Move the agreement to today's price list at the same plan. */
+  currentList?: boolean;
+};
+
+function changeArgs(input: ChangeRequest) {
+  return {
+    p_sub: input.subscriptionId,
+    p_plan: input.plan ?? null,
+    p_period: input.billingPeriod ?? null,
+    p_full: input.fullSpaces ?? null,
+    p_equipment_extra: input.equipmentExtra ?? null,
+    p_current_list: input.currentList ?? false,
+  };
+}
+
+/**
+ * Price a change and keep the price for the owner to accept (it expires in 30 minutes, or at
+ * midnight in South Africa). An `unavailable` or `no_change` answer keeps nothing.
+ */
+export async function quoteChange(
+  supabase: SupabaseClient,
+  input: ChangeRequest & { by: string },
+): Promise<{ state: ChangeState | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.quoteChange, { ...changeArgs(input), p_by: input.by });
+  if (error) return { state: null, error: { message: redactMessage(error.message), code: error.code } };
+  return { state: (data as ChangeState | null) ?? null, error: null };
+}
+
+/** What accepting a quote did. */
+export type AcceptResult = {
+  applied: "now" | "scheduled" | "awaiting_payment";
+  quote_id: string;
+  invoice_id?: string | null;
+  charge_cents?: number;
+  credit_cents?: number;
+  outstanding_cents?: number;
+  effective_on?: string | null;
+  repeat?: boolean;
+};
+
+/**
+ * Accept a quote at the amounts shown. The engine prices it again under the subscription
+ * lock and refuses a moved basis (`quote-changed`) or an old price (`quote-expired`); the
+ * refusal's message is the slug.
+ */
+export async function acceptQuote(
+  supabase: SupabaseClient,
+  input: { quoteId: string; by: string; chargeCents: number; creditCents: number; nextRenewalCents: number | null },
+): Promise<{ result: AcceptResult | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.acceptQuote, {
+    p_quote: input.quoteId,
+    p_by: input.by,
+    p_charge_cents: input.chargeCents,
+    p_credit_cents: input.creditCents,
+    p_next_renewal_cents: input.nextRenewalCents,
+  });
+  if (error) return { result: null, error: { message: redactMessage(error.message), code: error.code } };
+  return { result: (data as AcceptResult | null) ?? null, error: null };
+}
+
+/** Cancel a quote, a change waiting for its payment, or a change scheduled for the renewal. */
+export async function cancelQuote(
+  supabase: SupabaseClient,
+  input: { quoteId: string; by: string },
+): Promise<{ error: ServiceError | null }> {
+  const { error } = await supabase.rpc(BILLING_RPC.cancelQuote, { p_quote: input.quoteId, p_by: input.by });
+  if (error) return { error: { message: redactMessage(error.message), code: error.code } };
+  return { error: null };
+}
+
+/**
+ * The engine's refusals are raised with a slug as the message (`quote-changed`, `forbidden`,
+ * `billing-in-flight`). Anything else is a failed save, never shown as it came.
+ */
+const CHANGE_REFUSALS = new Set([
+  "quote-changed",
+  "quote-expired",
+  "quote-not-open",
+  "quote-not-found",
+  "quote-awaiting-payment",
+  "billing-in-flight",
+  "billing-no-subscription",
+  "forbidden",
+]);
+
+export function changeRefusal(error: ServiceError | null): string | null {
+  if (!error) return null;
+  const word = error.message.trim();
+  return CHANGE_REFUSALS.has(word) ? word : null;
 }
 
 /**

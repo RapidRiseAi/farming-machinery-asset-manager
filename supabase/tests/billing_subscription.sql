@@ -1788,7 +1788,20 @@ begin
        'p_invoice uuid, p_amount_cents bigint, p_method text, p_bank_reference text, p_received_on date, p_note text, p_proof_path text, p_by uuid',
        false),
       ('billing_reverse_manual_payment', 'p_payment uuid, p_reason text, p_by uuid', false),
-      ('billing_raise_service_invoice', 'p_farm uuid, p_lines jsonb, p_due_on date, p_by uuid', false)
+      ('billing_raise_service_invoice', 'p_farm uuid, p_lines jsonb, p_due_on date, p_by uuid', false),
+      -- Mid-period changes and account credit (20261115110000), service role only, the actor
+      -- passed and checked again inside.
+      ('billing_change_preview',
+       'p_sub uuid, p_plan farm_plan, p_period billing_period, p_full integer, p_equipment_extra integer, p_current_list boolean',
+       false),
+      ('billing_quote_change',
+       'p_sub uuid, p_plan farm_plan, p_period billing_period, p_full integer, p_equipment_extra integer, p_current_list boolean, p_by uuid',
+       false),
+      ('billing_accept_quote',
+       'p_quote uuid, p_by uuid, p_charge_cents bigint, p_credit_cents bigint, p_next_renewal_cents bigint', false),
+      ('billing_cancel_quote', 'p_quote uuid, p_by uuid', false),
+      ('billing_credit_balance', 'p_sub uuid', false),
+      ('cron_expire_billing_quotes', '', false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
