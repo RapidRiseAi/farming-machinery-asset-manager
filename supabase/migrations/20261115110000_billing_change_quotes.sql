@@ -758,7 +758,13 @@ revoke all on function app.billing_apply_credit(uuid) from public, anon, authent
 create or replace function app.billing_invoice_spend_credit() returns trigger
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if new.subscription_id is not null and app.billing_credit_balance(new.subscription_id) > 0 then
+  -- A going subscription only. A sign-up or a reopened account pays its first invoice itself,
+  -- and starts its period from that payment; its credit waits for the next invoice.
+  if new.subscription_id is not null
+     and exists (select 1 from public.billing_subscriptions s
+                  where s.id = new.subscription_id
+                    and s.status in ('active', 'trialing', 'past_due', 'grace', 'non_renewing'))
+     and app.billing_credit_balance(new.subscription_id) > 0 then
     perform app.billing_apply_credit(new.id);
   end if;
   return null;
@@ -1314,3 +1320,253 @@ end $$;
 revoke execute on function app.settle_billing_attempt(
   uuid, billing_attempt_status, bigint, text, text, text, bigint, text, boolean)
   from public, anon, authenticated;
+-- == Scheduled changes landing at renewal ===================================================
+-- 20261104200000's body, plus: the quote a landed change came from is marked applied, so the
+-- record says when it took effect.
+create or replace function app.apply_pending_plan_changes() returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare s public.billing_subscriptions%rowtype; v_new public.billing_price_versions%rowtype;
+        v_done integer := 0;
+        v_plan_landed boolean;
+        v_quota_landed boolean;
+begin
+  for s in
+    select * from public.billing_subscriptions
+     where deleted_at is null
+       and (
+         (pending_plan is not null and pending_plan_on <= current_date)
+         or (pending_quota is not null and pending_quota_on <= current_date)
+       )
+       and status <> 'cancelled'
+       and ended_on is null
+     for update skip locked
+  loop
+    v_plan_landed := false;
+    v_quota_landed := false;
+    v_new := null;
+    if s.pending_plan is not null and s.pending_plan_on <= current_date then
+      select * into v_new from app.billing_active_price(s.pending_plan, s.pending_billing_period);
+    end if;
+    if s.pending_plan is not null and s.pending_plan_on <= current_date
+       and v_new.id is not null and v_new.per_vehicle_monthly_incl_cents is not null then
+
+      update public.billing_subscriptions
+         set plan                   = s.pending_plan,
+             billing_period         = s.pending_billing_period,
+             price_version_id       = v_new.id,
+             price_version_label    = coalesce(v_new.version_label, price_version_label),
+             pending_plan           = null,
+             pending_billing_period = null,
+             pending_plan_on        = null,
+             pending_plan_set_at    = null,
+             updated_at             = now()
+       where id = s.id;
+
+      if s.plan_before_downgrade is not null then
+        update public.billing_subscriptions
+           set plan_before_downgrade = s.pending_plan where id = s.id;
+      else
+        update public.farms set plan = s.pending_plan where id = s.farm_id;
+        update public.farms set plan = s.pending_plan where billed_through = s.farm_id and deleted_at is null;
+      end if;
+      v_plan_landed := true;
+    end if;
+
+    if s.pending_quota is not null and s.pending_quota_on <= current_date then
+      update public.billing_subscriptions
+         set asset_quota = greatest(s.pending_quota, app.billable_asset_count(s.farm_id)),
+             pending_quota        = null,
+             pending_quota_on     = null,
+             pending_quota_set_at = null,
+             updated_at           = now()
+       where id = s.id;
+      v_quota_landed := true;
+    end if;
+
+    update public.billing_subscriptions su
+       set asset_quota = (app.billing_price_for_subscription(su.id)).min_billed_slots,
+           updated_at  = now()
+     where su.id = s.id
+       and su.asset_quota is not null
+       and su.asset_quota < coalesce((app.billing_price_for_subscription(su.id)).min_billed_slots, 0);
+
+    update public.billing_change_quotes
+       set status = 'applied', applied_at = now(), updated_at = now()
+     where subscription_id = s.id and status = 'scheduled'
+       and ((change = 'plan' and v_plan_landed) or (change = 'capacity' and v_quota_landed));
+
+    v_done := v_done + 1;
+  end loop;
+
+  return v_done;
+end $$;
+
+-- == What a capacity preview costs today =====================================================
+-- A1's app.asset_capacity_state (20261114090300) said 'quote_pending' for a change that needs a
+-- space bought first. It now prices that space with the same function a quote uses: status
+-- 'quote' with the cents, or 'unavailable' with the reason (in grace, metered, above the
+-- self-service line). The change itself is still refused until the space is paid for.
+create or replace function app.asset_capacity_state(p_farm uuid, p_full_delta integer default 0, p_equipment_delta integer default 0)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_root  uuid := app.billing_root(p_farm);
+  v_sub   public.billing_subscriptions%rowtype;
+  v_price public.billing_price_versions%rowtype;
+  v_full_active integer := app.billable_asset_count(v_root);
+  v_eq_active   integer := app.billable_equipment_count(v_root);
+  v_full_after  integer;
+  v_eq_after    integer;
+  v_terms   boolean;
+  v_metered boolean;
+  v_full_cap integer;
+  v_eq_cap   integer;
+  v_need_full integer := 0;
+  v_need_eq   integer := 0;
+  v_f_now  integer;
+  v_f_after integer;
+  v_buy    jsonb;
+begin
+  v_full_after := greatest(v_full_active + coalesce(p_full_delta, 0), 0);
+  v_eq_after   := greatest(v_eq_active + coalesce(p_equipment_delta, 0), 0);
+  select * into v_sub from public.billing_subscriptions where id = app.billing_subscription_for(p_farm);
+  if not found then
+    return jsonb_build_object(
+      'root', v_root, 'subscription_id', null, 'ceiling', false,
+      'full', jsonb_build_object('active', v_full_active, 'after', v_full_after),
+      'equipment', jsonb_build_object('active', v_eq_active, 'after', v_eq_after),
+      'needs', jsonb_build_object('full_spaces', 0, 'equipment_spaces', 0),
+      'fits_now', true, 'blocked', null);
+  end if;
+
+  select * into v_price from app.billing_price_for_subscription(v_sub.id);
+  v_terms   := v_price.id is not null and v_price.equipment_period_incl_cents is not null;
+  v_metered := v_sub.asset_quota is null;
+  v_full_cap := v_sub.asset_quota;
+  v_eq_cap   := case when v_terms then coalesce(v_price.equipment_included, 0) + v_sub.equipment_extra_quota end;
+  if not v_metered then
+    v_need_full := greatest(v_full_after - v_full_cap, 0);
+    if v_terms and coalesce(p_equipment_delta, 0) > 0 then
+      v_need_eq := greatest(v_eq_after - v_eq_cap, 0);
+    end if;
+  end if;
+  v_f_now   := coalesce(v_sub.asset_quota, v_full_active);
+  v_f_after := case when v_metered then v_full_after else v_sub.asset_quota + v_need_full end;
+
+  if v_need_full > 0 or v_need_eq > 0 then
+    v_buy := app.billing_change_state(v_sub.id, null, null,
+               v_sub.asset_quota + v_need_full, v_sub.equipment_extra_quota + v_need_eq, false, app.billing_today());
+  end if;
+
+  return jsonb_build_object(
+    'root', v_root,
+    'subscription_id', v_sub.id,
+    'ceiling', not v_metered,
+    'plan', v_sub.plan,
+    'billing_period', v_sub.billing_period,
+    'price_version', v_price.version_label,
+    'equipment_terms', v_terms,
+    'full', jsonb_build_object(
+      'active', v_full_active, 'after', v_full_after,
+      'purchased', v_sub.asset_quota, 'minimum', coalesce(v_price.min_billed_slots, 0),
+      'free_now', case when v_metered then null else greatest(v_full_cap - v_full_active, 0) end,
+      'next_renewal', coalesce(v_sub.pending_quota, v_sub.asset_quota, v_full_active)),
+    'equipment', jsonb_build_object(
+      'active', v_eq_active, 'after', v_eq_after,
+      'included', coalesce(v_price.equipment_included, 0),
+      'extra_paid', v_sub.equipment_extra_quota,
+      'free_now', case when v_metered or not v_terms then null else greatest(v_eq_cap - v_eq_active, 0) end,
+      'extra_next_renewal', greatest(v_eq_after - coalesce(v_price.equipment_included, 0), 0)),
+    'needs', jsonb_build_object('full_spaces', v_need_full, 'equipment_spaces', v_need_eq),
+    'fits_now', v_need_full = 0 and v_need_eq = 0 and (v_terms or coalesce(p_equipment_delta, 0) <= 0),
+    'blocked', case when not v_terms and coalesce(p_equipment_delta, 0) > 0 then 'equipment-not-in-agreement' end,
+    -- Buying the missing capacity today, pro rata to the renewal date (20261115110000).
+    'charge_now', case
+      when v_need_full = 0 and v_need_eq = 0 then jsonb_build_object('status', 'none', 'cents', 0)
+      when v_buy ->> 'kind' = 'now' then jsonb_build_object(
+        'status', 'quote', 'cents', (v_buy #>> '{money,charge_now_cents}')::bigint,
+        'days_remaining', (v_buy #>> '{period,days_remaining}')::integer,
+        'days_in_period', (v_buy #>> '{period,days_in_period}')::integer)
+      else jsonb_build_object('status', 'unavailable', 'cents', null, 'reason', v_buy ->> 'reason') end,
+    'renewal', jsonb_build_object(
+      'before_cents', app.billing_renewal_cents(v_price, v_f_now, v_eq_active),
+      'after_cents', app.billing_renewal_cents(v_price, v_f_after, v_eq_after)),
+    'plans', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+               'plan', p.plan,
+               'renewal_cents', app.billing_renewal_cents(p, v_f_after, v_eq_after),
+               'current', p.plan = v_sub.plan) order by app.plan_rank(p.plan)), '[]'::jsonb)
+        from public.billing_price_versions p
+       where p.status = 'active' and p.deleted_at is null
+         and p.billing_period = v_sub.billing_period
+         and p.plan in ('essential', 'professional', 'complete')
+         and (p.effective_from is null or p.effective_from <= current_date)
+         and (p.effective_to is null or p.effective_to >= current_date)));
+end
+$$;
+revoke all on function app.asset_capacity_state(uuid, integer, integer) from public, anon, authenticated, service_role;
+
+-- == The wrappers the server calls (service role only) =======================================
+-- The owner check lives in the server action and again in the engine (p_by, checked by
+-- app.billing_actor_may_change). Under the service client auth.uid() is null, so the actor is
+-- passed, as every billing writer here does.
+create or replace function public.billing_change_preview(
+  p_sub uuid, p_plan public.farm_plan, p_period public.billing_period,
+  p_full integer, p_equipment_extra integer, p_current_list boolean default false)
+returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  select app.billing_change_state(p_sub, p_plan, p_period, p_full, p_equipment_extra, p_current_list, app.billing_today());
+$$;
+
+create or replace function public.billing_quote_change(
+  p_sub uuid, p_plan public.farm_plan, p_period public.billing_period,
+  p_full integer, p_equipment_extra integer, p_current_list boolean, p_by uuid)
+returns jsonb
+language sql security definer set search_path = public, pg_temp as $$
+  select app.billing_quote_change(p_sub, p_plan, p_period, p_full, p_equipment_extra, p_current_list, p_by, null);
+$$;
+
+create or replace function public.billing_accept_quote(
+  p_quote uuid, p_by uuid, p_charge_cents bigint, p_credit_cents bigint, p_next_renewal_cents bigint)
+returns jsonb
+language sql security definer set search_path = public, pg_temp as $$
+  select app.billing_accept_quote(p_quote, p_by, p_charge_cents, p_credit_cents, p_next_renewal_cents, null);
+$$;
+
+create or replace function public.billing_cancel_quote(p_quote uuid, p_by uuid)
+returns jsonb
+language sql security definer set search_path = public, pg_temp as $$
+  select app.billing_cancel_quote(p_quote, p_by);
+$$;
+
+create or replace function public.billing_credit_balance(p_sub uuid)
+returns bigint
+language sql stable security definer set search_path = public, pg_temp as $$
+  select app.billing_credit_balance(p_sub);
+$$;
+
+create or replace function public.cron_expire_billing_quotes() returns integer
+language sql security definer set search_path = public, pg_temp as $$
+  select app.billing_expire_quotes();
+$$;
+
+do $do$
+declare f text;
+begin
+  foreach f in array array[
+    'public.billing_change_preview(uuid, public.farm_plan, public.billing_period, integer, integer, boolean)',
+    'public.billing_quote_change(uuid, public.farm_plan, public.billing_period, integer, integer, boolean, uuid)',
+    'public.billing_accept_quote(uuid, uuid, bigint, bigint, bigint)',
+    'public.billing_cancel_quote(uuid, uuid)',
+    'public.billing_credit_balance(uuid)',
+    'public.cron_expire_billing_quotes()'
+  ] loop
+    execute format('revoke all on function %s from public, anon, authenticated', f);
+    execute format('grant execute on function %s to service_role', f);
+  end loop;
+end
+$do$;
