@@ -8,15 +8,17 @@ import { t, type Lang } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
 import { ReportPending } from "@/components/ui/pending-guard";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { UploadField } from "@/components/upload/upload-field";
 
 /**
  * Uploader for work-request quote / invoice / proof attachments. Recording an invoice
  * with an amount also books an `invoice` cost entry server-side (0311 → TCO, no
- * double-count). Posts multipart form data to /api/work/media, then refreshes the
- * server component so the new attachment / status / cost appear.
+ * double-count). The file goes straight to Storage first (UploadField), then the form posts
+ * its upload id and the amount to /api/work/media, which judges the file and saves it once,
+ * then refreshes the server component so the new attachment / status / cost appear.
  */
-export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = ["photo"], amountKinds = [] }: {
-  workRequestId: string; locale?: Lang;
+export function WorkRequestMedia({ workRequestId, farmId, locale = "en", allowedKinds = ["photo"], amountKinds = [] }: {
+  workRequestId: string; farmId: string; locale?: Lang;
   allowedKinds?: ("photo" | "quote" | "invoice")[];
   amountKinds?: ("quote" | "invoice")[];
 }) {
@@ -34,6 +36,8 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
     const fd = new FormData(formEl);
     fd.set("work_request_id", workRequestId);
     fd.set("kind", kind);
+    // A file still on its way would be sent without it: wait for it, or remove it.
+    if (formEl.querySelector("[data-upload-pending]")) { setErr(t("upload.stillSending", locale)); return; }
     setBusy(true);
     setErr(null);
     try {
@@ -93,16 +97,17 @@ export function WorkRequestMedia({ workRequestId, locale = "en", allowedKinds = 
         </div>
       ) : null}
 
-      <label className="text-xs font-medium text-sand-600" htmlFor="wr-media-file">{t("work.file", locale)}</label>
-      <input
-        id="wr-media-file"
-        name="file"
-        type="file"
-        required
+      <UploadField
+        key={kind}
+        locale={locale}
+        label={t("work.file", locale)}
+        accept={kind === "photo" ? "photo" : "document"}
+        capture={kind === "photo"}
+        uploadLabel={kind}
+        finish="caller"
+        scope={`work:${workRequestId}:${kind}`}
+        target={{ kind: "work_request", id: workRequestId, farmId }}
         disabled={busy}
-        accept={kind === "photo" ? "image/*" : "image/*,application/pdf"}
-        capture={kind === "photo" ? "environment" : undefined}
-        className="block w-full text-sm text-sand-600 file:mr-3 file:rounded-lg file:border-0 file:bg-sand-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-sand-700"
       />
 
       {err ? <p role="alert" className="text-sm text-status-overdue">{err}</p> : null}

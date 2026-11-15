@@ -14,12 +14,16 @@ import { whatsappConfig } from "./config";
 
 const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 export type ImageMime = (typeof IMAGE_MIMES)[number];
-/** The fault-photo limit (src/lib/fault-media.ts), so a WhatsApp photo fits where it goes. */
-export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
-/** A three-minute voice note is well under this at WhatsApp's Opus bitrate. */
-export const MAX_VOICE_BYTES = 4 * 1024 * 1024;
-export const MAX_VOICE_MS = 180_000;
-export const MIN_VOICE_MS = 300;
+/**
+ * WhatsApp's media limits, from the catalogue (src/lib/limits.ts), labelled there as
+ * provider restrictions and unchanged until task B4 rechecks them against Meta's docs.
+ */
+export {
+  WHATSAPP_IMAGE_MAX_BYTES as MAX_IMAGE_BYTES,
+  WHATSAPP_VOICE_MAX_BYTES as MAX_VOICE_BYTES,
+  WHATSAPP_VOICE_MAX_MS as MAX_VOICE_MS,
+  WHATSAPP_VOICE_MIN_MS as MIN_VOICE_MS,
+} from "@/lib/limits";
 
 /** Fixed codes only, so a failure can be logged without the file or the sender. */
 export class MediaError extends Error {

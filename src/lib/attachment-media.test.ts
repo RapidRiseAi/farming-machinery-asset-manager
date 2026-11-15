@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { uploadJobCardMedia } from "./jobcard-media";
 import { uploadWorkRequestMedia } from "./workrequest-media";
+import { PHOTO_MAX_BYTES } from "./limits";
 
 type UploadClient = Parameters<typeof uploadJobCardMedia>[0];
 
@@ -86,8 +87,11 @@ for (const [parentType, upload] of [
   test(`${parentType}: missing and oversized files cause no writes`, async () => {
     const m = mockClient();
     assert.equal(await upload(m.client, null, "photo", "farm", "parent", "user"), false);
-    const oversized = new File([new Uint8Array(8 * 1024 * 1024 + 1)], "large.jpg");
+    // One byte over the catalogue's photo limit, and exactly at it (which is accepted).
+    const oversized = new File([new Uint8Array(PHOTO_MAX_BYTES + 1)], "large.jpg", { type: "image/jpeg" });
     assert.equal(await upload(m.client, oversized, "photo", "farm", "parent", "user"), false);
+    const pdfAsImage = new File([new Uint8Array(PHOTO_MAX_BYTES + 1)], "large.pdf", { type: "application/pdf" });
+    assert.equal((await upload(mockClient().client, pdfAsImage, "quote", "farm", "parent", "user")), true);
     assert.deepEqual(m.uploads, []);
     assert.deepEqual(m.attachments, []);
     assert.deepEqual(m.removals, []);

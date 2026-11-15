@@ -11,6 +11,7 @@ import { uploadReceipt } from "@/lib/receipt-media";
 import { runOnce } from "@/lib/request-claim";
 import { errorCode } from "@/lib/action-errors";
 import { captureError } from "@/lib/observability";
+import { commitUpload, verifiedIntentFor } from "@/lib/upload/server";
 
 /**
  * What the partner bought (G6).
@@ -188,6 +189,23 @@ export async function attachReceipt(formData: FormData) {
   if (!id) redirect("/expenses?error=not-found");
 
   const supabase = await createClient();
+  // The current page sent the receipt straight to Storage (the upload pipeline): judge it,
+  // link it, and finish the upload so the nightly sweep leaves it. An older page posts it.
+  const intent = formData.get("upload_intent_id");
+  if (typeof intent === "string" && intent) {
+    const direct = await verifiedIntentFor(intent, profile.id, { kind: "partner_expense", targetId: id });
+    if (direct.state === "refused") redirect(`/expenses?error=${direct.code}`);
+    const { error: linkError } = await supabase
+      .from("partner_expenses")
+      .update({ receipt_path: direct.intent.object_path, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (linkError) redirect(`/expenses?error=${errorCode(linkError, "app/expenses/actions:attachReceipt")}`);
+    const committed = await commitUpload(supabase, direct.svc, direct.intent, { recordId: id });
+    if (committed.state === "refused") redirect(`/expenses?error=${committed.code}`);
+    revalidatePath("/expenses");
+    revalidatePath("/vat");
+    redirect("/expenses?attached=1");
+  }
   const result = await uploadReceipt(supabase, formData.get("receipt"), workshop.id, id);
   if ("error" in result) redirect(`/expenses?error=receipt-${result.error}`);
 

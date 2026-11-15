@@ -35,6 +35,7 @@ import {
   startTrip,
 } from "../actions";
 import { TripRouteCard } from "./route-card";
+import { UploadField } from "@/components/upload/upload-field";
 
 export const dynamic = "force-dynamic";
 
@@ -280,7 +281,16 @@ export default async function TripPage({
                         <Input id={`r_${j.id}`} name="received_by" maxLength={200} />
                       </Field>
                       <Field label={t("trips.photo", locale)} htmlFor={`p_${j.id}`}>
-                        <Input id={`p_${j.id}`} name="photo" type="file" accept="image/*" capture="environment" />
+                        {/* Straight to Storage (reduced unless kept); the form sends its upload id. */}
+                        <UploadField
+                          locale={locale}
+                          accept="photo"
+                          capture
+                          uploadLabel="pod"
+                          finish="caller"
+                          scope={`trip-pod:${j.id}`}
+                          target={{ kind: "trip_job", id: j.id, farmId: trip.farm_id }}
+                        />
                       </Field>
                       <SignaturePad name="signature" clearLabel={t("trips.signatureClear", locale)} hint={t("trips.signatureHint", locale)} />
                       <Field label={t("trips.note", locale)} htmlFor={`n_${j.id}`}>

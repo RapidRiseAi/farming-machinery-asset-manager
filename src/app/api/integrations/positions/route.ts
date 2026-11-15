@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { cleanPoints } from "@/lib/map-data";
 import { createServiceClient } from "@/lib/supabase/service";
+import { TRACKER_BATCH_MAX_BYTES } from "@/lib/limits";
 
 /**
  * Positions from a vehicle tracker, for a phone's screen cannot stay on all day. The same
@@ -17,7 +18,7 @@ import { createServiceClient } from "@/lib/supabase/service";
  * Up to 500 points a request, up to seven days old (a backlog after a dead zone). Kept only
  * while the map is on for the business; the answer says how many were kept. docs/ROUTING.md.
  */
-const MAX_BYTES = 128 * 1024;
+const MAX_BYTES = TRACKER_BATCH_MAX_BYTES;
 
 const bodySchema = z.object({
   machine_id: z.string().trim().min(1).max(200),

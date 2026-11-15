@@ -201,7 +201,9 @@ declare
     -- plumbing
     'claim_request', 'finish_request', 'release_request', 'rate_limit_take', 'consume_assistant_turn',
     -- already refuses through record_public_qr_*
-    'record_member_qr'];
+    'record_member_qr',
+    -- stopping one's own spoken command, which is never paid work (20261115100000)
+    'assistant_command_cancel'];
   r record;
   v_gated integer := 0;
 begin

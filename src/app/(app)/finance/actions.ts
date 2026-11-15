@@ -11,6 +11,8 @@ import { parseRandsToCents } from "@/lib/money";
 import { isIsoDate, isUuid } from "@/lib/ids";
 import { captureError } from "@/lib/observability";
 import { canViewFarmFinance } from "@/lib/asset-finance-read";
+import { maxBytesForMime } from "@/lib/limits";
+import { finishAttachment } from "@/lib/upload/server";
 import {
   DEFAULT_CONTRACT_LEAD_DAYS,
   DEFAULT_INSTALMENT_LEAD_DAYS,
@@ -459,9 +461,8 @@ export async function deleteContract(formData: FormData) {
 
 // == Documents =================================================================
 
-// Below the 10 MB server-action body limit (next.config.mjs) with room for the form around
-// it, so an oversized file gets OUR sentence rather than dying inside the framework.
-const MAX_DOC_BYTES = 8 * 1024 * 1024;
+// The catalogue's limit for the file's type (src/lib/limits.ts). Through a server action the
+// whole request is bounded by Vercel's 4.5 MB first; the upload pipeline takes larger files.
 const DOC_TYPES = /^(image\/(png|jpe?g|webp|heic|heif)|application\/pdf)$/i;
 
 /**
@@ -477,10 +478,20 @@ export async function uploadFinanceDocument(formData: FormData) {
     const parentType = field(formData, "parent_type");
     if (parentType !== "finance_agreement" && parentType !== "asset_contract") bounce(path, "finance-not-found");
     const parentId = id(formData, "parent_id", path);
+    // The current form sent the file straight to Storage (the upload pipeline): judge it and
+    // save it in this person's session, where the finance rules apply, once.
+    const intent = formData.get("upload_intent_id");
+    if (typeof intent === "string" && intent) {
+      const supabase = await createClient();
+      const saved = await finishAttachment(supabase, intent, profile.id, { kind: parentType, targetId: parentId }, { attachmentKind: "doc" });
+      if (saved.state === "refused") bounce(path, saved.code);
+      return done(path, "finance-document");
+    }
+    // An older page posts the file itself, bounded by Vercel's 4.5 MB.
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) bounce(path, "finance-doc-missing");
-    if (file.size > MAX_DOC_BYTES) bounce(path, "finance-doc-too-big");
     if (!DOC_TYPES.test(file.type)) bounce(path, "finance-doc-type");
+    if (file.size > maxBytesForMime(file.type)) bounce(path, "finance-doc-too-big");
 
     const supabase = await createClient();
     const table = parentType === "finance_agreement" ? "finance_agreements" : "asset_contracts";

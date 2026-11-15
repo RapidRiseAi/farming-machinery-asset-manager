@@ -378,7 +378,7 @@ export default async function ExpensesPage({
                                 <input type="hidden" name="expense_id" value={e.id} />
                               </ConfirmDialog>
                             ) : (
-                              <ReceiptUpload expenseId={e.id} locale={locale} compact look="menuItem" />
+                              <ReceiptUpload expenseId={e.id} workshopId={workshop.id} locale={locale} compact look="menuItem" />
                             )}
                             <ConfirmDialog
                               action={deleteExpense}

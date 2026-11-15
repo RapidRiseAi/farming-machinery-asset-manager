@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
+import { API_BODY_MAX_BYTES } from "@/lib/limits";
 
 /**
  * The public API is the deliberate exception to FLEETWISE's usual RLS boundary.
@@ -135,7 +136,7 @@ const TOKEN_PATTERN = /^fwk_[A-Za-z0-9_-]{20,128}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const STATUS_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
-const MAX_BODY_BYTES = 16 * 1024;
+const MAX_BODY_BYTES = API_BODY_MAX_BYTES;
 const DB_TIMEOUT_MS = 10_000;
 
 function apiSignal(signal?: AbortSignal): AbortSignal {

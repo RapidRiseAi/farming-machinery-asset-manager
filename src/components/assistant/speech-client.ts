@@ -2,6 +2,7 @@
 
 import { ClipRecorder } from "./clip-recorder";
 import { clipDurationMs, tokenSession, VOICE_CLIENT_VERSION, VoiceMeter } from "./voice-meter";
+import { RECOGNISE_FILE_MAX_BYTES } from "@/lib/limits";
 
 type SpeechSdk = typeof import("microsoft-cognitiveservices-speech-sdk");
 type AudioConfig = import("microsoft-cognitiveservices-speech-sdk").AudioConfig;
@@ -725,7 +726,7 @@ class AzureBrowserSpeechClient implements SpeechClient {
 
   async recognizeFile(file: File, options: SpeechRecognitionOptions): Promise<string> {
     this.assertActive();
-    if (!(file instanceof File) || file.size === 0 || file.size > 25 * 1024 * 1024) {
+    if (!(file instanceof File) || file.size === 0 || file.size > RECOGNISE_FILE_MAX_BYTES) {
       throw new SpeechClientError("invalid_input");
     }
     if (options.locale !== "af-ZA" && options.locale !== "en-ZA") {

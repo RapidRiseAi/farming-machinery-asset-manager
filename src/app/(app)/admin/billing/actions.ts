@@ -18,6 +18,8 @@ import { isIsoDate, isUuid } from "@/lib/ids";
 import { classifyFailure, errorCode, type DbFailure } from "@/lib/action-errors";
 import { parseRandsToCents } from "@/lib/money";
 import { captureError } from "@/lib/observability";
+import { maxBytesForMime } from "@/lib/limits";
+import { commitUpload, failUpload, verifiedIntentFor } from "@/lib/upload/server";
 import { runOnce } from "@/lib/request-claim";
 
 /**
@@ -402,8 +404,7 @@ export async function adminSetDiscount(formData: FormData): Promise<void> {
   redirect(`/admin/billing?saved=${percentBps == null && fixedCents == null ? "discount-cleared" : "discount"}`);
 }
 
-/** Proof files: a bank confirmation or a slip, small enough for one request (4.5 MB). */
-const PROOF_MAX_BYTES = 4 * 1024 * 1024;
+/** Proof files: a bank confirmation or a slip, the catalogue's limit for its type (src/lib/limits.ts). */
 const PROOF_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 /**
@@ -467,14 +468,28 @@ export async function adminRecordPayment(formData: FormData): Promise<void> {
   const amountCents = randsToCents(randsRaw);
   if (amountCents == null) bounce("billing-amount-unclear", farmId);
   if (amountCents <= 0) bounce("billing-manual-bad", farmId);
-  if (!(proof instanceof File) || proof.size === 0) bounce("billing-manual-proof", farmId);
-  if (proof.size > PROOF_MAX_BYTES) bounce("billing-manual-proof-big", farmId);
-  const ext = PROOF_TYPES[proof.type];
-  if (!ext) bounce("billing-manual-proof-type", farmId);
+  // The current page sent the proof straight to Storage (the upload pipeline, a PDF up to
+  // 50 MB, unchanged): judge it here. An older page posts the file itself.
+  const intentValue = formData.get("upload_intent_id");
+  const direct = typeof intentValue === "string" && intentValue
+    ? await verifiedIntentFor(intentValue, profile.id, { kind: "billing_payment" })
+    : null;
+  if (direct?.state === "refused") bounce(direct.code, farmId);
+  if (direct?.state === "verified" && direct.intent.farm_id !== farmId) bounce("upload-target", farmId);
+  if (!direct) {
+    if (!(proof instanceof File) || proof.size === 0) bounce("billing-manual-proof", farmId);
+    if (!PROOF_TYPES[proof.type]) bounce("billing-manual-proof-type", farmId);
+    if (proof.size > maxBytesForMime(proof.type)) bounce("billing-manual-proof-big", farmId);
+  }
 
   const supabase = createServiceClient();
-  const path = `${farmId}/${invoiceId}/${crypto.randomUUID()}.${ext}`;
-  const stored = await supabase.storage.from("billing-proofs").upload(path, proof, { contentType: proof.type });
+  const legacy = proof instanceof File ? proof : null;
+  const path = direct?.state === "verified"
+    ? direct.intent.object_path
+    : `${farmId}/${invoiceId}/${crypto.randomUUID()}.${PROOF_TYPES[legacy?.type ?? ""]}`;
+  const stored = direct || !legacy
+    ? { error: null }
+    : await supabase.storage.from("billing-proofs").upload(path, legacy, { contentType: legacy.type });
   if (stored.error) {
     // Type and size are checked above, so a storage refusal here is ours (a bucket or a
     // limit out of step), and reported; the admin is told nothing was recorded.
@@ -492,23 +507,37 @@ export async function adminRecordPayment(formData: FormData): Promise<void> {
     p_proof_path: path,
     p_by: profile.id,
   });
+  // A direct upload's path is the same on every retry of this form, so even a refusal
+  // (the same bank reference twice) may be the answer to an earlier attempt that recorded
+  // the payment: its proof is never removed without asking first.
+  const finishProof = async () => {
+    if (direct?.state !== "verified") return;
+    const committed = await commitUpload(await createClient(), direct.svc, direct.intent, { recordId: invoiceId });
+    if (committed.state === "refused") captureError(new Error(committed.code), { where: "admin-billing:manual-proof-commit", farmId });
+  };
   if (error) {
     const refused = !classifyFailure(error).report || error.code === "42501";
-    if (!refused) {
+    if (!refused || direct) {
       const recorded = await proofRecorded(supabase, path, farmId);
-      captureError(error, { where: "admin-billing:manual-payment", farmId, extra: { code: error.code || null, recorded } });
+      if (!refused) captureError(error, { where: "admin-billing:manual-payment", farmId, extra: { code: error.code || null, recorded } });
       if (recorded === "unknown") bounce("try-again", farmId);
       if (recorded === "yes") {
+        await finishProof();
         revalidatePath("/admin/billing");
         redirect(`/admin/billing?farm=${farmId}&saved=payment-recorded`);
       }
     }
-    const removed = await supabase.storage.from("billing-proofs").remove([path]);
-    if (removed.error) captureError(removed.error, { where: "admin-billing:manual-proof-cleanup", farmId });
+    if (direct?.state === "verified") {
+      await failUpload(direct.svc, direct.intent, "refused");
+    } else {
+      const removed = await supabase.storage.from("billing-proofs").remove([path]);
+      if (removed.error) captureError(removed.error, { where: "admin-billing:manual-proof-cleanup", farmId });
+    }
     // The ambiguous case is already reported above, so it is not reported a second time.
     bounce(refused ? failure(error, "admin-billing:manual-payment") : "try-again", farmId);
   }
 
+  await finishProof();
   revalidatePath("/admin/billing");
   redirect(`/admin/billing?farm=${farmId}&saved=payment-recorded`);
 }

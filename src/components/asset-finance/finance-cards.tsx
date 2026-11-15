@@ -38,6 +38,7 @@ import { ActionMenu } from "@/components/ui/action-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Field } from "@/components/ui/field";
+import { UploadField } from "@/components/upload/upload-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -109,12 +110,14 @@ function UploadDialog({
   back,
   parentType,
   parentId,
+  farmId,
   title,
 }: {
   locale: Lang;
   back: string;
   parentType: "finance_agreement" | "asset_contract";
   parentId: string;
+  farmId: string;
   title: string;
 }) {
   const L = (key: string) => t(`assetFinance.${key}`, locale);
@@ -134,9 +137,18 @@ function UploadDialog({
         <input type="hidden" name="parent_type" value={parentType} />
         <input type="hidden" name="parent_id" value={parentId} />
         <DialogFields columns={1}>
-          <Field label={L("fieldFile")} htmlFor={`doc-${parentId}`} hint={L("fieldFileHint")} required>
-            <Input id={`doc-${parentId}`} name="file" type="file" accept="image/*,application/pdf" required />
-          </Field>
+          {/* The file goes straight to Storage (a PDF unchanged, up to 50 MB); the form then
+              sends its upload id, and the action judges it and saves it once. */}
+          <UploadField
+            locale={locale}
+            label={L("fieldFile")}
+            accept="document"
+            uploadLabel="document"
+            finish="caller"
+            scope={`finance-doc:${parentType}:${parentId}`}
+            target={{ kind: parentType, id: parentId, farmId }}
+          />
+          <p className="text-xs text-sand-500">{L("fieldFileHint")}</p>
         </DialogFields>
         <DialogActions cancelLabel={t("common.cancel", locale)}>
           <SubmitButton variant="primary">{L("attachDocument")}</SubmitButton>
@@ -418,7 +430,7 @@ export function AgreementCard({
                 </form>
               </DialogForm>
             ) : null}
-            <UploadDialog locale={locale} back={back} parentType="finance_agreement" parentId={a.id} title={title} />
+            <UploadDialog locale={locale} back={back} parentType="finance_agreement" parentId={a.id} farmId={a.farm_id} title={title} />
             <ConfirmDialog
               triggerLook="menuItem"
               triggerLabel={L("removeAgreement")}
@@ -634,7 +646,7 @@ export function ContractCard({
                 </form>
               </DialogForm>
             ) : null}
-            <UploadDialog locale={locale} back={back} parentType="asset_contract" parentId={c.id} title={title} />
+            <UploadDialog locale={locale} back={back} parentType="asset_contract" parentId={c.id} farmId={c.farm_id} title={title} />
             <ConfirmDialog
               triggerLook="menuItem"
               triggerLabel={L("removeContract")}

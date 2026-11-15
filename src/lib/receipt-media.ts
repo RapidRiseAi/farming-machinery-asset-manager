@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { captureError } from "@/lib/observability";
 import { soft } from "@/lib/supabase/must";
+import { maxBytesForMime } from "@/lib/limits";
 
 /**
  * The supplier's own tax invoice, attached to an expense (G6, bucket from migration 0430).
@@ -21,7 +22,6 @@ import { soft } from "@/lib/supabase/must";
  * reads, so a partner cannot write into another partner's folder even by crafting the rest.
  */
 
-const MAX_FILE = 8 * 1024 * 1024;
 const SIGNED_TTL = 60 * 60;
 
 /** What a supplier hands over: a phone photo, a scan, or a PDF off their system. */
@@ -37,8 +37,8 @@ export async function uploadReceipt(
   expenseId: string,
 ): Promise<ReceiptUpload> {
   if (!(file instanceof File) || file.size === 0) return { error: "no_file" };
-  if (file.size > MAX_FILE) return { error: "too_big" };
   if (!ALLOWED.test(file.type)) return { error: "wrong_type" };
+  if (file.size > maxBytesForMime(file.type)) return { error: "too_big" };
 
   // Keep the extension (so the browser renders a PDF as a PDF) but not the supplier's
   // filename, which is arbitrary user input on a path.

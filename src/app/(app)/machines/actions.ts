@@ -14,6 +14,10 @@ import {
 } from "@/lib/auth";
 import { MACHINE_TYPES, MACHINE_STATUSES, METER_TYPES, isEquipmentEligible } from "@/lib/machine-options";
 import { uploadMachinePhotoDataUrl } from "@/lib/machine-photo";
+import { finishAttachment } from "@/lib/upload/server";
+
+const isUuidLike = (value: string | null): value is string =>
+  !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 import { todayLocal } from "@/lib/format";
 import { readTab, withTab } from "@/components/ui/tabs-url";
 import { validateCsv, MAX_IMPORT_ROWS, type ExistingMachines } from "./import/csv";
@@ -181,6 +185,8 @@ export async function createMachine(formData: FormData) {
       const { data, error } = await supabase
         .from("machines")
         .insert({
+          // The id the add form chose, so a photo already sent under it lands on this vehicle.
+          ...(isUuidLike(str(formData, "new_machine_id")) ? { id: str(formData, "new_machine_id") } : {}),
           farm_id: farmId,
           name,
           type,
@@ -208,16 +214,15 @@ export async function createMachine(formData: FormData) {
       if (error && /^(BILLING: vehicle limit reached|vehicle-limit-reached)/.test(error.message)) redirect(`error=vehicle-limit-reached`);
       if (error || !data) redirect(`error=${errorCode(error, "machines:create", "save-failed")}`);
 
-      // Optional primary photo captured on the add form (compressed client-side to a
-      // base64 data URL). Upload it, then mark it primary. A photo failure never blocks
-      // creation, the machine already exists.
-      const attachmentId = await uploadMachinePhotoDataUrl(
-        supabase,
-        farmId,
-        data.id,
-        str(formData, "primary_photo_data"),
-        profile.id,
-      );
+      // The photo chosen on the add form went straight to Storage under this vehicle's id
+      // (the upload pipeline); it is judged and saved now that the vehicle exists, and marked
+      // primary. An older installed app still sends a small data URL instead. A photo failure
+      // never blocks creation: the vehicle exists, and the photo can be added again.
+      const intent = str(formData, "primary_photo_intent");
+      const attachmentId = intent
+        ? await finishAttachment(supabase, intent, profile.id, { kind: "machine", targetId: data.id }, { attachmentKind: "photo" })
+            .then((r) => (r.state === "finalised" ? r.recordId : (captureError(new Error(r.code), { where: "machines:create:photo", farmId }), null)))
+        : await uploadMachinePhotoDataUrl(supabase, farmId, data.id, str(formData, "primary_photo_data"), profile.id);
       if (attachmentId) {
         const { error: primaryError } = await supabase.from("machines").update({ primary_attachment_id: attachmentId }).eq("id", data.id);
         // Best effort like the upload: the machine exists, so this cannot stop the flow, but we hear of it.

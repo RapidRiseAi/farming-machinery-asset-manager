@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useDirectUpload } from "@/components/upload/use-direct-upload";
 import { t, type Lang } from "@/lib/i18n";
 import { menuItemClass } from "@/components/ui/menu-item";
 import { ReceiptIcon } from "@/components/ui/icons";
@@ -19,26 +21,54 @@ import { attachReceipt } from "@/app/(app)/expenses/actions";
  * The pending flag exists because a phone photo over a farm connection is not instant and
  * an input that looks idle invites a second attempt.
  *
+ * The file goes straight to Storage first (the upload pipeline: a photo reduced, a PDF
+ * unchanged, up to 50 MB), then the form sends its upload id; a refusal comes back as a
+ * sentence on the page and the row is unchanged.
+ *
  * `look="menuItem"` draws it as a row in a row's `ActionMenu`, which is where /expenses
  * keeps it now, beside "Mark paid" and "Remove", instead of as a link in a table cell.
  */
 export function ReceiptUpload({
   expenseId,
+  workshopId,
   locale,
   compact = false,
   look = "link",
 }: {
   expenseId: string;
+  workshopId: string;
   locale: Lang;
   compact?: boolean;
   look?: "link" | "menuItem";
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, setPending] = useState(false);
+  const [intentId, setIntentId] = useState("");
+  const router = useRouter();
+  const upload = useDirectUpload({
+    target: { kind: "partner_expense", id: expenseId, workshopId },
+    label: "receipt",
+    finish: "caller",
+    scope: `receipt:${expenseId}`,
+    onDone: (outcome) => {
+      setIntentId(outcome.intentId);
+      // The hidden field is rendered with the id first, then the form goes.
+      queueMicrotask(() => formRef.current?.requestSubmit());
+    },
+  });
+  const percent = upload.state.total ? Math.round((upload.state.sent / upload.state.total) * 100) : 0;
+  // A refusal is said on the page, in a sentence, and the row is left as it was.
+  const { phase, code } = upload.state;
+  useEffect(() => {
+    if (phase !== "failed" || !code) return;
+    setPending(false);
+    router.push(`/expenses?error=${code}`);
+  }, [phase, code, router]);
 
   return (
     <form ref={formRef} action={attachReceipt} className="flex items-center gap-2">
       <input type="hidden" name="expense_id" value={expenseId} />
+      {intentId ? <input type="hidden" name="upload_intent_id" value={intentId} /> : null}
       <label
         className={
           look === "menuItem"
@@ -48,19 +78,21 @@ export function ReceiptUpload({
       >
         {look === "menuItem" ? <ReceiptIcon className="shrink-0" /> : null}
         {pending
-          ? t("expenses.receiptUploading", locale)
+          ? upload.state.phase === "sending" ? t("upload.sending", locale).replace("{percent}", String(percent)) : t("expenses.receiptUploading", locale)
           : look === "menuItem"
             ? t("expenses.receiptAttachMenu", locale)
             : t("expenses.receiptAttach", locale)}
         <input
           type="file"
-          name="receipt"
           accept="image/*,application/pdf"
           disabled={pending}
           className="sr-only"
-          onChange={() => {
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
             setPending(true);
-            formRef.current?.requestSubmit();
+            void upload.start(file);
           }}
         />
       </label>

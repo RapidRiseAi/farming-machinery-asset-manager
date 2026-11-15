@@ -4,7 +4,9 @@ import { useMemo, useState, useRef } from "react";
 import { Photo } from "@/components/ui/photo";
 import { useRouter } from "next/navigation";
 import { t, type Lang } from "@/lib/i18n";
-import { compressImage, blobToDataUrl } from "@/lib/image-compress";
+import { preparePhoto } from "@/lib/upload/compress";
+import { stableRequestId, uploadFile } from "@/lib/upload/client";
+import { errorMessage } from "@/lib/errors";
 import { ratingMax, isChecklistValueEmpty, type ChecklistFieldType } from "@/lib/checklists";
 import { CloseIcon, PlusIcon, ChevronUpIcon, CheckIcon } from "@/components/ui/icons";
 import { canQueueOffline, isOnline, queueMutation } from "@/lib/offline/capture";
@@ -42,6 +44,7 @@ export type FormTemplate = {
  */
 export function ChecklistForm({
   machineId,
+  farmId,
   meterType,
   currentReading,
   templates,
@@ -49,6 +52,7 @@ export function ChecklistForm({
   locale,
 }: {
   machineId: string;
+  farmId: string;
   meterType: string;
   currentReading: number | null;
   templates: FormTemplate[];
@@ -58,7 +62,11 @@ export function ChecklistForm({
   const router = useRouter();
   const [templateId, setTemplateId] = useState(initialTemplateId ?? templates[0]?.id ?? "");
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [photos, setPhotos] = useState<Record<string, { dataUrl: string; preview: string }>>({});
+  // Each photo goes straight to Storage under this inspection as soon as it is taken (the
+  // upload pipeline): reduced unless kept, checked by the server when the inspection saves.
+  const [photos, setPhotos] = useState<Record<string, { preview: string; intentId: string | null; percent: number; code: string | null }>>({});
+  const [keepOriginal, setKeepOriginal] = useState(false);
+  const instanceId = useRef(crypto.randomUUID());
   const [fieldNotes, setFieldNotes] = useState<Record<string, string>>({});
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [meterReading, setMeterReading] = useState<string>(currentReading != null ? String(currentReading) : "");
@@ -76,10 +84,18 @@ export function ChecklistForm({
   async function onPhoto(fieldId: string, file: File | undefined) {
     if (!file) return;
     try {
-      const blob = await compressImage(file);
-      const dataUrl = await blobToDataUrl(blob);
-      const preview = URL.createObjectURL(blob);
-      setPhotos((cur) => ({ ...cur, [fieldId]: { dataUrl, preview } }));
+      const prepared = await preparePhoto(file, keepOriginal);
+      const preview = URL.createObjectURL(prepared.file);
+      setPhotos((cur) => ({ ...cur, [fieldId]: { preview, intentId: null, percent: 0, code: null } }));
+      const outcome = await uploadFile({
+        file: prepared.file, mime: prepared.mime, mediaClass: "photo", label: "photo", finish: "caller",
+        target: { kind: "checklist_instance", id: instanceId.current, farmId },
+        requestId: await stableRequestId(`checklist:${instanceId.current}:${fieldId}`, file),
+        onProgress: (p) => setPhotos((cur) => cur[fieldId]?.preview === preview
+          ? { ...cur, [fieldId]: { ...cur[fieldId], percent: p.total ? Math.round((p.sent / p.total) * 100) : 0 } } : cur),
+      });
+      setPhotos((cur) => cur[fieldId]?.preview === preview
+        ? { ...cur, [fieldId]: { ...cur[fieldId], intentId: outcome.ok ? outcome.intentId : null, code: outcome.ok ? null : outcome.code } } : cur);
     } catch {
       setError(t("checklists.photoFailed", locale));
     }
@@ -134,8 +150,16 @@ export function ChecklistForm({
       label: f.label,
       value_text: valueText(f),
       notes: fieldNotes[f.id]?.trim() || null,
-      photo_data_url: f.field_type === "photo" ? (photos[f.id]?.dataUrl ?? null) : null,
+      photo_data_url: null,
+      upload_intent_id: f.field_type === "photo" ? (photos[f.id]?.intentId ?? null) : null,
     }));
+    // A photo still on its way, or refused, is said before anything saves.
+    const unsent = fields.find((f) => f.field_type === "photo" && photos[f.id] && !photos[f.id].intentId);
+    if (unsent && isOnline()) {
+      const code = photos[unsent.id]?.code;
+      setError(code ? errorMessage(code, locale) ?? t("checklists.photoFailed", locale) : t("upload.stillSending", locale));
+      return;
+    }
 
     const payload: ChecklistInstanceInput = {
       machine_id: machineId,
@@ -146,6 +170,7 @@ export function ChecklistForm({
       notes: overallNotes.trim() || null,
       values,
       request_id: requestId.current,
+      instance_id: instanceId.current,
     };
 
     // == No signal: keep the inspection ====================================
@@ -160,7 +185,7 @@ export function ChecklistForm({
       return;
     }
     if (status === "completed" && !isOnline() && canQueueOffline()) {
-      const hasPhoto = values.some((v) => v.photo_data_url);
+      const hasPhoto = Object.keys(photos).length > 0;
       try {
         await queueMutation({
           type: "submit_checklist",
@@ -331,6 +356,20 @@ export function ChecklistForm({
                       </button>
                     </span>
                   ) : null}
+                  {photos[field.id] ? (
+                    <p role="status" className="text-xs text-sand-600">
+                      {photos[field.id].code
+                        ? errorMessage(photos[field.id].code, locale)
+                        : photos[field.id].intentId
+                          ? t("upload.done", locale)
+                          : t("upload.sending", locale).replace("{percent}", String(photos[field.id].percent))}
+                    </p>
+                  ) : (
+                    <label className="flex items-center gap-2 text-xs text-sand-600">
+                      <input type="checkbox" checked={keepOriginal} onChange={(e) => setKeepOriginal(e.target.checked)} className="h-4 w-4 rounded border-sand-300" />
+                      {t("upload.keepOriginal", locale)}
+                    </label>
+                  )}
                   <label className="focus-ring inline-flex min-h-[48px] cursor-pointer items-center gap-1.5 rounded-lg border border-sand-300 px-3 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
                     {photos[field.id] ? t("checklists.retakePhoto", locale) : t("checklists.takePhoto", locale)}
                     <input

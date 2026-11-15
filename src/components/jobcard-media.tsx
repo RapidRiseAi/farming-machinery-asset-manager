@@ -8,18 +8,21 @@ import { errorMessage } from "@/lib/errors";
 import { parseRandsToCents } from "@/lib/money";
 import { ReportPending } from "@/components/ui/pending-guard";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { UploadField } from "@/components/upload/upload-field";
 
 /**
  * Uploader for job-card quote / invoice / photo attachments. Recording an invoice with
  * an amount also creates an `invoice` cost entry server-side (FR-8.2, FR-8.4, FR-4.5).
- * Posts multipart form data to /api/jobcards/media, then refreshes the server component
- * so the new attachment / cost appears.
+ * The file goes straight to Storage first (UploadField, the upload pipeline: a photo is
+ * reduced unless the original is kept, a PDF never), then the form posts its upload id and
+ * the invoice details to /api/jobcards/media, which judges the file and records it with
+ * the receipt and cost atomically, then refreshes the server component.
  */
 type MediaKind = "photo" | "quote" | "invoice";
 type PendingMediaCapture = { capture: string; signature: string };
 type MediaDraft = { kind: MediaKind; amount: string; inclVat: boolean; note: string; pending: PendingMediaCapture[] };
-export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds = ["photo"], canRecordAmount = false }: {
-  jobCardId: string; actorId: string; locale?: Lang; allowedKinds?: MediaKind[]; canRecordAmount?: boolean;
+export function JobCardMedia({ jobCardId, farmId, actorId, locale = "en", allowedKinds = ["photo"], canRecordAmount = false }: {
+  jobCardId: string; farmId: string; actorId: string; locale?: Lang; allowedKinds?: MediaKind[]; canRecordAmount?: boolean;
 }) {
   const router = useRouter();
   const [selectedKind, setKind] = useState<MediaKind>(allowedKinds[0] ?? "photo");
@@ -35,6 +38,8 @@ export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds =
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // The upload control is remounted (a fresh upload) after each save and on a kind change.
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     pending.current = [];
@@ -72,28 +77,11 @@ export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds =
     setErr(null);
     setSaved(false);
     try {
-      const file = fd.get("file");
-      if (!(file instanceof File) || file.size === 0) return;
-      // File objects cannot survive a remount. Compare the selected file's bytes
-      // and metadata plus invoice details before recovering an uncertain receipt.
-      const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-      const sha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-      const signature = JSON.stringify({ kind, name: file.name, mime: file.type, size: file.size, sha256,
-        amount: kind === "invoice" && canRecordAmount ? parseRandsToCents(amount) : null,
-        inclVat: kind === "invoice" && canRecordAmount && inclVat,
-        note: kind === "invoice" && canRecordAmount ? note.trim() : "" });
-      let receipt = pending.current.find((entry) => entry.signature === signature);
-      if (!receipt) {
-        receipt = { capture: crypto.randomUUID(), signature };
-        pending.current.push(receipt);
-      }
-      // Save before starting the upload: a lost response or closed dialog must
-      // retain the same capture. Changed files/amounts keep separate receipts.
-      try { localStorage.setItem(draftKey, JSON.stringify({ kind, amount, inclVat, note, pending: pending.current })); }
-      catch { /* Keep the in-memory receipt if device storage is unavailable. */ }
+      // The file is already in Storage; its upload id is the capture, so a repeated save (a
+      // lost answer, a closed dialog) records it once.
+      const captureId = String(fd.get("upload_intent_id") ?? "");
+      if (!captureId) { setErr(t("upload.stillSending", locale)); return; }
       setHasPendingCapture(true);
-      const captureId = receipt.capture;
-      fd.set("capture_id", captureId);
       const res = await fetchWithTimeout("/api/jobcards/media", { method: "POST", body: fd });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -102,7 +90,8 @@ export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds =
       }
       formEl.reset();
       pending.current = pending.current.filter((entry) => entry.capture !== captureId);
-      setHasPendingCapture(pending.current.length > 0);
+      setHasPendingCapture(false);
+      setRound((n) => n + 1);
       setAmount(""); setInclVat(false); setNote("");
       try { localStorage.setItem(draftKey, JSON.stringify({ kind, amount: "", inclVat: false, note: "", pending: pending.current })); }
       catch { /* The server acknowledgement still clears the in-memory receipt. */ }
@@ -150,16 +139,17 @@ export function JobCardMedia({ jobCardId, actorId, locale = "en", allowedKinds =
         </div>
       ) : null}
 
-      <label className="text-xs font-medium text-sand-600" htmlFor="jc-media-file">{t("jobcards.file", locale)}</label>
-      <input
-        id="jc-media-file"
-        name="file"
-        type="file"
-        required
-        disabled={busy || !loaded}
-        accept={kind === "photo" ? "image/*" : "image/*,application/pdf"}
-        capture={kind === "photo" ? "environment" : undefined}
-        className="block w-full text-sm text-sand-600 file:mr-3 file:rounded-lg file:border-0 file:bg-sand-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-sand-700"
+      <UploadField
+        key={`${kind}:${round}`}
+        locale={locale}
+        label={t("jobcards.file", locale)}
+        accept={kind === "photo" ? "photo" : "document"}
+        capture={kind === "photo"}
+        uploadLabel={kind}
+        finish="caller"
+        scope={`jobcard:${jobCardId}:${kind}:${round}`}
+        target={loaded ? { kind: "job_card", id: jobCardId, farmId } : null}
+        disabled={busy}
       />
 
       {err ? <p role="alert" className="text-sm text-status-overdue">{err}</p> : null}

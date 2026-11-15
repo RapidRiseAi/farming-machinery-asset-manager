@@ -1,3 +1,4 @@
+import { WEBHOOK_BODY_MAX_BYTES } from "@/lib/limits";
 /**
  * SaaS-billing configuration, read LAZILY, fail CLOSED.
  *
@@ -35,7 +36,7 @@ export const BILLING_CURRENCY = "ZAR";
  * a megabyte of body is either a bug or somebody probing for a way to make us burn CPU
  * on an HMAC before we have decided we trust them.
  */
-export const MAX_WEBHOOK_BODY_BYTES = 1_048_576;
+export const MAX_WEBHOOK_BODY_BYTES = WEBHOOK_BODY_MAX_BYTES;
 
 export type PaystackConfig =
   | { ok: true; secretKey: string; siteUrl: string | null }

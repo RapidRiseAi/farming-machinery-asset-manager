@@ -36,6 +36,7 @@ export default async function NewMachinePage({
 
   const supabase = await createClient();
   const farmId = await currentFarmId(profile);
+  const newMachineId = crypto.randomUUID();
   let dimQuery = supabase
     .from("machines")
     .select("cost_centre, department, location")
@@ -74,13 +75,16 @@ export default async function NewMachinePage({
       <Card>
         <form action={createMachine} className="flex flex-col gap-5">
           <RequestIdInput action="machines:create" />
+          {/* The new vehicle's id, chosen here so its photo can go straight to Storage under it
+              before the vehicle is saved (docs/LIMITS.md). */}
+          <input type="hidden" name="new_machine_id" value={newMachineId} />
           <input type="hidden" name="profile" value={kind === "equipment" ? "equipment" : "full"} />
           {/* The photo leads, because the first-run hint says so ("Take a photo, give it
               the name everyone actually calls it") and because that is how a driver
               recognises the machine on the list. */}
           <div className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-sand-900">{t("machines.primaryPhoto", locale)}</h2>
-            <MachinePhotoNew locale={locale} />
+            <MachinePhotoNew locale={locale} farmId={farmId} machineId={newMachineId} />
           </div>
           <MachineFields
             locale={locale}

@@ -1,13 +1,15 @@
 "use client";
 
 import type { AssistantLocale } from "@/lib/assistant/types";
+import { COMMAND_AUDIO_MAX_MS, INSTANT_CLIP_MAX_MS, RECORDER_AUDIO_BPS } from "@/lib/limits";
 
 const DB_NAME = "fleetwise-voice-assistant";
 const DB_VERSION = 1;
 const STORE = "captures";
 const SIGN_OUT_LOCK = "fleetwise-voice-storage-locked";
 export const OFFLINE_VOICE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-export const MAX_OFFLINE_RECORDING_MS = 60_000;
+/** The one-minute recording the instant path can hear (limits.ts); longer speech is a recorded command. */
+export const MAX_OFFLINE_RECORDING_MS = INSTANT_CLIP_MAX_MS;
 const pendingWrites = new Set<Promise<void>>();
 let writesBlockedForSignOut = false;
 
@@ -253,7 +255,7 @@ export function preferredMimeType(): string {
   return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
 }
 
-/** Short offline recorder. The returned Blob stays only in IndexedDB until transcribed. */
+/** Offline recorder, up to ten minutes. The Blob stays only in IndexedDB until it is heard or discarded. */
 export class OfflineVoiceRecorder {
   private readonly chunks: Blob[] = [];
   private readonly startedAt = Date.now();
@@ -267,7 +269,8 @@ export class OfflineVoiceRecorder {
   ) {
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) this.chunks.push(event.data);
-      if (!this.stopped && !this.limitNotified && Date.now() - this.startedAt >= MAX_OFFLINE_RECORDING_MS) {
+      // Ten minutes (decision 11); the page warns shortly before and keeps what was said.
+      if (!this.stopped && !this.limitNotified && Date.now() - this.startedAt >= COMMAND_AUDIO_MAX_MS) {
         this.limitNotified = true;
         queueMicrotask(() => this.onLimit?.());
       }
@@ -281,7 +284,13 @@ export class OfflineVoiceRecorder {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     try {
       const mimeType = preferredMimeType();
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      // A set bitrate: ten minutes is about 3.6 MB, whatever the browser would choose.
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: RECORDER_AUDIO_BPS });
+      } catch {
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      }
       const instance = new OfflineVoiceRecorder(stream, recorder, onLimit);
       recorder.start(1000);
       return instance;

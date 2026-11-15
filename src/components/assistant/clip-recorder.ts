@@ -1,6 +1,7 @@
 "use client";
 
 import { preferredMimeType, recordingToWav } from "./offline-voice";
+import { CLIP_MIN_BYTES } from "@/lib/limits";
 
 /**
  * Records the very stream Azure is transcribing live, so the same words can be heard a
@@ -40,7 +41,7 @@ export class ClipRecorder {
   /** The clip as 16 kHz mono WAV, or null if nothing usable was captured. Decoded on demand. */
   async wav(): Promise<File | null> {
     const blob = await this.ended();
-    if (!blob || blob.size < 1_000) return null;
+    if (!blob || blob.size < CLIP_MIN_BYTES) return null;
     try {
       return await recordingToWav(blob, "clip.wav");
     } catch {

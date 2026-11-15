@@ -77,6 +77,7 @@ export default async function NewMachineChecklistPage({
       <Card>
         <ChecklistForm
           machineId={machine.id}
+          farmId={machine.farm_id}
           meterType={machine.meter_type}
           currentReading={machine.current_reading}
           templates={templates}

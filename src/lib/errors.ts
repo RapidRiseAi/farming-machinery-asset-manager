@@ -1,4 +1,5 @@
 import { t, type Lang } from "@/lib/i18n";
+import { megabytes, minutes, PDF_MAX_BYTES, PHOTO_MAX_BYTES, VOICE_NOTE_MAX_BYTES, VOICE_NOTE_MAX_MS } from "@/lib/limits";
 
 /**
  * One place that turns an error code into a sentence a person can read.
@@ -33,6 +34,15 @@ import { t, type Lang } from "@/lib/i18n";
  * `scripts/i18n_parity.mjs` will catch a key that exists in one language only.
  */
 
+/** Sentences that quote a limit name it as {photoMb}, {pdfMb}, {voiceMb} or {minutes}: one source. */
+function withLimits(text: string): string {
+  return text
+    .replace("{photoMb}", String(megabytes(PHOTO_MAX_BYTES)))
+    .replace("{pdfMb}", String(megabytes(PDF_MAX_BYTES)))
+    .replace("{voiceMb}", String(megabytes(VOICE_NOTE_MAX_BYTES)))
+    .replace("{minutes}", String(minutes(VOICE_NOTE_MAX_MS)));
+}
+
 /** The generic fallback. Used whenever a code is not recognised. */
 const FALLBACK = "errors.generic";
 
@@ -46,6 +56,26 @@ const FALLBACK = "errors.generic";
  * action is converted to emit a slug.
  */
 const CODE_KEYS: Record<string, string> = {
+  // The direct upload pipeline (src/lib/upload): every refusal says what happened and what to
+  // do next, and that the person's other details are kept. Numbers come from the catalogue.
+  "upload-too-large": "upload.err.tooLarge",
+  "upload-too-large-for-storage": "upload.err.tooLargeForStorage",
+  "upload-wrong-type": "upload.err.wrongType",
+  "upload-storage-full": "upload.err.storageFull",
+  "upload-target": "upload.err.target",
+  "upload-too-many": "upload.err.tooMany",
+  "upload-request-reused": "upload.err.requestReused",
+  "upload-expired": "upload.err.expired",
+  "upload-too-long": "upload.err.tooLong",
+  "upload-not-received": "upload.err.notReceived",
+  "upload-malformed": "upload.err.malformed",
+  "upload-too-many-pixels": "upload.err.tooManyPixels",
+  "upload-unsupported-codec": "upload.err.unsupportedCodec",
+  "upload-video-not-supported": "upload.err.videoNotSupported",
+  "upload-empty": "upload.err.empty",
+  "upload-not-attached": "upload.err.failed",
+  "upload-unavailable": "upload.err.unavailable",
+  "upload-interrupted": "upload.err.interrupted",
   // Machinery finance and lease tracking (20261028110000 onwards): the slugs the finance
   // functions raise and the finance actions send.
   "finance-balloon-too-large": "assetFinance.errBalloonTooLarge",
@@ -650,7 +680,7 @@ export function errorMessage(
   if (!raw) return undefined;
 
   const key = CODE_KEYS[normalise(raw)];
-  if (key) return t(key, locale);
+  if (key) return withLimits(t(key, locale));
 
   // An unmapped code is a gap in this file, not something to show a farmer.
   // Surface it to the developer without ever putting it on screen.

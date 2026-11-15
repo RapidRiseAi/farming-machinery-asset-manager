@@ -253,7 +253,7 @@ export default async function WorkRequestDetailPage({
             ) : null}
             {canWork && !isClosed ? (
               <DialogForm trigger={t("work.uploadProof", locale)} triggerLook="menuItem" title={t("work.uploadProof", locale)} description={title} closeLabel={closeLabel} size="md">
-                <WorkRequestMedia workRequestId={wr.id} locale={locale} allowedKinds={["photo"]} />
+                <WorkRequestMedia workRequestId={wr.id} farmId={wr.farm_id} locale={locale} allowedKinds={["photo"]} />
               </DialogForm>
             ) : null}
             {wr.job_card_id ? <Link href={`/jobcards/${wr.job_card_id}`} className={menuItemClass()}>{t("work.openJobCard", locale)}</Link> : null}

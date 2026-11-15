@@ -1,3 +1,4 @@
+import { FUEL_CARD_MAX_ROWS } from "@/lib/limits";
 /**
  * Reading a fuel card statement, and the checks that make it worth reading. Banks each lay
  * these out differently, so columns are found by what they are usually called, in English and
@@ -10,7 +11,7 @@ export type FillFlag = (typeof FILL_FLAGS)[number];
 /** Two fills this close together on one vehicle usually mean one of them is not for it. */
 const TOO_SOON_HOURS = 3;
 
-const MAX_FILL_ROWS = 2000;
+const MAX_FILL_ROWS = FUEL_CARD_MAX_ROWS;
 
 type Column = "date" | "time" | "card" | "vehicle" | "driver" | "merchant" | "litres" | "amount" | "odometer";
 

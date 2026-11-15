@@ -14,8 +14,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { mapsAvailable } from "@/lib/features";
 import { planRoutes, RouteError, validPoints } from "@/lib/routing";
 import { EXPENSE_KINDS, randsToCents } from "@/lib/trips";
-
-const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+import { PHOTO_MAX_BYTES as MAX_PHOTO_BYTES } from "@/lib/limits";
+import { commitUpload, verifiedIntentFor } from "@/lib/upload/server";
 
 const text = (fd: FormData, key: string, max = 200): string | null => {
   const v = String(fd.get(key) ?? "").trim().slice(0, max);
@@ -148,7 +148,7 @@ function imageFrom(dataUrl: string): Buffer | null {
 
 /** Sign a job off. The files go up first; the database then records it, or refuses. */
 export async function deliverTripJob(formData: FormData) {
-  await requireRole(["owner", "manager", "mechanic", "operator"]);
+  const profile = await requireRole(["owner", "manager", "mechanic", "operator"]);
   const jobId = uuid(formData, "job_id");
   const tripId = uuid(formData, "trip_id");
   const farmId = uuid(formData, "farm_id");
@@ -160,8 +160,16 @@ export async function deliverTripJob(formData: FormData) {
   const svc = createServiceClient();
   const base = `${farmId}/trips/${jobId}`;
   let photoPath: string | null = null;
+  // The current page sent the photo straight to Storage (the upload pipeline): judge it
+  // here and record its path; it is finished once the delivery is recorded.
+  const intent = formData.get("upload_intent_id");
+  const direct = typeof intent === "string" && intent
+    ? await verifiedIntentFor(intent, profile.id, { kind: "trip_job", targetId: jobId })
+    : null;
+  if (direct?.state === "refused") redirect(`/trips/${tripId}?error=${direct.code}`);
+  if (direct?.state === "verified") photoPath = direct.intent.object_path;
   const photo = formData.get("photo");
-  if (photo instanceof File && photo.size > 0) {
+  if (!direct && photo instanceof File && photo.size > 0) {
     if (photo.size > MAX_PHOTO_BYTES || !photo.type.startsWith("image/")) redirect(`/trips/${tripId}?error=trip-photo`);
     photoPath = `${base}/pod-${crypto.randomUUID()}.jpg`;
     const { error } = await svc.storage
@@ -198,6 +206,10 @@ export async function deliverTripJob(formData: FormData) {
     p_lng: lat == null ? null : Number(formData.get("lng")),
   });
   if (error) redirect(`/trips/${tripId}?error=${errorCode(error, "app/trips/actions:deliverTripJob", "trip-failed")}`);
+  if (direct?.state === "verified") {
+    const committed = await commitUpload(supabase, direct.svc, direct.intent, { recordId: jobId });
+    if (committed.state === "refused") captureError(new Error(committed.code), { where: "trips:pod-photo-commit" });
+  }
   revalidatePath(`/trips/${tripId}`);
   redirect(`/trips/${tripId}`);
 }

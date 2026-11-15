@@ -1,8 +1,7 @@
 // Server-only helper: imported solely from the "use server" machines/actions module,
 // which keeps it off the client bundle (mirrors src/lib/fault-media.ts).
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const MAX_PHOTO_BYTES = 6 * 1024 * 1024; // decoded size cap (client already compresses)
+import { PHOTO_MAX_BYTES as MAX_PHOTO_BYTES } from "@/lib/limits";
 
 /**
  * Upload a machine photo supplied as a base64 `data:` URL (from the add-vehicle form,

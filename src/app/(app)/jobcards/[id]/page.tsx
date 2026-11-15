@@ -438,7 +438,7 @@ export default async function JobCardDetail({ params, searchParams }: {
         {docCount === 0 && faultMedia.length === 0 ? <p className="mb-3 text-sm text-sand-500">{t("jobcards.noMedia", locale)}</p> : null}
         {canMedia ? (
           <DialogForm trigger={t("jobcards.workflow.addDocument", locale)} title={t("jobcards.workflow.addDocument", locale)} description={machine?.name} triggerVariant="secondary" triggerSize="sm" closeLabel={closeLabel} size="md">
-            <JobCardMedia actorId={profile.id} jobCardId={id} locale={locale} allowedKinds={canInvoice ? ["invoice"] : external && canWork ? ["photo", "quote"] : ["photo"]} canRecordAmount={canRecordAmount} />
+            <JobCardMedia actorId={profile.id} jobCardId={id} farmId={jc.farm_id} locale={locale} allowedKinds={canInvoice ? ["invoice"] : external && canWork ? ["photo", "quote"] : ["photo"]} canRecordAmount={canRecordAmount} />
           </DialogForm>
         ) : null}
       </Disclosure>

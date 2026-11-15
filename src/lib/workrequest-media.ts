@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import type { createServiceClient } from "@/lib/supabase/service";
-
-const MAX_FILE = 8 * 1024 * 1024;
+import { maxBytesForMime } from "@/lib/limits";
 
 // UI upload kinds → attachment_kind enum (photo | invoice | doc).
 const KIND_MAP: Record<string, "photo" | "invoice" | "doc"> = {
@@ -26,7 +25,7 @@ export async function uploadWorkRequestMedia(
   createdBy: string | null,
 ): Promise<boolean> {
   const kind = KIND_MAP[uiKind] ?? "photo";
-  if (!(file instanceof File) || file.size === 0 || file.size > MAX_FILE) return false;
+  if (!(file instanceof File) || file.size === 0 || file.size > maxBytesForMime(file.type || "image/jpeg")) return false;
 
   const ext = file.type.includes("pdf") ? "pdf" : file.type.startsWith("image/") ? "jpg" : "bin";
   const buf = new Uint8Array(await file.arrayBuffer());

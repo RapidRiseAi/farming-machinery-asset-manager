@@ -9,6 +9,7 @@ import { dateTime, num } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { must } from "@/lib/supabase/must";
+import { MB } from "@/lib/limits";
 import { createServiceClient } from "@/lib/supabase/service";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,7 +55,7 @@ export default async function CloseAccountPage({
 
   const buckets = [...new Set(files.map((f) => f.bucket_id))].map((bucket) => {
     const mine = files.filter((f) => f.bucket_id === bucket);
-    const megabytes = mine.reduce((sum, f) => sum + Number(f.size), 0) / (1024 * 1024);
+    const megabytes = mine.reduce((sum, f) => sum + Number(f.size), 0) / MB;
     return { bucket, count: mine.length, megabytes };
   });
   const exported = exportIsFresh(farm?.last_export_at);

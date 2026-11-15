@@ -13,7 +13,6 @@ import {
   deleteOfflineCapture,
   enableOfflineVoiceStorage,
   listOfflineCaptures,
-  MAX_OFFLINE_RECORDING_MS,
   OfflineVoiceRecorder,
   offlineCaptureToWav,
   saveOfflineCapture,
@@ -53,6 +52,8 @@ import { recognitionLocales, speechVocabulary, voiceForLocale } from "@/lib/assi
 import { matchMachine } from "@/lib/assistant/normalize";
 import { planAssistantRoute } from "@/lib/assistant/routing";
 import { clarificationFromSpeech } from "@/lib/assistant/spoken-clarification";
+import { COMMAND_AUDIO_MAX_MS, INSTANT_CLIP_MAX_MS, LIVE_DICTATION_MAX_MS, RECORDING_WARN_BEFORE_MS } from "@/lib/limits";
+import { finishRecordedCommand, retryRecordedCommand, runRecordedCommand } from "@/lib/assistant/command-client";
 
 type Phase =
   | "idle"
@@ -269,6 +270,15 @@ export function AssistantClient({
   const offlineOperationRef = useRef(false);
   const offlineRecordingTimerRef = useRef<number | null>(null);
   const liveRecordingTimerRef = useRef<number | null>(null);
+  // Warns shortly before a recording stops itself at its limit (decision 11).
+  const limitWarnTimerRef = useRef<number | null>(null);
+  const [nearLimit, setNearLimit] = useState(false);
+  // When this listening turn began: a turn longer than the instant hearing's minute keeps
+  // its live transcript rather than posting a clip too long for that route.
+  const listenStartedRef = useRef(0);
+  // Recorded commands heard by a server job, by capture id: told "done" once answered, so
+  // their temporary audio is removed (20261115100000).
+  const commandJobsRef = useRef(new Map<string, string>());
   const stopListeningRef = useRef<() => Promise<void>>(async () => undefined);
   const recordingRequestedRef = useRef(false);
   const requestAbortRef = useRef<AbortController | null>(null);
@@ -402,6 +412,9 @@ export function AssistantClient({
     if (offlineRecordingTimerRef.current !== null) {
       window.clearTimeout(offlineRecordingTimerRef.current);
       offlineRecordingTimerRef.current = null;
+      if (limitWarnTimerRef.current !== null) window.clearTimeout(limitWarnTimerRef.current);
+      limitWarnTimerRef.current = null;
+      setNearLimit(false);
     }
     if (liveRecordingTimerRef.current !== null) {
       window.clearTimeout(liveRecordingTimerRef.current);
@@ -663,6 +676,13 @@ export function AssistantClient({
           return null;
         }
         setPhase("idle");
+        // A recorded command's words reached the assistant: the command is done, and its
+        // temporary audio is removed (the transcript and what was confirmed stay).
+        const commandJob = requestBody.voiceCaptureId ? commandJobsRef.current.get(requestBody.voiceCaptureId) : undefined;
+        if (commandJob) {
+          commandJobsRef.current.delete(requestBody.voiceCaptureId!);
+          void finishRecordedCommand(commandJob);
+        }
         return next;
       } catch {
         if (!mountedRef.current || operation !== operationRef.current) return null;
@@ -694,6 +714,37 @@ export function AssistantClient({
       transcriptRef.current = "";
       lastRequestRef.current = null;
       try {
+        // Longer than the instant minute, with AI help on: the recording itself goes to
+        // the server as temporary command audio and is heard by a durable job there
+        // (docs/LIMITS.md, "Command audio"); the transcript comes back for review.
+        const farmId = offlineContextKey.split(":")[1] ?? "";
+        if (capture.durationMs > INSTANT_CLIP_MAX_MS && aiHelpActive && farmId) {
+          let heard = await runRecordedCommand({
+            captureId: capture.id, audio: capture.audio, mimeType: capture.mimeType, locale: capture.locale, farmId,
+          });
+          // Tried again by the person: a job that failed is asked to run once more.
+          if (!heard.ok && heard.job?.status === "failed" && heard.job.audioKept && (await retryRecordedCommand(heard.job.id))) {
+            heard = await runRecordedCommand({
+              captureId: capture.id, audio: capture.audio, mimeType: capture.mimeType, locale: capture.locale, farmId,
+            });
+          }
+          if (!mountedRef.current || operation !== operationRef.current) return;
+          if (!heard.ok || !heard.job.transcript) {
+            // The recording stays on the phone (and on the server for the recovery window),
+            // so "Process" tries again; nothing said is lost.
+            setError(t("assistant.commandNotHeard", locale));
+            setPhase("error");
+            return;
+          }
+          commandJobsRef.current.set(capture.id, heard.job.id);
+          transcriptRef.current = heard.job.transcript;
+          setTranscript(heard.job.transcript);
+          setPendingTranscript({ locale: capture.locale, channel: "voice", voiceCaptureId: capture.id });
+          await deleteOfflineCapture(capture.id, offlineContextKey);
+          await refreshOfflineCaptures();
+          if (mountedRef.current && operation === operationRef.current) setPhase("idle");
+          return;
+        }
         const wav = await offlineCaptureToWav(capture);
         let confidenceTotal = 0;
         let confidenceWeight = 0;
@@ -734,7 +785,7 @@ export function AssistantClient({
         }
       }
     },
-    [getSpeech, locale, machineVocabulary, offlineContextKey, phase, refreshOfflineCaptures],
+    [aiHelpActive, getSpeech, locale, machineVocabulary, offlineContextKey, phase, refreshOfflineCaptures],
   );
 
   const removeOfflineCaptures = async (capture?: OfflineVoiceCapture) => {
@@ -778,6 +829,9 @@ export function AssistantClient({
     if (offlineRecordingTimerRef.current !== null) {
       window.clearTimeout(offlineRecordingTimerRef.current);
       offlineRecordingTimerRef.current = null;
+      if (limitWarnTimerRef.current !== null) window.clearTimeout(limitWarnTimerRef.current);
+      limitWarnTimerRef.current = null;
+      setNearLimit(false);
     }
     const recorder = offlineRecorderRef.current;
     offlineRecorderRef.current = null;
@@ -896,7 +950,10 @@ export function AssistantClient({
         setPhase("listening");
         offlineRecordingTimerRef.current = window.setTimeout(() => {
           void finishOfflineRecording();
-        }, MAX_OFFLINE_RECORDING_MS);
+        }, COMMAND_AUDIO_MAX_MS);
+        if (limitWarnTimerRef.current !== null) window.clearTimeout(limitWarnTimerRef.current);
+        setNearLimit(false);
+        limitWarnTimerRef.current = window.setTimeout(() => setNearLimit(true), COMMAND_AUDIO_MAX_MS - RECORDING_WARN_BEFORE_MS);
       } catch {
         if (!mountedRef.current || operation !== operationRef.current) return;
         recordingRequestedRef.current = false;
@@ -970,6 +1027,8 @@ export function AssistantClient({
           if (liveRecordingTimerRef.current !== null) {
             window.clearTimeout(liveRecordingTimerRef.current);
             liveRecordingTimerRef.current = null;
+            if (limitWarnTimerRef.current !== null) window.clearTimeout(limitWarnTimerRef.current);
+            setNearLimit(false);
           }
           if (voice) endVoiceMode();
           setError(speechErrorMessage(speechError, locale));
@@ -985,9 +1044,13 @@ export function AssistantClient({
       // A hands-free stop can land while the recogniser is still starting; it arms nothing then.
       const stillWanted = voiceSession === undefined || voiceSessionIsLive(voiceSession);
       if (mountedRef.current && operation === operationRef.current && stillWanted) {
+        listenStartedRef.current = Date.now();
         liveRecordingTimerRef.current = window.setTimeout(() => {
           void (voice ? finishVoiceTurnRef.current(operation) : stopListeningRef.current());
-        }, MAX_OFFLINE_RECORDING_MS);
+        }, LIVE_DICTATION_MAX_MS);
+        if (limitWarnTimerRef.current !== null) window.clearTimeout(limitWarnTimerRef.current);
+        setNearLimit(false);
+        limitWarnTimerRef.current = window.setTimeout(() => setNearLimit(true), LIVE_DICTATION_MAX_MS - RECORDING_WARN_BEFORE_MS);
         if (voice && !transcriptRef.current) {
           voiceFirstWordsTimerRef.current = window.setTimeout(() => {
             voiceFirstWordsTimerRef.current = null;
@@ -1074,7 +1137,10 @@ export function AssistantClient({
   ): Promise<{ input: string; alternatives: AssistantHearing[] }> => {
     const plain = { input: live, alternatives: [] as AssistantHearing[] };
     // Decide first: decoding the clip costs a phone real work, and an easy turn needs none.
-    if (!navigator.onLine || liveTranscriptResolves(live)) {
+    // A turn longer than the instant hearing's minute is heard live only: its clip is too long
+    // for that route, and decoding ten minutes of it would cost the phone for nothing.
+    const long = listenStartedRef.current > 0 && Date.now() - listenStartedRef.current > INSTANT_CLIP_MAX_MS;
+    if (!navigator.onLine || long || liveTranscriptResolves(live)) {
       getSpeech().discardLastClip();
       return plain;
     }
@@ -1641,6 +1707,9 @@ export function AssistantClient({
     if (offlineRecordingTimerRef.current !== null) {
       window.clearTimeout(offlineRecordingTimerRef.current);
       offlineRecordingTimerRef.current = null;
+      if (limitWarnTimerRef.current !== null) window.clearTimeout(limitWarnTimerRef.current);
+      limitWarnTimerRef.current = null;
+      setNearLimit(false);
     }
     if (liveRecordingTimerRef.current !== null) {
       window.clearTimeout(liveRecordingTimerRef.current);
@@ -1970,6 +2039,9 @@ export function AssistantClient({
         </div>
       ) : null}
       {pausedNotice && !error ? <Flash tone="info" message={pausedNotice} /> : null}
+      {nearLimit && (phase === "listening" || recordingOfflineRef.current) ? (
+        <p role="status" className="text-sm font-medium text-status-due">{t("assistant.recordingNearLimit", locale)}</p>
+      ) : null}
 
       {turn?.kind === "clarify" ? (
         <Card>
