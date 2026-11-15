@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 -- Payment integrity (BRIEF section 15; R-083, R-096; scenario 10): one invoice per customer,
--- period and kind of charge; settling an attempt is safe against duplicate, out-of-order,
+-- period and kind of charge (billing_invoices_farm_period_uq for periods, billing_invoices_ai_usage_uq
+-- since 20261010090000 for AI-only invoices, one change invoice per quote since 20261115110000); settling an attempt is safe against duplicate, out-of-order,
 -- pending, declined, abandoned and late answers; a payment never counts twice. The webhook's
 -- own checks (signature, amount, currency, farm, invoice, reference) are tested in
 -- src/lib/billing/webhook.test.ts and worker.test.ts; this is what the database guarantees
