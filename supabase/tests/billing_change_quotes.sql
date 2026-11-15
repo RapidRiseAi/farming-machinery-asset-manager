@@ -369,3 +369,215 @@ begin
     raise exception 'QUOTES FAIL [8]: a reduction below the six in use was allowed: %', v ->> 'reason';
   end if;
 end $t$;
+-- == Scenario 10: stale, expired, repeated, concurrent, declined and late ========================
+do $t$
+declare
+  v jsonb;
+  v2 jsonb;
+  r jsonb;
+  v_msg text;
+  v_quote uuid;
+  v_invoice uuid;
+  v_attempt uuid;
+  v_n integer;
+begin
+  -- An expired price is never accepted, and the cron closes it.
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 6, 1, false,
+                                'ac210000-0000-4000-9000-000000000001');
+  v_quote := (v ->> 'quote_id')::uuid;
+  update public.billing_change_quotes set expires_at = now() - interval '1 second' where id = v_quote;
+  v_msg := pg_temp.try(format('select app.billing_accept_quote(%L, %L, %s, 0, %s)', v_quote,
+             'ac210000-0000-4000-9000-000000000001', v #>> '{money,charge_now_cents}', v #>> '{money,next_renewal_cents}'));
+  if v_msg <> 'quote-expired' then raise exception 'QUOTES FAIL [10]: an expired quote was accepted: %', v_msg; end if;
+  perform app.billing_expire_quotes();
+  if (select status from public.billing_change_quotes where id = v_quote) <> 'expired' then
+    raise exception 'QUOTES FAIL [10]: the expiry run left an old quote open';
+  end if;
+
+  -- The amounts accepted must be the ones quoted.
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 6, 1, false,
+                                'ac210000-0000-4000-9000-000000000001');
+  v_msg := pg_temp.try(format('select app.billing_accept_quote(%L, %L, %s, 0, %s)', v ->> 'quote_id',
+             'ac210000-0000-4000-9000-000000000001', 1, v #>> '{money,next_renewal_cents}'));
+  if v_msg <> 'quote-changed' then raise exception 'QUOTES FAIL [10]: a different amount was accepted: %', v_msg; end if;
+
+  -- The basis moved after the price (another admin changed the spaces): revalidated, refused.
+  update public.billing_subscriptions set asset_quota = 7 where id = 'ac260000-0000-4000-9000-000000000001';
+  v_msg := pg_temp.try(format('select app.billing_accept_quote(%L, %L, %s, 0, %s)', v ->> 'quote_id',
+             'ac210000-0000-4000-9000-000000000001', v #>> '{money,charge_now_cents}', v #>> '{money,next_renewal_cents}'));
+  update public.billing_subscriptions set asset_quota = 5 where id = 'ac260000-0000-4000-9000-000000000001';
+  if v_msg <> 'quote-changed' then raise exception 'QUOTES FAIL [10]: a stale quote was accepted: %', v_msg; end if;
+
+  -- Only one price is live: quoting again supersedes the open one.
+  v2 := app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 6, 1, false,
+                                 'ac210000-0000-4000-9000-000000000001');
+  if (select status from public.billing_change_quotes where id = (v ->> 'quote_id')::uuid) <> 'superseded' then
+    raise exception 'QUOTES FAIL [10]: two prices were live at once';
+  end if;
+
+  -- Accepted twice (a double press, two tabs): one invoice.
+  r := app.billing_accept_quote((v2 ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000001', 4950, 0,
+                                (v2 #>> '{money,next_renewal_cents}')::bigint);
+  r := app.billing_accept_quote((v2 ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000001', 4950, 0,
+                                (v2 #>> '{money,next_renewal_cents}')::bigint);
+  select count(*) into v_n from public.billing_invoices i
+   where i.subscription_id = 'ac260000-0000-4000-9000-000000000001' and i.kind = 'change' and i.status = 'open';
+  if v_n <> 1 or not coalesce((r ->> 'repeat')::boolean, false) then
+    raise exception 'QUOTES FAIL [10]: a repeated acceptance raised % open change invoices', v_n;
+  end if;
+  v_invoice := (r ->> 'invoice_id')::uuid;
+
+  -- A second change cannot be accepted while one waits for its payment.
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 5, 2, false,
+                                'ac210000-0000-4000-9000-000000000001');
+  v_msg := pg_temp.try(format('select app.billing_accept_quote(%L, %L, %s, 0, %s)', v ->> 'quote_id',
+             'ac210000-0000-4000-9000-000000000001', v #>> '{money,charge_now_cents}', v #>> '{money,next_renewal_cents}'));
+  if v_msg <> 'quote-awaiting-payment' then
+    raise exception 'QUOTES FAIL [10]: two changes waited for payment at once: %', v_msg;
+  end if;
+
+  -- A declined card on a change: the extra is not bought, and the subscription is not dunned.
+  v_attempt := app.claim_billing_charge(v_invoice, 'FWB-TEST-Q10-DECLINE', 'manual_retry', 4950);
+  perform app.settle_billing_attempt(v_attempt, 'failed', null, null, 'Declined', 'Declined', null, null, true);
+  if (select status from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000001') <> 'active'
+     or (select failed_attempt_count from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000001') <> 0
+     or (select asset_quota from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000001') <> 5 then
+    raise exception 'QUOTES FAIL [10]: a declined extra walked the subscription into dunning or bought the space';
+  end if;
+
+  -- Not paid in time: voided, never charged later.
+  v_attempt := app.claim_billing_charge(v_invoice, 'FWB-TEST-Q10-LATE', 'manual_retry', 4950);
+  update public.billing_change_quotes set payment_due_by = now() - interval '1 second'
+   where invoice_id = v_invoice;
+  perform app.billing_expire_quotes();
+  if (select status from public.billing_invoices where id = v_invoice) <> 'open' then
+    raise exception 'QUOTES FAIL [10]: an invoice with a payment in flight was voided';
+  end if;
+  perform app.settle_billing_attempt(v_attempt, 'failed', null, null, 'Timeout', 'Timeout', null, null, true);
+  perform app.billing_expire_quotes();
+  if (select status from public.billing_invoices where id = v_invoice) <> 'void'
+     or (select status from public.billing_change_quotes where invoice_id = v_invoice) <> 'expired' then
+    raise exception 'QUOTES FAIL [10]: an unpaid change was not closed at the end of its window';
+  end if;
+
+  -- The bank's answer arrives after all (a delayed success): the money is credit, not a space.
+  perform app.settle_billing_attempt(v_attempt, 'succeeded', 77001, 'FWB-TEST-Q10-LATE', 'Approved', null, 4950, 'card', true);
+  if app.billing_credit_balance('ac260000-0000-4000-9000-000000000001') <> 4950
+     or (select asset_quota from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000001') <> 5 then
+    raise exception 'QUOTES FAIL [10]: a payment after the window was lost or bought the space (credit %)',
+      app.billing_credit_balance('ac260000-0000-4000-9000-000000000001');
+  end if;
+  -- Delivered again, and then a late "failed" for the same attempt: nothing moves.
+  perform app.settle_billing_attempt(v_attempt, 'succeeded', 77001, 'FWB-TEST-Q10-LATE', 'Approved', null, 4950, 'card', true);
+  perform app.settle_billing_attempt(v_attempt, 'failed', null, null, 'late', 'late', null, null, true);
+  if app.billing_credit_balance('ac260000-0000-4000-9000-000000000001') <> 4950
+     or (select status from public.billing_payment_attempts where id = v_attempt) <> 'succeeded'
+     or (select count(*) from public.billing_payments where attempt_id = v_attempt) <> 1 then
+    raise exception 'QUOTES FAIL [10]: a duplicate or out-of-order settle credited twice or undid a payment';
+  end if;
+end $t$;
+
+-- == Who may change, and when ===================================================================
+do $t$
+declare v_msg text; v jsonb;
+begin
+  -- A manager sees spaces but never buys them; an owner of another business never reaches this one.
+  v_msg := pg_temp.try($s$select app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 7, 0, false,
+                          'ac210000-0000-4000-9000-0000000000a1')$s$);
+  if v_msg <> 'forbidden' then raise exception 'QUOTES FAIL [who]: a manager priced a change: %', v_msg; end if;
+  v_msg := pg_temp.try($s$select app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 7, 0, false,
+                          'ac210000-0000-4000-9000-000000000002')$s$);
+  if v_msg <> 'forbidden' then raise exception 'QUOTES FAIL [who]: another business''s owner priced a change: %', v_msg; end if;
+
+  -- Seven days of grace: no new paid extras, while giving back is still allowed (decision 41).
+  insert into public.billing_invoices (farm_id, subscription_id, invoice_ref, status, kind, period_start, period_end,
+    issued_on, due_on, plan, billing_period, asset_count, unit_price_incl_cents, months_charged, price_version_label, vat_rate_bps)
+  values ('ac200000-0000-4000-9000-000000000005', 'ac260000-0000-4000-9000-000000000005', 'FW-TEST-LATE-1', 'draft', 'period',
+    app.billing_today() - 20, app.billing_today() + 9, app.billing_today() - 5, app.billing_today() - 3,
+    'essential', 'monthly', 6, 4900, 1, 'launch-2026-11-eq', 0);
+  update public.billing_invoices set status = 'open' where invoice_ref = 'FW-TEST-LATE-1';
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000005', null, null, 7, 0, false, app.billing_today());
+  if v ->> 'reason' <> 'billing-grace-no-extras' then
+    raise exception 'QUOTES FAIL [grace]: an extra was sold in the grace: %', v;
+  end if;
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000005', null, null, 5, 0, false, app.billing_today());
+  if v ->> 'kind' <> 'renewal' then
+    raise exception 'QUOTES FAIL [grace]: giving a space back was refused in the grace: %', v;
+  end if;
+
+  -- Above the self-service line: a capacity check and a quote, not an online purchase (decision 39).
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000008', null, null, 201, 0, false, app.billing_today());
+  if v ->> 'reason' <> 'billing-capacity-quote' then
+    raise exception 'QUOTES FAIL [39]: 201 full spaces were sold online: %', v ->> 'reason';
+  end if;
+end $t$;
+
+-- == One plan across a customer's sites =========================================================
+do $t$
+declare v jsonb; r jsonb;
+begin
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000006', 'professional', 'monthly', null, null, false,
+                                'ac210000-0000-4000-9000-000000000006');
+  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> round((39500 - 24500)::numeric * 15 / 30) then
+    raise exception 'QUOTES FAIL [pool]: Essential to Professional is not the difference for the days left: %', v #> '{money}';
+  end if;
+  r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000006',
+                                (v #>> '{money,charge_now_cents}')::bigint, 0, (v #>> '{money,next_renewal_cents}')::bigint);
+  if (select plan from public.farms where id = 'ac200000-0000-4000-9000-000000000007') <> 'essential' then
+    raise exception 'QUOTES FAIL [pool]: a site took the higher plan before it was paid for';
+  end if;
+  perform pg_temp.pay((r ->> 'invoice_id')::uuid, 'FWB-TEST-POOL-1');
+  if (select plan from public.farms where id = 'ac200000-0000-4000-9000-000000000007') <> 'professional'
+     or (select plan from public.farms where id = 'ac200000-0000-4000-9000-000000000006') <> 'professional' then
+    raise exception 'QUOTES FAIL [pool]: the sites billed together are on different plans';
+  end if;
+end $t$;
+
+-- == Nobody's browser reaches the engine ========================================================
+do $t$
+declare f text;
+begin
+  foreach f in array array[
+    'public.billing_change_preview(uuid, public.farm_plan, public.billing_period, integer, integer, boolean)',
+    'public.billing_quote_change(uuid, public.farm_plan, public.billing_period, integer, integer, boolean, uuid)',
+    'public.billing_accept_quote(uuid, uuid, bigint, bigint, bigint)',
+    'public.billing_cancel_quote(uuid, uuid)',
+    'public.billing_credit_balance(uuid)',
+    'public.cron_expire_billing_quotes()'] loop
+    if has_function_privilege('authenticated', f, 'EXECUTE') or has_function_privilege('anon', f, 'EXECUTE')
+       or not has_function_privilege('service_role', f, 'EXECUTE') then
+      raise exception 'QUOTES FAIL [grants]: % is reachable by a browser or not by the server', f;
+    end if;
+  end loop;
+  if has_table_privilege('authenticated', 'public.billing_account_credits', 'INSERT')
+     or has_table_privilege('authenticated', 'public.billing_change_quotes', 'UPDATE') then
+    raise exception 'QUOTES FAIL [grants]: a browser can write quotes or credit';
+  end if;
+  -- Append-only credit.
+  if pg_temp.try($s$update public.billing_account_credits set amount_cents = amount_cents + 1$s$) = 'ok' then
+    raise exception 'QUOTES FAIL [grants]: account credit was edited in place';
+  end if;
+end $t$;
+
+-- == The owner reads their own; a manager and another business read nothing =====================
+do $t$
+declare v_n integer;
+begin
+  perform pg_catalog.set_config('request.jwt.claims',
+    json_build_object('sub', 'ac210000-0000-4000-9000-000000000002', 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select count(*) into v_n from public.billing_account_credits;
+  if v_n = 0 then raise exception 'QUOTES FAIL [rls]: the owner cannot read their own credit'; end if;
+  select count(*) into v_n from public.billing_change_quotes where farm_id <> 'ac200000-0000-4000-9000-000000000002';
+  if v_n <> 0 then raise exception 'QUOTES FAIL [rls]: an owner read another business''s quotes'; end if;
+  reset role;
+  perform pg_catalog.set_config('request.jwt.claims',
+    json_build_object('sub', 'ac210000-0000-4000-9000-0000000000a1', 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  select count(*) into v_n from public.billing_change_quotes;
+  if v_n <> 0 then raise exception 'QUOTES FAIL [rls]: a manager read the quotes'; end if;
+  reset role;
+  perform pg_catalog.set_config('request.jwt.claims', '', true);
+end $t$;
+
+rollback;
