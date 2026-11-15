@@ -42,8 +42,14 @@ Log:
   final, failure duns once), `apply_pending_plan_changes` marks quotes applied, A1's
   `asset_capacity_state` now prices `charge_now` (status `quote`). Suite
   `billing_change_quotes.sql` passes (scenarios 6, 7, 8, 10); 15 mutations all caught.
-- Next: TypeScript side (calculator mirror, service, /billing quote review UI and actions,
-  checkout of a given invoice, cron step, receipts for change invoices, errors and i18n).
+- TypeScript side done (through d824238): `calculator.ts` mirror (prorateCents, additionCents,
+  upgradeDifference, lostFeatures) + `change.test.ts`; service quoteChange/acceptQuote/
+  cancelQuote/creditBalance/changeRefusal; `beginCheckout({invoiceId})`; openInvoiceForFarm
+  skips change invoices; actions requestChange/acceptChange/payChange/cancelChange (runOnce);
+  `components/billing/change-review.tsx`; /billing reads stored quotes; cron step
+  expire_quotes; receipts print change lines; conversion review shows the price; EN/AF keys and
+  error codes. 1160 unit tests and all lint gates pass. Steps 1 and 2 done once the full SQL
+  run is green. Next: step 3 cancellation (owner period-end only, wording, legal flags).
 
 ## A1 (complete)
 
