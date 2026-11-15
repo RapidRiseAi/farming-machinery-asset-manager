@@ -661,6 +661,9 @@ const CODE_KEYS: Record<string, string> = {
   "billing-change-mixed": "errors.billingChangeMixed",
   "billing-grace-no-extras": "errors.billingGraceNoExtras",
   "billing-change-failed": "errors.billingChangeFailed",
+  // The owner's 90 days of reading (20261115120000).
+  "retrieval-owner-only": "errors.retrievalOwnerOnly",
+  "retrieval-ended": "errors.retrievalEnded",
 };
 
 /**

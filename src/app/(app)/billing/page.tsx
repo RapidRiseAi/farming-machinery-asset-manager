@@ -93,7 +93,7 @@ import {
 } from "./actions";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import { createServiceClient } from "@/lib/supabase/service";
-import { creditBalance } from "@/lib/billing/service";
+import { creditBalance, farmLifecycle } from "@/lib/billing/service";
 import { QUOTE_COLUMNS, type QuoteRow } from "@/lib/billing/view";
 import { ChangeReview, PendingChanges } from "@/components/billing/change-review";
 import { DownloadLink } from "@/components/ui/download-link";
@@ -328,6 +328,8 @@ export default async function BillingPage({
     // Service client: the balance wrapper is service-role only, like every billing RPC.
     credit = (await creditBalance(createServiceClient(), sub.id)) ?? 0;
   }
+  // A payment late (20261115120000): the seven days of grace, said with the amount and the date.
+  const life = sub ? await farmLifecycle(supabase, farmId) : null;
 
   // The change section is closed unless somebody was sent here to change something, or a
   // change they asked for was refused (the reason is in ?error=).
@@ -614,6 +616,33 @@ export default async function BillingPage({
         </Card>
       ) : null}
 
+      {/* The seven days of grace (decision 41): what is owed, until when work goes on as usual,
+          and that nothing new that costs money is sold meanwhile. */}
+      {life?.state === "grace" ? (
+        <Card className="border-callout-warn-edge bg-callout-warn-bg">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 shrink-0 text-xl text-callout-warn-ink" aria-hidden>
+              <WarningIcon />
+            </span>
+            <div className="min-w-0">
+              <p className="text-base font-semibold text-sand-900">{t("billing.notice.graceTitle", locale)}</p>
+              <p className="mt-1 text-sm leading-relaxed text-sand-800">
+                {t("billing.notice.graceBody", locale)
+                  .replace("{amount}", rands(life.outstanding_cents ?? 0))
+                  .replace("{since}", life.overdue_since ? shortDate(life.overdue_since, locale) : "-")
+                  .replaceAll("{date}", life.grace_ends_on ? shortDate(life.grace_ends_on, locale) : "-")}
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+      {credit > 0 ? (
+        <Card>
+          <FactList>
+            <Fact label={t("billing.creditField", locale)} value={rands(credit)} />
+          </FactList>
+        </Card>
+      ) : null}
       {/* == The plan ========================================================= */}
       <Card>
         <CardHeader>
