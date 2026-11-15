@@ -330,12 +330,17 @@ export async function removePaymentMethod(formData: FormData): Promise<void> {
  * it on the night it expires. Nothing is deleted at any point, and the account can be
  * resumed until it closes.
  *
- * Immediate cancellation exists because somebody occasionally means it, and it is behind
- * an explicit `when=immediate` so it can never be what a mis-click does.
+ * Immediate cancellation is Rapid Rise's alone (after an agreed refund), behind an explicit
+ * `when=immediate` so it can never be what a mis-click does.
  */
 export async function cancelSubscription(formData: FormData): Promise<void> {
-  const { farmId } = await requireBillingAdmin();
+  const { profile, farmId } = await requireBillingAdmin();
+  // Decision 26: a cancellation stops the next renewal and access runs to the paid-through
+  // date. Ending it at once is Rapid Rise's, after a refund was agreed with a person
+  // (BILLING.md section 11b); an owner asking for it is refused in words, never quietly
+  // turned into something else.
   const immediate = String(formData.get("when") ?? "period_end").trim() === "immediate";
+  if (immediate && profile.role !== "rr_admin") bounce("billing-cancel-immediate");
   const reason = String(formData.get("reason") ?? "").trim() || null;
 
   const supabase = createServiceClient();

@@ -664,6 +664,8 @@ const CODE_KEYS: Record<string, string> = {
   // The owner's 90 days of reading (20261115120000).
   "retrieval-owner-only": "errors.retrievalOwnerOnly",
   "retrieval-ended": "errors.retrievalEnded",
+  // Ending a subscription at once is Rapid Rise's, after an agreed refund (decision 26).
+  "billing-cancel-immediate": "errors.billingCancelImmediate",
 };
 
 /**

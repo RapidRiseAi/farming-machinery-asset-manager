@@ -5560,7 +5560,8 @@
     "billingGraceNoExtras": "A payment is overdue, so nothing new that costs money can be added. Pay what is owed first; your records are safe and work goes on as usual.",
     "billingChangeFailed": "The change could not be saved. Nothing was charged. Try again.",
     "retrievalOwnerOnly": "Only the owner can download the records while the account is stopped.",
-    "retrievalEnded": "The time to read and export these records has ended. Pay what is owed, or start again, to open them."
+    "retrievalEnded": "The time to read and export these records has ended. Pay what is owed, or start again, to open them.",
+    "billingCancelImmediate": "A cancellation stops the next renewal, and you keep everything until the end of the period you have paid for. To end it sooner, email us."
   },
   "billing": {
     "title": "Billing",
@@ -5631,8 +5632,8 @@
     "cancelIntro": "Your plan stays fully active until {date}, which you have already paid for.",
     "cancelWhatHappens": "What happens",
     "cancelEffect1": "You keep everything until the end of the period you have paid for.",
-    "cancelEffect2": "After {date} the paid features close, and nothing further is charged.",
-    "cancelEffect3": "Nothing is deleted. Your vehicles, job cards, invoices and history all stay, and come back the moment you start again.",
+    "cancelEffect2": "After {date} nothing further is charged and your team can no longer use FLEETWISE. For 90 days after that you, the owner, can still read and export everything, and start again whenever you like.",
+    "cancelEffect3": "Nothing is deleted when you cancel. Your vehicles, job cards, invoices and history all stay, and come back the moment you start again.",
     "cancelFactPlan": "Plan",
     "cancelFactUntil": "Active until",
     "cancelFootnote": "Changed your mind? You can start the plan again from this page.",
@@ -5696,7 +5697,7 @@
     "savedNoChange": "That is what you already have, so nothing changed and nothing was charged.",
     "savedPaid": "Paid. Your receipt is on its way by email.",
     "savedChecking": "We are checking that payment with the bank. This usually takes a minute. Do not pay again, if it did go through we will find it, and if it did not we will tell you.",
-    "savedCancelling": "Your plan will not renew. You keep everything until the end of the period you have already paid for.",
+    "savedCancelling": "Your plan will not renew. You keep everything until the end of the period you have already paid for; after that you, the owner, can read and export for 90 days.",
     "savedCancelled": "Your plan has been cancelled. Nothing has been deleted. Your vehicles, services and records are all still here.",
     "savedResumed": "Welcome back. Your plan will renew as normal and nothing was interrupted.",
     "savedCardRemoved": "That card is off the account. Add another before your next bill, or the renewal will have nothing to charge.",
@@ -5798,7 +5799,8 @@
     "savedChangeAwaiting": "Accepted. The change is made as soon as it is paid.",
     "savedChangeCredited": "Done. The change is made, and the unused difference is credited to your account. It is spent on your next invoice.",
     "savedChangeCancelled": "Cancelled. Nothing changes.",
-    "creditField": "Account credit"
+    "creditField": "Account credit",
+    "cancelRefund": "Cancelling does not refund the unused part of a period automatically. If you think you are owed money back, email us: a person looks at each request, and this does not take away any right the law gives you."
   },
   "adminBilling": {
     "title": "Subscriptions",

@@ -5560,7 +5560,8 @@
     "billingGraceNoExtras": "'n Betaling is agterstallig, so niks nuuts wat geld kos, kan bygevoeg word nie. Betaal eers wat verskuldig is; jou rekords is veilig en werk gaan voort soos gewoonlik.",
     "billingChangeFailed": "Die verandering kon nie gestoor word nie. Niks is gehef nie. Probeer weer.",
     "retrievalOwnerOnly": "Net die eienaar kan die rekords aflaai terwyl die rekening gestop is.",
-    "retrievalEnded": "Die tyd om hierdie rekords te lees en uit te voer, het verby gegaan. Betaal wat verskuldig is, of begin weer, om hulle oop te maak."
+    "retrievalEnded": "Die tyd om hierdie rekords te lees en uit te voer, het verby gegaan. Betaal wat verskuldig is, of begin weer, om hulle oop te maak.",
+    "billingCancelImmediate": "'n Kansellering stop die volgende hernuwing, en jy behou alles tot die einde van die tydperk waarvoor jy betaal het. E-pos ons om dit gouer te beëindig."
   },
   "billing": {
     "title": "Rekening",
@@ -5631,8 +5632,8 @@
     "cancelIntro": "Jou plan bly ten volle aktief tot {date}, waarvoor jy reeds betaal het.",
     "cancelWhatHappens": "Wat gebeur",
     "cancelEffect1": "Jy behou alles tot die einde van die tydperk waarvoor jy betaal het.",
-    "cancelEffect2": "Ná {date} sluit die betaalde funksies, en niks verder word gehef nie.",
-    "cancelEffect3": "Niks word uitgevee nie. Jou voertuie, werkkaarte, fakture en geskiedenis bly almal, en kom terug sodra jy weer begin.",
+    "cancelEffect2": "Ná {date} word niks verder gehef nie en jou span kan nie meer FLEETWISE gebruik nie. Vir 90 dae daarna kan jy, die eienaar, steeds alles lees en uitvoer, en weer begin wanneer jy wil.",
+    "cancelEffect3": "Niks word uitgevee wanneer jy kanselleer nie. Jou voertuie, werkkaarte, fakture en geskiedenis bly almal, en kom terug sodra jy weer begin.",
     "cancelFactPlan": "Plan",
     "cancelFactUntil": "Aktief tot",
     "cancelFootnote": "Van plan verander? Jy kan die plan weer vanaf hierdie bladsy begin.",
@@ -5696,7 +5697,7 @@
     "savedNoChange": "Dis wat jy reeds het, so niks het verander nie en niks is gehef nie.",
     "savedPaid": "Betaal. Jou kwitansie is op pad per e-pos.",
     "savedChecking": "Ons gaan daardie betaling by die bank na. Dit neem gewoonlik 'n minuut. Moenie weer betaal nie: as dit deurgegaan het, kry ons dit, en as dit nie het nie, sê ons vir jou.",
-    "savedCancelling": "Jou plan sal nie hernu nie. Jy behou alles tot die einde van die tydperk waarvoor jy reeds betaal het.",
+    "savedCancelling": "Jou plan sal nie hernu nie. Jy behou alles tot die einde van die tydperk waarvoor jy reeds betaal het; daarna kan jy, die eienaar, vir 90 dae lees en uitvoer.",
     "savedCancelled": "Jou plan is gekanselleer. Niks is uitgevee nie. Jou voertuie, dienste en rekords is alles nog hier.",
     "savedResumed": "Welkom terug. Jou plan sal soos gewoonlik hernu en niks is onderbreek nie.",
     "savedCardRemoved": "Daardie kaart is van die rekening af. Voeg 'n ander een by voor jou volgende rekening, anders het die hernuwing niks om te hef nie.",
@@ -5798,7 +5799,8 @@
     "savedChangeAwaiting": "Aanvaar. Die verandering word gemaak sodra dit betaal is.",
     "savedChangeCredited": "Klaar. Die verandering is gemaak, en die ongebruikte verskil is as krediet op jou rekening gesit. Dit word op jou volgende faktuur gebruik.",
     "savedChangeCancelled": "Gekanselleer. Niks verander nie.",
-    "creditField": "Rekeningkrediet"
+    "creditField": "Rekeningkrediet",
+    "cancelRefund": "Kansellering betaal nie die ongebruikte deel van 'n tydperk outomaties terug nie. As jy dink jy is geld terug verskuldig, e-pos ons: 'n persoon kyk na elke versoek, en dit neem geen reg weg wat die wet aan jou gee nie."
   },
   "adminBilling": {
     "title": "Intekeninge",

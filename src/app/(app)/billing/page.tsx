@@ -1405,6 +1405,9 @@ export default async function BillingPage({
                   endsOn ? shortDate(endsOn, locale) : t("ui.none", locale),
                 ),
                 t("billing.cancelEffect3", locale),
+                // Decision 26: no automatic refund of unused time; requests are looked at
+                // one by one, and the law's own rights stand (flagged for legal review).
+                t("billing.cancelRefund", locale),
               ]}
               footnote={t("billing.cancelFootnote", locale)}
               confirmLabel={t("billing.cancelYes", locale)}
