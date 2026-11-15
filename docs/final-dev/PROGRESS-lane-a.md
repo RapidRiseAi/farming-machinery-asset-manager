@@ -9,9 +9,9 @@ BRIEF 15, 4 (signup range), 16 first paragraph; decisions 25, 26, 27, 38, 39, 41
 
 | # | Step | State |
 |---|---|---|
-| 1 | Additions: quote, accept, pay, then capacity (migration 20261115110000) | in progress |
-| 2 | Plan changes: upgrade now with credit, downgrade at renewal, pending edit/cancel | todo |
-| 3 | Cancellation: period end only for owners, wording, legal flags | todo |
+| 1 | Additions: quote, accept, pay, then capacity (migration 20261115110000) | done |
+| 2 | Plan changes: upgrade now with credit, downgrade at renewal, pending edit/cancel | done |
+| 3 | Cancellation: period end only for owners, wording, legal flags | in progress |
 | 4 | Failed renewal: grace 7 days, then 90 days owner-only retrieval, then closed (20261115120000) | todo |
 | 5 | Reactivation without duplicate charge or replay | todo |
 | 6 | Payment integrity: out-of-order settles, void invoice payments, quote version, uniqueness | todo |
@@ -48,8 +48,8 @@ Log:
   skips change invoices; actions requestChange/acceptChange/payChange/cancelChange (runOnce);
   `components/billing/change-review.tsx`; /billing reads stored quotes; cron step
   expire_quotes; receipts print change lines; conversion review shows the price; EN/AF keys and
-  error codes. 1160 unit tests and all lint gates pass. Steps 1 and 2 done once the full SQL
-  run is green. Next: step 3 cancellation (owner period-end only, wording, legal flags).
+  error codes. 1160 unit tests and all lint gates pass. Steps 1 and 2 DONE: tsc, 1160 unit tests, dashes, parity, keys,
+  design, errors and all 79 PGlite suites pass. Next: step 3 cancellation (owner period-end only, wording, legal flags).
 
 ## A1 (complete)
 
