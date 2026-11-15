@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { CSP_REPORT_MAX_BYTES } from "@/lib/limits";
 
 /**
  * Where browsers report what the content security policy blocked (lib/security/csp.ts, sent
@@ -15,7 +16,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 /** A report is a few hundred bytes; anything far larger is not one. */
-const MAX_BYTES = 16 * 1024;
+const MAX_BYTES = CSP_REPORT_MAX_BYTES;
 
 function originOf(value: unknown): string {
   if (typeof value !== "string" || value === "") return "";

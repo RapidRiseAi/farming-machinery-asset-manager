@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { postgresUuidSchema } from "./identifiers";
+import { ASSISTANT_SPOKEN_MAX_CHARS, ASSISTANT_TYPED_MAX_CHARS } from "@/lib/limits";
 
 // PostgreSQL accepts UUID-shaped identifiers regardless of their RFC version.
 // Some long-lived/demo machine rows intentionally use deterministic identifiers
@@ -7,7 +8,8 @@ import { postgresUuidSchema } from "./identifiers";
 // GUID validator rather than Zod's stricter RFC 9562 UUID validator.
 export const assistantTurnRequestSchema = z
   .object({
-    input: z.string().trim().min(1).max(2000),
+    // A spoken request may run to ten minutes (decision 11); a typed one stays short.
+    input: z.string().trim().min(1).max(ASSISTANT_SPOKEN_MAX_CHARS),
     locale: z.enum(["en-ZA", "af-ZA"]),
     channel: z.enum(["typed", "voice"]),
     voiceCaptureId: z.uuid().optional(),
@@ -21,7 +23,7 @@ export const assistantTurnRequestSchema = z
     alternatives: z
       .array(
         z.object({
-          text: z.string().trim().min(1).max(2000),
+          text: z.string().trim().min(1).max(ASSISTANT_SPOKEN_MAX_CHARS),
           locale: z.enum(["en-ZA", "af-ZA"]),
           source: z.enum(["recogniser", "second-pass", "ai"]),
         }),
@@ -45,6 +47,13 @@ export const assistantTurnRequestSchema = z
       .optional(),
   })
   .superRefine((value, context) => {
+    if (value.channel !== "voice" && value.input.length > ASSISTANT_TYPED_MAX_CHARS) {
+      context.addIssue({
+        code: "custom",
+        path: ["input"],
+        message: "A typed request is at most the typed length.",
+      });
+    }
     if (value.alternatives?.length && value.channel !== "voice") {
       context.addIssue({
         code: "custom",

@@ -1,71 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { Photo } from "@/components/ui/photo";
-import { compressImage, blobToDataUrl } from "@/lib/image-compress";
 import { t, type Lang } from "@/lib/i18n";
-import { looksLikeImage, photoUploadErrorKey } from "@/lib/machine-photo-upload-error";
+import { UploadField } from "@/components/upload/upload-field";
 
 /**
- * Add-vehicle primary-photo picker. The machine's storage path only exists after
- * insert, so we compress the chosen image client-side and ferry it to the
- * `createMachine` server action as a base64 `data:` URL in a hidden field; the action
- * uploads it and marks it primary. Keeps the add flow one submit.
+ * Add-vehicle primary-photo picker. The page chooses the new vehicle's id, so the photo
+ * goes straight to Storage under it through the upload pipeline (reduced unless the
+ * original is kept) while the rest of the form is filled in; the form then sends the
+ * upload's id as `primary_photo_intent`, and `createMachine` judges and saves it once the
+ * vehicle exists and marks it primary. Keeps the add flow one submit, with no photo
+ * passing through a server function.
  */
-export function MachinePhotoNew({ locale = "en" }: { locale?: Lang }) {
-  const [preview, setPreview] = useState<string | null>(null);
-  const [dataUrl, setDataUrl] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (!looksLikeImage(file)) {
-      setErr(t("machine.uploadNotImage", locale));
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    try {
-      const blob = await compressImage(file);
-      const url = await blobToDataUrl(blob);
-      setDataUrl(url);
-      setPreview(url);
-    } catch (e2) {
-      // Compressing happens on the phone, so a failure here is a file it cannot read.
-      setErr(t(photoUploadErrorKey(e2, true), locale));
-      setDataUrl("");
-      setPreview(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function clear() {
-    setDataUrl("");
-    setPreview(null);
-    setErr(null);
-  }
-
+export function MachinePhotoNew({ locale = "en", farmId, machineId }: { locale?: Lang; farmId: string | null; machineId: string }) {
   return (
-    <div className="flex flex-col gap-2">
-      <input type="hidden" name="primary_photo_data" value={dataUrl} />
-      {preview ? (
-        <div className="flex items-center gap-3">
-          <Photo src={preview} alt={t("machines.primaryPhoto", locale)} size="thumb" priority className="h-20 w-20 rounded-lg ring-1 ring-sand-200" />
-          <button type="button" onClick={clear} className="focus-ring inline-flex min-h-[48px] items-center rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
-            {t("machines.removePhoto", locale)}
-          </button>
-        </div>
-      ) : (
-        <label className="focus-ring inline-flex w-fit cursor-pointer items-center gap-1.5 min-h-[48px] rounded-lg border border-sand-300 px-4 text-sm font-medium text-sand-700 hover:bg-sand-50 sm:min-h-[40px]">
-          {busy ? t("machine.uploading", locale) : t("machines.choosePhoto", locale)}
-          <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={onFile} disabled={busy} />
-        </label>
-      )}
-      {err ? <p role="alert" className="text-sm text-status-overdue">{err}</p> : null}
-    </div>
+    <UploadField
+      locale={locale}
+      label={t("machines.choosePhoto", locale)}
+      accept="photo"
+      capture
+      uploadLabel="photo"
+      finish="caller"
+      name="primary_photo_intent"
+      scope={`new-machine:${machineId}`}
+      target={farmId ? { kind: "machine", id: machineId, farmId } : null}
+    />
   );
 }

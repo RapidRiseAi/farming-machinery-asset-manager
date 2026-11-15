@@ -128,8 +128,8 @@
     "offlineTyped": "Jy is vanlyn. Hou hierdie teks hier en stuur dit wanneer jy sein het.",
     "offlineVoice": "Lewende spraak benodig ’n verbinding. Tik die versoek nou of probeer die mikrofoon wanneer jy sein het.",
     "offlinePrivacy": "Dié opname bly net op hierdie toestel totdat jy Transkribeer nou kies of dit weggooi. FLEETWISE sal steeds vra voordat enigiets gestoor word.",
-    "offlineLimit": "Vanlyn opname stop outomaties ná een minuut.",
-    "recordingLimit": "Opnames stop outomaties ná een minuut sodat jy die transkripsie kan nagaan.",
+    "offlineLimit": "Opname sonder sein stop self na tien minute en hou wat jy gesê het.",
+    "recordingLimit": "Opnames stop self na tien minute sodat jy die teks kan nagaan.",
     "offlineCaptured": "Op hierdie toestel vasgelê. Wanneer sein terugkeer, druk Transkribeer nou. FLEETWISE sal steeds vra voordat enigiets gestoor word.",
     "offlineTitle": "Opname wag op hierdie toestel",
     "offlinePending": "{count} opnames wag om getranskribeer te word. Hulle bly net op dié toestel totdat jy hulle transkribeer of weggooi. Opnames ouer as sewe dae word verwyder wanneer dié assistent weer oopmaak.",
@@ -254,7 +254,9 @@
     "noticeWithdrawnKeepOff": "Hou dit af",
     "noticeWithdrawnOn": "Skakel AI-hulp aan",
     "aiHelpFarmOff": "AI-hulp is vir hierdie {{org}} afgeskakel: moeilike versoeke gebruik net die plaaslike reëls en Azure Speech in Suid-Afrika.",
-    "noticeWaiting": "Jou laaste versoek het AI-hulp nodig. Hou AI-hulp aan en dit word dadelik gestuur."
+    "noticeWaiting": "Jou laaste versoek het AI-hulp nodig. Hou AI-hulp aan en dit word dadelik gestuur.",
+    "recordingNearLimit": "Minder as 30 sekondes oor: die opname stop self by tien minute en hou wat jy gesê het.",
+    "commandNotHeard": "Die opname kon nog nie gehoor word nie. Dit word gehou: tik daarop om weer te probeer, of tik jou versoek."
   },
   "aiUsage": {
     "title": "AI en stem",
@@ -1715,7 +1717,9 @@
       "93": "Afgelope 3 maande",
       "186": "Afgelope 6 maande",
       "372": "Afgelope 12 maande"
-    }
+    },
+    "voiceNearLimit": "Minder as 30 sekondes oor: die opname stop self by tien minute en hou wat jy gesê het.",
+    "voiceStoppedAtLimit": "Die opname het tien minute bereik en gestop. Alles wat jy gesê het, is gehou."
   },
   "jobcards": {
     "title": "Werkkaarte",
@@ -8192,6 +8196,47 @@
     "difference": "Verskil",
     "tolerance": "Toegelate verskil (%)",
     "toleranceHint": "'n {{Trip}} wat volgens die odometer verder of korter as dit is, word gemerk."
+  },
+  "upload": {
+    "err": {
+      "tooLarge": "Hierdie lêer is te groot. Foto's kan tot {photoMb} MB wees, PDF's tot {pdfMb} MB en stemnotas tot {voiceMb} MB. Jou ander besonderhede bly gestoor: kies 'n kleiner lêer en probeer weer.",
+      "tooLargeForStorage": "Hierdie lêer is groter as wat die bergingsinstellings tans toelaat. Jou besonderhede bly gestoor: kies 'n kleiner lêer, of vra ondersteuning om die instelling te verhoog.",
+      "wrongType": "Hierdie soort lêer kan nie aangeheg word nie. Heg 'n foto (JPEG, PNG, WebP of HEIC), 'n PDF of 'n stemnota aan. Jou besonderhede bly gestoor.",
+      "storageFull": "Jou {{org}} se berging vir aanhegsels is vol. Rekords sonder aanhegsels stoor steeds. Vra die eienaar om berging by te voeg en heg die lêer dan weer aan. Jou besonderhede bly gestoor.",
+      "target": "Hierdie rekord kan nie meer aanhegsels kry nie: dit is dalk gesluit of verwyder. Jou besonderhede bly gestoor.",
+      "tooMany": "Te veel oplaaie is nog besig om klaar te maak. Laat hulle klaarmaak en probeer dan weer.",
+      "requestReused": "Die lêer het verander terwyl dit opgelaai is. Kies dit weer om van voor af te begin.",
+      "expired": "Hierdie oplaai het te lank geneem en is gestop. Kies die lêer weer om dit te stuur.",
+      "tooLong": "Hierdie opname is langer as {minutes} minute. Neem 'n korter nota op, of verdeel dit in twee.",
+      "notReceived": "Die lêer het nie aangekom nie. Kyk na jou verbinding en probeer weer: die oplaai gaan voort waar dit gestop het.",
+      "malformed": "Hierdie lêer is beskadig of onvolledig en kan nie gelees word nie. Kies 'n ander kopie daarvan.",
+      "tooManyPixels": "Hierdie prent het heeltemal te veel pieksels om te wys. Neem of kies 'n kleiner foto.",
+      "unsupportedCodec": "Hierdie opname se formaat word nie ondersteun nie. Neem die nota eerder in die app op.",
+      "videoNotSupported": "Video kan nie aangeheg word nie. Heg eerder 'n foto of 'n stemnota aan.",
+      "empty": "Die lêer is leeg. Kies dit weer.",
+      "failed": "Die lêer kon nie aangeheg word nie. Jou besonderhede bly gestoor: probeer weer.",
+      "unavailable": "Oplaai werk nie nou nie. Jou besonderhede bly gestoor: probeer oor 'n paar minute weer.",
+      "interrupted": "Die verbinding het tydens die oplaai weggeval. Dit gaan voort van waar dit gestop het wanneer jy weer probeer."
+    },
+    "choosePhoto": "Kies of neem 'n foto",
+    "chooseFile": "Kies 'n lêer",
+    "chooseAnother": "Kies 'n ander lêer",
+    "keepOriginal": "Hou die oorspronklike foto (nie kleiner gemaak nie)",
+    "keepOriginalHint": "Foto's word kleiner gemaak sodat hulle vinnig stuur; reeksnommers en skade bly leesbaar. Merk dit om die foto presies soos dit is te stuur.",
+    "reducedNote": "Kleiner gemaak om te stuur: {from} na {to} pieksels breed.",
+    "keptNote": "Gestuur soos dit is.",
+    "preparing": "Maak die lêer gereed...",
+    "starting": "Begin die oplaai...",
+    "sending": "Stuur: {percent}%",
+    "checking": "Kontroleer die lêer...",
+    "done": "Aangeheg.",
+    "paused": "Onderbreek by {percent}%.",
+    "pause": "Onderbreek",
+    "resume": "Gaan voort",
+    "retry": "Probeer weer",
+    "remove": "Verwyder",
+    "stillSending": "Wag dat die lêer klaar stuur, of verwyder dit.",
+    "selected": "{name}, {size}"
   },
   "assets": {
     "viewFleet": "Vlootbates",

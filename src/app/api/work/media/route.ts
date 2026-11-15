@@ -9,6 +9,8 @@ import { sameOrigin } from "@/lib/security/same-origin";
 import { ReadFailed } from "@/lib/supabase/must";
 import { captureError } from "@/lib/observability";
 import { classifyFailure } from "@/lib/action-errors";
+import { maxBytesForMime } from "@/lib/limits";
+import { commitUpload, verifiedIntentFor } from "@/lib/upload/server";
 
 export const dynamic = "force-dynamic";
 
@@ -99,15 +101,29 @@ export async function POST(request: Request) {
     if (documents?.length) return NextResponse.json({ error: "work-use-document" }, { status: 409 });
   }
 
+  // The current page sends the file straight to Storage first and names its upload here;
+  // an installed older page still posts the file (bounded by Vercel's 4.5 MB).
+  const intentId = String(form.get("upload_intent_id") ?? "");
   const file = form.get("file");
-  if (file instanceof File && file.size > 8 * 1024 * 1024) {
-    return NextResponse.json({ error: "file_too_large" }, { status: 413 });
-  }
-  const stored = await uploadWorkRequestMedia(
-    createServiceClient(), file instanceof File ? file : null, kind, wr.farm_id, wr.id, profile.id,
-  );
-  if (file instanceof File && file.size > 0 && !stored) {
-    return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+  let stored = false;
+  if (intentId) {
+    const direct = await verifiedIntentFor(intentId, profile.id, { kind: "work_request", targetId: wr.id });
+    if (direct.state === "refused") return NextResponse.json({ error: direct.code }, { status: direct.status });
+    const attachmentKind = kind === "invoice" ? "invoice" : kind === "quote" ? "doc" : "photo";
+    if (attachmentKind === "photo" && direct.intent.media_class !== "photo") return NextResponse.json({ error: "bad-file-type" }, { status: 400 });
+    const committed = await commitUpload(supabase, direct.svc, direct.intent, { attachmentKind });
+    if (committed.state === "refused") return NextResponse.json({ error: committed.code }, { status: committed.status });
+    stored = true;
+  } else {
+    if (file instanceof File && file.size > maxBytesForMime(file.type || "image/jpeg")) {
+      return NextResponse.json({ error: "file_too_large" }, { status: 413 });
+    }
+    stored = await uploadWorkRequestMedia(
+      createServiceClient(), file instanceof File ? file : null, kind, wr.farm_id, wr.id, profile.id,
+    );
+    if (file instanceof File && file.size > 0 && !stored) {
+      return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+    }
   }
 
   // Optional amount → the quote (recorded) or invoice (→ cost_entry via 0311) column.

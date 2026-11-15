@@ -11,6 +11,7 @@ import { ownedUpdate } from "@/lib/partial-form";
 import { LAYOUT_SWITCHES } from "@/lib/doc-layout";
 import { isDocTemplate, templateLayout } from "@/lib/doc-templates";
 import { errorCode } from "@/lib/action-errors";
+import { PARTNER_LOGO_MAX_BYTES } from "@/lib/limits";
 
 /**
  * A partner maintaining its own business profile and letterhead (F14a).
@@ -134,7 +135,7 @@ export async function uploadPartnerLogo(formData: FormData) {
 
   const [, contentType, , b64] = match;
   const bytes = Buffer.from(b64, "base64");
-  if (bytes.byteLength > 2_000_000) redirect("/contractor/settings?error=logo-too-big");
+  if (bytes.byteLength > PARTNER_LOGO_MAX_BYTES) redirect("/contractor/settings?error=logo-too-big");
 
   const ext = contentType === "image/svg+xml" ? "svg" : contentType.split("/")[1];
   const path = `${profile.workshop_id}/logo-${Date.now()}.${ext}`;

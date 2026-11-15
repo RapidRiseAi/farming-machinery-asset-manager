@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { ROUTING_BODY_MAX_BYTES } from "@/lib/limits";
 
 import { planRoutes, validPoints } from "@/lib/routing";
 import { plannerAccess, routeErrorResponse } from "@/lib/routing/access";
 
 /** Room for the most stops a route may have and a trip id, with plenty to spare. */
-const MAX_BODY = 16 * 1024;
+const MAX_BODY = ROUTING_BODY_MAX_BYTES;
 
 /**
  * Routes through the planner's points, in order, for the planner to draw and choose from.

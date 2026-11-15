@@ -34,6 +34,9 @@ export type QueuedMutation = {
   /** Optional captured media (fault photo / voice note). */
   photo?: Blob;
   voice?: Blob;
+  /** Set once the server saved the capture, so its files can be sent to it on a later try. */
+  entity_id?: string;
+  farm_id?: string;
   /** When it was queued (for ordering + display). */
   queued_at: number;
 };

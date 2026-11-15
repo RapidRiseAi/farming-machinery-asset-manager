@@ -350,6 +350,43 @@ not by installing the SDK. Security-relevant properties:
 
 ---
 
+## 5e. Uploads (direct to Storage, 20261115090000)
+
+Files go from the browser straight to private Supabase Storage; no file body passes
+through a Vercel function (docs/LIMITS.md). The threats and what stops each:
+
+- **Writing where one should not.** The server chooses every object path (the business or
+  the contractor's workshop first, then the record, then the intent's id) and signs an
+  upload for exactly that path with the service key: two hours, no overwrite (Supabase's
+  signed uploads; the token goes in `x-signature` for TUS). A person's own session can
+  still write the farm buckets under the older policies while older pages are in use; two
+  restrictive Storage policies, `upload_reserved_insert` and `upload_reserved_update`,
+  refuse any direct write outside an open reservation of that person and any overwrite
+  once `app.upload_settings.enforce_reserved_paths` is switched on (one SQL update, after
+  release). Command audio sits in a bucket with no policy for people at all.
+- **Lying about the file.** The file name, extension, declared type and size only choose
+  what to reserve. The server reads the stored object's real size and its first and last
+  bytes and judges them (`src/lib/upload/sniff.ts`): JPEG, PNG, WebP or HEIC with
+  dimensions from the header (a decompression bomb is refused without decoding it: 210
+  megapixels, 30,000 pixels a side), a whole PDF, an audio-only WebM, Ogg or MP4 recording
+  in Opus or AAC with its length. A PDF named .jpg, an executable labelled image/jpeg, a
+  type other than the one declared, a video track, a truncated PDF: refused, the object
+  removed, the reservation released.
+- **Saving through someone else.** `upload_commit` runs in the person's own session and
+  rechecks membership, the pay gate and the record at the moment of saving (a member
+  removed after the upload began cannot save it); the facts the server read are written
+  only by the service role (`upload_mark_verified`); a person reads only their own intents.
+- **Taking the whole pool, or racing for it.** Every reservation is taken under one
+  advisory lock per storage pool, so two uploads cannot both use the last free bytes; a
+  person may hold 40 open uploads at most; a lapsed or refused upload stops counting at once.
+- **Doing it twice.** The request id makes begin answer the same intent; the attachment's
+  id is the intent's, so a retry after a lost answer saves once and charges once.
+- **Public links.** Every bucket is private; files are read through short signed download
+  URLs as before. A signed upload URL cannot be revoked individually (Supabase), which is
+  why it is short and bound to one path that already has a reservation.
+- **Losing evidence by tidying up.** The nightly sweep removes only objects of expired or
+  refused uploads, never a path a record uses, and it finishes an upload whose record exists.
+
 ## 6. Auditability & integrity
 
 - **Append-only `audit_log`** (trigger `app_audit`, `0008`) records `insert/update/delete`

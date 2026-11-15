@@ -11,6 +11,7 @@
  */
 
 import { parseRandsToCents } from "@/lib/money";
+import { BANK_STATEMENT_MAX_ROWS } from "@/lib/limits";
 
 // == CSV ======================================================================
 //
@@ -84,7 +85,7 @@ type BankColumn = (typeof BANK_COLUMNS)[number];
 /** "Leave this column out", a real choice, not an absent one. */
 export const SKIP_COLUMN = "";
 
-export const MAX_STATEMENT_ROWS = 2000;
+export const MAX_STATEMENT_ROWS = BANK_STATEMENT_MAX_ROWS;
 
 /**
  * What a bank is likely to call each of our columns. Afrikaans is first-class for the same

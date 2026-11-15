@@ -1,3 +1,4 @@
+import { READ_ALL_MAX_ROWS } from "@/lib/limits";
 /**
  * Every row of a read the API would otherwise cut at a thousand.
  *
@@ -21,7 +22,7 @@
 export const PAGE_ROWS = 1000;
 
 /** A ceiling, so a runaway read cannot pull a whole table into one function. */
-const READ_ALL_MAX_ROWS = 100_000;
+// The window, from the catalogue: a page size, never a promise of a history limit.
 
 type PageResult = PromiseLike<{ data: unknown; error: unknown }>;
 
