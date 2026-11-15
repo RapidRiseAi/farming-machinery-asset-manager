@@ -103,6 +103,13 @@ begin
   if app.billing_day_ends_at(date '2026-11-15') <> timestamptz '2026-11-15 22:00:00+00' then
     raise exception 'LIFE FAIL [11 tz]: a South African day does not end at 22:00 UTC';
   end if;
+  -- The rule, not the clock: a test of the gate's date passes at every hour but 22:00 to 24:00
+  -- UTC, so the gate and the reading rule are read for the South African date they must use.
+  if (select prosrc from pg_proc where oid = 'app.farm_billing_gate(uuid)'::regprocedure) not like '%app.billing_today()%'
+     or (select prosrc from pg_proc where oid = 'app.stopped_farm_ids(boolean)'::regprocedure) not like '%app.billing_today()%'
+     or (select prosrc from pg_proc where oid = 'app.require_open_farm(uuid,boolean)'::regprocedure) not like '%app.billing_today()%' then
+    raise exception 'LIFE FAIL [11 tz]: the gate or the reading rule is not decided on the South African date';
+  end if;
   if app.billing_today() <> (now() at time zone 'Africa/Johannesburg')::date then
     raise exception 'LIFE FAIL [11 tz]: today is not decided in South Africa';
   end if;
