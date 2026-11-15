@@ -7,7 +7,7 @@ import { finishCronRun, startCronRun } from "@/lib/cron/heartbeat";
 import { drainNotifications } from "@/lib/notifications/drain-delivery";
 import { alertCronFailure } from "@/lib/cron/alert";
 import { runDueReportSchedules } from "@/lib/scheduled-reports";
-import { sweepUploads } from "@/lib/upload/sweep";
+import { sweepCommandAudio, sweepUploads } from "@/lib/upload/sweep";
 import {
   checkGatewayCredits,
   detectModelFailures,
@@ -156,6 +156,8 @@ export async function GET(request: Request) {
   // Direct uploads that lapsed or were refused: reservations released, objects removed
   // (20261115090000).
   await step("upload_sweep", () => sweepUploads(supabase));
+  // Temporary spoken-command audio: done, cancelled, or past its recovery window (20261115100000).
+  await step("command_audio_sweep", () => sweepCommandAudio(supabase));
 
   await step("ai_fx_rate", () => refreshFxRate(supabase));
   await step("ai_prices", () => refreshPrices(supabase));

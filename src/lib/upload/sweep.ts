@@ -38,3 +38,34 @@ export async function sweepUploads(svc: SupabaseClient, limit = 500): Promise<st
   if (failed) throw new Error(`upload sweep: ${failed} object(s) could not be removed, ${removed.length} removed`);
   return `ok (expired ${answer.expired ?? 0}, removed ${removed.length})`;
 }
+
+/**
+ * Temporary spoken-command audio (20261115100000): removed once its command is completed or
+ * cancelled (the command route removes it at once; this catches a removal that failed), and
+ * once the recovery window has passed for a failed, unfinished or abandoned one. Attached
+ * voice notes are attachments and are never named here.
+ */
+export async function sweepCommandAudio(svc: SupabaseClient, limit = 500): Promise<string> {
+  const { data, error } = await svc.rpc("cron_command_audio_sweep", { p_limit: limit });
+  if (error) throw new Error(`command audio sweep: ${error.code ?? "no code"}`);
+  const objects = (data ?? []) as Array<{ intent: string; bucket: string; path: string }>;
+  const byBucket = new Map<string, Array<{ intent: string; path: string }>>();
+  for (const o of objects) byBucket.set(o.bucket, [...(byBucket.get(o.bucket) ?? []), { intent: o.intent, path: o.path }]);
+  const removed: string[] = [];
+  let failed = 0;
+  for (const [bucket, list] of byBucket) {
+    const { error: removeError } = await svc.storage.from(bucket).remove(list.map((o) => o.path));
+    if (removeError) {
+      failed += list.length;
+      captureError(removeError, { where: "cron:command_audio:remove", extra: { bucket } });
+      continue;
+    }
+    removed.push(...list.map((o) => o.intent));
+  }
+  if (removed.length) {
+    const { error: markError } = await svc.rpc("cron_command_audio_removed", { p_intents: removed });
+    if (markError) throw new Error(`command audio mark: ${markError.code ?? "no code"}`);
+  }
+  if (failed) throw new Error(`command audio sweep: ${failed} recording(s) could not be removed, ${removed.length} removed`);
+  return `ok (removed ${removed.length})`;
+}

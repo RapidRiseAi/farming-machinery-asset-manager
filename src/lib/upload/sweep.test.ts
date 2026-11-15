@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sweepUploads } from "./sweep";
+import { sweepCommandAudio, sweepUploads } from "./sweep";
 
 function svc(objects: Array<{ id: string; bucket: string; path: string }>, failBucket?: string) {
   const removed: string[] = [];
@@ -45,4 +45,20 @@ test("a bucket that will not remove keeps its objects named for the next night, 
   ], "jobcard-photos");
   await assert.rejects(sweepUploads(s.client), /1 object\(s\) could not be removed, 1 removed/);
   assert.deepEqual(s.marked, [["1"]]);
+});
+
+test("command audio is removed and marked once; a failed removal is reported and retried next night", async () => {
+  const removed: string[] = [];
+  const marked: string[][] = [];
+  const client = {
+    async rpc(fn: string, args: { p_intents?: string[] }) {
+      if (fn === "cron_command_audio_sweep") return { data: [{ intent: "i1", bucket: "command-audio", path: "f/u/command-1.webm" }], error: null };
+      if (fn === "cron_command_audio_removed") { marked.push(args.p_intents ?? []); return { data: 1, error: null }; }
+      throw new Error(fn);
+    },
+    storage: { from: (bucket: string) => ({ async remove(paths: string[]) { removed.push(...paths.map((p) => `${bucket}:${p}`)); return { data: [], error: null }; } }) },
+  } as unknown as SupabaseClient;
+  assert.equal(await sweepCommandAudio(client), "ok (removed 1)");
+  assert.deepEqual(removed, ["command-audio:f/u/command-1.webm"]);
+  assert.deepEqual(marked, [["i1"]]);
 });
