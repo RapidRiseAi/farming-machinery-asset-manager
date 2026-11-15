@@ -976,3 +976,341 @@ begin
 end $$;
 revoke all on function app.billing_accept_quote(uuid, uuid, bigint, bigint, bigint, date)
   from public, anon, authenticated, service_role;
+-- == A payment on a change invoice ===========================================================
+-- After the rollup (trigger names sort, 'rollup' before 'z_change'), so the invoice already
+-- says whether it is paid. Paid in full: the change is made. Paid but no longer makeable, or
+-- money for a voided change invoice (a payment that settled after the window closed): credit.
+create or replace function app.billing_settle_change_payment() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  i public.billing_invoices%rowtype;
+  q public.billing_change_quotes%rowtype;
+  v text;
+begin
+  if new.invoice_id is null or new.deleted_at is not null or new.amount_incl_cents <= 0 then
+    return null;
+  end if;
+  select * into i from public.billing_invoices where id = new.invoice_id;
+  if not found or i.kind <> 'change' then
+    return null;
+  end if;
+  select * into q from public.billing_change_quotes where invoice_id = i.id for update;
+  if not found then
+    return null;
+  end if;
+
+  if i.status = 'paid' then
+    v := app.billing_apply_change(q.id);
+    if v <> 'applied' then
+      insert into public.billing_account_credits (farm_id, subscription_id, entry, source, amount_cents, quote_id, invoice_id, note)
+      values (i.farm_id, i.subscription_id, 'granted', 'unapplied_payment', i.amount_paid_cents, q.id, i.id,
+              'paid for a change that could no longer be made (' || v || ')')
+      on conflict do nothing;
+      update public.billing_change_quotes
+         set status = 'credited', closed_at = now(), updated_at = now(),
+             close_reason = 'paid after the change could no longer be made; the payment is account credit'
+       where id = q.id and status in ('quoted', 'awaiting_payment', 'expired', 'cancelled');
+    end if;
+  elsif i.status in ('void', 'uncollectible') and new.provider <> 'credit' then
+    insert into public.billing_account_credits (farm_id, subscription_id, entry, source, amount_cents, quote_id, payment_id, invoice_id, note)
+    values (i.farm_id, i.subscription_id, 'granted', 'voided_invoice', new.amount_incl_cents, null, new.id, i.id,
+            'paid after ' || i.invoice_ref || ' was closed')
+    on conflict do nothing;
+  end if;
+  return null;
+end $$;
+revoke all on function app.billing_settle_change_payment() from public, anon, authenticated;
+drop trigger if exists billing_payments_z_change on public.billing_payments;
+create trigger billing_payments_z_change
+  after insert on public.billing_payments
+  for each row execute function app.billing_settle_change_payment();
+
+-- == Closing an unpaid change invoice ========================================================
+-- Voided, never left for anything to charge; credit spent on it comes back, and any other
+-- money already on it becomes credit.
+create or replace function app.billing_void_change_invoice(p_invoice uuid, p_reason text) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  i public.billing_invoices%rowtype;
+  p record;
+begin
+  select * into i from public.billing_invoices where id = p_invoice for update;
+  if not found or i.kind <> 'change' or i.status not in ('draft', 'open') then
+    return;
+  end if;
+  for p in select * from public.billing_payments
+            where invoice_id = i.id and deleted_at is null and amount_incl_cents > 0 loop
+    if p.provider = 'credit' then
+      insert into public.billing_account_credits (farm_id, subscription_id, entry, source, amount_cents, payment_id, invoice_id, note)
+      values (i.farm_id, i.subscription_id, 'restored', 'voided_invoice', p.amount_incl_cents, p.id, i.id,
+              'credit given back: ' || i.invoice_ref || ' closed unpaid')
+      on conflict do nothing;
+      update public.billing_payments
+         set deleted_at = now(), reversal_reason = 'the change was not paid; the credit is back on the account'
+       where id = p.id;
+    else
+      insert into public.billing_account_credits (farm_id, subscription_id, entry, source, amount_cents, payment_id, invoice_id, note)
+      values (i.farm_id, i.subscription_id, 'granted', 'voided_invoice', p.amount_incl_cents, p.id, i.id,
+              'part payment of ' || i.invoice_ref || ', closed unpaid')
+      on conflict do nothing;
+    end if;
+  end loop;
+  update public.billing_invoices
+     set status = 'void', voided_at = now(), voided_reason = left(coalesce(p_reason, 'change not paid'), 300)
+   where id = i.id;
+end $$;
+revoke all on function app.billing_void_change_invoice(uuid, text) from public, anon, authenticated, service_role;
+
+-- == Cancelling a quote or a pending change =================================================
+create or replace function app.billing_cancel_quote(p_quote uuid, p_by uuid) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  q public.billing_change_quotes%rowtype;
+  s public.billing_subscriptions%rowtype;
+begin
+  select * into q from public.billing_change_quotes where id = p_quote for update;
+  if not found then
+    raise exception 'quote-not-found' using errcode = '22023';
+  end if;
+  if not app.billing_actor_may_change(q.farm_id, p_by) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select * into s from public.billing_subscriptions where id = q.subscription_id for update;
+
+  if q.status = 'awaiting_payment' then
+    if exists (select 1 from public.billing_payment_attempts a
+                where a.invoice_id = q.invoice_id and a.status in ('pending', 'unknown')) then
+      raise exception 'billing-in-flight' using errcode = '22023',
+        hint = 'A payment for this change is still being processed.';
+    end if;
+    perform app.billing_void_change_invoice(q.invoice_id, 'cancelled by the customer before payment');
+  elsif q.status = 'scheduled' then
+    if q.change = 'plan' and s.pending_plan is not distinct from q.to_plan
+       and s.pending_billing_period is not distinct from q.to_period then
+      update public.billing_subscriptions
+         set pending_plan = null, pending_billing_period = null, pending_plan_on = null,
+             pending_plan_set_at = null, updated_at = now()
+       where id = s.id;
+    elsif q.change = 'capacity' and s.pending_quota is not distinct from q.to_full then
+      update public.billing_subscriptions
+         set pending_quota = null, pending_quota_on = null, pending_quota_set_at = null, updated_at = now()
+       where id = s.id;
+    end if;
+  elsif q.status <> 'quoted' then
+    raise exception 'quote-not-open' using errcode = '22023';
+  end if;
+
+  update public.billing_change_quotes
+     set status = 'cancelled', closed_at = now(), closed_by = p_by,
+         close_reason = 'cancelled by the customer', updated_at = now()
+   where id = q.id;
+  return jsonb_build_object('cancelled', true, 'quote_id', q.id, 'was', q.status);
+end $$;
+revoke all on function app.billing_cancel_quote(uuid, uuid) from public, anon, authenticated, service_role;
+
+-- == Expiry, run by the billing cron =========================================================
+create or replace function app.billing_expire_quotes() returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  r record;
+  v_n integer := 0;
+  v_rows integer;
+begin
+  update public.billing_change_quotes
+     set status = 'expired', closed_at = now(), close_reason = 'not accepted in time', updated_at = now()
+   where status = 'quoted' and expires_at <= now();
+  get diagnostics v_rows = row_count;
+  v_n := v_n + v_rows;
+
+  for r in
+    select q.id, q.invoice_id
+      from public.billing_change_quotes q
+     where q.status = 'awaiting_payment' and q.payment_due_by <= now()
+       and not exists (select 1 from public.billing_payment_attempts a
+                        where a.invoice_id = q.invoice_id and a.status in ('pending', 'unknown'))
+     for update of q skip locked
+  loop
+    perform app.billing_void_change_invoice(r.invoice_id, 'not paid in time');
+    update public.billing_change_quotes
+       set status = 'expired', closed_at = now(), close_reason = 'not paid in time', updated_at = now()
+     where id = r.id and status = 'awaiting_payment';
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+revoke all on function app.billing_expire_quotes() from public, anon, authenticated, service_role;
+
+-- == The engine, restated where a change invoice must be treated differently ==================
+-- Totals: a change invoice is the sum of its line, like a service invoice (otherwise A1's
+-- 20261114090300 body unchanged).
+create or replace function app.billing_derive_invoice_totals() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_gross bigint;
+  v_discount bigint;
+begin
+  v_gross := new.unit_price_incl_cents * new.asset_count * new.months_charged
+             + coalesce(new.equipment_unit_incl_cents, 0) * coalesce(new.equipment_count, 0);
+
+  -- A service invoice (20261029110000) and a change invoice (20261115110000) are the sum of
+  -- their lines. A change was priced and accepted as one amount: no discount, no AI use.
+  if new.kind in ('service', 'change') then
+    new.discount_cents := 0;
+    new.ai_usage_ex_vat_cents := 0;
+    new.ai_usage_incl_cents := 0;
+    new.total_incl_cents := coalesce(
+      (select sum(l.line_total_incl_cents) from public.billing_invoice_lines l where l.invoice_id = new.id), 0);
+    new.subtotal_ex_vat_cents := app.ex_vat_cents(new.total_incl_cents, new.vat_rate_bps);
+    new.vat_cents := new.total_incl_cents - new.subtotal_ex_vat_cents;
+    new.updated_at := now();
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' or new.status = 'draft' then
+    v_discount := coalesce(
+      app.billing_discount_cents(new.subscription_id, v_gross, new.period_start), 0);
+    new.discount_cents := least(v_discount, v_gross);
+    if new.discount_cents > 0 and new.discount_label is null then
+      new.discount_label := (
+        select coalesce(s.discount_label, s.discount_code)
+          from public.billing_subscriptions s where s.id = new.subscription_id);
+    end if;
+  else
+    new.discount_cents := least(coalesce(new.discount_cents, 0), v_gross);
+  end if;
+
+  new.ai_usage_ex_vat_cents := coalesce(new.ai_usage_ex_vat_cents, 0);
+  new.ai_usage_incl_cents   := new.ai_usage_ex_vat_cents
+    + round(new.ai_usage_ex_vat_cents::numeric * coalesce(new.vat_rate_bps, 0) / 10000)::bigint;
+
+  new.total_incl_cents      := v_gross - new.discount_cents + new.ai_usage_incl_cents;
+  new.subtotal_ex_vat_cents := app.ex_vat_cents(new.total_incl_cents, new.vat_rate_bps);
+  new.vat_cents             := new.total_incl_cents - new.subtotal_ex_vat_cents;
+  new.updated_at            := now();
+  return new;
+end $$;
+revoke execute on function app.billing_derive_invoice_totals() from public, anon, authenticated;
+
+-- The nightly card run never presents a change invoice: it is paid when the owner pays it
+-- (20261029150000 body otherwise unchanged).
+create or replace function app.due_billing_charges(p_limit integer default 50)
+returns table (
+  invoice_id uuid, farm_id uuid, subscription_id uuid, payment_method_id uuid,
+  amount_incl_cents bigint, invoice_ref text, attempt_number integer
+)
+language sql stable security definer set search_path = public, pg_temp as $$
+  select i.id, i.farm_id, i.subscription_id, s.default_payment_method_id,
+         i.total_incl_cents - i.amount_paid_cents,
+         i.invoice_ref,
+         (select count(*)::integer + 1 from public.billing_payment_attempts a
+           where a.invoice_id = i.id)
+    from public.billing_invoices i
+    join public.billing_subscriptions s on s.id = i.subscription_id and s.deleted_at is null
+    join public.farms fm on fm.id = i.farm_id
+     and fm.deleted_at is null and fm.status <> 'cancelled'
+     and not fm.billing_exempt
+    join public.billing_payment_methods pm
+      on pm.id = s.default_payment_method_id and pm.farm_id = s.farm_id
+     and pm.deleted_at is null and pm.status = 'active'
+     and pm.reusable and pm.authorization_code is not null
+   where i.deleted_at is null
+     and i.status = 'open'
+     and i.kind <> 'change'
+     and i.total_incl_cents > i.amount_paid_cents
+     and coalesce(i.due_on, i.issued_on, current_date) <= current_date
+     and (
+       (s.status in ('active', 'past_due')
+          and coalesce(s.next_retry_on, current_date) <= current_date)
+       or
+       (s.status = 'grace'
+          and s.next_retry_on is not null and s.next_retry_on <= current_date)
+       or
+       (s.status = 'suspended'
+          and s.next_retry_on is not null and s.next_retry_on <= current_date)
+     )
+     and not exists (
+       select 1 from public.billing_payment_attempts a
+        where a.invoice_id = i.id and a.status in ('pending', 'unknown')
+     )
+     and not exists (
+       select 1 from public.billing_payments p
+        where p.invoice_id = i.id and p.deleted_at is null and p.amount_incl_cents < 0
+     )
+   order by i.due_on nulls last, i.created_at
+   limit greatest(p_limit, 0);
+$$;
+revoke execute on function app.due_billing_charges(integer)
+  from public, anon, authenticated, service_role;
+
+-- Settling an attempt (20260910200000 body), with three rules added:
+--   * A SUCCEEDED attempt is final. A late or out-of-order 'failed', 'abandoned', 'pending' or
+--     'unknown' (a charge.failed delivered after the charge.success, a reconcile racing the
+--     webhook) changes nothing. Money that came back is a refund, recorded by its own event.
+--   * A failure starts the dunning ladder once, on the move into 'failed', never again for a
+--     repeated failure report, and never for a change invoice: a declined extra is simply not
+--     bought, the subscription stays as it was.
+--   * A delayed success after a failure or an abandonment is still money received: recorded.
+create or replace function app.settle_billing_attempt(
+  p_attempt          uuid,
+  p_status           billing_attempt_status,
+  p_transaction_id   bigint default null,
+  p_provider_ref     text default null,
+  p_gateway_response text default null,
+  p_failure_reason   text default null,
+  p_paid_cents       bigint default null,
+  p_channel          text default null,
+  p_dun              boolean default true
+) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  a public.billing_payment_attempts%rowtype;
+  v_change boolean;
+begin
+  select * into a from public.billing_payment_attempts where id = p_attempt for update;
+  if not found then
+    raise exception 'BILLING: no such payment attempt %', p_attempt;
+  end if;
+
+  if a.status = 'succeeded' and p_status <> 'succeeded' then
+    return;
+  end if;
+
+  update public.billing_payment_attempts
+     set status = p_status,
+         provider_transaction_id = coalesce(p_transaction_id, provider_transaction_id),
+         provider_reference      = coalesce(p_provider_ref, provider_reference, attempt_ref),
+         gateway_response        = coalesce(p_gateway_response, gateway_response),
+         failure_reason          = coalesce(p_failure_reason, failure_reason),
+         resolved_at             = case when p_status in ('succeeded','failed','abandoned')
+                                        then now() else resolved_at end,
+         updated_at              = now()
+   where id = p_attempt;
+
+  if p_status = 'succeeded' then
+    insert into public.billing_payments (
+      farm_id, invoice_id, attempt_id, amount_incl_cents,
+      provider, provider_reference, provider_transaction_id, channel, paid_at
+    ) values (
+      a.farm_id, a.invoice_id, a.id, coalesce(p_paid_cents, a.amount_incl_cents),
+      a.provider, coalesce(p_provider_ref, a.attempt_ref), p_transaction_id, p_channel, now()
+    )
+    on conflict do nothing;
+
+    if a.subscription_id is not null then
+      perform app.billing_restore_after_payment(a.subscription_id);
+    end if;
+
+    update public.billing_payment_methods
+       set last_used_at = now() where id = a.payment_method_id;
+
+  elsif p_status = 'failed' and a.status <> 'failed' and coalesce(p_dun, true) and a.subscription_id is not null then
+    select exists (select 1 from public.billing_invoices i where i.id = a.invoice_id and i.kind = 'change')
+      into v_change;
+    if not v_change then
+      perform app.billing_register_failure(a.subscription_id, p_failure_reason);
+    end if;
+  end if;
+end $$;
+revoke execute on function app.settle_billing_attempt(
+  uuid, billing_attempt_status, bigint, text, text, text, bigint, text, boolean)
+  from public, anon, authenticated;
