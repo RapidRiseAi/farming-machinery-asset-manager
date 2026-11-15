@@ -565,3 +565,414 @@ begin
 end $$;
 revoke all on function app.billing_change_state(uuid, public.farm_plan, public.billing_period, integer, integer, boolean, date)
   from public, anon, authenticated, service_role;
+-- == Quoting =================================================================================
+-- Prices the change and keeps it, with its basis, for the person to accept. A quote not yet
+-- accepted is superseded by the next one, so only one price is ever live.
+create or replace function app.billing_quote_change(
+  p_sub uuid, p_plan public.farm_plan, p_period public.billing_period,
+  p_full integer, p_equipment_extra integer, p_current_list boolean, p_by uuid,
+  p_today date default null)
+returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  s         public.billing_subscriptions%rowtype;
+  v         jsonb;
+  v_today   date := coalesce(p_today, app.billing_today());
+  v_id      uuid;
+  v_expires timestamptz;
+begin
+  select * into s from public.billing_subscriptions where id = p_sub and deleted_at is null;
+  if not found then
+    raise exception 'billing-no-subscription' using errcode = '22023';
+  end if;
+  if not app.billing_actor_may_change(s.farm_id, p_by) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+
+  v := app.billing_change_state(p_sub, p_plan, p_period, p_full, p_equipment_extra, p_current_list, v_today);
+  if v ->> 'kind' not in ('now', 'renewal') then
+    return v;
+  end if;
+
+  update public.billing_change_quotes
+     set status = 'superseded', closed_at = now(), close_reason = 'a newer quote', updated_at = now()
+   where subscription_id = p_sub and status = 'quoted';
+
+  -- Thirty minutes, and never past midnight in South Africa: a price for the days left is a
+  -- price for today.
+  v_expires := least(now() + interval '30 minutes', app.billing_day_ends_at(v_today));
+
+  insert into public.billing_change_quotes (
+    farm_id, subscription_id, change, mode, status,
+    from_plan, from_period, from_price_version_id, from_full, from_equipment_extra,
+    full_in_use, equipment_in_use, period_start, period_end,
+    to_plan, to_period, to_price_version_id, to_full, to_equipment_extra,
+    days_remaining, days_in_period, charge_now_cents, credit_now_cents,
+    current_renewal_cents, next_renewal_cents, effective_on, priced_on, expires_at,
+    detail, created_by
+  ) values (
+    s.farm_id, s.id, v ->> 'change', v ->> 'kind', 'quoted',
+    s.plan, s.billing_period, nullif(v #>> '{from,price_version_id}', '')::uuid, s.asset_quota, s.equipment_extra_quota,
+    (v #>> '{in_use,full}')::integer, (v #>> '{in_use,equipment}')::integer,
+    s.current_period_start, s.current_period_end,
+    (v #>> '{to,plan}')::public.farm_plan, (v #>> '{to,period}')::public.billing_period,
+    nullif(v #>> '{to,price_version_id}', '')::uuid,
+    nullif(v #>> '{to,full}', '')::integer, (v #>> '{to,equipment_extra}')::integer,
+    (v #>> '{period,days_remaining}')::integer, (v #>> '{period,days_in_period}')::integer,
+    (v #>> '{money,charge_now_cents}')::bigint, (v #>> '{money,credit_now_cents}')::bigint,
+    nullif(v #>> '{money,current_renewal_cents}', '')::bigint, nullif(v #>> '{money,next_renewal_cents}', '')::bigint,
+    (v ->> 'effective_on')::date, v_today, v_expires,
+    v || jsonb_build_object('input', jsonb_build_object(
+      'plan', p_plan, 'period', p_period, 'full', p_full, 'equipment_extra', p_equipment_extra,
+      'current_list', coalesce(p_current_list, false))),
+    p_by
+  ) returning id into v_id;
+
+  return v || jsonb_build_object('quote_id', v_id, 'expires_at', v_expires);
+end $$;
+revoke all on function app.billing_quote_change(uuid, public.farm_plan, public.billing_period, integer, integer, boolean, uuid, date)
+  from public, anon, authenticated, service_role;
+
+-- == Making a change =========================================================================
+-- Internal. Makes an accepted 'now' change, once, if what it was priced on still holds; answers
+-- 'applied', 'stale' (the basis moved: the period rolled over, the plan or quantities changed)
+-- or 'closed'. Never raises for a basis that moved, because it runs inside a payment.
+create or replace function app.billing_apply_change(p_quote uuid) returns text
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  q public.billing_change_quotes%rowtype;
+  s public.billing_subscriptions%rowtype;
+  v_label text;
+begin
+  select * into q from public.billing_change_quotes where id = p_quote for update;
+  if not found then return 'closed'; end if;
+  if q.status = 'applied' then return 'applied'; end if;
+  if q.status not in ('quoted', 'awaiting_payment') or q.accepted_at is null or q.mode <> 'now' then
+    return 'closed';
+  end if;
+
+  select * into s from public.billing_subscriptions where id = q.subscription_id for update;
+  if not found or s.deleted_at is not null or s.ended_on is not null
+     or s.status in ('cancelled', 'pending', 'suspended')
+     or s.plan <> q.from_plan or s.billing_period <> q.from_period
+     or s.asset_quota is distinct from q.from_full
+     or s.equipment_extra_quota <> q.from_equipment_extra
+     or s.current_period_end is distinct from q.period_end
+     or (app.billing_price_for_subscription(s.id)).id is distinct from q.from_price_version_id then
+    return 'stale';
+  end if;
+
+  if q.change = 'capacity' then
+    update public.billing_subscriptions
+       set asset_quota = q.to_full,
+           equipment_extra_quota = q.to_equipment_extra,
+           -- More than the number you asked to give back is unambiguous about which you meant.
+           pending_quota = case when q.to_full > coalesce(s.asset_quota, 0) then null else pending_quota end,
+           pending_quota_on = case when q.to_full > coalesce(s.asset_quota, 0) then null else pending_quota_on end,
+           pending_quota_set_at = case when q.to_full > coalesce(s.asset_quota, 0) then null else pending_quota_set_at end,
+           updated_at = now()
+     where id = s.id;
+    if q.to_full > coalesce(s.asset_quota, 0) then
+      update public.billing_change_quotes
+         set status = 'superseded', closed_at = now(), close_reason = 'more spaces were bought', updated_at = now()
+       where subscription_id = s.id and status = 'scheduled' and change = 'capacity';
+    end if;
+  else
+    select version_label into v_label from public.billing_price_versions where id = q.to_price_version_id;
+    update public.billing_subscriptions
+       set plan = q.to_plan,
+           billing_period = q.to_period,
+           price_version_id = q.to_price_version_id,
+           price_version_label = coalesce(v_label, price_version_label),
+           equipment_extra_quota = q.to_equipment_extra,
+           -- An upgrade cancels a downgrade that was waiting.
+           pending_plan = null, pending_billing_period = null, pending_plan_on = null, pending_plan_set_at = null,
+           updated_at = now()
+     where id = s.id;
+    -- The effective plan, with the non-payment exception the old path kept.
+    if s.plan_before_downgrade is not null then
+      update public.billing_subscriptions set plan_before_downgrade = q.to_plan where id = s.id;
+    else
+      update public.farms set plan = q.to_plan where id = s.farm_id;
+      -- One plan across a customer's sites (decision 22).
+      update public.farms set plan = q.to_plan where billed_through = s.farm_id and deleted_at is null;
+    end if;
+    update public.billing_change_quotes
+       set status = 'superseded', closed_at = now(), close_reason = 'a higher plan was taken', updated_at = now()
+     where subscription_id = s.id and status = 'scheduled' and change = 'plan';
+  end if;
+
+  update public.billing_change_quotes
+     set status = 'applied', applied_at = now(), updated_at = now()
+   where id = q.id;
+  return 'applied';
+end $$;
+revoke all on function app.billing_apply_change(uuid) from public, anon, authenticated, service_role;
+
+-- == Spending credit =========================================================================
+-- Pays what it can of an open invoice from the account's credit, as a payment with provider
+-- 'credit', under the subscription lock so two invoices cannot spend the same rand. Not a
+-- service invoice (once-off, paid its own way) and never while a card payment is in flight.
+create or replace function app.billing_apply_credit(p_invoice uuid) returns bigint
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  i       public.billing_invoices%rowtype;
+  v_bal   bigint;
+  v_amt   bigint;
+  v_pay   uuid;
+begin
+  select * into i from public.billing_invoices where id = p_invoice and deleted_at is null for update;
+  if not found or i.status <> 'open' or i.subscription_id is null or i.kind = 'service' then
+    return 0;
+  end if;
+  if exists (select 1 from public.billing_payment_attempts a
+              where a.invoice_id = i.id and a.status in ('pending', 'unknown')) then
+    return 0;
+  end if;
+  perform 1 from public.billing_subscriptions where id = i.subscription_id for update;
+  v_bal := app.billing_credit_balance(i.subscription_id);
+  v_amt := least(v_bal, i.total_incl_cents - i.amount_paid_cents);
+  if v_amt is null or v_amt <= 0 then
+    return 0;
+  end if;
+
+  insert into public.billing_payments (
+    farm_id, invoice_id, amount_incl_cents, currency, paid_at,
+    provider, provider_reference, channel, method, note
+  ) values (
+    i.farm_id, i.id, v_amt, 'ZAR', now(),
+    'credit', 'CR-' || replace(gen_random_uuid()::text, '-', ''), 'credit', 'credit', 'account credit'
+  ) returning id into v_pay;
+  insert into public.billing_account_credits (farm_id, subscription_id, entry, source, amount_cents, payment_id, invoice_id, note)
+  values (i.farm_id, i.subscription_id, 'applied', 'invoice', -v_amt, v_pay, i.id, 'spent on ' || i.invoice_ref);
+
+  -- Paid in full by credit: the step every payment takes.
+  if (select status from public.billing_invoices where id = i.id) = 'paid' then
+    perform app.billing_restore_after_payment(i.subscription_id);
+  end if;
+  return v_amt;
+end $$;
+revoke all on function app.billing_apply_credit(uuid) from public, anon, authenticated, service_role;
+
+-- A period invoice spends the credit as it is issued.
+create or replace function app.billing_invoice_spend_credit() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if new.subscription_id is not null and app.billing_credit_balance(new.subscription_id) > 0 then
+    perform app.billing_apply_credit(new.id);
+  end if;
+  return null;
+end $$;
+revoke all on function app.billing_invoice_spend_credit() from public, anon, authenticated;
+drop trigger if exists billing_invoices_spend_credit on public.billing_invoices;
+create trigger billing_invoices_spend_credit
+  after update of status on public.billing_invoices
+  for each row
+  when (old.status = 'draft' and new.status = 'open' and new.kind in ('period', 'ai_usage'))
+  execute function app.billing_invoice_spend_credit();
+
+-- == The change invoice ======================================================================
+-- Exactly the accepted charge, one line saying what it buys, due today. Lines first, then
+-- issued, so app.billing_freeze_invoice_line is satisfied and the total is the line.
+create or replace function app.billing_raise_change_invoice(p_quote uuid) returns uuid
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  q          public.billing_change_quotes%rowtype;
+  v_settings public.billing_settings%rowtype;
+  v_farm     public.farms%rowtype;
+  v_price    public.billing_price_versions%rowtype;
+  v_invoice  uuid;
+  v_desc     text;
+  v_today    date := app.billing_today();
+begin
+  select * into q from public.billing_change_quotes where id = p_quote;
+  select * into v_settings from public.billing_settings where singleton;
+  select * into v_farm from public.farms where id = q.farm_id;
+  select * into v_price from public.billing_price_versions where id = coalesce(q.to_price_version_id, q.from_price_version_id);
+
+  v_desc := case
+    when q.change = 'capacity' then
+      'FLEETWISE '
+      || case when q.to_full > coalesce(q.from_full, 0) then (q.to_full - coalesce(q.from_full, 0))::text || ' more full space(s)' else '' end
+      || case when q.to_full > coalesce(q.from_full, 0) and q.to_equipment_extra > q.from_equipment_extra then ' and ' else '' end
+      || case when q.to_equipment_extra > q.from_equipment_extra
+              then (q.to_equipment_extra - q.from_equipment_extra)::text || ' more equipment space(s)' else '' end
+    else
+      'FLEETWISE ' || q.from_plan::text || ' to ' || q.to_plan::text
+      || ', ' || coalesce(q.from_full, q.full_in_use)::text || ' full space(s)'
+    end
+    || ', ' || q.days_remaining::text || ' of ' || q.days_in_period::text || ' days to '
+    || to_char(coalesce(q.period_end, v_today), 'DD Mon YYYY');
+
+  insert into public.billing_invoices (
+    farm_id, subscription_id, invoice_ref, status, kind,
+    period_start, period_end, issued_on, due_on,
+    plan, billing_period, asset_count, unit_price_incl_cents, months_charged,
+    equipment_active, equipment_included, equipment_count, equipment_unit_incl_cents,
+    price_version_id, price_version_label, vat_rate_bps,
+    seller_vat_number, seller_snapshot, bill_to_snapshot
+  ) values (
+    q.farm_id, q.subscription_id, app.next_billing_invoice_ref(), 'draft', 'change',
+    v_today, greatest(coalesce(q.period_end, v_today), v_today), v_today, v_today,
+    q.to_plan, q.to_period,
+    greatest(coalesce(q.to_full, 0) - coalesce(q.from_full, 0), 0), 0, 1,
+    q.equipment_in_use, coalesce((q.detail #>> '{to,equipment_included}')::integer, 0),
+    greatest(q.to_equipment_extra - q.from_equipment_extra, 0), 0,
+    v_price.id, coalesce(v_price.version_label, 'Change'), coalesce(v_price.vat_rate_bps, 0),
+    v_settings.vat_number,
+    jsonb_build_object(
+      'legal_name', v_settings.legal_name, 'trading_name', v_settings.trading_name,
+      'reg_number', v_settings.reg_number, 'vat_registered', v_settings.vat_registered,
+      'billing_address', v_settings.billing_address, 'billing_email', v_settings.billing_email),
+    jsonb_build_object(
+      'name', v_farm.name, 'trading_name', v_farm.trading_name, 'reg_number', v_farm.reg_number,
+      'vat_number', v_farm.vat_number, 'billing_address', v_farm.billing_address,
+      'billing_email', v_farm.billing_email)
+  ) returning id into v_invoice;
+
+  insert into public.billing_invoice_lines (
+    invoice_id, farm_id, sort_order, description, qty, months_charged,
+    unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents
+  )
+  select v_invoice, q.farm_id, 0, left(v_desc, 200), 1, 1, q.charge_now_cents, q.charge_now_cents,
+         app.ex_vat_cents(q.charge_now_cents, inv.vat_rate_bps),
+         q.charge_now_cents - app.ex_vat_cents(q.charge_now_cents, inv.vat_rate_bps)
+    from public.billing_invoices inv where inv.id = v_invoice;
+
+  update public.billing_invoices set status = 'open' where id = v_invoice;
+  return v_invoice;
+end $$;
+revoke all on function app.billing_raise_change_invoice(uuid) from public, anon, authenticated, service_role;
+
+-- == Accepting ===============================================================================
+-- The person accepts the amounts they were shown (passed back, so a changed price is refused
+-- rather than charged). Priced again under the subscription lock: a basis that moved since the
+-- quote (another change, an asset added or retired, the period rolled over) is 'quote-changed',
+-- and a quote past its time is 'quote-expired'. A repeated press answers as the first did.
+create or replace function app.billing_accept_quote(
+  p_quote uuid, p_by uuid, p_charge_cents bigint, p_credit_cents bigint, p_next_renewal_cents bigint,
+  p_today date default null)
+returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  q         public.billing_change_quotes%rowtype;
+  s         public.billing_subscriptions%rowtype;
+  v         jsonb;
+  v_in      jsonb;
+  v_today   date := coalesce(p_today, app.billing_today());
+  v_invoice uuid;
+  v_result  text;
+begin
+  select * into q from public.billing_change_quotes where id = p_quote for update;
+  if not found then
+    raise exception 'quote-not-found' using errcode = '22023';
+  end if;
+  if not app.billing_actor_may_change(q.farm_id, p_by) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  -- The same lock every capacity add takes, before anything is counted.
+  select * into s from public.billing_subscriptions where id = q.subscription_id for update;
+
+  if q.status in ('awaiting_payment', 'scheduled', 'applied', 'credited') and q.accepted_by is not distinct from p_by then
+    return jsonb_build_object(
+      'applied', case q.status when 'scheduled' then 'scheduled' when 'awaiting_payment' then 'awaiting_payment' else 'now' end,
+      'quote_id', q.id, 'invoice_id', q.invoice_id, 'effective_on', q.effective_on,
+      'charge_cents', q.charge_now_cents, 'credit_cents', q.credit_now_cents, 'repeat', true);
+  end if;
+  if q.status <> 'quoted' then
+    raise exception 'quote-not-open' using errcode = '22023';
+  end if;
+  if now() >= q.expires_at then
+    raise exception 'quote-expired' using errcode = '22023',
+      hint = 'Prices are for today and last 30 minutes; ask for a new price.';
+  end if;
+  if p_charge_cents is distinct from q.charge_now_cents
+     or p_credit_cents is distinct from q.credit_now_cents
+     or p_next_renewal_cents is distinct from q.next_renewal_cents then
+    raise exception 'quote-changed' using errcode = '22023',
+      hint = 'The amounts accepted are not the ones this quote states.';
+  end if;
+
+  v_in := q.detail -> 'input';
+  v := app.billing_change_state(q.subscription_id,
+         nullif(v_in ->> 'plan', '')::public.farm_plan, nullif(v_in ->> 'period', '')::public.billing_period,
+         nullif(v_in ->> 'full', '')::integer, nullif(v_in ->> 'equipment_extra', '')::integer,
+         coalesce((v_in ->> 'current_list')::boolean, false), v_today);
+  if v ->> 'kind' is distinct from q.mode
+     or (v #>> '{money,charge_now_cents}')::bigint is distinct from q.charge_now_cents
+     or (v #>> '{money,credit_now_cents}')::bigint is distinct from q.credit_now_cents
+     or nullif(v #>> '{money,next_renewal_cents}', '')::bigint is distinct from q.next_renewal_cents
+     or s.asset_quota is distinct from q.from_full
+     or s.equipment_extra_quota <> q.from_equipment_extra
+     or s.plan <> q.from_plan or s.billing_period <> q.from_period
+     or s.current_period_end is distinct from q.period_end then
+    raise exception 'quote-changed' using errcode = '22023',
+      hint = coalesce(v ->> 'reason', 'The quantities or the period changed since this price; ask for a new one.');
+  end if;
+  if q.mode = 'now' and exists (select 1 from public.billing_change_quotes o
+                                  where o.subscription_id = q.subscription_id and o.status = 'awaiting_payment') then
+    raise exception 'quote-awaiting-payment' using errcode = '22023',
+      hint = 'Pay or cancel the change already waiting for its payment first.';
+  end if;
+
+  update public.billing_change_quotes
+     set accepted_by = p_by, accepted_at = now(), updated_at = now(),
+         acceptance = jsonb_build_object(
+           'charge_cents', p_charge_cents, 'credit_cents', p_credit_cents,
+           'next_renewal_cents', p_next_renewal_cents, 'on', v_today, 'at', now())
+   where id = q.id;
+
+  -- == At renewal: recorded, and nothing moves today ==
+  if q.mode = 'renewal' then
+    update public.billing_change_quotes
+       set status = 'superseded', closed_at = now(), close_reason = 'replaced by a newer change', updated_at = now()
+     where subscription_id = q.subscription_id and status = 'scheduled' and change = q.change and id <> q.id;
+    if q.change = 'plan' then
+      update public.billing_subscriptions
+         set pending_plan = q.to_plan, pending_billing_period = q.to_period,
+             pending_plan_on = q.effective_on, pending_plan_set_at = now(), updated_at = now()
+       where id = q.subscription_id;
+    else
+      update public.billing_subscriptions
+         set pending_quota = q.to_full, pending_quota_on = q.effective_on,
+             pending_quota_set_at = now(), updated_at = now()
+       where id = q.subscription_id;
+    end if;
+    update public.billing_change_quotes set status = 'scheduled', updated_at = now() where id = q.id;
+    return jsonb_build_object('applied', 'scheduled', 'quote_id', q.id, 'effective_on', q.effective_on,
+                              'next_renewal_cents', q.next_renewal_cents);
+  end if;
+
+  -- == Now, with nothing to pay: made at once, any credit kept ==
+  if q.charge_now_cents = 0 then
+    v_result := app.billing_apply_change(q.id);
+    if v_result <> 'applied' then
+      raise exception 'quote-changed' using errcode = '22023';
+    end if;
+    if q.credit_now_cents > 0 then
+      insert into public.billing_account_credits (farm_id, subscription_id, entry, source, amount_cents, quote_id, note, created_by)
+      values (q.farm_id, q.subscription_id, 'granted', 'plan_change', q.credit_now_cents, q.id,
+              'unused difference, ' || q.from_plan::text || ' to ' || q.to_plan::text, p_by);
+    end if;
+    return jsonb_build_object('applied', 'now', 'quote_id', q.id, 'charge_cents', 0,
+                              'credit_cents', q.credit_now_cents);
+  end if;
+
+  -- == Now, paid first: the invoice, credit spent on it, then the payment makes the change ==
+  v_invoice := app.billing_raise_change_invoice(q.id);
+  update public.billing_change_quotes
+     set status = 'awaiting_payment', invoice_id = v_invoice,
+         payment_due_by = least(now() + interval '24 hours',
+                                app.billing_day_ends_at(greatest(coalesce(q.period_end, v_today), v_today))),
+         updated_at = now()
+   where id = q.id;
+  perform app.billing_apply_credit(v_invoice);
+
+  select * into q from public.billing_change_quotes where id = q.id;
+  return jsonb_build_object(
+    'applied', case when q.status = 'applied' then 'now' else 'awaiting_payment' end,
+    'quote_id', q.id, 'invoice_id', v_invoice, 'charge_cents', q.charge_now_cents,
+    'outstanding_cents', (select total_incl_cents - amount_paid_cents from public.billing_invoices where id = v_invoice));
+end $$;
+revoke all on function app.billing_accept_quote(uuid, uuid, bigint, bigint, bigint, date)
+  from public, anon, authenticated, service_role;
