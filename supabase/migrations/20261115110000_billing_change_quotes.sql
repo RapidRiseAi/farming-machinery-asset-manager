@@ -1343,7 +1343,6 @@ begin
   loop
     v_plan_landed := false;
     v_quota_landed := false;
-    v_new := null;
     if s.pending_plan is not null and s.pending_plan_on <= current_date then
       select * into v_new from app.billing_active_price(s.pending_plan, s.pending_billing_period);
     end if;
