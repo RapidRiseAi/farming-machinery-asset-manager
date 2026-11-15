@@ -207,3 +207,165 @@ begin
   insert into public.machines (farm_id, name, type, profile)
   values ('ac200000-0000-4000-9000-000000000001', 'Sixteenth pump', 'pump_generator', 'equipment');
 end $t$;
+-- == Scenario 7: Professional to Complete, five full and fifteen equipment ======================
+-- R545 a month becomes R495: an upgrade made at once, the unused difference for the 15 days
+-- left credited (R50 x 15/30 = R25), nothing charged, then spent on what comes next.
+do $t$
+declare
+  v jsonb;
+  r jsonb;
+  s public.billing_subscriptions%rowtype;
+begin
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000002', 'complete', 'monthly', null, null, false,
+                                'ac210000-0000-4000-9000-000000000002');
+  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> 0
+     or (v #>> '{money,credit_now_cents}')::bigint <> 2500
+     or (v #>> '{money,current_renewal_cents}')::bigint <> 54500
+     or (v #>> '{money,next_renewal_cents}')::bigint <> 49500
+     or (v #>> '{to,equipment_extra}')::int <> 0 or (v #>> '{from,equipment_capacity}')::int <> 15 then
+    raise exception 'QUOTES FAIL [7]: Professional to Complete is not a R25 credit, R545 to R495: %', v;
+  end if;
+  r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000002', 0, 2500, 49500);
+  if r ->> 'applied' <> 'now' then
+    raise exception 'QUOTES FAIL [7]: the upgrade was not made at once: %', r;
+  end if;
+  select * into s from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000002';
+  if s.plan <> 'complete' or s.equipment_extra_quota <> 0
+     or (select plan from public.farms where id = 'ac200000-0000-4000-9000-000000000002') <> 'complete' then
+    raise exception 'QUOTES FAIL [7]: the plans did not move together (sub %, extra %)', s.plan, s.equipment_extra_quota;
+  end if;
+  if app.billing_credit_balance(s.id) <> 2500 then
+    raise exception 'QUOTES FAIL [7]: the credit is %, expected R25', app.billing_credit_balance(s.id);
+  end if;
+  -- Never a negative payment, never an invoice for a lower total.
+  if exists (select 1 from public.billing_payments p join public.billing_invoices i on i.id = p.invoice_id
+              where i.farm_id = s.farm_id and p.amount_incl_cents < 0)
+     or exists (select 1 from public.billing_invoices i where i.farm_id = s.farm_id) then
+    raise exception 'QUOTES FAIL [7]: a credit was written as an invoice or a negative payment';
+  end if;
+  -- The same acceptance again gives no second credit.
+  r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000002', 0, 2500, 49500);
+  if not coalesce((r ->> 'repeat')::boolean, false) or app.billing_credit_balance(s.id) <> 2500 then
+    raise exception 'QUOTES FAIL [7]: a repeated acceptance credited twice (%), %', app.billing_credit_balance(s.id), r;
+  end if;
+end $t$;
+
+-- Credit pays first: a space worth R7.50 is paid entirely from the R25, at once, with no card.
+do $t$
+declare v jsonb; r jsonb;
+begin
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000002', null, null, 5, 1, false,
+                                'ac210000-0000-4000-9000-000000000002');
+  if (v #>> '{money,pay_now_cents}')::bigint <> 0 or (v #>> '{money,charge_now_cents}')::bigint <> 750 then
+    raise exception 'QUOTES FAIL [7]: the credit was not counted in what is paid now: %', v #> '{money}';
+  end if;
+  r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000002', 750, 0,
+                                (v #>> '{money,next_renewal_cents}')::bigint);
+  if r ->> 'applied' <> 'now' or (r ->> 'outstanding_cents')::bigint <> 0 then
+    raise exception 'QUOTES FAIL [7]: a change covered by credit waited for a card: %', r;
+  end if;
+  if (select equipment_extra_quota from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000002') <> 1
+     or app.billing_credit_balance('ac260000-0000-4000-9000-000000000002') <> 1750 then
+    raise exception 'QUOTES FAIL [7]: paying from credit did not make the change or spend R7.50 of it';
+  end if;
+end $t$;
+
+-- The rest is spent on the next period invoice as it is issued.
+do $t$
+declare i public.billing_invoices%rowtype;
+begin
+  update public.billing_subscriptions
+     set current_period_start = current_date - 31, current_period_end = current_date - 2, next_billing_on = current_date - 1
+   where id = 'ac260000-0000-4000-9000-000000000002';
+  perform app.generate_billing_invoices('ac260000-0000-4000-9000-000000000002');
+  select * into i from public.billing_invoices
+   where subscription_id = 'ac260000-0000-4000-9000-000000000002' and kind = 'period';
+  if not found or i.amount_paid_cents <> 1750 or i.status <> 'open'
+     or app.billing_credit_balance('ac260000-0000-4000-9000-000000000002') <> 0 then
+    raise exception 'QUOTES FAIL [7]: the credit was not spent on the next invoice (paid %, balance %)',
+      i.amount_paid_cents, app.billing_credit_balance('ac260000-0000-4000-9000-000000000002');
+  end if;
+  if not exists (select 1 from public.billing_payments p where p.invoice_id = i.id and p.provider = 'credit' and p.amount_incl_cents = 1750) then
+    raise exception 'QUOTES FAIL [7]: the credit is not a credit payment on the invoice';
+  end if;
+end $t$;
+
+-- == Scenario 8: Complete to Professional for that mix ===========================================
+-- A lower plan that costs more: R495 becomes R545, at the renewal, previewed; edited, cancelled,
+-- and finally landed by the renewal step with the quote marked applied.
+do $t$
+declare
+  v jsonb;
+  r jsonb;
+  v_first uuid;
+  s public.billing_subscriptions%rowtype;
+begin
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000003', 'professional', 'monthly', null, null, false,
+                                'ac210000-0000-4000-9000-000000000003');
+  if v ->> 'kind' <> 'renewal' or (v #>> '{money,current_renewal_cents}')::bigint <> 49500
+     or (v #>> '{money,next_renewal_cents}')::bigint <> 54500
+     or (v #>> '{money,charge_now_cents}')::bigint <> 0 or (v #>> '{money,credit_now_cents}')::bigint <> 0
+     or (v ->> 'effective_on')::date <> app.billing_today() + 15 then
+    raise exception 'QUOTES FAIL [8]: Complete to Professional is not R495 to R545 at renewal: %', v;
+  end if;
+  v_first := (v ->> 'quote_id')::uuid;
+  r := app.billing_accept_quote(v_first, 'ac210000-0000-4000-9000-000000000003', 0, 0, 54500);
+  select * into s from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000003';
+  if r ->> 'applied' <> 'scheduled' or s.plan <> 'complete' or s.pending_plan <> 'professional'
+     or s.pending_plan_on <> app.billing_today() + 15 then
+    raise exception 'QUOTES FAIL [8]: the downgrade was not scheduled for the renewal: %, pending %', r, s.pending_plan;
+  end if;
+
+  -- Edited: a newer change replaces the waiting one.
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000003', 'essential', 'monthly', null, null, false,
+                                'ac210000-0000-4000-9000-000000000003');
+  r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000003', 0, 0,
+                                (v #>> '{money,next_renewal_cents}')::bigint);
+  if (select status from public.billing_change_quotes where id = v_first) <> 'superseded'
+     or (select pending_plan from public.billing_subscriptions where id = s.id) <> 'essential' then
+    raise exception 'QUOTES FAIL [8]: editing a pending change left two waiting';
+  end if;
+  -- Cancelled: nothing waits.
+  r := app.billing_cancel_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000003');
+  if (select pending_plan from public.billing_subscriptions where id = s.id) is not null then
+    raise exception 'QUOTES FAIL [8]: cancelling a pending change left it pending';
+  end if;
+
+  -- Landed on the renewal: the plan moves and the quote says when.
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000003', 'professional', 'monthly', null, null, false,
+                                'ac210000-0000-4000-9000-000000000003');
+  r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000003', 0, 0, 54500);
+  update public.billing_subscriptions set pending_plan_on = current_date where id = s.id;
+  perform app.apply_pending_plan_changes();
+  if (select plan from public.billing_subscriptions where id = s.id) <> 'professional'
+     or (select plan from public.farms where id = s.farm_id) <> 'professional'
+     or (select status from public.billing_change_quotes where id = (v ->> 'quote_id')::uuid) <> 'applied' then
+    raise exception 'QUOTES FAIL [8]: the scheduled change did not land at renewal';
+  end if;
+end $t$;
+
+-- Fewer full spaces wait for the renewal, never below the minimum or the fleet in use.
+do $t$
+declare v jsonb; r jsonb;
+begin
+  -- Annual yard: 8 bought, 5 in use (3 plus the 2 filled above).
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000004', null, null, 6, 0, false,
+                                'ac210000-0000-4000-9000-000000000004');
+  if v ->> 'kind' <> 'renewal' or (v #>> '{money,next_renewal_cents}')::bigint <> 6 * 49000 then
+    raise exception 'QUOTES FAIL [8]: a reduction is not at renewal for six spaces: %', v;
+  end if;
+  r := app.billing_accept_quote((v ->> 'quote_id')::uuid, 'ac210000-0000-4000-9000-000000000004', 0, 0, 6 * 49000);
+  if (select pending_quota from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000004') <> 6
+     or (select asset_quota from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000004') <> 8 then
+    raise exception 'QUOTES FAIL [8]: the reduction was not scheduled, or it took effect now';
+  end if;
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000004', null, null, 4, 0, false, app.billing_today());
+  if v ->> 'reason' <> 'billing-slots-minimum' then
+    raise exception 'QUOTES FAIL [8]: four spaces were allowed under the minimum of five: %', v ->> 'reason';
+  end if;
+  insert into public.machines (farm_id, name, type) values ('ac200000-0000-4000-9000-000000000004', 'Sixth bakkie', 'truck');
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000004', null, null, 5, 0, false, app.billing_today());
+  if v ->> 'reason' <> 'billing-quota-below-fleet' then
+    raise exception 'QUOTES FAIL [8]: a reduction below the six in use was allowed: %', v ->> 'reason';
+  end if;
+end $t$;
