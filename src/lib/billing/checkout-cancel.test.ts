@@ -624,12 +624,18 @@ test("a stored-card charge in flight is left to the reconciler: in progress, Pay
 // The slot and plan screens and the engine agree on the paused refusal (round 5, gate-3)
 // ═════════════════════════════════════════════════════════════════════════════
 
-test("the billing actions recognise the engine's paused refusal by its exact words", () => {
-  const actions = readFileSync(join(process.cwd(), "src/app/(app)/billing/actions.ts"), "utf8");
-  const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261029160000_billing_review_fixes_5.sql"), "utf8");
-  const pattern = actions.match(/const PAUSED_CHANGE = \/(.+)\/i;/);
-  const raised = [...sql.matchAll(/raise exception '(BILLING: a paused subscription[^']*)'/g)].map((m) => m[1]);
-  assert.ok(pattern, "PAUSED_CHANGE is declared in billing/actions.ts");
-  assert.equal(raised.length, 2, "both change_billing_quota and change_billing_plan raise it");
-  for (const message of raised) assert.match(message, new RegExp(pattern[1], "i"));
+test("every refusal the change engine can give reaches the owner as a translated sentence", async () => {
+  // The quote engine (20261115110000) refuses with slugs, raised as the message or returned
+  // as a quote's reason, and the actions pass them straight to ?error=. A slug missing from
+  // errors.ts would put the generic sentence, or worse, the slug, in front of a customer.
+  const { ERROR_CODE_KEYS } = await import("@/lib/errors");
+  const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261115110000_billing_change_quotes.sql"), "utf8");
+  const slugs = new Set([
+    ...[...sql.matchAll(/v_reason := '([a-z0-9-]+)'/g)].map((m) => m[1]),
+    ...[...sql.matchAll(/raise exception '([a-z0-9-]+)'/g)].map((m) => m[1]),
+  ]);
+  assert.ok(slugs.size >= 15, `expected the engine's refusals to be found, found ${slugs.size}`);
+  assert.ok(slugs.has("billing-change-paused") && slugs.has("billing-grace-no-extras") && slugs.has("quote-expired"));
+  const missing = [...slugs].filter((s) => !(s in ERROR_CODE_KEYS));
+  assert.deepEqual(missing, []);
 });

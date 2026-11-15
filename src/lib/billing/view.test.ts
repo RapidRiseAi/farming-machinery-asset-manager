@@ -993,17 +993,17 @@ test("the minimum refusals have their own sentences, in both languages", () => {
   }
 });
 
-test("the migration's refusal wording is what the screen and the actions match on", () => {
-  const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261104200000_pricing_november_2026.sql"), "utf8");
-  assert.ok(sql.includes("'the minimum on this plan is %s vehicle slots'"));
-  assert.ok(sql.includes("'that plan needs at least %s vehicle slots; add slots first'"));
-  const actions = readFileSync(join(process.cwd(), "src/app/(app)/billing/actions.ts"), "utf8");
-  const slots = /const SLOTS_MINIMUM = (\/.+\/i);/.exec(actions);
-  const plan = /const PLAN_NEEDS_SLOTS = (\/.+\/i);/.exec(actions);
-  assert.ok(slots && plan, "the actions must keep their two minimum patterns");
-  const re = (lit: string) => new RegExp(lit.slice(1, -2), "i");
-  assert.ok(re(slots![1]).test("BILLING: the minimum on this plan is 5 vehicle slots"));
-  assert.ok(re(plan![1]).test("BILLING: that plan needs at least 5 vehicle slots; add slots first"));
+test("a change refusal is passed on only when it is one of the engine's slugs", async () => {
+  // The change actions (20261115110000) send the engine's refusal to ?error= as it came, so
+  // only the known slugs may pass; prose from any other failure becomes the action's own
+  // generic code, never a Postgres sentence on screen.
+  const { changeRefusal } = await import("./service");
+  assert.equal(changeRefusal({ message: "quote-changed" }), "quote-changed");
+  assert.equal(changeRefusal({ message: "quote-expired" }), "quote-expired");
+  assert.equal(changeRefusal({ message: " forbidden " }), "forbidden");
+  assert.equal(changeRefusal({ message: "BILLING: no such subscription 1234" }), null);
+  assert.equal(changeRefusal({ message: "duplicate key value violates unique constraint" }), null);
+  assert.equal(changeRefusal(null), null);
 });
 
 test("the estimate prices support equipment beyond the allowance, as the invoice run does", () => {

@@ -8338,6 +8338,7 @@
     "reviewRequest": "Ask FLEETWISE to check its classification",
     "reviewHint": "For an unusual item: say what it is and how it is used. A person looks at it; nothing is billed or changed automatically.",
     "reviewReason": "What is unusual about it",
-    "reviewSend": "Send"
+    "reviewSend": "Send",
+    "convertSpacePrice": "For the payer: buying it now costs {amount} for the days left to your renewal."
   }
 }

@@ -134,6 +134,11 @@ export async function GET(request: Request) {
     captureError(err, { where: "cron:billing:reconcile" });
   }
 
+  // 1a == Mid-period change quotes past their time (20261115110000): a price nobody
+  // accepted closes, and an accepted change nobody paid has its invoice voided, so nothing
+  // ever charges an expired quote. One with a payment in flight is left for the reconcile.
+  await run("expire_quotes", BILLING_RPC.expireQuotes);
+
   // 2 == What each farm is billed for, recorded before it is billed.
   await run("asset_snapshots", BILLING_RPC.captureSnapshots);
 

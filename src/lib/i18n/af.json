@@ -8338,6 +8338,7 @@
     "reviewRequest": "Vra FLEETWISE om die klassifikasie na te gaan",
     "reviewHint": "Vir 'n ongewone item: sê wat dit is en hoe dit gebruik word. 'n Persoon kyk daarna; niks word outomaties gefaktureer of verander nie.",
     "reviewReason": "Wat ongewoon daaraan is",
-    "reviewSend": "Stuur"
+    "reviewSend": "Stuur",
+    "convertSpacePrice": "Vir die betaler: om dit nou te koop kos {amount} vir die dae tot jou hernuwing."
   }
 }
