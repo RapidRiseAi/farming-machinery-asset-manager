@@ -588,7 +588,9 @@ export async function openInvoiceForFarm(
       .eq("status", "open")
       // Not a once-off service invoice (20261029110000): the subscription's checkout pays
       // what keeps the farm running; stickers and training are paid by EFT or their link.
-      .neq("kind", "service")
+      // Nor a change invoice (20261115110000): it is paid by name from the change it buys,
+      // and an unpaid one is closed rather than owed, so the stopped pages never present it.
+      .not("kind", "in", "(service,change)")
       .is("deleted_at", null)
       .order("due_on", { ascending: true, nullsFirst: false })
       .limit(5),
@@ -943,6 +945,11 @@ export async function beginCheckout(
     userId?: string | null;
     /** Injected in tests, as the worker's is. Never resolved from the environment there. */
     provider?: SaasBillingProvider | null;
+    /**
+     * Pay this invoice rather than the oldest owed: a change invoice (20261115110000), which
+     * the generic pick leaves out. It must be this farm's, open and owed.
+     */
+    invoiceId?: string | null;
   },
 ): Promise<CheckoutStart> {
   const provider = input.provider !== undefined ? input.provider : await getSaasProvider();
@@ -960,8 +967,17 @@ export async function beginCheckout(
   const subscription = await farmSubscription(supabase, input.farmId);
   if (!subscription) return { ok: false, code: "billing-no-subscription" };
 
-  let invoice = await openInvoiceForFarm(supabase, input.farmId);
-  if (!invoice) {
+  const named = input.invoiceId ?? null;
+  const pick = async (): Promise<InvoiceRow | null> => {
+    if (!named) return openInvoiceForFarm(supabase, input.farmId);
+    const row = await getInvoiceById(supabase, named);
+    return row && row.farm_id === input.farmId && row.status === "open" && row.total_incl_cents > row.amount_paid_cents
+      ? row
+      : null;
+  };
+
+  let invoice = await pick();
+  if (!invoice && !named) {
     // Nothing open: it may simply be time to raise this period's. With no active price
     // version this makes nothing, which is the shipped state.
     const generated = await generateInvoicesFor(supabase, subscription.id);
@@ -1001,7 +1017,7 @@ export async function beginCheckout(
   // still moving, and the person is asked to look at it again rather than charged a figure
   // nobody has seen.
   if (amountOwedChanged(claim.error)) {
-    const fresh = await openInvoiceForFarm(supabase, input.farmId);
+    const fresh = await pick();
     if (!fresh) return { ok: false, code: "billing-nothing-due" };
     // The EFT paid this invoice in full and another is now the oldest owed. That is not
     // the bill the person pressed Pay for, so they see the page again before paying it.
