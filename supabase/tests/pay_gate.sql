@@ -141,10 +141,13 @@ begin
   if array(select app.stopped_farm_ids(true)) <> array['b9000000-0000-4000-9000-000000000002'::uuid] then
     raise exception 'the two-site member''s stopped farms are wrong';
   end if;
-  -- The contractor: the pending and the suspended customer for writing, the pending one for reading.
+  -- The contractor: the pending and the suspended customer for writing, and for reading too
+  -- since 20261115120000: a stopped business is read by its owner only (decisions 38 and 41).
+  -- The contractor's own books stay its own (contractor_open, below).
   perform pg_temp.as_user('b9100000-0000-4000-9000-000000000006');
   if (select count(*) from app.stopped_farm_ids(true)) <> 2
-     or array(select app.stopped_farm_ids(false)) <> array['b9000000-0000-4000-9000-000000000002'::uuid] then
+     or array(select x from app.stopped_farm_ids(false) x order by x)
+        <> array['b9000000-0000-4000-9000-000000000002'::uuid, 'b9000000-0000-4000-9000-000000000003'::uuid] then
     raise exception 'the contractor''s stopped farms are wrong';
   end if;
   -- Rapid Rise, with its second factor: nothing is stopped.
@@ -316,8 +319,10 @@ do $t$ begin
   if not found then raise exception 'the contractor cannot work on the paid farm'; end if;
   update public.faults set description = 'Looked at it' where id = 'b9300000-0000-4000-9000-000000000003';
   if found then raise exception 'the contractor worked on the suspended farm'; end if;
-  if (select count(*) from public.faults where id = 'b9300000-0000-4000-9000-000000000003') <> 1 then
-    raise exception 'the suspended rule is read, not hide: the contractor should still see it';
+  -- A suspended business is read by its owner only (20261115120000): the contractor no longer
+  -- sees the customer's fault.
+  if (select count(*) from public.faults where id = 'b9300000-0000-4000-9000-000000000003') <> 0 then
+    raise exception 'the contractor reads a suspended business''s records, which only its owner may';
   end if;
   if (select count(*) from public.faults where id = 'b9300000-0000-4000-9000-000000000002') <> 0 then
     raise exception 'the contractor reads the pending farm';

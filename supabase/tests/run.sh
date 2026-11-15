@@ -278,5 +278,7 @@ echo "==> running asset capacity tests (fixtures, pooling, no overselling, retir
 pg "$DB" < "$ROOT/supabase/tests/asset_capacity.sql"
 echo "==> running mid-period change tests (quote, accept, pay, then the change; credit; renewal changes)"
 pg "$DB" < "$ROOT/supabase/tests/billing_change_quotes.sql"
+echo "==> running subscription lifecycle tests (seven days of grace, 90 days owner-only, closed, coming back)"
+pg "$DB" < "$ROOT/supabase/tests/billing_lifecycle.sql"
 
 echo "==> OK"

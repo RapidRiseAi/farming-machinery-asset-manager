@@ -653,7 +653,9 @@ language sql stable security definer set search_path = '' as $$
       and f.deleted_at is null and f.status in ('active','trial')
       and u.is_test = f.is_test
       and app.plan_rank(f.plan) >= app.feature_min_rank('whatsapp')
-      and app.farm_paid_extras_allowed(p_farm, app.billing_today())
+      -- Not in the grace (decision 41); the other stopped states are refused as before, by the
+      -- farm row above and the pay gate in the functions that use this.
+      and (f.billing_exempt or not app.farm_payment_late(p_farm, app.billing_today()))
       and (exists(select 1 from public.user_farm_memberships m where m.user_id=u.id
              and m.farm_id=p_farm and m.active and m.deleted_at is null)
         or (u.farm_id=p_farm and not exists(select 1 from public.user_farm_memberships m
