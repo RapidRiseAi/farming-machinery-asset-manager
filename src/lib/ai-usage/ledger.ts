@@ -30,6 +30,8 @@ export type HoldRefusal =
   | "own_key_broken"
   /** Too many Azure tokens for this person this hour or day (each works for about ten minutes, whatever is reported). */
   | "token_rate"
+  /** A payment is late (the seven days of grace) or the business is stopped: paid AI, voice and WhatsApp pause (20261115120000). */
+  | "billing_paused"
   | "unavailable";
 
 export type Hold =
@@ -57,6 +59,7 @@ export type Attempt = {
 
 const REFUSALS = new Set<HoldRefusal>([
   "not_member", "voice_off", "ai_off", "notice_required", "ai_off_for_you", "farm_limit", "member_limit", "token_rate",
+  "billing_paused",
 ]);
 
 const num = (value: unknown): number | null => {
