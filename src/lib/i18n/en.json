@@ -128,8 +128,8 @@
     "offlineTyped": "You are offline. Keep this text here and send it when you have signal.",
     "offlineVoice": "Live speech needs a connection. You can type the request now or try the microphone when you have signal.",
     "offlinePrivacy": "This recording stays only on this device until you choose Transcribe now or discard it. FLEETWISE will still ask before saving anything.",
-    "offlineLimit": "Offline recording stops automatically after one minute.",
-    "recordingLimit": "Recordings stop automatically after one minute so you can review the transcript.",
+    "offlineLimit": "Offline recording stops by itself after ten minutes and keeps what you said.",
+    "recordingLimit": "Recordings stop by themselves after ten minutes so you can review the transcript.",
     "offlineCaptured": "Captured on this device. When signal returns, tap Transcribe now. FLEETWISE will still ask before saving anything.",
     "offlineTitle": "Recording waiting on this device",
     "offlinePending": "{count} recordings are waiting to be transcribed. They stay only on this device until you transcribe or discard them. Recordings older than seven days are removed when this assistant next opens.",
@@ -254,7 +254,9 @@
     "noticeWithdrawnKeepOff": "Keep it off",
     "noticeWithdrawnOn": "Switch AI help on",
     "aiHelpFarmOff": "AI help is switched off for this {{org}}: hard requests use only the local rules and Azure Speech in South Africa.",
-    "noticeWaiting": "Your last request needs AI help. Keep AI help on and it is sent straight away."
+    "noticeWaiting": "Your last request needs AI help. Keep AI help on and it is sent straight away.",
+    "recordingNearLimit": "Less than 30 seconds left: the recording stops itself at ten minutes and keeps what you said.",
+    "commandNotHeard": "The recording could not be heard yet. It is kept: tap it to try again, or type your request."
   },
   "aiUsage": {
     "title": "AI and voice",

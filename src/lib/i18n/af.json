@@ -128,8 +128,8 @@
     "offlineTyped": "Jy is vanlyn. Hou hierdie teks hier en stuur dit wanneer jy sein het.",
     "offlineVoice": "Lewende spraak benodig ’n verbinding. Tik die versoek nou of probeer die mikrofoon wanneer jy sein het.",
     "offlinePrivacy": "Dié opname bly net op hierdie toestel totdat jy Transkribeer nou kies of dit weggooi. FLEETWISE sal steeds vra voordat enigiets gestoor word.",
-    "offlineLimit": "Vanlyn opname stop outomaties ná een minuut.",
-    "recordingLimit": "Opnames stop outomaties ná een minuut sodat jy die transkripsie kan nagaan.",
+    "offlineLimit": "Opname sonder sein stop self na tien minute en hou wat jy gesê het.",
+    "recordingLimit": "Opnames stop self na tien minute sodat jy die teks kan nagaan.",
     "offlineCaptured": "Op hierdie toestel vasgelê. Wanneer sein terugkeer, druk Transkribeer nou. FLEETWISE sal steeds vra voordat enigiets gestoor word.",
     "offlineTitle": "Opname wag op hierdie toestel",
     "offlinePending": "{count} opnames wag om getranskribeer te word. Hulle bly net op dié toestel totdat jy hulle transkribeer of weggooi. Opnames ouer as sewe dae word verwyder wanneer dié assistent weer oopmaak.",
@@ -254,7 +254,9 @@
     "noticeWithdrawnKeepOff": "Hou dit af",
     "noticeWithdrawnOn": "Skakel AI-hulp aan",
     "aiHelpFarmOff": "AI-hulp is vir hierdie {{org}} afgeskakel: moeilike versoeke gebruik net die plaaslike reëls en Azure Speech in Suid-Afrika.",
-    "noticeWaiting": "Jou laaste versoek het AI-hulp nodig. Hou AI-hulp aan en dit word dadelik gestuur."
+    "noticeWaiting": "Jou laaste versoek het AI-hulp nodig. Hou AI-hulp aan en dit word dadelik gestuur.",
+    "recordingNearLimit": "Minder as 30 sekondes oor: die opname stop self by tien minute en hou wat jy gesê het.",
+    "commandNotHeard": "Die opname kon nog nie gehoor word nie. Dit word gehou: tik daarop om weer te probeer, of tik jou versoek."
   },
   "aiUsage": {
     "title": "AI en stem",
