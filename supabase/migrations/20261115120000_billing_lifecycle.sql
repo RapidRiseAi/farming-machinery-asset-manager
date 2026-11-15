@@ -282,3 +282,326 @@ begin
   return v_n;
 end $$;
 revoke all on function app.billing_notify_owners(uuid, text, jsonb) from public, anon, authenticated, service_role;
+-- == A cancellation closes: 20261029160000's close, plus the retrieval window ================
+-- The night after the paid-through date (the same matching as before), the subscription ends,
+-- the owner's 90 days of reading begin, and the farm row is paused so every engine that reads
+-- farms.status stops too. A cancellation made immediate by Rapid Rise (after a refund) is
+-- picked up the same night by the second statement.
+create or replace function app.billing_close_cancellations() returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_done integer := 0;
+  r record;
+  v_today date := app.billing_today();
+begin
+  for r in
+    with closed as (
+      update public.billing_subscriptions
+         set status = 'cancelled', ended_on = current_date,
+             failed_attempt_count = 0, next_retry_on = null, grace_ends_on = null,
+             retrieval_ends_on = current_date + 90,
+             updated_at = now()
+       where deleted_at is null
+         and (status = 'non_renewing' or (cancel_at_period_end and status in ('past_due', 'grace')))
+         and coalesce(current_period_end, trial_ends_on) is not null
+         and coalesce(current_period_end, trial_ends_on) < current_date
+      returning id, farm_id, retrieval_ends_on
+    )
+    select * from closed
+  loop
+    update public.farms set status = 'suspended', suspended_for = 'billing'
+     where id = r.farm_id and status in ('trial', 'active');
+    perform app.billing_notify_owners(r.farm_id, 'billing_access_ended',
+      jsonb_build_object('reason', 'cancelled', 'retrieval_ends_on', r.retrieval_ends_on));
+    v_done := v_done + 1;
+  end loop;
+
+  -- Ended already (cancelled immediately) and past its last day: the same pause and window.
+  for r in
+    select s.id, s.farm_id, coalesce(s.retrieval_ends_on, coalesce(s.ended_on, app.billing_date_of(s.cancelled_at)) + 90) as ends
+      from public.billing_subscriptions s
+      join public.farms f on f.id = s.farm_id
+     where s.deleted_at is null
+       and s.status = 'cancelled'
+       and coalesce(s.ended_on, app.billing_date_of(s.cancelled_at)) < v_today
+       and f.deleted_at is null and f.status in ('trial', 'active') and not f.billing_exempt
+     for update of s skip locked
+  loop
+    update public.billing_subscriptions set retrieval_ends_on = r.ends, updated_at = now()
+     where id = r.id and retrieval_ends_on is null;
+    update public.farms set status = 'suspended', suspended_for = 'billing'
+     where id = r.farm_id and status in ('trial', 'active');
+    perform app.billing_notify_owners(r.farm_id, 'billing_access_ended',
+      jsonb_build_object('reason', 'cancelled', 'retrieval_ends_on', r.ends));
+    v_done := v_done + 1;
+  end loop;
+  return v_done;
+end $$;
+revoke execute on function app.billing_close_cancellations() from public, anon, authenticated;
+
+-- == Day eight: retrieval begins (20261029090100's engine) ==================================
+-- Automatic renewals stop: no weekly card retry (next_retry_on stays null, which the nightly
+-- shortlist reads as "do not charge"); the owner can still pay from /suspended. The window's
+-- last day is stored, and the owner is told it.
+create or replace function app.billing_apply_suspensions() returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  r record;
+  v_done integer := 0;
+  v_today date := app.billing_today();
+begin
+  for r in
+    select s.id, s.farm_id
+      from public.billing_subscriptions s
+      join public.farms f on f.id = s.farm_id
+     where s.deleted_at is null
+       and s.status not in ('pending', 'cancelled', 'suspended')
+       and f.deleted_at is null
+       and not f.billing_exempt
+       and f.status in ('trial', 'active')
+       and app.farm_billing_gate_on(s.farm_id, v_today) = 'suspended'
+     for update of s skip locked
+  loop
+    update public.billing_subscriptions
+       set status = 'suspended',
+           suspended_at = now(),
+           next_retry_on = null,
+           retrieval_ends_on = v_today + 89,
+           updated_at = now()
+     where id = r.id;
+    update public.farms
+       set status = 'suspended', suspended_for = 'billing'
+     where id = r.farm_id and status in ('trial', 'active');
+    perform app.notify_farm(r.farm_id, 'billing_suspended',
+      jsonb_build_object('overdue_since', app.farm_overdue_since(r.farm_id),
+                         'retrieval_ends_on', v_today + 89));
+    v_done := v_done + 1;
+  end loop;
+  return v_done;
+end $$;
+revoke execute on function app.billing_apply_suspensions() from public, anon, authenticated;
+
+-- == The failure ladder (20261029090100), with no automatic retry once retrieval began ======
+create or replace function app.billing_register_failure(p_sub uuid, p_reason text default null)
+returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare s public.billing_subscriptions%rowtype; v public.billing_settings%rowtype;
+        v_n integer; v_offset integer;
+begin
+  select * into v from public.billing_settings where singleton;
+  select * into s from public.billing_subscriptions where id = p_sub for update;
+  if not found then return; end if;
+
+  v_n := s.failed_attempt_count + 1;
+
+  -- A pending sign-up has nothing to dun: recorded, and the status does not move.
+  if s.status = 'pending' then
+    update public.billing_subscriptions
+       set failed_attempt_count = v_n,
+           last_failure_code = p_reason,
+           last_failure_at = now(),
+           updated_at = now()
+     where id = p_sub;
+    return;
+  end if;
+
+  -- Retrieval (20261115120000): renewals have stopped, so a failed payment the owner tried
+  -- schedules no automatic retry. It is recorded; paying again is the owner's to do.
+  if s.status = 'suspended' then
+    update public.billing_subscriptions
+       set failed_attempt_count = v_n,
+           last_failure_code = p_reason,
+           last_failure_at = now(),
+           next_retry_on = null,
+           updated_at = now()
+     where id = p_sub;
+    return;
+  end if;
+
+  if v_n <= array_length(v.retry_offsets_days, 1) then
+    v_offset := v.retry_offsets_days[v_n];
+    update public.billing_subscriptions
+       set status = 'past_due',
+           failed_attempt_count = v_n,
+           last_failure_code = p_reason,
+           last_failure_at = now(),
+           next_retry_on = current_date + v_offset,
+           grace_ends_on = null,
+           updated_at = now()
+     where id = p_sub;
+  else
+    update public.billing_subscriptions
+       set status = 'grace',
+           failed_attempt_count = v_n,
+           last_failure_code = p_reason,
+           last_failure_at = now(),
+           next_retry_on = case when v.grace_retry_days > 0
+                                then current_date + v.grace_retry_days
+                                else null end,
+           grace_ends_on = coalesce(grace_ends_on, current_date + v.grace_days),
+           updated_at = now()
+     where id = p_sub;
+  end if;
+end $$;
+
+-- == What is owed, for the screens ==========================================================
+create or replace function app.farm_outstanding_cents(p_farm uuid) returns bigint
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(sum(i.total_incl_cents - i.amount_paid_cents), 0)::bigint
+    from public.billing_invoices i
+   where i.farm_id = app.billing_root(p_farm)
+     and i.deleted_at is null
+     and i.status = 'open'
+     and i.kind in ('period', 'proration', 'slots', 'ai_usage')
+     and i.total_incl_cents > i.amount_paid_cents
+     and not exists (select 1 from public.billing_payments p
+                      where p.invoice_id = i.id and p.deleted_at is null and p.amount_incl_cents < 0);
+$$;
+revoke all on function app.farm_outstanding_cents(uuid) from public, anon, authenticated, service_role;
+
+-- == Where a business stands, in words a screen can say =====================================
+-- state: active | grace | pending | retrieval | closed. reason: unpaid | cancelled |
+-- rapid_rise (a hold or an ended account). With the dates that matter: when the payment was
+-- due, the last day of grace, the paid-through date, the last day of owner reading.
+create or replace function app.farm_lifecycle(p_farm uuid, p_today date) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare
+  f public.farms%rowtype;
+  s public.billing_subscriptions%rowtype;
+  v_gate text := app.farm_billing_gate_on(p_farm, p_today);
+  v_root uuid := app.billing_root(p_farm);
+  v_since date;
+  v_grace integer;
+  v_end date;
+  v_state text;
+  v_reason text;
+begin
+  select * into f from public.farms where id = v_root;
+  select * into s from public.billing_subscriptions where id = app.billing_subscription_for(p_farm);
+  select coalesce(access_grace_days, 7) into v_grace from public.billing_settings where singleton;
+  v_grace := coalesce(v_grace, 7);
+  v_since := app.farm_overdue_since(v_root);
+  v_end := app.billing_retrieval_ends_on(s);
+
+  if f.deleted_at is not null or f.status = 'cancelled'
+     or (f.status = 'suspended' and f.suspended_for is distinct from 'billing') then
+    v_reason := 'rapid_rise';
+  elsif s.status = 'cancelled' or s.ended_on is not null then
+    v_reason := 'cancelled';
+  elsif s.status = 'suspended' or v_gate = 'suspended' then
+    v_reason := 'unpaid';
+  end if;
+
+  v_state := case
+    when v_gate = 'pending' then 'pending'
+    when v_gate = 'ok' then case when app.farm_payment_late(p_farm, p_today) and not coalesce(f.billing_exempt, false)
+                                 then 'grace' else 'active' end
+    when v_reason = 'rapid_rise' then 'closed'
+    when v_end is null or p_today <= v_end then 'retrieval'
+    else 'closed' end;
+
+  return jsonb_build_object(
+    'state', v_state,
+    'gate', v_gate,
+    'reason', v_reason,
+    'today', p_today,
+    'overdue_since', v_since,
+    'grace_ends_on', case when v_since is not null then v_since + v_grace end,
+    'paid_through', s.current_period_end,
+    'ended_on', s.ended_on,
+    'retrieval_ends_on', case when v_state in ('retrieval', 'closed') then v_end end,
+    'outstanding_cents', app.farm_outstanding_cents(p_farm));
+end $$;
+revoke all on function app.farm_lifecycle(uuid, date) from public, anon, authenticated, service_role;
+
+-- The screens' question, from the person's own session. Any member of the business may ask
+-- where it stands (a manager sees "only the owner can read now"); the amount owed is the
+-- payer's business and is left out for everybody else (BILLING.md section 10).
+create or replace function public.farm_lifecycle(p_farm uuid) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v jsonb;
+begin
+  if auth.uid() is null or not (app.is_rr_admin() or app.has_farm_access(p_farm)) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  v := app.farm_lifecycle(p_farm, app.billing_today());
+  if not app.is_farm_billing_admin(app.billing_root(p_farm)) then
+    v := v - 'outstanding_cents';
+  end if;
+  return v;
+end $$;
+revoke all on function public.farm_lifecycle(uuid) from public, anon;
+grant execute on function public.farm_lifecycle(uuid) to authenticated, service_role;
+
+-- == The owner hears of it: the first day of grace, and before reading closes ==============
+-- Once per overdue date (grace) and once per stage (30, 7 and 1 days before the window
+-- closes), deduped on the notice already written, so a re-run sends nothing twice.
+create or replace function app.billing_enqueue_lifecycle_notices(p_today date) returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  r record;
+  v_n integer := 0;
+  v_since date;
+  v_grace integer;
+  v_stage integer;
+  v_end date;
+begin
+  select coalesce(access_grace_days, 7) into v_grace from public.billing_settings where singleton;
+  v_grace := coalesce(v_grace, 7);
+
+  -- Grace began.
+  for r in
+    select s.farm_id
+      from public.billing_subscriptions s
+      join public.farms f on f.id = s.farm_id
+     where s.deleted_at is null
+       and s.status not in ('pending', 'cancelled', 'suspended')
+       and f.deleted_at is null and f.status in ('trial', 'active') and not f.billing_exempt
+       and app.farm_billing_gate_on(s.farm_id, p_today) = 'ok'
+       and app.farm_payment_late(s.farm_id, p_today)
+  loop
+    v_since := app.farm_overdue_since(r.farm_id);
+    continue when exists (
+      select 1 from public.notifications n
+       where n.farm_id = r.farm_id and n.template = 'billing_grace_started'
+         and n.payload ->> 'overdue_since' is not distinct from v_since::text);
+    perform app.billing_notify_owners(r.farm_id, 'billing_grace_started', jsonb_build_object(
+      'overdue_since', v_since,
+      'grace_ends_on', coalesce(v_since, p_today) + v_grace,
+      'outstanding_cents', app.farm_outstanding_cents(r.farm_id)));
+    v_n := v_n + 1;
+  end loop;
+
+  -- Reading is about to close.
+  for r in
+    select s.*
+      from public.billing_subscriptions s
+      join public.farms f on f.id = s.farm_id
+     where s.deleted_at is null
+       and f.deleted_at is null and not f.billing_exempt
+       and (s.status in ('suspended', 'cancelled') or s.ended_on is not null)
+       and app.farm_billing_gate_on(s.farm_id, p_today) in ('suspended', 'closed')
+  loop
+    v_end := app.billing_retrieval_ends_on(r);
+    continue when v_end is null or v_end < p_today or v_end - p_today > 30;
+    v_stage := case when v_end - p_today <= 1 then 1 when v_end - p_today <= 7 then 7 else 30 end;
+    continue when exists (
+      select 1 from public.notifications n
+       where n.farm_id = r.farm_id and n.template = 'billing_retrieval_ending'
+         and n.payload ->> 'retrieval_ends_on' = v_end::text
+         and (n.payload ->> 'stage')::integer <= v_stage);
+    perform app.billing_notify_owners(r.farm_id, 'billing_retrieval_ending', jsonb_build_object(
+      'retrieval_ends_on', v_end, 'stage', v_stage,
+      'reason', case when r.status = 'suspended' then 'unpaid' else 'cancelled' end));
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+revoke all on function app.billing_enqueue_lifecycle_notices(date) from public, anon, authenticated, service_role;
+
+create or replace function public.cron_enqueue_billing_lifecycle_notices() returns integer
+language sql security definer set search_path = public, pg_temp as $$
+  select app.billing_enqueue_lifecycle_notices(app.billing_today());
+$$;
+revoke all on function public.cron_enqueue_billing_lifecycle_notices() from public, anon, authenticated;
+grant execute on function public.cron_enqueue_billing_lifecycle_notices() to service_role;
