@@ -97,3 +97,113 @@ insert into public.machines (farm_id, name, type)
 select 'ac200000-0000-4000-9000-000000000004', 'Bakkie ' || g, 'truck' from generate_series(1, 3) g;
 insert into public.machines (farm_id, name, type)
 select 'ac200000-0000-4000-9000-000000000005', 'Tractor ' || g, 'truck' from generate_series(1, 2) g;
+
+-- == Scenario 6: additions halfway through a period ============================================
+do $t$
+declare
+  v jsonb;
+  v_today date := app.billing_today();
+begin
+  -- Half a monthly R15 equipment space is R7.50; half a R99 full space is R49.50.
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000001', null, null, 5, 1, false, v_today);
+  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> 750
+     or (v #>> '{period,days_remaining}')::int <> 15 or (v #>> '{period,days_in_period}')::int <> 30 then
+    raise exception 'QUOTES FAIL [6]: one equipment space for half a month is not R7.50: %', v;
+  end if;
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000001', null, null, 6, 0, false, v_today);
+  if (v #>> '{money,charge_now_cents}')::bigint <> 4950 then
+    raise exception 'QUOTES FAIL [6]: one full space for half a month is not R49.50: %', v #> '{money}';
+  end if;
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000001', null, null, 6, 1, false, v_today);
+  if (v #>> '{money,charge_now_cents}')::bigint <> 5700 then
+    raise exception 'QUOTES FAIL [6]: a space of each is not the sum: %', v #> '{money}';
+  end if;
+  -- Next renewal with the new spaces in use: 6 x R99 + (16 - 15) x R15.
+  if (v #>> '{money,next_renewal_cents}')::bigint <> 6 * 9900 + 1500
+     or (v #>> '{money,current_renewal_cents}')::bigint <> 49500 then
+    raise exception 'QUOTES FAIL [6]: the renewal before and after is wrong: %', v #> '{money}';
+  end if;
+  -- The renewal date is the period's, whatever is added.
+  if (v #>> '{period,renewal_on}')::date <> v_today + 15 then
+    raise exception 'QUOTES FAIL [6]: the renewal date moved: %', v #> '{period}';
+  end if;
+
+  -- Annual: the stated R490 a year, for 183 of 365 days, rounded once per space.
+  v := app.billing_change_state('ac260000-0000-4000-9000-000000000004', null, null, 9, 0, false, v_today);
+  if v ->> 'kind' <> 'now' or (v #>> '{money,charge_now_cents}')::bigint <> round(49000::numeric * 183 / 365)
+     or (v #>> '{period,days_in_period}')::int <> 365 then
+    raise exception 'QUOTES FAIL [6]: an annual full space for half a year is wrong: %', v;
+  end if;
+end $t$;
+
+-- Filling a space already paid for costs nothing: no quote, no invoice.
+do $t$
+declare v_before integer; v_after integer;
+begin
+  select count(*) into v_before from public.billing_invoices where farm_id = 'ac200000-0000-4000-9000-000000000004';
+  insert into public.machines (farm_id, name, type)
+  select 'ac200000-0000-4000-9000-000000000004', 'Filled ' || g, 'truck' from generate_series(1, 2) g;
+  select count(*) into v_after from public.billing_invoices where farm_id = 'ac200000-0000-4000-9000-000000000004';
+  if v_after <> v_before or exists (select 1 from public.billing_change_quotes
+                                     where subscription_id = 'ac260000-0000-4000-9000-000000000004') then
+    raise exception 'QUOTES FAIL [6]: filling a paid space raised an invoice or a quote';
+  end if;
+end $t$;
+
+-- Accepted, then paid, and only then the space: the renewal date never moves.
+do $t$
+declare
+  v jsonb;
+  r jsonb;
+  q public.billing_change_quotes%rowtype;
+  i public.billing_invoices%rowtype;
+  s public.billing_subscriptions%rowtype;
+  s2 public.billing_subscriptions%rowtype;
+  v_msg text;
+begin
+  select * into s from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000001';
+  v := app.billing_quote_change('ac260000-0000-4000-9000-000000000001', null, null, 5, 1, false,
+                                'ac210000-0000-4000-9000-000000000001');
+  select * into q from public.billing_change_quotes where id = (v ->> 'quote_id')::uuid;
+  if q.status <> 'quoted' or q.charge_now_cents <> 750 or q.expires_at > now() + interval '30 minutes'
+     or q.expires_at > app.billing_day_ends_at(app.billing_today()) then
+    raise exception 'QUOTES FAIL [6]: the quote was not kept as priced: %', to_jsonb(q);
+  end if;
+
+  r := app.billing_accept_quote(q.id, 'ac210000-0000-4000-9000-000000000001', 750, 0, q.next_renewal_cents);
+  if r ->> 'applied' <> 'awaiting_payment' then
+    raise exception 'QUOTES FAIL [6]: a paid addition did not wait for its payment: %', r;
+  end if;
+  select * into i from public.billing_invoices where id = (r ->> 'invoice_id')::uuid;
+  if i.kind <> 'change' or i.status <> 'open' or i.total_incl_cents <> 750 then
+    raise exception 'QUOTES FAIL [6]: the change invoice is not the accepted charge: %', to_jsonb(i);
+  end if;
+  -- Not yet paid: no extra capacity.
+  if (select equipment_extra_quota from public.billing_subscriptions where id = s.id) <> 0 then
+    raise exception 'QUOTES FAIL [6]: capacity rose before payment';
+  end if;
+  v_msg := pg_temp.try($s$insert into public.machines (farm_id, name, type, profile)
+                         values ('ac200000-0000-4000-9000-000000000001', 'Sixteenth pump', 'pump_generator', 'equipment')$s$);
+  if v_msg <> 'equipment-limit-reached' then
+    raise exception 'QUOTES FAIL [6]: equipment was added on an unpaid change: %', v_msg;
+  end if;
+  -- Never charged by the nightly card run, never a reason to pause.
+  if exists (select 1 from app.due_billing_charges(500) d where d.invoice_id = i.id) then
+    raise exception 'QUOTES FAIL [6]: the nightly run would charge a change invoice';
+  end if;
+  if app.farm_overdue_since('ac200000-0000-4000-9000-000000000001') is not null then
+    raise exception 'QUOTES FAIL [6]: an unpaid change invoice counts towards a pause';
+  end if;
+
+  perform pg_temp.pay(i.id, 'FWB-TEST-Q6-1');
+  select * into s2 from public.billing_subscriptions where id = s.id;
+  if s2.equipment_extra_quota <> 1 or (select status from public.billing_change_quotes where id = q.id) <> 'applied' then
+    raise exception 'QUOTES FAIL [6]: paying did not make the change (extra %)', s2.equipment_extra_quota;
+  end if;
+  if s2.current_period_end <> s.current_period_end or s2.next_billing_on <> s.next_billing_on
+     or s2.anchor_day <> s.anchor_day then
+    raise exception 'QUOTES FAIL [6]: buying a space moved the renewal date';
+  end if;
+  insert into public.machines (farm_id, name, type, profile)
+  values ('ac200000-0000-4000-9000-000000000001', 'Sixteenth pump', 'pump_generator', 'equipment');
+end $t$;
