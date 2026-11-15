@@ -1793,6 +1793,15 @@ export async function cancelQuote(
   return { error: null };
 }
 
+/** The account's credit, in cents. Null when it cannot be read (the page then shows none). */
+export async function creditBalance(supabase: SupabaseClient, subscriptionId: string): Promise<number | null> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.creditBalance, { p_sub: subscriptionId });
+  if (error) {
+    captureError(error, { where: "billing:credit-balance" });
+    return null;
+  }
+  return typeof data === "number" ? data : Number(data ?? 0);
+}
 /**
  * The engine's refusals are raised with a slug as the message (`quote-changed`, `forbidden`,
  * `billing-in-flight`). Anything else is a failed save, never shown as it came.

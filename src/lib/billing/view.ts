@@ -50,7 +50,7 @@ export const SUBSCRIPTION_COLUMNS =
   // `asset_quota` is the number of vehicle slots BOUGHT (20260910230000). Null means this
   // subscription predates the quota model and is still metered on what it counts, which is
   // why the screen has to distinguish the two rather than showing 0.
-  "id, farm_id, plan, billing_period, status, asset_quota, pending_quota, pending_quota_on, " +
+  "id, farm_id, plan, billing_period, status, asset_quota, equipment_extra_quota, pending_quota, pending_quota_on, " +
   "price_version_id, price_version_label, trial_ends_on, " +
   // The farm's own deal (20260920150000). Read here so the estimate on screen is the same
   // figure the invoice generator will bill.
@@ -89,6 +89,8 @@ export type SubscriptionRow = {
   billing_period: string;
   status: string;
   asset_quota: number | null;
+  /** Extra support-equipment spaces paid for this period (20261114090300). */
+  equipment_extra_quota?: number | null;
   pending_quota: number | null;
   pending_quota_on: string | null;
   /** The price this subscription is held at, when one has been pinned. */

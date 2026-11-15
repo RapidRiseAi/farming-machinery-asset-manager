@@ -80,27 +80,26 @@ import {
 // place a server action may live, and duplicating one here would give the same button
 // two different implementations.
 import {
+  acceptChange,
+  cancelChange,
   cancelSubscription,
-  changeOwnPlan,
-  changeVehicleSlots,
+  payChange,
   removePaymentMethod,
   replacePaymentMethod,
+  requestChange,
   resumeBilling,
   retryPayment,
   startCheckout,
 } from "./actions";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import { createServiceClient } from "@/lib/supabase/service";
-import {
-  planChangeQuote,
-  quotaQuote,
-  type PlanChangeQuote,
-  type QuotaQuote,
-} from "@/lib/billing/service";
+import { creditBalance } from "@/lib/billing/service";
+import { QUOTE_COLUMNS, type QuoteRow } from "@/lib/billing/view";
+import { ChangeReview, PendingChanges } from "@/components/billing/change-review";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { PendingGroup } from "@/components/ui/pending-guard";
-import { mustAll } from "@/lib/supabase/must";
+import { must, mustAll } from "@/lib/supabase/must";
 
 export const dynamic = "force-dynamic";
 
@@ -158,12 +157,9 @@ export default async function BillingPage({
     error?: string;
     saved?: string;
     checkout?: string;
-    /** 'plan' | 'slots', show the priced review of a change before it is committed. */
-    change?: string;
-    plan?: string;
-    period?: string;
-    quota?: string;
-    /** Any value opens the change-plan-or-slots disclosure. Never itself changes anything. */
+    /** A priced change (billing_change_quotes.id) to review before it is accepted. */
+    quote?: string;
+    /** Any value opens the change-plan-or-spaces disclosure. Never itself changes anything. */
     manage?: string;
   }>;
 }) {
@@ -293,69 +289,51 @@ export default async function BillingPage({
   const onQuota = billsOnQuota(sub);
   const saved = savedNotice(sp.saved);
 
-  // == The priced review of a change, before anybody commits to it =============
+  // == Changes priced, accepted, waiting (20261115110000) =======================
   //
-  // `changeOwnPlan` and `changeVehicleSlots` used to fire straight off a dropdown: one
-  // press raised a proration invoice and charged the card on file, with no figure shown
-  // and no confirmation, while every merely destructive action in this product goes
-  // through `ConfirmDialog`. The two that spend the customer's money were the two that
-  // did not ask.
-  //
-  // `app.billing_plan_quote` and `app.billing_quota_quote` were built for exactly this and
-  // had no caller. They are the SAME functions the commit path prices from, so the number
-  // on screen and the number charged cannot drift.
-  //
-  // It is a GET, deliberately. The quote is recomputed from the subscription on every
-  // render rather than carried in a hidden field, so a stale tab or a tampered value
-  // cannot put a price in front of somebody that the engine will not honour, and a
-  // review that is only ever a navigation can never itself take money.
-  // Not on a paused or unpaid subscription: the engine refuses both changes there
-  // (20261029160000, review round 5 finding gate-3), so neither the forms nor a priced
-  // review are offered.
+  // A change is PRICED by `requestChange` and kept as a quote with the basis it was priced
+  // on; this page shows that stored quote, and the accept form sends its amounts back, so
+  // the engine refuses a price that moved instead of charging it. The quotes are read
+  // through the owner's own session (RLS: the payer and Rapid Rise only). A change is made
+  // only once it is paid, so the waiting ones are listed with Pay and Cancel.
+  // Not on a paused or unpaid subscription: the engine refuses changes there.
   const canChange = canManage && !!sub && sub.status !== "suspended" && sub.status !== "pending";
-  const wantsPlanReview =
-    sp.change === "plan" &&
-    !!sub &&
-    canChange &&
-    (PLANS as readonly string[]).includes(String(sp.plan)) &&
-    (BILLING_PERIODS as readonly string[]).includes(String(sp.period));
-  const requestedQuota = Number.parseInt(String(sp.quota ?? ""), 10);
-  const wantsSlotsReview =
-    sp.change === "slots" &&
-    !!sub &&
-    canChange &&
-    Number.isFinite(requestedQuota) &&
-    requestedQuota >= 1;
-
-  let planReview: PlanChangeQuote | null = null;
-  let slotsReview: QuotaQuote | null = null;
-  if (wantsPlanReview || wantsSlotsReview) {
-    // Service client: both quote functions are SECURITY DEFINER and service-role only, on
-    // purpose, a grant to `authenticated` would let any signed-in user price a change on
-    // somebody else's subscription and learn their fleet size on the way. The role on THIS
-    // farm was established by `requireRole` and `canManage` above.
-    const svc = createServiceClient();
-    if (wantsPlanReview && sub) {
-      const { quote } = await planChangeQuote(svc, {
-        subscriptionId: sub.id,
-        plan: String(sp.plan),
-        billingPeriod: String(sp.period),
-      });
-      planReview = quote;
+  let quotes: QuoteRow[] = [];
+  let reviewQuote: QuoteRow | null = null;
+  let credit = 0;
+  if (sub && canManage) {
+    quotes =
+      (must(
+        await supabase
+          .from("billing_change_quotes")
+          .select(QUOTE_COLUMNS)
+          .eq("subscription_id", sub.id)
+          .in("status", ["quoted", "awaiting_payment", "scheduled"])
+          .order("created_at", { ascending: false })
+          .limit(20),
+        "billing:quotes",
+      ) as QuoteRow[] | null) ?? [];
+    if (sp.quote) {
+      reviewQuote =
+        (must(
+          await supabase
+            .from("billing_change_quotes")
+            .select(QUOTE_COLUMNS)
+            .eq("id", sp.quote)
+            .eq("subscription_id", sub.id)
+            .maybeSingle(),
+          "billing:quote",
+        ) as QuoteRow | null) ?? null;
     }
-    if (wantsSlotsReview && sub) {
-      const { quote } = await quotaQuote(svc, sub.id, requestedQuota);
-      slotsReview = quote;
-    }
+    // Service client: the balance wrapper is service-role only, like every billing RPC.
+    credit = (await creditBalance(createServiceClient(), sub.id)) ?? 0;
   }
 
-  // The change section is closed unless somebody was sent here to change something, or
-  // asked for a change the engine would not price. Then it opens with THEIR figures in it,
-  // so trying a different number is one edit rather than starting again. The server cannot
-  // see a `#slots` fragment, and Next's client-side scroll does not open a <details>, so a
-  // link that means "go and buy slots" says so in the query string.
-  const quoteRefused = planReview?.kind === "unavailable" || slotsReview?.kind === "unavailable";
-  const manageOpen = !!sp.manage || quoteRefused;
+  // The change section is closed unless somebody was sent here to change something, or a
+  // change they asked for was refused (the reason is in ?error=).
+  const manageOpen = !!sp.manage;
+  // Old agreements have no equipment terms (20261114090300): equipment needs the current list.
+  const equipmentTerms = price?.equipment_period_incl_cents != null;
   // The subscription goes in because the farm may have a deal, a Founding Farmer rate,
   // or something agreed at a kitchen table. The same rule runs in the database when the
   // invoice is raised (`app.billing_discount_cents`), and `view.test.ts` pins the two
@@ -510,156 +488,9 @@ export default async function BillingPage({
         <Flash tone="warning" message={t("billing.checkoutUnknown", locale)} />
       ) : null}
 
-      {/* == "Here is what that will cost." The step that was missing. ========= */}
-      {planReview || slotsReview ? (
-        <Card className="border-callout-info-edge bg-callout-info-bg">
-          <CardHeader>
-            <CardTitle>{t("billing.quoteHeading", locale)}</CardTitle>
-          </CardHeader>
-
-          {(() => {
-            const q = planReview ?? slotsReview!;
-            // 'unavailable' is the engine declining to price it, an unsellable plan, no
-            // active price version, a quota below the fleet. It carries its own reason and
-            // must NOT be rendered as a confirmable change.
-            if (q.kind === "unavailable") {
-              const below =
-                slotsReview && /retire or sell/i.test(String(slotsReview.reason ?? ""));
-              return (
-                <div>
-                  <p className="text-base font-semibold text-sand-900">
-                    {t(
-                      below ? "billing.quotaBelowFleetTitle" : "billing.quoteUnavailableTitle",
-                      locale,
-                    )}
-                  </p>
-                  {/* NEVER the raw `reason`. The quote functions explain themselves in
-                      English prose from a migration, and printing that puts an
-                      untranslated Postgres string in front of an Afrikaans farmer, the
-                      same mistake `errors.ts` exists to prevent everywhere else. */}
-                  <p className="mt-1 text-sm leading-relaxed text-sand-800">
-                    {below && slotsReview
-                      ? t("billing.quotaBelowFleetBody", locale)
-                          .replace("{used}", String(slotsReview.in_use))
-                          .replace("{quota}", String(slotsReview.new_quota))
-                      : t(quoteReasonKey(q.reason), locale)
-                          .replace("{used}", String(slotsReview?.in_use ?? assets.billable))
-                          .replace("{quota}", String(slotsReview?.new_quota ?? unitsBilled))}
-                  </p>
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    {/* The change section below is open and holds the figures they asked
-                        for, so this only has to take them there. */}
-                    <a href="#manage" className={buttonVariants({ variant: "primary" })}>
-                      {t("billing.quoteAdjust", locale)}
-                    </a>
-                    <Link href="/billing" className={buttonVariants({ variant: "secondary" })}>
-                      {t("billing.quoteCancel", locale)}
-                    </Link>
-                  </div>
-                </div>
-              );
-            }
-
-            const scheduled = q.kind === "scheduled";
-            const noChange = q.kind === "no_change";
-            return (
-              <>
-                <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 text-sm">
-                  {planReview ? (
-                    <>
-                      <dt className="text-sand-600">{t("billing.planNowLabel", locale)}</dt>
-                      <dd className="font-medium text-sand-900 text-right">
-                        {t(`plan.${sub!.plan}`, locale)} ·{" "}
-                        {t(`billingPeriod.${sub!.billing_period}`, locale)}
-                      </dd>
-                      <dt className="text-sand-600">{t("billing.planNewLabel", locale)}</dt>
-                      <dd className="font-semibold text-sand-900 text-right">
-                        {t(`plan.${String(sp.plan)}`, locale)} ·{" "}
-                        {t(`billingPeriod.${String(sp.period)}`, locale)}
-                      </dd>
-                    </>
-                  ) : (
-                    <>
-                      <dt className="text-sand-600">{t("billing.slotsNowLabel", locale)}</dt>
-                      <dd className="font-medium text-sand-900 text-right tabular-nums">
-                        {slotsReview!.current_quota ?? assets.billable}
-                      </dd>
-                      <dt className="text-sand-600">{t("billing.slotsNewLabel", locale)}</dt>
-                      <dd className="font-semibold text-sand-900 text-right tabular-nums">
-                        {slotsReview!.new_quota}
-                      </dd>
-                    </>
-                  )}
-
-                  {/* The number that matters most, and it is stated even when it is zero -
-                      "nothing today" is the reassurance somebody is looking for, and an
-                      absent line is not an answer. */}
-                  <dt className="font-semibold text-sand-900">{t("billing.quoteNowLine", locale)}</dt>
-                  <dd className="font-semibold tabular-nums text-sand-900 text-right">
-                    {q.charge_now_cents > 0
-                      ? rands(q.charge_now_cents)
-                      : t("billing.quoteNoCharge", locale)}
-                  </dd>
-
-                  {planReview && planReview.new_period_cents > 0 ? (
-                    <>
-                      <dt className="text-sand-600">{t("billing.quoteThenLine", locale)}</dt>
-                      <dd className="tabular-nums text-sand-900 text-right">
-                        {rands(planReview.new_period_cents)}
-                      </dd>
-                    </>
-                  ) : null}
-
-                  {q.effective_on ? (
-                    <>
-                      <dt className="text-sand-600">{t("billing.quoteEffective", locale).replace("{date}", "")}</dt>
-                      <dd className="text-sand-900 text-right">
-                        {shortDate(q.effective_on, locale)}
-                      </dd>
-                    </>
-                  ) : null}
-                </dl>
-
-                {scheduled ? (
-                  <p className="mt-3 text-sm leading-relaxed text-sand-800">
-                    {t("billing.quoteScheduledNote", locale)}
-                  </p>
-                ) : null}
-                {noChange ? (
-                  <p className="mt-3 text-sm leading-relaxed text-sand-800">
-                    {t("billing.savedNoChange", locale)}
-                  </p>
-                ) : null}
-
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                  {!noChange ? (
-                    // The commit. It re-reads the subscription and re-prices from the same
-                    // function this card rendered, so the confirm cannot be replayed into a
-                    // different charge than the one shown.
-                    <form action={planReview ? changeOwnPlan : changeVehicleSlots}>
-                      {planReview ? (
-                        <>
-                          <input type="hidden" name="plan" value={String(sp.plan)} />
-                          <input type="hidden" name="billing_period" value={String(sp.period)} />
-                        </>
-                      ) : (
-                        <input type="hidden" name="quota" value={String(requestedQuota)} />
-                      )}
-                      <SubmitButton variant="primary">
-                        {t("billing.quoteConfirm", locale)}
-                      </SubmitButton>
-                    </form>
-                  ) : null}
-                  <Link href="/billing" className={buttonVariants({ variant: "secondary" })}>
-                    {t("billing.quoteCancel", locale)}
-                  </Link>
-                </div>
-              </>
-            );
-          })()}
-        </Card>
-      ) : null}
-
+      {/* == "Here is what that will cost." The stored quote, before anything is accepted. */}
+      {reviewQuote ? <ChangeReview quote={reviewQuote} locale={locale} accept={acceptChange} /> : null}
+      {canManage ? <PendingChanges quotes={quotes} locale={locale} pay={payChange} cancel={cancelChange} /> : null}
       {/* == The three answers, before anything else =========================
           How much and when; how full the slots are; whether the card will work. The
           first used to sit in the footer of the third card, three scrolls of plan and
@@ -907,10 +738,9 @@ export default async function BillingPage({
           </summary>
 
           <div className="border-t border-sand-200 p-4 sm:p-5">
-            {/* A GET to this same page, not the action. Choosing a plan PRICES the
-                change; a second, explicit press commits it. This dropdown used to charge
-                a card on its first submit with no figure shown anywhere. */}
-            <form method="get" action="/billing">
+            {/* Choosing a plan PRICES the change (a quote, kept for 30 minutes); the
+                review above shows it, and only its own button accepts it. */}
+            <form action={requestChange}>
               <input type="hidden" name="change" value="plan" />
               <p className="text-sm font-semibold text-sand-900">
                 {t("billing.changePlanTitle", locale)}
@@ -923,8 +753,7 @@ export default async function BillingPage({
                 <select
                   id="plan"
                   name="plan"
-                  // What they last asked for, while a review of it is on screen.
-                  defaultValue={wantsPlanReview ? String(sp.plan) : sub.plan}
+                  defaultValue={sub.plan}
                   className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
                 >
                   {PLANS.map((p) => (
@@ -933,13 +762,13 @@ export default async function BillingPage({
                     </option>
                   ))}
                 </select>
-                <label className="sr-only" htmlFor="period">
+                <label className="sr-only" htmlFor="billing_period">
                   {t("billing.periodField", locale)}
                 </label>
                 <select
-                  id="period"
-                  name="period"
-                  defaultValue={wantsPlanReview ? String(sp.period) : sub.billing_period}
+                  id="billing_period"
+                  name="billing_period"
+                  defaultValue={sub.billing_period}
                   className="min-h-12 flex-1 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
                 >
                   {BILLING_PERIODS.map((p) => (
@@ -954,15 +783,31 @@ export default async function BillingPage({
               </div>
             </form>
 
-            {/* Same two-step as the plan, and for the same reason: buying slots is
-                charged pro-rata the instant it is committed. */}
+            {/* An agreement from before support equipment has no equipment terms: moving it
+                to the current price list is an accepted change, at the renewal. */}
+            {!equipmentTerms ? (
+              <form action={requestChange} className="mt-4 border-t border-sand-200 pt-4">
+                <input type="hidden" name="change" value="plan" />
+                <input type="hidden" name="plan" value={sub.plan} />
+                <input type="hidden" name="billing_period" value={sub.billing_period} />
+                <input type="hidden" name="current_list" value="1" />
+                <p className="text-sm font-semibold text-sand-900">{t("billing.currentListTitle", locale)}</p>
+                <p className="mt-1 text-sm text-sand-600">{t("billing.currentListNote", locale)}</p>
+                <div className="mt-3">
+                  <SubmitButton variant="secondary">{t("billing.quoteReview", locale)}</SubmitButton>
+                </div>
+              </form>
+            ) : null}
+
+            {/* Spaces: full spaces bought, and extra support-equipment spaces for this
+                period. More is priced for the days left and made once paid; fewer full
+                spaces start at the renewal. */}
             <form
               id="slots"
-              method="get"
-              action="/billing"
+              action={requestChange}
               className="mt-4 scroll-mt-20 border-t border-sand-200 pt-4"
             >
-              <input type="hidden" name="change" value="slots" />
+              <input type="hidden" name="change" value="capacity" />
               <p className="text-sm font-semibold text-sand-900">
                 {t("billing.slotsTitle", locale)}
               </p>
@@ -973,35 +818,49 @@ export default async function BillingPage({
                       .replace("{used}", String(assets.billable))
                       .replace("{quota}", String(sub.asset_quota))}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <label className="sr-only" htmlFor="quota">
-                  {t("billing.slotsTitle", locale)}
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1 text-sm text-sand-700" htmlFor="full">
+                  {t("billing.changeFullField", locale)}
+                  <input
+                    id="full"
+                    name="full"
+                    type="number"
+                    inputMode="numeric"
+                    min={Math.max(assets.billable, price?.min_billed_slots ?? 0, 1)}
+                    defaultValue={sub.asset_quota ?? Math.max(assets.billable, price?.min_billed_slots ?? 0, 1)}
+                    className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
+                  />
                 </label>
-                <input
-                  id="quota"
-                  name="quota"
-                  type="number"
-                  inputMode="numeric"
-                  min={Math.max(assets.billable, price?.min_billed_slots ?? 0, 1)}
-                  defaultValue={
-                    wantsSlotsReview
-                      ? requestedQuota
-                      : (sub.asset_quota ?? Math.max(assets.billable, price?.min_billed_slots ?? 0, 1))
-                  }
-                  className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
-                />
+                {equipmentTerms && sub.asset_quota != null ? (
+                  <label className="flex flex-col gap-1 text-sm text-sand-700" htmlFor="equipment_extra">
+                    {t("billing.changeEquipmentField", locale)}
+                    <input
+                      id="equipment_extra"
+                      name="equipment_extra"
+                      type="number"
+                      inputMode="numeric"
+                      min={sub.equipment_extra_quota ?? 0}
+                      defaultValue={sub.equipment_extra_quota ?? 0}
+                      className="min-h-12 w-28 rounded-lg border border-sand-300 bg-surface px-3 sm:min-h-11"
+                    />
+                  </label>
+                ) : null}
                 <SubmitButton variant="secondary">
                   {t("billing.quoteReview", locale)}
                 </SubmitButton>
               </div>
               <p className="mt-2 text-xs text-sand-600">{t("billing.slotsRule", locale)}</p>
+              {equipmentTerms ? (
+                <p className="mt-1 text-xs text-sand-600">
+                  {t("billing.changeEquipmentRule", locale).replace("{included}", String(price?.equipment_included ?? 0))}
+                </p>
+              ) : null}
               {(price?.min_billed_slots ?? 0) > 1 ? (
                 <p className="mt-1 text-xs text-sand-600">
                   {t("billing.slotsMinimum", locale).replace("{n}", String(price?.min_billed_slots))}
                 </p>
               ) : null}
-            </form>
-          </div>
+            </form>          </div>
         </details>
       ) : null}
 
