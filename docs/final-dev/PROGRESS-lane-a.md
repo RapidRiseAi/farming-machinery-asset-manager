@@ -49,7 +49,18 @@ Log:
   `components/billing/change-review.tsx`; /billing reads stored quotes; cron step
   expire_quotes; receipts print change lines; conversion review shows the price; EN/AF keys and
   error codes. 1160 unit tests and all lint gates pass. Steps 1 and 2 DONE: tsc, 1160 unit tests, dashes, parity, keys,
-  design, errors and all 79 PGlite suites pass. Next: step 3 cancellation (owner period-end only, wording, legal flags).
+  design, errors and all 79 PGlite suites pass.
+- Step 4 (lifecycle) written: migration `20261115120000_billing_lifecycle.sql` (retrieval_ends_on,
+  `app.farm_billing_gate_on` on SAST days, owner-only reading in `stopped_farm_ids` and
+  `require_open_farm`, `farm_paid_extras_allowed`, pause lifted by trigger, cancellations
+  pause the farm row and open 90 days, suspensions stop retries, owner notices and 30/7/1-day
+  reminders, `public.farm_lifecycle`, AI/voice `billing_paused`, WhatsApp off in grace).
+  Suite `billing_lifecycle.sql` passes; 15 lifecycle mutations caught (re-run of the quote
+  batch with the fixed harness: 15 of 15 caught with their FAIL messages). pay_gate.sql updated
+  (a contractor no longer reads a suspended customer). TS: /suspended and /closed show who may
+  read and until when, owner-only download, pay to reopen an unpaid account, export route
+  refuses non-owners in words, grace notice and credit on /billing, notification templates.
+  Next: step 3 wording (terms, cancel dialog, owner cancels at period end only), then gates. Next: step 3 cancellation (owner period-end only, wording, legal flags).
 
 ## A1 (complete)
 
