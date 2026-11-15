@@ -165,3 +165,120 @@ begin
   return v_end is null or p_today <= v_end;
 end $$;
 revoke all on function app.farm_read_allowed(uuid, date) from public, anon, authenticated, service_role;
+
+-- 20261112090000's helper: for reading, the businesses the caller may not read (pending, and a
+-- stopped one for anybody but its owner, or after its window); for writing, every one whose
+-- gate is not ok, as before. Once per statement, never per row.
+create or replace function app.stopped_farm_ids(p_writing boolean)
+returns setof uuid
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_today date := app.billing_today();
+begin
+  if auth.uid() is null or app.is_rr_admin() then
+    return;
+  end if;
+  if p_writing then
+    return query
+      select a.farm_id
+        from app.accessible_farm_ids() as a(farm_id)
+       where a.farm_id is not null
+         and app.farm_billing_gate_on(a.farm_id, v_today) = any (array['pending', 'suspended', 'closed']);
+  else
+    return query
+      select a.farm_id
+        from app.accessible_farm_ids() as a(farm_id)
+       where a.farm_id is not null
+         and not app.farm_read_allowed(a.farm_id, v_today);
+  end if;
+end
+$$;
+revoke all on function app.stopped_farm_ids(boolean) from public, anon;
+grant execute on function app.stopped_farm_ids(boolean) to authenticated;
+
+-- 20261112100000's check inside the definer functions, with the same reading rule.
+create or replace function app.require_open_farm(p_farm uuid, p_writing boolean)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_gate text;
+begin
+  if p_farm is null or auth.uid() is null or app.is_rr_admin() or not app.has_farm_access(p_farm) then
+    return true;
+  end if;
+  v_gate := app.farm_billing_gate(p_farm);
+  if (p_writing and v_gate <> 'ok') or (not p_writing and not app.farm_read_allowed(p_farm, app.billing_today())) then
+    raise exception 'farm-not-active'
+      using errcode = '42501',
+            detail = format('This business is %s, so its records cannot be %s by this person.',
+                            v_gate, case when p_writing then 'changed' else 'read' end),
+            hint = 'Pay on /activate or /suspended; the owner can read and export on /suspended or /closed.';
+  end if;
+  return true;
+end
+$$;
+revoke all on function app.require_open_farm(uuid, boolean) from public, anon, authenticated, service_role;
+
+-- == No new paid extras in the grace ========================================================
+-- True only for a business that is fully paid up: the gate is ok and nothing is late. Asked
+-- before anything that costs money is started: a change quote that charges, a paid AI or voice
+-- hold, a WhatsApp send (decision 41). An exempt business is never late.
+create or replace function app.farm_paid_extras_allowed(p_farm uuid, p_today date) returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select app.farm_billing_gate_on(p_farm, p_today) = 'ok'
+     and (coalesce((select f.billing_exempt from public.farms f where f.id = app.billing_root(p_farm)), false)
+          or not app.farm_payment_late(p_farm, p_today));
+$$;
+revoke all on function app.farm_paid_extras_allowed(uuid, date) from public, anon, authenticated;
+grant execute on function app.farm_paid_extras_allowed(uuid, date) to service_role;
+
+-- == A subscription that comes back lifts the pause =========================================
+-- Whatever brought it back (a payment, a reopen inside a paid period, Rapid Rise keeping it
+-- open), the farm row follows, so the engines that read farms.status start again.
+create or replace function app.billing_lift_farm_pause() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  update public.farms
+     set status = 'active', suspended_for = null
+   where id = new.farm_id and status = 'suspended' and suspended_for = 'billing';
+  update public.billing_subscriptions
+     set retrieval_ends_on = null
+   where id = new.id and retrieval_ends_on is not null;
+  return null;
+end $$;
+revoke all on function app.billing_lift_farm_pause() from public, anon, authenticated;
+drop trigger if exists billing_subscriptions_lift_pause on public.billing_subscriptions;
+create trigger billing_subscriptions_lift_pause
+  after update of status on public.billing_subscriptions
+  for each row
+  when (old.status in ('pending', 'suspended', 'cancelled')
+        and new.status in ('active', 'trialing', 'non_renewing', 'past_due', 'grace'))
+  execute function app.billing_lift_farm_pause();
+
+-- == Telling the owner =====================================================================
+-- Billing news goes to the owners only (home site and owner memberships): staff are not told
+-- what the business owes. In the person's inbox, which delivery carries by push and email.
+create or replace function app.billing_notify_owners(p_farm uuid, p_template text, p_payload jsonb) returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_n integer;
+begin
+  insert into public.notifications (farm_id, user_id, channel, template, payload, status, deliver_after)
+  select p_farm, u.id, 'inapp', p_template, p_payload, 'queued', null
+    from public.users u
+   where u.active and u.deleted_at is null
+     and ((u.role = 'owner' and u.farm_id = p_farm)
+          or exists (select 1 from public.user_farm_memberships m
+                      where m.user_id = u.id and m.farm_id = p_farm and m.role = 'owner'
+                        and m.active and m.deleted_at is null));
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+revoke all on function app.billing_notify_owners(uuid, text, jsonb) from public, anon, authenticated, service_role;
