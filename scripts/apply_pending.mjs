@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  "20261117090000": "select to_regclass('public.chat_messages') is not null and to_regprocedure('public.chat_room(uuid)') is not null",
+  "20261117090100": "select to_regprocedure('app.chat_file_readable(text)') is not null",
   // Spoken command jobs, and spoken requests up to 16,000 characters.
   "20261115100000": "select to_regclass('public.assistant_command_jobs') is not null and to_regprocedure('public.assistant_command_claim(uuid,integer)') is not null",
   // Direct uploads: the intents table, begin and commit, and the command-audio bucket where storage exists.

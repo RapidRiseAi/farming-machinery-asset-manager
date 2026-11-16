@@ -415,6 +415,7 @@ export function notificationTitle(template: string, locale: Lang): string {
 /** Deep link a notification click should open (best-effort; falls back to the alert centre). */
 export function notificationUrl(template: string, payload: NotePayload): string {
   const p = payload ?? {};
+  if (template === "staff_chat") return typeof p.href === "string" && /^\/chat\/[0-9a-f-]{36}$/i.test(p.href) ? p.href : "/chat";
   if (template.startsWith("fault_")) return "/faults";
   if ((template === "job_completed" || template === "job_assigned") && p.job_card_id) return `/jobcards/${p.job_card_id}`;
   // Work-request activity + quote/invoice reminders deep-link to the request itself.

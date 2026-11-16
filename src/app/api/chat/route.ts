@@ -42,6 +42,13 @@ export async function GET(request: Request) {
   if (!isUuid(room)) return answer({error:"chat-invalid"},400);
   const roomResult=await db.rpc("chat_room",{p_conversation:room});
   if(roomResult.error)return failure(roomResult.error);
+  const draft=url.searchParams.get("draft");
+  if(isUuid(draft)) {
+    const message=await db.from("chat_messages").select("id").eq("conversation_id",room).eq("id",draft).is("published_at",null).maybeSingle();
+    if(message.error)return failure(message.error);
+    const result=message.data?await db.from("chat_attachments").select("id,message_id,storage_path,media_class,mime,bytes").eq("message_id",draft):{data:[],error:null};
+    return result.error?failure(result.error):answer({attachments:result.data??[]});
+  }
   let query=db.from("chat_messages").select("id,sender_id,sequence,body,published_at,edited_at,deleted_at")
     .eq("conversation_id",room).not("published_at","is",null).order("sequence",{ascending:false}).limit(CHAT_PAGE);
   const before=Number(url.searchParams.get("before")??0);

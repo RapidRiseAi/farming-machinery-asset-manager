@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { t, type Lang } from "@/lib/i18n";
+import { t, localeOf, type Lang } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
 import { CHAT_BODY, CHAT_PAGE, draftKey, readDraft, mergeMessages, type Draft, type ChatRoom, type ChatMessage, type ChatAttachment } from "@/lib/chat/protocol";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { DialogForm, useDialogForm } from "@/components/ui/dialog-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { UploadField } from "@/components/upload/upload-field";
 import { chatRequest, PeoplePicker, TaskState, useChatTask } from "./shared";
+import { VoiceNote } from "./voice-note";
 
 function Attachment({file,locale}:{file:ChatAttachment;locale:Lang}) {
   const [url,setUrl]=useState<string|null>(null),task=useChatTask();
@@ -27,30 +28,37 @@ function Attachment({file,locale}:{file:ChatAttachment;locale:Lang}) {
 }
 function Compose({room,user,locale,draft,setDraft,onSent}:{room:ChatRoom;user:string;locale:Lang;draft:Draft;setDraft:(d:Draft)=>void;onSent:()=>Promise<void>}) {
   const task=useChatTask(),{close}=useDialogForm();
-  const [prepared,setPrepared]=useState(false),[uploadBusy,setUploadBusy]=useState(false),[attached,setAttached]=useState(0);
+  const [sent,setSent]=useState(false),[draftFiles,setDraftFiles]=useState<ChatAttachment[]>([]);
+  const [prepared,setPrepared]=useState(false),[uploads,setUploads]=useState<Record<string,boolean>>({}),[attached,setAttached]=useState(0);
+  const uploadBusy=Object.values(uploads).some(Boolean);
+  const recordingBusy=useCallback((value:boolean)=>setUploads(old=>old.recording===value?old:{...old,recording:value}),[]);
   const target=prepared?{kind:"chat_message" as const,id:draft.id,farmId:room.farm_id,workshopId:null}:null;
+  useEffect(()=>{void task.run(async()=>{const result=await chatRequest(`?room=${room.id}&draft=${draft.id}`);setDraftFiles(result.attachments);});},[room.id,draft.id,task.run]);
+  useEffect(()=>{if(sent&&!task.busy){const timer=setTimeout(()=>{close();setDraft({id:crypto.randomUUID(),body:""});},0);return()=>clearTimeout(timer);}},[sent,task.busy,close,setDraft]);
   return <div className="flex flex-col gap-4 p-4">
     <label className="text-sm font-medium">{t("chat.message",locale)}
       <textarea className={`${controlBase} min-h-[120px] py-3`} value={draft.body} maxLength={CHAT_BODY} disabled={task.busy}
         onChange={e=>setDraft({...draft,body:e.target.value})}/>
     </label>
     <p className="text-sm text-sand-600">{t("chat.draftHint",locale)}</p>
+    {draftFiles.length?<div><p className="text-sm">{t("chat.draftFiles",locale)}</p>{draftFiles.map(file=><Attachment key={file.id} file={file} locale={locale}/>)}</div>:null}
     {!prepared?<Button variant="secondary" loading={task.busy} onClick={()=>void task.run(async()=>{
       await chatRequest("",{action:"prepare",room:room.id,id:draft.id});setPrepared(true);
     })}>{t("chat.attach",locale)}</Button>:<>
       <UploadField key={`${draft.id}-document`} locale={locale} label={t("chat.photoDocument",locale)} accept="document" target={target} finish="generic"
         scope={`chat:${user}:${draft.id}:document`} uploadLabel="document" onDone={()=>setAttached(n=>n+1)}
-        onStateChange={state=>setUploadBusy(["preparing","starting","sending","checking","paused"].includes(state.phase))}/>
+        onStateChange={state=>setUploads(old=>({...old,document:["preparing","starting","sending","checking","paused"].includes(state.phase)}))}/>
       <UploadField key={`${draft.id}-voice`} locale={locale} label={t("chat.voice",locale)} accept="voice" target={target} finish="generic"
         scope={`chat:${user}:${draft.id}:voice`} uploadLabel="voice" onDone={()=>setAttached(n=>n+1)}
-        onStateChange={state=>setUploadBusy(["preparing","starting","sending","checking","paused"].includes(state.phase))}/>
+        onStateChange={state=>setUploads(old=>({...old,voice:["preparing","starting","sending","checking","paused"].includes(state.phase)}))}/>
       <p className="text-sm text-sand-600">{t("chat.freeVoice",locale)}</p>
+      {target?<VoiceNote target={target} scope={`chat:${user}:${draft.id}:recording`} locale={locale} onBusy={recordingBusy} onDone={()=>setAttached(n=>n+1)}/>:null}
     </>}
     {attached>0?<p role="status" className="text-sm">{t("chat.attached",locale).replace("{count}",String(attached))}</p>:null}
     <TaskState {...task} locale={locale}/>
     <Button loading={task.busy} disabled={uploadBusy} onClick={()=>void task.run(async()=>{
       await chatRequest("",{action:"send",room:room.id,id:draft.id,body:draft.body});
-      setDraft({id:crypto.randomUUID(),body:""});close();await onSent();
+      setSent(true);await onSent();
     })}>{task.busy?t("chat.sending",locale):t("chat.send",locale)}</Button>
   </div>;
 }
@@ -75,11 +83,13 @@ function Manage({room,locale,onChange}:{room:ChatRoom;locale:Lang;onChange:()=>P
 }
 function EditMessage({message,room,locale,onChange}:{message:ChatMessage;room:string;locale:Lang;onChange:()=>Promise<void>}) {
   const [body,setBody]=useState(message.body),task=useChatTask(),{close}=useDialogForm();
+  const [saved,setSaved]=useState(false);
+  useEffect(()=>{if(saved&&!task.busy){const timer=setTimeout(close,0);return()=>clearTimeout(timer);}},[saved,task.busy,close]);
   return <div className="flex flex-col gap-3 p-4">
     <label>{t("chat.message",locale)}<textarea className={`${controlBase} min-h-[120px] py-3`} maxLength={CHAT_BODY} value={body} onChange={e=>setBody(e.target.value)}/></label>
     <TaskState {...task} locale={locale}/>
-    <Button loading={task.busy} onClick={()=>void task.run(async()=>{await chatRequest("",{action:"edit",room,id:message.id,body});close();await onChange();})}>{t("common.save",locale)}</Button>
-    <Button variant="danger" loading={task.busy} onClick={()=>void task.run(async()=>{await chatRequest("",{action:"delete",room,id:message.id,body:""});close();await onChange();})}>{t("chat.deleteMessage",locale)}</Button>
+    <Button loading={task.busy} onClick={()=>void task.run(async()=>{await chatRequest("",{action:"edit",room,id:message.id,body});setSaved(true);await onChange();})}>{t("common.save",locale)}</Button>
+    <Button variant="danger" loading={task.busy} onClick={()=>void task.run(async()=>{await chatRequest("",{action:"delete",room,id:message.id,body:""});setSaved(true);await onChange();})}>{t("chat.deleteMessage",locale)}</Button>
   </div>;
 }
 export function ChatRoomClient({id,user,locale}:{id:string;user:string;locale:Lang}) {
@@ -107,6 +117,7 @@ export function ChatRoomClient({id,user,locale}:{id:string;user:string;locale:La
     }finally{loading.current=false;}
   },[id,filter]);
   useEffect(()=>{
+    if(denied)return;
     void task.run(()=>load(0,true));
     const db=createClient();
     const channel=db.channel(`chat:${id}`).on("postgres_changes",{event:"UPDATE",schema:"public",table:"chat_conversations",filter:`id=eq.${id}`},()=>{void task.run(()=>load());}).subscribe();
@@ -117,7 +128,7 @@ export function ChatRoomClient({id,user,locale}:{id:string;user:string;locale:La
       try{sessionStorage.removeItem(draftKey(user,id));}catch{}
     }});
     return()=>{clearInterval(timer);window.removeEventListener("online",refresh);document.removeEventListener("visibilitychange",refresh);auth.data.subscription.unsubscribe();void db.removeChannel(channel);};
-  },[id,user,load,task.run]);
+  },[id,user,load,task.run,denied]);
   const refresh=()=>load(0,true);
   return <div className="flex min-w-0 flex-col gap-4">
     <PageHeader title={room?.kind==="direct"?room.members.filter(m=>m.id!==user).map(m=>m.name).join(", ")||t("chat.direct",locale):room?.title??t("chat.title",locale)}/>
@@ -137,7 +148,7 @@ export function ChatRoomClient({id,user,locale}:{id:string;user:string;locale:La
       {more&&messages.length?<Button variant="secondary" loading={task.busy} onClick={()=>void task.run(()=>load(messages[0].sequence))}>{t("chat.older",locale)}</Button>:null}
       <ol className="flex min-w-0 flex-col gap-3" aria-label={t("chat.messages",locale)}>
         {messages.map(message=><li key={message.id} className="min-w-0 rounded-xl border border-sand-200 bg-surface p-4">
-          <div className="flex flex-wrap justify-between gap-2 text-xs text-sand-600"><span>{room.members.find(m=>m.id===message.sender_id)?.name??t("chat.formerMember",locale)}</span><time dateTime={message.published_at}>{new Date(message.published_at).toLocaleString(locale.startsWith("af")?"af-ZA":"en-ZA")}</time></div>
+          <div className="flex flex-wrap justify-between gap-2 text-xs text-sand-600"><span>{room.members.find(m=>m.id===message.sender_id)?.name??t("chat.formerMember",locale)}</span><time dateTime={message.published_at}>{new Date(message.published_at).toLocaleString(localeOf(locale)==="af"?"af-ZA":"en-ZA")}</time></div>
           <p className="mt-2 whitespace-pre-wrap break-words text-sand-900 [overflow-wrap:anywhere]">{message.deleted_at?t("chat.deleted",locale):message.body}</p>
           {message.edited_at&&!message.deleted_at?<p className="text-xs text-sand-500">{t("chat.edited",locale)}</p>:null}
           {!message.deleted_at?files.filter(f=>f.message_id===message.id).map(file=><Attachment key={file.id} file={file} locale={locale}/>):null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ function size(bytes: number): string {
  */
 export function UploadField({
   locale, label, accept, target, finish, scope, name = "upload_intent_id", attachmentKind, uploadLabel,
-  capture, onDone, onStateChange, className, disabled,
+  capture, onDone, onStateChange, className, disabled, file,
 }: {
   locale: Lang;
   label?: string;
@@ -51,12 +51,15 @@ export function UploadField({
   onStateChange?: (state: DirectUploadState) => void;
   className?: string;
   disabled?: boolean;
+  /** A locally recorded file uses the identical upload, retry and validation path. */
+  file?: File;
 }) {
   const inputId = useId();
   const keepId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [keepOriginal, setKeepOriginal] = useState(false);
   const upload = useDirectUpload({ target, label: uploadLabel, finish, attachmentKind, scope, onDone });
+  useEffect(() => { if (file) void upload.start(file); }, [file, upload.start]);
   const { state } = upload;
   const lastReported = useRef<DirectUploadState | null>(null);
   if (onStateChange && lastReported.current !== state) {
@@ -105,7 +108,7 @@ export function UploadField({
         }}
         className="block w-full text-sm text-sand-600 file:mr-3 file:min-h-[44px] file:rounded-lg file:border-0 file:bg-sand-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-sand-700"
       />
-      {accept === "photo" ? (
+      {accept !== "voice" ? (
         <div className="flex items-start gap-2">
           <input
             id={keepId}

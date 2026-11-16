@@ -80,7 +80,12 @@ language sql stable security definer set search_path = public, pg_temp as $$
 $$;
 create or replace function app.chat_staff(p_user uuid, p_farm uuid) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
-  select coalesce(app.role_on_farm(p_user, p_farm) in ('owner','manager','mechanic','operator'), false);
+  select exists(select 1 from public.users u join public.farms f on f.id=p_farm
+    where u.id=p_user and u.active and u.deleted_at is null and f.deleted_at is null
+      and u.is_test=f.is_test and u.role in ('owner','manager','mechanic','operator')
+      and (exists(select 1 from public.user_farm_memberships m where m.user_id=u.id and m.farm_id=f.id
+        and m.active and m.deleted_at is null and m.role in ('owner','manager','mechanic','operator'))
+        or (u.farm_id=f.id and not exists(select 1 from public.user_farm_memberships m where m.user_id=u.id and m.farm_id=f.id))));
 $$;
 create or replace function app.chat_support(p_farm uuid) returns boolean
 language sql stable security definer set search_path = public, pg_temp as $$
@@ -207,6 +212,7 @@ begin
     update public.chat_members set removed_at=now(),is_admin=false where conversation_id=c.id and user_id=p_user and removed_at is null;
   else raise exception 'chat-invalid';
   end if;
+  update public.chat_conversations set updated_at=clock_timestamp() where id=c.id;
   insert into public.chat_events(farm_id,conversation_id,actor_id,event,record_id)
     values(c.farm_id,c.id,auth.uid(),p_action,p_user);
 end $$;
@@ -233,7 +239,10 @@ begin
   if char_length(coalesce(p_body,'')) > 8000 then raise exception 'chat-invalid'; end if;
   perform public.chat_prepare(c.id,p_id);
   select * into msg from public.chat_messages where id=p_id for update;
-  if msg.published_at is not null then return msg.id; end if;
+  if msg.published_at is not null then
+    if msg.body is distinct from btrim(coalesce(p_body,'')) or msg.deleted_at is not null then raise exception 'chat-request-changed'; end if;
+    return msg.id;
+  end if;
   if btrim(coalesce(p_body,'')) = '' and not exists(select 1 from public.chat_attachments where message_id=p_id) then
     raise exception 'chat-empty'; end if;
   -- Give publication its own sequence: a draft prepared before a person joined is not old history.
@@ -261,6 +270,7 @@ begin
     raise exception 'chat-invalid'; end if;
   update public.chat_messages set body=case when p_delete then '' else btrim(p_body) end,
     edited_at=now(),deleted_at=case when p_delete then now() end where id=p_id;
+  update public.chat_conversations set updated_at=clock_timestamp() where id=c.id;
   insert into public.chat_events(farm_id,conversation_id,actor_id,event,record_id)
     values(c.farm_id,c.id,auth.uid(),case when p_delete then 'deleted' else 'edited' end,p_id);
 end $$;

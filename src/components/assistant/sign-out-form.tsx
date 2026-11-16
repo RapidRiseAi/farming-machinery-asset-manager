@@ -32,7 +32,11 @@ export function AssistantSafeSignOutForm({
         setClearing(true);
         setError(null);
         void clearAllOfflineVoiceData()
-          .then(() => form.requestSubmit())
+          .then(() => {
+            // Private staff-chat drafts belong to this login, not the next person using the device.
+            for (const key of Object.keys(sessionStorage)) if (key.startsWith("fw-chat:")) sessionStorage.removeItem(key);
+            form.requestSubmit();
+          })
           .catch(() => {
             clearingRef.current = false;
             setClearing(false);

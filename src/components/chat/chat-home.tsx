@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { t, type Lang } from "@/lib/i18n";
 import { CHAT_PAGE, type ChatSummary } from "@/lib/chat/protocol";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,6 +19,14 @@ export function ChatHome({farm,locale}:{farm:string;locale:Lang}) {
     setRooms(previous=>offset?[...previous,...result.data]:result.data);setMore(result.data.length===CHAT_PAGE);setReady(true);
   },[farm]);
   useEffect(()=>{setId(crypto.randomUUID());void task.run(()=>load());},[load,task.run]);
+  useEffect(()=>{
+    const db=createClient();
+    const refresh=()=>{if(document.visibilityState==="visible")void task.run(()=>load());};
+    const channel=db.channel(`chat-list:${farm}`).on("postgres_changes",{event:"UPDATE",schema:"public",table:"chat_conversations",filter:`farm_id=eq.${farm}`},refresh).subscribe();
+    const timer=setInterval(refresh,30000);
+    window.addEventListener("online",refresh);
+    return()=>{clearInterval(timer);window.removeEventListener("online",refresh);void db.removeChannel(channel);};
+  },[farm,load,task.run]);
   return <div className="flex flex-col gap-4">
     <p className="text-sm text-sand-600">{t("chat.privacy",locale)}</p>
     <div className="flex flex-wrap gap-2">
