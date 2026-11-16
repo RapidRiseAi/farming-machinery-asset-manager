@@ -45,6 +45,8 @@ export function formatNotification(
   const licenceType = p.licence_type ? t(`licenceType.${p.licence_type}`, locale) : "";
   const credentialType = p.credential ? t(`credentialType.${p.credential}`, locale) : "";
   switch (template) {
+    case "staff_chat":
+      return t("chat.notification", locale);
     case "job_assigned":
     case "fault_assigned":
       return t("notifications.tplJobAssigned", locale);

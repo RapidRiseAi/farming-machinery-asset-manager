@@ -302,6 +302,27 @@ begin
 end $$;
 
 -- Private update signals only: not messages or membership. RLS is checked for each
+create or replace function public.chat_list(p_farm uuid,p_offset integer default 0) returns jsonb
+language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  if not (app.chat_staff(auth.uid(),p_farm) or app.chat_support(p_farm)) or not app.chat_ready(p_farm) then
+    raise exception 'forbidden' using errcode='42501'; end if;
+  perform app.require_open_farm(p_farm,false);
+  return (select coalesce(jsonb_agg(r order by r.updated_at desc,r.id),'[]') from (
+    select c.id,c.title,c.kind,c.updated_at,
+      (select coalesce(jsonb_agg(u.name order by u.name),'[]') from public.chat_members cm join public.users u on u.id=cm.user_id
+        where cm.conversation_id=c.id and cm.removed_at is null and cm.user_id<>auth.uid()) as people,
+      (select count(*) from public.chat_messages x join public.chat_members m on m.conversation_id=x.conversation_id
+        where x.conversation_id=c.id and m.user_id=auth.uid() and m.removed_at is null
+          and x.sequence>greatest(m.last_read,m.visible_after) and x.published_at is not null
+          and x.sender_id<>auth.uid() and x.deleted_at is null) as unread
+    from public.chat_conversations c where c.farm_id=p_farm and app.chat_can_read(c.id)
+    order by c.updated_at desc,c.id limit 50 offset greatest(0,least(coalesce(p_offset,0),100000))) r);
+end $$;
+revoke all on function public.chat_list(uuid,integer) from public,anon,authenticated,service_role;
+grant execute on function public.chat_list(uuid,integer) to authenticated;
+
+-- Private update signals only: not messages or membership. RLS is checked for each
 -- Postgres Changes record. No broadcast/presence payload can bypass a revoked membership.
 do $$ begin
   if exists(select 1 from pg_publication where pubname='supabase_realtime') then
