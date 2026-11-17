@@ -561,6 +561,34 @@ the message says JavaScript is needed. The token and the secret are never logged
 
 ## 9. Known limitations (tracked)
 
+### B2 private chat boundary (17 November 2026)
+
+The new chat tables enforce membership, readiness and the existing pay gate, with no
+owner override. Linked external workshops cannot join or enumerate internal staff chats;
+their existing shared-job discussions are unchanged. Active support visits, recorded by
+the existing support RPCs, permit reading and end that access on exit. No support sender
+impersonation is allowed. Private audit events retain attribution without putting text,
+titles or membership lists in the farm-wide activity log.
+
+All mutations use checked RPCs and conversation row locks; user-controlled sender, admin,
+farm and path arguments never grant authority. Repeated requests keep one message or
+attachment. An altered send/create retry fails explicitly. JSON request bodies are bounded
+while receiving, and API failures log no message text. Messages are escaped as React text;
+the assistant has no chat-ingestion path or automatic transcription.
+
+Storage downloads use the caller's authenticated client. Restrictive bucket policies apply
+even if a legacy policy is broad. The service-backed business ZIP excludes `chat-files`,
+because business ownership is insufficient to read private chats. Notifications include
+only a conversation href and generic translated text. Realtime publishes conversation
+updates checked by RLS, not message bodies; see [Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
+An open client's next refresh clears revoked data; already downloaded bytes cannot be recalled.
+
+Draft text is scoped to login/room in sessionStorage and cleared on logout; blob URLs and
+microphone tracks are released. Stored draft files are retained and still count toward the
+quota. The feature stays unreleased until Claude's manager checks real Storage, Realtime,
+phones and the combined A2 lifecycle. Local evidence and remaining limitations are in
+`final-dev/REPORT-B2.md`; this is not a production security certification.
+
 - Assistant turns have an atomic per-user database limit and Speech-token requests have
   a bounded per-instance limit. A product-wide distributed WAF/rate-limit policy beyond
   Vercel/Supabase defaults is not yet custom-built.

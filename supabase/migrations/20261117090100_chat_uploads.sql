@@ -9,7 +9,7 @@ insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 select id,id,false,bytes,mimes from (values
  ('chat-files',50000000::bigint, array['image/jpeg','image/png','image/webp','image/heic','image/heif','application/pdf','audio/webm','audio/ogg','audio/mp4'])
 ) as spec(id,bytes,mimes)
-on conflict(id) do nothing;
+on conflict(id) do update set public=false,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
 end if;
 end $storage$;
 create or replace function app.upload_bucket_for(p_kind text, p_class text)

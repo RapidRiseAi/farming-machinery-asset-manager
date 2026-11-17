@@ -59,7 +59,8 @@ export function UploadField({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [keepOriginal, setKeepOriginal] = useState(false);
   const upload = useDirectUpload({ target, label: uploadLabel, finish, attachmentKind, scope, onDone });
-  useEffect(() => { if (file) void upload.start(file); }, [file, upload.start]);
+  const { start } = upload;
+  useEffect(() => { if (file) void start(file); }, [file, start]);
   const { state } = upload;
   const lastReported = useRef<DirectUploadState | null>(null);
   if (onStateChange && lastReported.current !== state) {

@@ -42,7 +42,7 @@ export function VoiceNote({target,scope,locale,onBusy,onDone}:{target:UploadTarg
       r.onerror=()=>{stop();audio.getTracks().forEach(t=>t.stop());};
       setSeconds(0);setRecording(true);r.start(1000);
       timer.current=setInterval(()=>{const elapsed=Date.now()-started;setSeconds(Math.floor(elapsed/1000));if(elapsed>=VOICE_NOTE_MAX_MS)stop();},250);
-    }catch(error){audio.getTracks().forEach(t=>t.stop());throw error;}
+    }catch(error){setRecording(false);audio.getTracks().forEach(t=>t.stop());throw error;}
   });
   return <div className="flex flex-col gap-2">
     <ReportPending pending={busy}/>

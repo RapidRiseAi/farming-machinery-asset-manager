@@ -89,6 +89,7 @@ select pg_temp.assert((select count(*)=1 from public.chat_attachments),'member s
 reset role;
 do $$ begin
  if to_regclass('storage.objects') is not null then
+  execute 'select pg_temp.assert((select not public from storage.buckets where id=''chat-files''),''chat bucket is private even if it existed before migration'')';
   execute 'insert into storage.objects(bucket_id,name) select ''chat-files'',storage_path from public.chat_attachments';
  end if;
 end $$;

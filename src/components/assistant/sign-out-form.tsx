@@ -34,7 +34,9 @@ export function AssistantSafeSignOutForm({
         void clearAllOfflineVoiceData()
           .then(() => {
             // Private staff-chat drafts belong to this login, not the next person using the device.
-            for (const key of Object.keys(sessionStorage)) if (key.startsWith("fw-chat:")) sessionStorage.removeItem(key);
+            try {
+              for (const key of Object.keys(sessionStorage)) if (key.startsWith("fw-chat:")) sessionStorage.removeItem(key);
+            } catch { /* A browser that denies session storage must still be able to sign out. */ }
             form.requestSubmit();
           })
           .catch(() => {
