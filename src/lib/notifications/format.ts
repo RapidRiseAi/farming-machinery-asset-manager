@@ -288,6 +288,12 @@ export function formatNotification(
     // A dispute carries roughly 48 BUSINESS HOURS before Paystack accepts it on our
     // behalf and takes the amount out of a payout, so the deadline is in the sentence
     // rather than left for the reader to already know.
+    // A larger customer asked for a quote at sign-up (decision 39, 20261115130000).
+    case "capacity_quote_requested":
+      return fill("notifications.tplCapacityQuoteRequested", locale, {
+        full: String(p.full_spaces ?? ""),
+        equipment: String(p.equipment ?? 0),
+      });
     case "billing_dispute":
       return fill("notifications.tplBillingDispute", locale, {
         amount: rands(Number(p.amount_incl_cents ?? 0)),
@@ -465,6 +471,7 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // one, sending an rr_admin to a farm's own /billing page would show them nothing they
   // can act on.
   if (template === "billing_dispute" || template === "billing_refund") return "/admin/billing";
+  if (template === "capacity_quote_requested") return "/admin/billing#quote-requests";
   // The support desk: Rapid Rise opens the case, the customer opens their conversation.
   if (template === "support_reply" && typeof p.ticket_id === "string") return `/help/${p.ticket_id}`;
   if (SUPPORT_TEMPLATES.has(template) && typeof p.ticket_id === "string") return `/admin/support/${p.ticket_id}`;

@@ -666,6 +666,9 @@ const CODE_KEYS: Record<string, string> = {
   "retrieval-ended": "errors.retrievalEnded",
   // Ending a subscription at once is Rapid Rise's, after an agreed refund (decision 26).
   "billing-cancel-immediate": "errors.billingCancelImmediate",
+  // Sign-up with support equipment and the 200 line (20261115130000).
+  "signup-equipment": "errors.signupEquipment",
+  "signup-capacity-quote": "errors.signupCapacityQuote",
 };
 
 /**

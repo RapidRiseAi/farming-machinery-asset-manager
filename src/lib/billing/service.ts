@@ -140,6 +140,8 @@ export const BILLING_RPC = {
   // owner's notices (the first day of grace, before reading closes).
   lifecycle: "farm_lifecycle",
   lifecycleNotices: "cron_enqueue_billing_lifecycle_notices",
+  // More than 200 full spaces at sign-up (decision 39, 20261115130000): a quote request.
+  requestCapacityQuote: "billing_request_capacity_quote",
 } as const;
 
 /** `billing_attempt_kind`. */
