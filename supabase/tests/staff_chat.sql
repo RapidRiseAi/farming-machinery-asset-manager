@@ -85,17 +85,19 @@ select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-40
 select pg_temp.login(4);
 select pg_temp.assert((select count(*)=1 from public.chat_attachments),'member sees attachment');
 -- The optional storage harness applies the actual migration with a deliberately broad
--- legacy Storage policy. This checks SQL policies, not the hosted Storage server.
+-- legacy Storage policy. This checks SQL policies, not the hosted Storage server. It runs only
+-- where the chat migration made its Storage policies: CI's storage.objects is a stand-in left by
+-- earlier suites after the migrations ran, so it has no chat policies to test.
 reset role;
 do $$ begin
- if to_regclass('storage.objects') is not null then
+ if exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='chat_files_private') then
   execute 'select pg_temp.assert((select not public from storage.buckets where id=''chat-files''),''chat bucket is private even if it existed before migration'')';
   execute 'insert into storage.objects(bucket_id,name) select ''chat-files'',storage_path from public.chat_attachments';
  end if;
 end $$;
 set local role authenticated;
 do $$ begin
- if to_regclass('storage.objects') is not null then
+ if exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='chat_files_private') then
   perform pg_temp.assert((select app.chat_file_readable(storage_path) from public.chat_attachments),'member may read stored file');
   execute 'select pg_temp.assert((select count(*)=1 from storage.objects where bucket_id=''chat-files''),''member sees stored file'')';
   perform pg_temp.assert(public._chat_refused($q$insert into storage.objects(bucket_id,name) values('chat-files','unreserved')$q$),'direct storage insert refused');
@@ -104,7 +106,7 @@ end $$;
 select pg_temp.login(1);
 select pg_temp.assert((select count(*)=0 from public.chat_attachments),'owner cannot read attachment');
 do $$ begin
- if to_regclass('storage.objects') is not null then
+ if exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='chat_files_private') then
   execute 'select pg_temp.assert((select count(*)=0 from storage.objects where bucket_id=''chat-files''),''broad legacy storage policy cannot leak chat'')';
  end if;
 end $$;
