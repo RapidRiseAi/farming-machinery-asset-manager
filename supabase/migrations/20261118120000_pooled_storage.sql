@@ -61,7 +61,8 @@ alter table public.billing_subscriptions add column if not exists pending_storag
 alter table public.billing_subscriptions drop constraint if exists billing_subscriptions_storage_blocks_ck;
 alter table public.billing_subscriptions add constraint billing_subscriptions_storage_blocks_ck check (
   storage_blocks between 0 and 1000
-  and (pending_storage_blocks is null or pending_storage_blocks between 0 and 1000));
+  and (pending_storage_blocks is null or pending_storage_blocks between 0 and 1000)
+  and ((pending_storage_blocks is null) = (pending_storage_blocks_on is null)));
 comment on column public.billing_subscriptions.storage_blocks is
   'Paid 10 GB storage blocks in force (20261118120000). Raised by a paid change quote or an '
   'automatic purchase; lowered only at the start of a storage month, from pending_storage_blocks.';
@@ -440,8 +441,8 @@ drop trigger if exists storage_charges_guard on public.storage_charges;
 create trigger storage_charges_guard before update or delete on public.storage_charges
   for each row execute function app.storage_charges_guard();
 
--- Owners told once per allowance at 80%, 95% and when an upload is refused for being full.
--- Called with the pool's lock held.
+-- Owners told once per allowance at 80%, 95% and when an upload is refused for being full (that
+-- one from public.storage_note_full, after the refusal rolled back). Called with the pool's lock.
 create or replace function app.storage_pool_warn(p_root uuid, p_used bigint, p_total bigint, p_full boolean)
 returns text
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -575,7 +576,8 @@ begin
     end if;
   end if;
   if v_used + p_bytes > v_quota then
-    perform app.storage_pool_warn(v_root, v_used, v_quota, true);
+    -- The refusal rolls this transaction back, so the owner is told by public.storage_note_full,
+    -- which the upload route calls after it.
     raise exception 'upload:storage_full' using errcode = 'P0001',
       detail = 'This business''s attachment storage is full.',
       hint = 'Existing files, records and text keep working. The owner can add storage on /billing.';
@@ -755,3 +757,32 @@ grant execute on function public.storage_set_auto(uuid, boolean, bigint, text) t
 comment on function public.storage_set_auto(uuid, boolean, bigint, text) is
   'The owner switches automatic 10 GB blocks on, with a monthly ceiling that counts the blocks '
   'held and the accepted terms version, or off (decision 34, 20261118120000).';
+
+-- After an upload was refused for a full pool (the refusal rolled its own transaction back): the
+-- owner is told, once per allowance. Only when the pool really is at least 95% full, so a member
+-- cannot use it to send owners a false alarm.
+create or replace function public.storage_note_full(p_farm uuid)
+returns boolean
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_root  uuid := app.billing_root(p_farm);
+  v_used  bigint;
+  v_total bigint;
+begin
+  if auth.uid() is null or not app.has_farm_access(p_farm) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  perform app.require_open_farm(p_farm, true);
+  perform pg_advisory_xact_lock(hashtext('fleetwise:storage-pool:' || v_root::text));
+  v_used := app.storage_pool_usage(app.storage_pool_farm_ids(p_farm), null);
+  v_total := app.storage_quota_bytes(p_farm);
+  if v_used * 100 < v_total * 95 then
+    return false;
+  end if;
+  return app.storage_pool_warn(v_root, v_used, v_total, true) is not null;
+end $$;
+revoke all on function public.storage_note_full(uuid) from public, anon;
+grant execute on function public.storage_note_full(uuid) to authenticated;
+comment on function public.storage_note_full(uuid) is
+  'Tells the owners, once per allowance, that an upload was refused because the pool is full '
+  '(only when it is at least 95% full), 20261118120000.';

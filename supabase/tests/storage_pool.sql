@@ -136,7 +136,7 @@ end $t$;
 
 -- A reduction of full spaces scheduled for the renewal shows the smaller allowance beside the
 -- current one, and changes nothing today.
-update public.billing_subscriptions set pending_quota = 21 where id = '5a600000-0000-4000-9000-00000000000e';
+update public.billing_subscriptions set pending_quota = 21, pending_quota_on = current_date + 20, pending_quota_set_at = now() where id = '5a600000-0000-4000-9000-00000000000e';
 do $t$
 declare a jsonb := app.storage_allowance('5a000000-0000-4000-9000-00000000000e');
 begin
@@ -144,7 +144,7 @@ begin
     raise exception 'STORAGE FAIL [24]: a scheduled reduction was not shown, or applied early: %', a;
   end if;
 end $t$;
-update public.billing_subscriptions set pending_quota = null where id = '5a600000-0000-4000-9000-00000000000e';
+update public.billing_subscriptions set pending_quota = null, pending_quota_on = null, pending_quota_set_at = null where id = '5a600000-0000-4000-9000-00000000000e';
 
 -- Retiring equipment deletes no file, and its files keep counting, even over the next allowance.
 do $t$
@@ -179,6 +179,14 @@ begin
   if v <> 'ok' then raise exception 'STORAGE FAIL [25]: a photo that fits to the byte was refused: %', v; end if;
   v := pg_temp.begin_upload('5a000000-0000-4000-9000-00000000000a', '5a200000-0000-4000-9000-00000000000a', 1);
   if v <> 'upload:storage_full' then raise exception 'STORAGE FAIL [25]: one byte past the pool: %', v; end if;
+  -- The upload route tells the owner after the refusal (which rolled its own work back); twice
+  -- is still one notice.
+  if not public.storage_note_full('5a000000-0000-4000-9000-00000000000a') then
+    raise exception 'STORAGE FAIL [25]: the full notice was not sent';
+  end if;
+  if public.storage_note_full('5a000000-0000-4000-9000-00000000000a') then
+    raise exception 'STORAGE FAIL [25]: the full notice was sent twice';
+  end if;
   -- Records and forms without attachments carry on.
   insert into public.faults (farm_id, machine_id, description, status)
   values ('5a000000-0000-4000-9000-00000000000a', '5a200000-0000-4000-9000-00000000000a', 'Leak, no photo', 'open');
