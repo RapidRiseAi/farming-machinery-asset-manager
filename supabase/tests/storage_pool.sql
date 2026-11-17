@@ -84,6 +84,12 @@ insert into public.billing_subscriptions (id, farm_id, plan, billing_period, sta
    current_date - 10, current_date + 19, current_date + 20, extract(day from current_date - 10)::int),
   ('5a600000-0000-4000-9000-00000000000f', '5a000000-0000-4000-9000-00000000000f', 'complete',  'monthly', 'active', 5, 0,
    current_date - 10, current_date + 19, current_date + 20, extract(day from current_date - 10)::int);
+-- The periods in South African days (app.billing_today), which the storage month is decided on:
+-- between 22:00 and 24:00 UTC current_date is still yesterday there.
+update public.billing_subscriptions
+   set current_period_start = app.billing_today() - 10, current_period_end = app.billing_today() + 19,
+       next_billing_on = app.billing_today() + 20
+ where farm_id::text like '5a000000-%';
 insert into public.machines (id, farm_id, name, type) values
   ('5a200000-0000-4000-9000-00000000000a', '5a000000-0000-4000-9000-00000000000a', 'Main truck',  'truck'),
   ('5a200000-0000-4000-9000-00000000000b', '5a000000-0000-4000-9000-00000000000b', 'North truck', 'truck'),

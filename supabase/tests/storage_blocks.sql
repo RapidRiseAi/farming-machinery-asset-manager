@@ -269,17 +269,29 @@ begin
   end if;
 end $t$;
 
--- An annual renewal carries its first storage month only.
+-- An annual renewal carries its first storage month only, and a month already charged (here by
+-- the usage run this morning) is never charged again.
+insert into public.farms (id, name, plan, status, billing_period) values
+  ('5b000000-0000-4000-9000-000000000010', 'Annual renewing', 'essential', 'active', 'annual');
+insert into public.billing_subscriptions (id, farm_id, plan, billing_period, status, asset_quota, equipment_extra_quota,
+  storage_blocks, current_period_start, current_period_end, next_billing_on, anchor_day) values
+  ('5b600000-0000-4000-9000-000000000010', '5b000000-0000-4000-9000-000000000010', 'essential', 'annual', 'active', 5, 0,
+   1, current_date - 365, current_date - 1, current_date, extract(day from current_date)::int);
 do $t$
 declare i public.billing_invoices; v_price bigint;
 begin
   update public.billing_subscriptions
      set current_period_start = current_date - 365, current_period_end = current_date - 1, next_billing_on = current_date
    where id = '5b600000-0000-4000-9000-00000000000b';
-  delete from public.billing_invoice_lines where invoice_id in (select id from public.billing_invoices where farm_id = '5b000000-0000-4000-9000-00000000000b' and status = 'draft');
   perform app.generate_billing_invoices('5b600000-0000-4000-9000-00000000000b');
   select * into i from public.billing_invoices where farm_id = '5b000000-0000-4000-9000-00000000000b' and kind = 'period';
-  select (app.billing_price_for_subscription('5b600000-0000-4000-9000-00000000000b')).period_price_incl_cents into v_price;
+  if i.storage_incl_cents <> 0 or (select count(*) from public.storage_charges where subscription_id = '5b600000-0000-4000-9000-00000000000b') <> 1 then
+    raise exception 'BLOCKS FAIL [12]: a storage month already invoiced was charged again: %', to_jsonb(i);
+  end if;
+
+  perform app.generate_billing_invoices('5b600000-0000-4000-9000-000000000010');
+  select * into i from public.billing_invoices where farm_id = '5b000000-0000-4000-9000-000000000010' and kind = 'period';
+  select (app.billing_price_for_subscription('5b600000-0000-4000-9000-000000000010')).period_price_incl_cents into v_price;
   if i.storage_incl_cents <> 4900 or i.total_incl_cents <> v_price * 5 + 4900
      or not exists (select 1 from public.storage_charges c where c.invoice_id = i.id and c.kind = 'monthly'
                      and c.period_start = current_date and c.period_end < current_date + 32) then
