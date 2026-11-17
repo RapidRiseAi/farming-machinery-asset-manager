@@ -4,6 +4,12 @@ Read this and `git log` first when resuming. Never restart a step that is marked
 
 ## Current task: A2 (billing changes and the subscription lifecycle)
 
+**TASK A2 COMPLETE** (17 Nov 2026). Final gates: tsc clean, 1162 unit tests, dashes, parity,
+keys, design and errors clean, all 82 PGlite suites pass (292 migrations). Mutations: 35 of 35
+caught. The harness refused to write `docs/final-dev/REPORT-A2.md` (as for A1 and B1): the full
+report is the worker's final message; the runner saves it as the report. CI on real Postgres and
+a browser walk are the next checks.
+
 BRIEF 15, 4 (signup range), 16 first paragraph; decisions 25, 26, 27, 38, 39, 41; scenarios
 6, 7, 8, 10, 11, 12, 40. Started 15 Nov 2026 on c75eed6 (A1 and B1 merged).
 
@@ -15,7 +21,7 @@ BRIEF 15, 4 (signup range), 16 first paragraph; decisions 25, 26, 27, 38, 39, 41
 | 4 | Failed renewal: grace 7 days, then 90 days owner-only retrieval, then closed (20261115120000) | done |
 | 5 | Reactivation without duplicate charge or replay | done (billing_lifecycle.sql: pay in grace, in retrieval, after the window; reopen) |
 | 6 | Payment integrity: out-of-order settles, void invoice payments, quote version, uniqueness | done (settle guards in 20261115110000; billing_payment_integrity.sql) |
-| 7 | Signup: 5 to 200 full spaces with equipment; 201+ capacity quote request | in progress (SQL 20261115130000 written, untested; TS todo) |
+| 7 | Signup: 5 to 200 full spaces with equipment; 201+ capacity quote request | done (20261115130000; billing_signup_capacity.sql; /signup and /admin/billing) |
 
 Design (decided at the start, keep to it):
 - `billing_change_quotes`: one row per priced change (target plan, period, full spaces, extra
