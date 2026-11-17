@@ -6011,7 +6011,10 @@
     "eftTitle": "EFT payment details",
     "eftHint": "Shown to customers on the payment page, beside their invoice number as the reference. Leave empty to offer card payment only.",
     "eftNone": "Not set: customers can pay by card only.",
-    "savedEft": "EFT details saved. Customers see them on the payment page from now on."
+    "savedEft": "EFT details saved. Customers see them on the payment page from now on.",
+    "quoteRequestsTitle": "Quote requests",
+    "quoteRequestsLead": "Businesses that asked for more than 200 full spaces at sign-up. Check the capacity, then email them a quote.",
+    "quoteRequestLine": "{full} full spaces and {equipment} support equipment, {plan}, {period}"
   },
   "billingReceipt": {
     "title": "Receipt",

@@ -6011,7 +6011,10 @@
     "eftTitle": "EFT-betalingsbesonderhede",
     "eftHint": "Word aan kliënte op die betaalbladsy gewys, langs hul faktuurnommer as die verwysing. Laat leeg om net kaartbetaling aan te bied.",
     "eftNone": "Nie gestel nie: kliënte kan net per kaart betaal.",
-    "savedEft": "EFT-besonderhede gestoor. Kliënte sien dit van nou af op die betaalbladsy."
+    "savedEft": "EFT-besonderhede gestoor. Kliënte sien dit van nou af op die betaalbladsy.",
+    "quoteRequestsTitle": "Kwotasieversoeke",
+    "quoteRequestsLead": "Besighede wat by inskrywing vir meer as 200 volle plekke gevra het. Kyk na die kapasiteit en e-pos dan vir hulle 'n kwotasie.",
+    "quoteRequestLine": "{full} volle plekke en {equipment} ondersteuningstoerusting, {plan}, {period}"
   },
   "billingReceipt": {
     "title": "Kwitansie",
