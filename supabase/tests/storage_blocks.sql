@@ -58,9 +58,11 @@ begin
     current_period_start, current_period_end, next_billing_on, anchor_day) values
     ('5b600000-0000-4000-9000-00000000000a', '5b000000-0000-4000-9000-00000000000a', 'complete', 'monthly', 'active', 5, 0,
      v_today - 15, v_today + 14, v_today + 15, extract(day from v_today - 15)::int),
+    -- On current_date, the invoice run's own day, so its renewal below opens the same storage
+    -- month the usage run charges (between 22:00 and 24:00 UTC South Africa is a day ahead).
     ('5b600000-0000-4000-9000-00000000000b', '5b000000-0000-4000-9000-00000000000b', 'essential', 'annual', 'active', 5, 0,
-     (v_today - interval '1 month')::date, (v_today - interval '1 month' + interval '1 year')::date - 1,
-     (v_today - interval '1 month' + interval '1 year')::date, extract(day from v_today)::int),
+     (current_date - interval '1 month')::date, (current_date - interval '1 month' + interval '1 year')::date - 1,
+     (current_date - interval '1 month' + interval '1 year')::date, extract(day from current_date)::int),
     ('5b600000-0000-4000-9000-00000000000c', '5b000000-0000-4000-9000-00000000000c', 'essential', 'monthly', 'active', 5, 0,
      current_date - 30, current_date - 1, current_date, extract(day from current_date)::int),
     ('5b600000-0000-4000-9000-00000000000d', '5b000000-0000-4000-9000-00000000000d', 'complete', 'monthly', 'past_due', 5, 0,
@@ -245,7 +247,7 @@ begin
   v_n := app.generate_ai_usage_invoices();
   select * into i from public.billing_invoices where farm_id = '5b000000-0000-4000-9000-00000000000b' and kind = 'ai_usage';
   if v_n < 1 or i.id is null or i.total_incl_cents <> 4900 or i.storage_incl_cents <> 4900 or i.status <> 'open'
-     or i.period_start <> app.billing_today() then
+     or i.period_start <> current_date then
     raise exception 'BLOCKS FAIL [12]: the annual subscriber''s monthly storage invoice is wrong: %', to_jsonb(i);
   end if;
   -- Run again the same day: nothing more.
