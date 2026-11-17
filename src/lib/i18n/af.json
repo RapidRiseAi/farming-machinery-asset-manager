@@ -8290,6 +8290,8 @@
     "reviewSend": "Stuur"
   },
   "manualDrive": {
+    "stale": "Die reisplan het verander terwyl hierdie konsep oop was. Herlaai die jongste bestemming en stilhouplekke voordat jy stoor. Jou ander konsepbesonderhede bly behoue.",
+    "reloadPlan": "Herlaai reisplan; behou ander konsepbesonderhede",
     "loading": "Jou konsep word gelaai...",
     "km": "Kilometerteller (km)",
     "kmHint": "Opsioneel. Vul die werklike kilometerlesing in, met hoogstens een desimaal. Dit verander nie die voertuig se diensmeter nie.",

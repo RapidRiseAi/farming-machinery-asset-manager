@@ -3,7 +3,7 @@ import test from "node:test";
 import {drivingDistance,manualDriveArgs,manualDriveKey,readManualDriveDraft,type ManualDriveDraft} from "./manual-driving";
 const id="db000000-0000-4000-9000-000000000001";
 const context={farm:id,kind:"start" as const,session:null};
-const draft:ManualDriveDraft={request:id,machine:id,driver:id,at:"",location:"",notes:"",km:"0",destination:"Mill",stops:"  Depot\r\nMill\n",lat:"",lng:""};
+const draft:ManualDriveDraft={request:id,machine:id,driver:id,at:"",location:"",notes:"",km:"0",destination:"Mill",stops:"  Depot\r\nMill\n",lat:"",lng:"",planVersion:"0"};
 test("manual kilometre log preserves stop order, decimal commas, unknown time and zero",()=>{
   const args=manualDriveArgs(draft,context)!;
   assert.deepEqual(args.p_stops,["Depot","Mill"]);assert.equal(args.p_at,null);assert.equal(args.p_km,0);

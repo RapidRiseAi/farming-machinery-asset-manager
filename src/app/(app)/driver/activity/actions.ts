@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { manualDriveArgs, type ManualDriveDraft, type ManualDriveContext } from "@/lib/manual-driving";
 import { captureError } from "@/lib/observability";
 
-export async function saveManualActivity(draft:ManualDriveDraft,context:ManualDriveContext):Promise<{ok:boolean;reason?:"invalid"|"changed"|"forbidden"|"backwards"}> {
+export async function saveManualActivity(draft:ManualDriveDraft,context:ManualDriveContext):Promise<{ok:boolean;reason?:"invalid"|"changed"|"forbidden"|"backwards"|"stale"}> {
   await requireProfile();
   // Revalidate at the boundary; the database independently checks current membership and plan.
   let args:ReturnType<typeof manualDriveArgs>;
@@ -19,6 +19,7 @@ export async function saveManualActivity(draft:ManualDriveDraft,context:ManualDr
     if(error.code==="42501")return {ok:false,reason:"forbidden"};
     if(error.message==="driving-request-changed")return {ok:false,reason:"changed"};
     if(error.message==="driving-km-backwards")return {ok:false,reason:"backwards"};
+    if(error.message==="driving-plan-changed")return {ok:false,reason:"stale"};
     captureError(new Error("Manual driving update refused"),{where:"driving:manual",extra:{code:error.code??null}});
     return {ok:false,reason:"invalid"};
   }

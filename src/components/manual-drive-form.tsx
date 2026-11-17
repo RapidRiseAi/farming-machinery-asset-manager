@@ -9,11 +9,12 @@ import { Field } from "@/components/ui/field";
 import { Input, controlBase } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Button } from "@/components/ui/button";
 import { ReportPending } from "@/components/ui/pending-guard";
 import { DrivingLocation } from "@/components/driving-location";
 
 type Person={id:string;name:string};
-export type ManualDriveSave=(draft:ManualDriveDraft,context:ManualDriveContext)=>Promise<{ok:boolean;reason?:"invalid"|"changed"|"forbidden"|"backwards"}>;
+export type ManualDriveSave=(draft:ManualDriveDraft,context:ManualDriveContext)=>Promise<{ok:boolean;reason?:"invalid"|"changed"|"forbidden"|"backwards"|"stale"}>;
 export function ManualDriveForm({context,user,locale,manage,vehicles,drivers,initial,mapOn,save}: {
   context:ManualDriveContext;user:string;locale:Lang;manage:boolean;vehicles:Person[];drivers:Person[];
   initial:Partial<ManualDriveDraft>;mapOn:boolean;save:ManualDriveSave;
@@ -21,10 +22,17 @@ export function ManualDriveForm({context,user,locale,manage,vehicles,drivers,ini
   const [draft,setDraft]=useState<ManualDriveDraft|null>(null),[busy,setBusy]=useState(false),[failure,setFailure]=useState<string|null>(null),[saved,setSaved]=useState(false);
   const locked=useRef(false),router=useRouter(),{close}=useDialogForm();
   const key=manualDriveKey(user,context);
+  const [adoptPlan,setAdoptPlan]=useState(false);
+  useEffect(()=>{
+    if(!adoptPlan||!draft||initial.planVersion===undefined||draft.planVersion===initial.planVersion)return;
+    const value={...draft,planVersion:initial.planVersion,destination:initial.destination??"",stops:initial.stops??""};
+    setDraft(value);setAdoptPlan(false);setFailure(null);
+    try{sessionStorage.setItem(key,JSON.stringify(value));}catch{}
+  },[adoptPlan,draft,initial.planVersion,initial.destination,initial.stops,key]);
   // The component is keyed by user, farm, session and event kind by its parent.
   const initialRef=useRef(initial);
   useEffect(()=>{let recovered:ManualDriveDraft|null=null;try{recovered=readManualDriveDraft(sessionStorage.getItem(key));}catch{}
-    setDraft(recovered??{request:crypto.randomUUID(),machine:"",driver:user,at:"",location:"",notes:"",km:"",destination:"",stops:"",lat:"",lng:"",...initialRef.current});
+    setDraft(recovered??{request:crypto.randomUUID(),machine:"",driver:user,at:"",location:"",notes:"",km:"",destination:"",stops:"",lat:"",lng:"",planVersion:"0",...initialRef.current});
   },[key,user]);
   const update=(value:ManualDriveDraft)=>{setDraft(value);try{sessionStorage.setItem(key,JSON.stringify(value));}catch{}};
   useEffect(()=>{if(saved&&!busy){const timer=setTimeout(()=>{close();router.refresh();},0);return()=>clearTimeout(timer);}},[saved,busy,close,router]);
@@ -61,7 +69,8 @@ export function ManualDriveForm({context,user,locale,manage,vehicles,drivers,ini
         <Field label={t("driving.notes",locale)} htmlFor={`${key}-notes`}><Input id={`${key}-notes`} value={draft.notes} maxLength={2000} onChange={e=>field("notes",e.target.value)}/></Field>
         {mapOn&&draft.driver===user?<DrivingLocation locale={locale}/>:null}
         <p className="text-sm text-ink-muted">{t("manualDrive.draftHint",locale)}</p>
-        {failure?<p role="alert" className="text-sm text-status-overdue">{t(failure==="changed"?"manualDrive.changed":failure==="forbidden"?"manualDrive.forbidden":failure==="backwards"?"manualDrive.backwards":"manualDrive.failed",locale)}</p>:null}
+        {failure?<p role="alert" className="text-sm text-status-overdue">{t(failure==="stale"?"manualDrive.stale":failure==="changed"?"manualDrive.changed":failure==="forbidden"?"manualDrive.forbidden":failure==="backwards"?"manualDrive.backwards":"manualDrive.failed",locale)}</p>:null}
+        {failure==="stale"?<Button variant="secondary" onClick={()=>{setAdoptPlan(true);router.refresh();}}>{t("manualDrive.reloadPlan",locale)}</Button>:null}
       </DialogFields>
       <DialogActions cancelLabel={t("common.cancel",locale)}><SubmitButton disabled={busy||saved}>{t(busy?"manualDrive.saving":"common.save",locale)}</SubmitButton></DialogActions>
     </fieldset>

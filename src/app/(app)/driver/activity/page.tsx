@@ -25,6 +25,7 @@ type Session = {
   ended_at: string | null;
   destination: string | null;
   planned_stops: string[];
+  plan_version: number;
   start_km: number | null;
   end_km: number | null;
 };
@@ -67,7 +68,7 @@ export default async function ActivityPage({
   );
   let history = db
     .from("driving_sessions")
-    .select("id,machine_id,driver_id,started_at,ended_at,destination,planned_stops,start_km,end_km")
+    .select("id,machine_id,driver_id,started_at,ended_at,destination,planned_stops,plan_version,start_km,end_km")
     .eq("farm_id", farm)
     .not("ended_at", "is", null)
     .order("started_at", { ascending: false })
@@ -76,7 +77,7 @@ export default async function ActivityPage({
   if (sp.machine) history = history.eq("machine_id", sp.machine);
   let activeQuery = db
     .from("driving_sessions")
-    .select("id,machine_id,driver_id,started_at,ended_at,destination,planned_stops,start_km,end_km")
+    .select("id,machine_id,driver_id,started_at,ended_at,destination,planned_stops,plan_version,start_km,end_km")
     .eq("farm_id", farm)
     .is("ended_at", null)
     .order("started_at", { ascending: false });
@@ -145,7 +146,7 @@ export default async function ActivityPage({
         context={{farm,kind,session:session?.id??null}} user={profile.id} locale={locale}
         manage={manage} vehicles={machines} drivers={drivers} mapOn={mapOn} save={saveManualActivity}
         initial={{machine:session?.machine_id??sp.machine??"",driver:session?.driver_id??sp.driver??profile.id,
-          destination:session?.destination??"",stops:session?.planned_stops.join("\n")??""}}/>
+          destination:session?.destination??"",stops:session?.planned_stops.join("\n")??"",planVersion:String(session?.plan_version??0)}}/>
 
     </DialogForm>
   );

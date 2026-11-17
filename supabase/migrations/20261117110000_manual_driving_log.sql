@@ -2,6 +2,7 @@
 alter table public.driving_sessions
   add column destination text check(char_length(destination)<=200),
   add column planned_stops text[] not null default '{}',
+  add column plan_version integer not null default 0,
   add column start_km numeric(12,1) check(start_km between 0 and 999999999.9),
   add column end_km numeric(12,1) check(end_km between 0 and 999999999.9),
   add constraint driving_km_forward check(end_km is null or start_km is null or end_km>=start_km);
@@ -20,7 +21,7 @@ create function public.record_manual_driving_event(
   p_request uuid,p_farm uuid,p_machine uuid,p_driver uuid,p_kind text,
   p_session uuid default null,p_at timestamptz default null,p_location text default null,
   p_notes text default null,p_km numeric default null,p_destination text default null,p_stops text[] default null,
-  p_lat double precision default null,p_lng double precision default null
+  p_lat double precision default null,p_lng double precision default null,p_plan_version integer default null
 ) returns uuid language plpgsql security definer set search_path=public,pg_temp as $$
 declare r public.user_role; result uuid; payload jsonb; old public.driving_events;
   sid uuid; last_km numeric; stops text[]; destination_text text;
@@ -46,7 +47,7 @@ begin
     raise exception 'driving-invalid' using errcode='22023'; end if;
   select coalesce(array_agg(btrim(x) order by n),'{}') into stops from unnest(p_stops) with ordinality t(x,n);
   destination_text:=nullif(btrim(p_destination),'');
-  payload:=jsonb_build_array(p_farm,p_machine,p_driver,p_kind,p_session,p_at,p_location,p_notes,p_km,p_destination,p_stops,p_lat,p_lng);
+  payload:=jsonb_build_array(p_farm,p_machine,p_driver,p_kind,p_session,p_at,p_location,p_notes,p_km,p_destination,p_stops,p_lat,p_lng,p_plan_version);
   -- Request lock comes before the same farm lock used by legacy/trip writers.
   perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text||':manual-drive:'||p_request::text,0));
   perform 1 from public.farms where id=p_farm for update;
@@ -59,6 +60,9 @@ begin
     if not exists(select 1 from public.driving_sessions where id=p_session and farm_id=p_farm
       and machine_id=p_machine and driver_id=p_driver and ended_at is null) then
       raise exception 'session_changed' using errcode='22023'; end if;
+    if (p_destination is not null or p_stops is not null) and p_plan_version is distinct from
+      (select plan_version from public.driving_sessions where id=p_session) then
+      raise exception 'driving-plan-changed' using errcode='22023'; end if;
     select max(odometer_km) into last_km from public.driving_events where session_id=p_session;
     if p_km<last_km then raise exception 'driving-km-backwards' using errcode='22023'; end if;
   end if;
@@ -68,6 +72,7 @@ begin
   update public.driving_sessions set
     destination=case when p_destination is null then destination else destination_text end,
     planned_stops=case when p_stops is null then planned_stops else stops end,
+    plan_version=plan_version+case when p_destination is not null or p_stops is not null then 1 else 0 end,
     start_km=case when p_kind='start' then p_km else start_km end,
     end_km=case when p_kind='end' then p_km else end_km end
     where id=sid;
@@ -75,9 +80,9 @@ begin
     planned_stops=case when p_stops is not null then stops end,client_request_id=p_request,client_payload=payload where id=result;
   return result;
 end $$;
-revoke all on function public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision)
+revoke all on function public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision,integer)
   from public,anon,authenticated,service_role;
-grant execute on function public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision)
+grant execute on function public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision,integer)
   to authenticated;
-comment on function public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision) is
+comment on function public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision,integer) is
   'Manual driving log on every plan. Optional kilometres are independent of the asset service meter. Ordered stops are written instructions, never a calculated route. Current permissions are checked before retries.';

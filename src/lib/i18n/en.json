@@ -8290,6 +8290,8 @@
     "reviewSend": "Send"
   },
   "manualDrive": {
+    "stale": "The itinerary changed while this draft was open. Reload its latest destination and stops before saving. Your other draft details will be kept.",
+    "reloadPlan": "Reload itinerary; keep other draft details",
     "loading": "Loading your draft...",
     "km": "Odometer (km)",
     "kmHint": "Optional. Enter the actual kilometre reading, with up to one decimal. This does not change the vehicle’s service meter.",
