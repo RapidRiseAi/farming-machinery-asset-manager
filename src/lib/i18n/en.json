@@ -1313,7 +1313,8 @@
     "tplBillingSuspendedUntil": "A payment is more than seven days overdue, so your team can no longer use FLEETWISE. Until {date} you, the owner, can still read and export everything and pay to open it again. Nothing has been deleted.",
     "tplBillingGraceStarted": "A payment of {amount} is overdue. Pay it by {date}: work goes on as usual until then, but nothing new that costs money can be added. Nothing is deleted.",
     "tplBillingAccessEnded": "Your paid period has ended. Your team can no longer use FLEETWISE; until {date} you, the owner, can still read and export everything, or start again.",
-    "tplBillingRetrievalEnding": "Your access to read and export your records ends on {date}. Download anything you need before then."
+    "tplBillingRetrievalEnding": "Your access to read and export your records ends on {date}. Download anything you need before then.",
+    "tplCapacityQuoteRequested": "A business asked for a quote: {full} full spaces and {equipment} support equipment."
   },
   "settings": {
     "notSet": "Not set",
@@ -5561,7 +5562,9 @@
     "billingChangeFailed": "The change could not be saved. Nothing was charged. Try again.",
     "retrievalOwnerOnly": "Only the owner can download the records while the account is stopped.",
     "retrievalEnded": "The time to read and export these records has ended. Pay what is owed, or start again, to open them.",
-    "billingCancelImmediate": "A cancellation stops the next renewal, and you keep everything until the end of the period you have paid for. To end it sooner, email us."
+    "billingCancelImmediate": "A cancellation stops the next renewal, and you keep everything until the end of the period you have paid for. To end it sooner, email us.",
+    "signupEquipment": "Choose a whole number of support equipment, zero or more.",
+    "signupCapacityQuote": "More than 200 full spaces is arranged with us. Send the form again to ask for a quote."
   },
   "billing": {
     "title": "Billing",
@@ -6177,7 +6180,12 @@
     "stepPayHint": "Agree to the terms and continue to payment.",
     "companyType": "What kind of business is this?",
     "companyTypeHint": "We use your words on every screen. You can change this later.",
-    "companyTypeChoose": "Choose one"
+    "companyTypeChoose": "Choose one",
+    "equipment": "Support equipment",
+    "equipmentHelp": "Pumps, generators, compressors, trailers and workshop tools you want to keep records for. {included} are included on this plan; each one beyond that costs {price}.",
+    "quoteNote": "More than 200 full spaces is arranged with us: we check the capacity and send you a quote. Sending this form asks for that quote; no account is created and nothing is charged.",
+    "quoteTotal": "In a quote",
+    "quoteSent": "Thank you. Your request is with us; we will check the capacity and email you a quote. No account was created and nothing was charged."
   },
   "closed": {
     "title": "Your FLEETWISE {{org}} is closed",

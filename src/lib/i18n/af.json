@@ -1313,7 +1313,8 @@
     "tplBillingSuspendedUntil": "'n Betaling is meer as sewe dae agterstallig, so jou span kan nie meer FLEETWISE gebruik nie. Tot {date} kan jy, die eienaar, steeds alles lees en uitvoer en betaal om dit weer oop te maak. Niks is uitgevee nie.",
     "tplBillingGraceStarted": "'n Betaling van {amount} is agterstallig. Betaal dit teen {date}: werk gaan tot dan soos gewoonlik voort, maar niks nuuts wat geld kos, kan bygevoeg word nie. Niks word uitgevee nie.",
     "tplBillingAccessEnded": "Jou betaalde tydperk het geëindig. Jou span kan nie meer FLEETWISE gebruik nie; tot {date} kan jy, die eienaar, steeds alles lees en uitvoer, of weer begin.",
-    "tplBillingRetrievalEnding": "Jou toegang om jou rekords te lees en uit te voer, eindig op {date}. Laai alles af wat jy nodig het voor dan."
+    "tplBillingRetrievalEnding": "Jou toegang om jou rekords te lees en uit te voer, eindig op {date}. Laai alles af wat jy nodig het voor dan.",
+    "tplCapacityQuoteRequested": "'n Besigheid het vir 'n kwotasie gevra: {full} volle plekke en {equipment} ondersteuningstoerusting."
   },
   "settings": {
     "notSet": "Nie gestel nie",
@@ -5561,7 +5562,9 @@
     "billingChangeFailed": "Die verandering kon nie gestoor word nie. Niks is gehef nie. Probeer weer.",
     "retrievalOwnerOnly": "Net die eienaar kan die rekords aflaai terwyl die rekening gestop is.",
     "retrievalEnded": "Die tyd om hierdie rekords te lees en uit te voer, het verby gegaan. Betaal wat verskuldig is, of begin weer, om hulle oop te maak.",
-    "billingCancelImmediate": "'n Kansellering stop die volgende hernuwing, en jy behou alles tot die einde van die tydperk waarvoor jy betaal het. E-pos ons om dit gouer te beëindig."
+    "billingCancelImmediate": "'n Kansellering stop die volgende hernuwing, en jy behou alles tot die einde van die tydperk waarvoor jy betaal het. E-pos ons om dit gouer te beëindig.",
+    "signupEquipment": "Kies 'n heel getal ondersteuningstoerusting, nul of meer.",
+    "signupCapacityQuote": "Meer as 200 volle plekke word met ons gereël. Stuur die vorm weer om vir 'n kwotasie te vra."
   },
   "billing": {
     "title": "Rekening",
@@ -6177,7 +6180,12 @@
     "stepPayHint": "Stem in tot die bepalings en gaan voort na betaling.",
     "companyType": "Watter soort besigheid is dit?",
     "companyTypeHint": "Ons gebruik jou woorde op elke skerm. Jy kan dit later verander.",
-    "companyTypeChoose": "Kies een"
+    "companyTypeChoose": "Kies een",
+    "equipment": "Ondersteuningstoerusting",
+    "equipmentHelp": "Pompe, kragopwekkers, kompressors, sleepwaens en werkswinkelgereedskap waarvoor jy rekords wil hou. {included} is by hierdie plan ingesluit; elkeen daarbo kos {price}.",
+    "quoteNote": "Meer as 200 volle plekke word met ons gereël: ons kyk na die kapasiteit en stuur vir jou 'n kwotasie. As jy hierdie vorm stuur, vra jy vir daardie kwotasie; geen rekening word geskep nie en niks word gehef nie.",
+    "quoteTotal": "In 'n kwotasie",
+    "quoteSent": "Dankie. Jou versoek is by ons; ons sal na die kapasiteit kyk en vir jou 'n kwotasie e-pos. Geen rekening is geskep nie en niks is gehef nie."
   },
   "closed": {
     "title": "Jou FLEETWISE-{{org}} is gesluit",
