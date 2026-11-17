@@ -223,6 +223,32 @@ business that has not paid keeps).
 
 ## Keeping it tidy
 
+### B2 private staff conversations (17 November 2026, isolated branch)
+
+`20261117090000_staff_chat.sql` adds `chat_conversations`, `chat_members`,
+`chat_messages`, `chat_attachments` and `chat_events`. All have forced RLS and the
+existing account pay gate. Authenticated sessions have SELECT only; checked RPCs perform
+changes. Active internal membership is required, including an explicit inactive-membership
+denial instead of a home-farm fallback. Owners have no implicit access. Support reading
+requires an open audited support visit. New/re-added members see publication sequences
+after joining. Only the group creator manages membership; direct pairs remain direct.
+
+`chat_events` is the private append-only audit trail for these tables. They deliberately
+do not use the farm-wide audit trigger, which would disclose private conversations to
+nonmember owners. Events keep actor, action, record and time, with no body or title.
+
+`20261117090100_chat_uploads.sql` extends the existing upload target/commit functions with
+`chat_message`, uses the same quota reservation and byte validation, and adds private
+`chat-files` Storage policies. `chat_file_readable` applies conversation and message RLS
+rules to bytes. Restrictive policies prevent a broader legacy policy from granting chat
+access or permitting unreserved direct writes. The business-wide ZIP excludes this private
+bucket, while service quota and closure cleanup retain it in their inventory.
+
+Probes are in `apply_pending.mjs`; `staff_chat.sql` is in `run.sh`. Optional local checks
+`chat_review_check.mjs storage` and `mutations` exercise the actual migration with a Storage
+schema fixture and verify five guards fail when removed. `general_chat` defaults to
+unreleased. See `final-dev/REPORT-B2.md` for acceptance blockers and live checks.
+
 `scripts/apply_pending.mjs --dry` says what production is missing. Supabase's advisors
 (security and performance) are read after schema changes; what they flag and why it is
 left as it is lives in the 11 November entry of `LAUNCH_CHECKLIST.md`. Unused objects are

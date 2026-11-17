@@ -4,6 +4,7 @@ import { accessibleFarms, currentFarmId, effectiveFarmRole, getProfile } from "@
 import { isUuid } from "@/lib/ids";
 import { createServiceClient } from "@/lib/supabase/service";
 import { zipStream } from "@/lib/zip";
+import { businessExportFiles } from "@/lib/chat/privacy";
 
 /**
  * A business's own files, one kind at a time. The JSON export holds the records and only the
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
   // that is not already this business's own.
   const { data, error } = await svc.rpc("farm_file_objects", { p_farm: farmId });
   if (error) return NextResponse.json({ error: "unavailable" }, { status: 503 });
-  const files = ((data as StoredFile[] | null) ?? []).filter((f) => f.bucket_id === bucket);
+  // Owning the business does not grant access to its staff's private conversations.
+  const files = businessExportFiles((data as StoredFile[] | null) ?? [], bucket);
   if (files.length === 0) return NextResponse.json({ error: "empty" }, { status: 404 });
 
   async function* read() {

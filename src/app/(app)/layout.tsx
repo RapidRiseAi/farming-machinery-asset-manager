@@ -12,7 +12,7 @@ import {
   checkWorkshopEntitlement,
 } from "@/lib/auth";
 import { planAllows } from "@/lib/entitlements";
-import { mapsAvailable } from "@/lib/features";
+import { mapsAvailable, featureOn } from "@/lib/features";
 import { hiddenMenuHrefs } from "@/lib/modules";
 import { farmBillingGate } from "@/lib/billing/service";
 import { createClient } from "@/lib/supabase/server";
@@ -404,9 +404,11 @@ export default async function AppLayout({
   */
   // Contractors too since 20261028100900: they ask about their own business or a linked farm.
   const helpGroup = { key: "help", label: t("nav.groupHelp", locale), items: [help, install] };
+  const chatItems: NavItemData[] = !isWorkshop && currentFarm && await featureOn("general_chat",currentFarm)
+    ? [{href:"/chat",label:t("chat.title",locale),icon:"chat"}] : [];
   const allGroups: { key: string; label: string; items: NavItemData[] }[] = (isOperator
     ? [
-        { key: "home", label: t("nav.groupHome", locale), items: [driverHome, ...(assistantNavVisible ? [assistant] : []), calendar] },
+        { key: "home", label: t("nav.groupHome", locale), items: [driverHome, ...chatItems, ...(assistantNavVisible ? [assistant] : []), calendar] },
         { key: "fleet", label: t("nav.theFleet", locale), items: [machines, faults, checklists, ...(fuelAllowed ? [fuel] : []), tyres, ...(canParts ? [parts] : [])] },
         { key: "road", label: t("nav.groupRoad", locale), items: [trips, driverActivity, ...(mapOn ? [map] : []), ...(finesAllowed ? [fines] : []), incidents] },
         { key: "company", label: t("nav.groupFarm", locale), items: [...(canPartners ? [partners] : []), ...(apiTokensAllowed ? [apiTokens] : [])] },
@@ -428,6 +430,7 @@ export default async function AppLayout({
             items: [
               ...(dashAllowed ? [dashboard] : []),
               ...(canUseInbox ? [inbox] : []),
+              ...chatItems,
               ...(assistantNavVisible ? [assistant] : []),
               ...(sitesVisible ? [sites] : []),
               calendar,

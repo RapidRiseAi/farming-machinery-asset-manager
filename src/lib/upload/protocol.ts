@@ -6,7 +6,7 @@
 export const TARGET_KINDS = [
   "machine", "fault", "checklist_instance", "job_card", "work_request", "trip_job",
   "finance_agreement", "asset_contract", "partner_document", "partner_expense",
-  "billing_payment", "assistant_command",
+  "billing_payment", "assistant_command", "chat_message",
 ] as const;
 export type TargetKind = (typeof TARGET_KINDS)[number];
 

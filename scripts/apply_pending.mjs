@@ -44,6 +44,8 @@ const PROBES = {
   "20261115120000": "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_subscriptions' and column_name = 'retrieval_ends_on') and to_regprocedure('app.farm_billing_gate_on(uuid,date)') is not null and to_regprocedure('public.farm_lifecycle(uuid)') is not null and exists (select 1 from pg_trigger where tgname = 'billing_subscriptions_lift_pause')",
   // Mid-period changes: quotes, account credit, the change invoice kind and the payment trigger.
   "20261115110000": "select to_regclass('public.billing_change_quotes') is not null and to_regclass('public.billing_account_credits') is not null and to_regprocedure('public.billing_accept_quote(uuid,uuid,bigint,bigint,bigint)') is not null and exists (select 1 from pg_trigger where tgname = 'billing_payments_z_change')",
+  "20261117090000": "select to_regclass('public.chat_messages') is not null and to_regprocedure('public.chat_room(uuid)') is not null",
+  "20261117090100": "select to_regprocedure('app.chat_file_readable(text)') is not null",
   // Spoken command jobs, and spoken requests up to 16,000 characters.
   "20261115100000": "select to_regclass('public.assistant_command_jobs') is not null and to_regprocedure('public.assistant_command_claim(uuid,integer)') is not null",
   // Direct uploads: the intents table, begin and commit, and the command-audio bucket where storage exists.

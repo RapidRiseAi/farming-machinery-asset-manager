@@ -571,6 +571,7 @@ const iconByName = {
   warning: WarningIcon,
   info: InfoIcon,
   inbox: InboxIcon,
+  chat: ChatIcon,
   signout: SignOutIcon,
   trash: TrashIcon,
   send: SendIcon,

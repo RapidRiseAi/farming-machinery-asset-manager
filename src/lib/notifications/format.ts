@@ -45,6 +45,8 @@ export function formatNotification(
   const licenceType = p.licence_type ? t(`licenceType.${p.licence_type}`, locale) : "";
   const credentialType = p.credential ? t(`credentialType.${p.credential}`, locale) : "";
   switch (template) {
+    case "staff_chat":
+      return t("chat.notification", locale);
     case "job_assigned":
     case "fault_assigned":
       return t("notifications.tplJobAssigned", locale);
@@ -438,6 +440,7 @@ export function notificationTitle(template: string, locale: Lang): string {
 /** Deep link a notification click should open (best-effort; falls back to the alert centre). */
 export function notificationUrl(template: string, payload: NotePayload): string {
   const p = payload ?? {};
+  if (template === "staff_chat") return typeof p.href === "string" && /^\/chat\/[0-9a-f-]{36}$/i.test(p.href) ? p.href : "/chat";
   if (template.startsWith("fault_")) return "/faults";
   if ((template === "job_completed" || template === "job_assigned") && p.job_card_id) return `/jobcards/${p.job_card_id}`;
   // Work-request activity + quote/invoice reminders deep-link to the request itself.
