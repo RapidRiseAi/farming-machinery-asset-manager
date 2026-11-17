@@ -217,6 +217,15 @@ begin
 end $t$;
 
 -- An unrelated business is not affected by the customer's full pool; warnings at 80% and 95%.
+-- Its owner cannot raise a "full" alarm while the pool is nearly empty.
+select pg_temp.as_user('5a100000-0000-4000-9000-000000000003');
+set local role authenticated;
+do $t$ begin
+  if public.storage_note_full('5a000000-0000-4000-9000-00000000000c') then
+    raise exception 'STORAGE FAIL [25]: a full notice for a pool that is not full';
+  end if;
+end $t$;
+reset role;
 select pg_temp.stored('5a000000-0000-4000-9000-00000000000c', '5a100000-0000-4000-9000-000000000003',
                       '5a200000-0000-4000-9000-00000000000c', 1590000000);
 select pg_temp.as_user('5a100000-0000-4000-9000-000000000003');
@@ -391,12 +400,39 @@ do $t$ begin
   end if;
 end $t$;
 
+-- Switched off again, with room left under the old ceiling: nothing more is bought.
+select pg_temp.as_user('5a100000-0000-4000-9000-000000000003');
+set local role authenticated;
+do $t$
+declare v text;
+begin
+  perform public.storage_set_auto('5a000000-0000-4000-9000-00000000000c', true, 50000, 'storage-auto-2026-11');
+  perform public.storage_set_auto('5a000000-0000-4000-9000-00000000000c', false, null, null);
+  v := pg_temp.begin_upload('5a000000-0000-4000-9000-00000000000c', '5a200000-0000-4000-9000-00000000000c', 1000000);
+  if v <> 'upload:storage_full' then raise exception 'STORAGE FAIL [26]: a block was bought with automatic purchases off: %', v; end if;
+end $t$;
+reset role;
+
 -- Never in the grace: a declined renewal, automatic purchases on, a full pool: refused, no block.
 insert into public.storage_pool_settings (farm_id, auto_blocks, auto_ceiling_cents, auto_accepted_at, auto_terms_version)
 values ('5a000000-0000-4000-9000-00000000000f', true, 50000, now(), 'storage-auto-2026-11');
 select pg_temp.stored('5a000000-0000-4000-9000-00000000000f', '5a100000-0000-4000-9000-000000000005',
                       '5a200000-0000-4000-9000-00000000000f', 1999999000);
-update public.billing_subscriptions set status = 'past_due' where id = '5a600000-0000-4000-9000-00000000000f';
+-- An invoice two days past its due date: the subscription is still active, the grace has begun.
+do $t$
+declare v uuid;
+begin
+  insert into public.billing_invoices (farm_id, subscription_id, invoice_ref, status, kind, period_start, period_end,
+    issued_on, due_on, plan, billing_period, asset_count, unit_price_incl_cents, months_charged, price_version_label, vat_rate_bps)
+  values ('5a000000-0000-4000-9000-00000000000f', '5a600000-0000-4000-9000-00000000000f', 'STOR-GRACE-1', 'draft', 'period',
+          current_date - 2, current_date + 27, current_date - 2, current_date - 2, 'complete', 'monthly', 5, 9900, 1,
+          'launch-2026-11-eq', 0)
+  returning id into v;
+  update public.billing_invoices set status = 'open' where id = v;
+  if not app.farm_payment_late('5a000000-0000-4000-9000-00000000000f', app.billing_today()) then
+    raise exception 'STORAGE FAIL [26]: the fixture is not in its grace';
+  end if;
+end $t$;
 do $t$
 declare v text;
 begin
