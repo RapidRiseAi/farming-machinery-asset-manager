@@ -20,7 +20,7 @@ function Attachment({file,locale}:{file:ChatAttachment;locale:Lang}) {
       const result=await createClient().storage.from("chat-files").download(file.storage_path);
       if(result.error||!result.data)throw new Error("chat-file");
       setUrl(URL.createObjectURL(result.data));
-    })}>{t("chat.openFile",locale)} ({file.media_class}, {Math.ceil(file.bytes/1000)} kB)</Button>
+    })}>{t("chat.openFile",locale)} ({file.media_class==="voice"?t("chat.voice",locale):t("chat.photoDocument",locale)}, {Math.ceil(file.bytes/1000)} kB)</Button>
     <TaskState {...task} locale={locale}/>
     {url&&file.media_class==="voice"?<audio controls preload="metadata" src={url} className="max-w-full" aria-label={t("chat.voice",locale)}/>:null}
     {url?<a href={url} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-700 underline">{t("chat.viewFile",locale)}</a>:null}
@@ -95,45 +95,49 @@ function EditMessage({message,room,locale,onChange}:{message:ChatMessage;room:st
 export function ChatRoomClient({id,user,locale}:{id:string;user:string;locale:Lang}) {
   const [room,setRoom]=useState<ChatRoom|null>(null),[messages,setMessages]=useState<ChatMessage[]>([]),[files,setFiles]=useState<ChatAttachment[]>([]);
   const [draft,setDraftState]=useState<Draft|null>(null),[more,setMore]=useState(false),[search,setSearch]=useState(""),[filter,setFilter]=useState("");
-  const [denied,setDenied]=useState(false),task=useChatTask(),loading=useRef(false);
+  const [denied,setDenied]=useState(false),[readError,setReadError]=useState(false),task=useChatTask(),requestVersion=useRef(0);
   useEffect(()=>{
     let saved:Draft|null=null;try{saved=readDraft(sessionStorage.getItem(draftKey(user,id)));}catch{}
     setDraftState(saved??{id:crypto.randomUUID(),body:""});
   },[id,user]);
   const setDraft=(value:Draft)=>{setDraftState(value);try{sessionStorage.setItem(draftKey(user,id),JSON.stringify(value));}catch{}};
   const load=useCallback(async(before=0,replace=false)=>{
-    if(loading.current)return;loading.current=true;
+    const version=++requestVersion.current;
     try{
       const result=await chatRequest(`?room=${id}&before=${before}&search=${encodeURIComponent(filter)}`);
-      setRoom(result.room);setDenied(false);
+      if(version!==requestVersion.current)return;
+      setRoom(result.room);setDenied(false);setReadError(false);
       setMessages(old=>replace?mergeMessages([],result.messages):mergeMessages(old,result.messages));
       setFiles(old=>[...(replace?[]:old.filter(f=>!result.messages.some((m:ChatMessage)=>m.id===f.message_id))),...result.attachments]);
       if(before||replace)setMore(result.messages.length===CHAT_PAGE);
       if(!before&&!filter&&document.visibilityState==="visible"&&result.messages.length)
         await chatRequest("",{action:"read",room:id,sequence:Math.max(...result.messages.map((m:ChatMessage)=>m.sequence))});
     }catch(error){
+      if(version!==requestVersion.current)return;
       if(error instanceof Error&&error.message==="forbidden"){setRoom(null);setMessages([]);setFiles([]);setDenied(true);}
+      setReadError(true);
       throw error;
-    }finally{loading.current=false;}
+    }
   },[id,filter]);
   useEffect(()=>{
     if(denied)return;
-    void task.run(()=>load(0,true));
+    void load(0,true).catch(()=>{});
     const db=createClient();
-    const channel=db.channel(`chat:${id}`).on("postgres_changes",{event:"UPDATE",schema:"public",table:"chat_conversations",filter:`id=eq.${id}`},()=>{void task.run(()=>load());}).subscribe();
-    const refresh=()=>{if(document.visibilityState==="visible")void task.run(()=>load());};
+    const channel=db.channel(`chat:${id}`).on("postgres_changes",{event:"UPDATE",schema:"public",table:"chat_conversations",filter:`id=eq.${id}`},()=>{void load().catch(()=>{});}).subscribe();
+    const refresh=()=>{if(document.visibilityState==="visible")void load().catch(()=>{});};
     const timer=setInterval(refresh,15000);window.addEventListener("online",refresh);document.addEventListener("visibilitychange",refresh);
     const auth=db.auth.onAuthStateChange(event=>{if(event==="SIGNED_OUT"){
+      requestVersion.current++;
       setRoom(null);setMessages([]);setFiles([]);setDraftState(null);setDenied(true);
       try{sessionStorage.removeItem(draftKey(user,id));}catch{}
     }});
-    return()=>{clearInterval(timer);window.removeEventListener("online",refresh);document.removeEventListener("visibilitychange",refresh);auth.data.subscription.unsubscribe();void db.removeChannel(channel);};
+    return()=>{requestVersion.current++;clearInterval(timer);window.removeEventListener("online",refresh);document.removeEventListener("visibilitychange",refresh);auth.data.subscription.unsubscribe();void db.removeChannel(channel);};
   },[id,user,load,task.run,denied]);
   const refresh=()=>load(0,true);
   return <div className="flex min-w-0 flex-col gap-4">
     <PageHeader title={room?.kind==="direct"?room.members.filter(m=>m.id!==user).map(m=>m.name).join(", ")||t("chat.direct",locale):room?.title??t("chat.title",locale)}/>
     <Link href="/chat" className={buttonVariants({variant:"ghost"})}>{t("chat.back",locale)}</Link>
-    <TaskState {...task} locale={locale}/>
+    <TaskState busy={task.busy} error={task.error||readError} locale={locale}/>
     {denied?<p role="alert">{t("chat.accessLost",locale)}</p>:null}
     {room?<>
       <div className="flex flex-wrap gap-2">

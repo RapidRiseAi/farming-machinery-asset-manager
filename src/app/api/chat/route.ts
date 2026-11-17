@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { isUuid } from "@/lib/upload/protocol";
 import { CHAT_PAGE, parseWrite } from "@/lib/chat/protocol";
+import { readChatBody } from "@/lib/chat/body";
 import { captureError } from "@/lib/observability";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +19,8 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return answer({error:"forbidden"},403);
   if (!(await getProfile())) return answer({error:"forbidden"},401);
   // Bound the JSON body before parsing; no message text reaches logs.
-  const raw = await request.text();
-  if (raw.length > 100_000) return answer({error:"chat-invalid"},413);
   let command;
-  try { command = parseWrite(JSON.parse(raw)); } catch { return answer({error:"chat-invalid"},400); }
+  try { command = parseWrite(await readChatBody(request)); } catch(error) { return answer({error:"chat-invalid"},error instanceof RangeError?413:400); }
   if (!command) return answer({error:"chat-invalid"},400);
   const db=await createClient();
   const {data,error}=await db.rpc(command.rpc,command.args);

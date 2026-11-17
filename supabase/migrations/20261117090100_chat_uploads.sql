@@ -6,7 +6,9 @@ alter table public.upload_intents add constraint upload_intents_target_kind_chec
 do $storage$ begin
 if to_regclass('storage.buckets') is not null then
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
-values('chat-files','chat-files',false,50000000,array['image/jpeg','image/png','image/webp','image/heic','image/heif','application/pdf','audio/webm','audio/ogg','audio/mp4'])
+select id,id,false,bytes,mimes from (values
+ ('chat-files',50000000::bigint, array['image/jpeg','image/png','image/webp','image/heic','image/heif','application/pdf','audio/webm','audio/ogg','audio/mp4'])
+) as spec(id,bytes,mimes)
 on conflict(id) do nothing;
 end if;
 end $storage$;

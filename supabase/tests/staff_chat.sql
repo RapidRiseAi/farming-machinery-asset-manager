@@ -18,7 +18,10 @@ create function pg_temp.assert(ok boolean,reason text) returns void language plp
 begin if ok is distinct from true then raise exception 'CHAT: %',reason; end if; end $$;
 create function public._chat_refused(q text) returns boolean language plpgsql as $$
 begin execute q; return false; exception when insufficient_privilege then return true; end $$;
+create function public._chat_invalid(q text, expected text) returns boolean language plpgsql as $$
+begin execute q; return false; exception when others then return sqlerrm=expected; end $$;
 grant execute on function public._chat_refused(text) to authenticated;
+grant execute on function public._chat_invalid(text,text) to authenticated;
 select pg_temp.login(2);
 set local role authenticated;
 select pg_temp.assert(public._chat_refused($q$select public.chat_create('bc200000-0000-4000-9000-000000000001','bc000000-0000-4000-9000-000000000001','group','Private',array['bc100000-0000-4000-9000-000000000003'::uuid])$q$),'readiness off');
@@ -29,6 +32,7 @@ select public.chat_create('bc200000-0000-4000-9000-000000000001','bc000000-0000-
 select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000001','private secret');
 select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000001','private secret');
 select pg_temp.assert((select count(*)=1 from public.chat_messages),'retry sends once');
+select pg_temp.assert(public._chat_invalid($q$select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000001','different text')$q$,'chat-request-changed'),'changed retry cannot silently lose text');
 select pg_temp.assert(public._chat_refused($q$insert into public.chat_members(conversation_id,farm_id,user_id,is_admin) values('bc200000-0000-4000-9000-000000000001','bc000000-0000-4000-9000-000000000001','bc100000-0000-4000-9000-000000000001',true)$q$),'no direct member writes');
 select pg_temp.assert(public._chat_refused($q$select public.chat_manage('bc200000-0000-4000-9000-000000000001','add','bc100000-0000-4000-9000-000000000005')$q$),'no cross-customer invitation');
 select pg_temp.login(1);
@@ -70,12 +74,81 @@ select pg_temp.assert((select count(*)=1 from public.chat_attachments),'attachme
 select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000004','');
 select pg_temp.login(4);
 select pg_temp.assert((select count(*)=1 from public.chat_attachments),'member sees attachment');
+-- The optional storage harness applies the actual migration with a deliberately broad
+-- legacy Storage policy. This checks SQL policies, not the hosted Storage server.
+reset role;
+do $$ begin
+ if to_regclass('storage.objects') is not null then
+  execute 'insert into storage.objects(bucket_id,name) select ''chat-files'',storage_path from public.chat_attachments';
+ end if;
+end $$;
+set local role authenticated;
+do $$ begin
+ if to_regclass('storage.objects') is not null then
+  perform pg_temp.assert((select app.chat_file_readable(storage_path) from public.chat_attachments),'member may read stored file');
+  execute 'select pg_temp.assert((select count(*)=1 from storage.objects where bucket_id=''chat-files''),''member sees stored file'')';
+  perform pg_temp.assert(public._chat_refused($q$insert into storage.objects(bucket_id,name) values('chat-files','unreserved')$q$),'direct storage insert refused');
+ end if;
+end $$;
 select pg_temp.login(1);
 select pg_temp.assert((select count(*)=0 from public.chat_attachments),'owner cannot read attachment');
+do $$ begin
+ if to_regclass('storage.objects') is not null then
+  execute 'select pg_temp.assert((select count(*)=0 from storage.objects where bucket_id=''chat-files''),''broad legacy storage policy cannot leak chat'')';
+ end if;
+end $$;
 select pg_temp.login(2);
 select public.chat_edit('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000004','',true);
 select pg_temp.assert((select count(*)=0 from public.chat_attachments),'deleted message attachment hidden');
 select pg_temp.assert((select count(*)=1 from public.chat_events where event='deleted'),'deletion has private audit evidence');
+-- A direct pair has one conversation even across different creation request ids.
+select pg_temp.assert(public.chat_create('bc200000-0000-4000-9000-000000000002','bc000000-0000-4000-9000-000000000001','direct','',array['bc100000-0000-4000-9000-000000000004'::uuid])=
+ public.chat_create('bc200000-0000-4000-9000-000000000003','bc000000-0000-4000-9000-000000000001','direct','',array['bc100000-0000-4000-9000-000000000004'::uuid]),'direct pair reused');
+select pg_temp.assert(public._chat_refused($q$select public.chat_manage('bc200000-0000-4000-9000-000000000002','add','bc100000-0000-4000-9000-000000000006')$q$),'direct cannot become group');
+-- Full attachment storage does not block text.
+reset role;
+select set_config('request.jwt.claims','',true);
+insert into app.storage_quota_overrides(farm_id,quota_bytes,reason) values('bc000000-0000-4000-9000-000000000001',1,'staff_chat.sql');
+select pg_temp.login(2);
+set local role authenticated;
+select public.chat_prepare('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000006');
+select pg_temp.assert(public._chat_invalid($q$select public.upload_begin('bc000000-0000-4000-9000-000000000001',null,'chat_message','bc300000-0000-4000-9000-000000000006','photo','photo','image/jpeg',1000,'bc400000-0000-4000-9000-000000000006','jpg')$q$,'upload:storage_full'),'quota blocks new attachment');
+select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000006','Text at full storage');
+reset role;
+select set_config('request.jwt.claims','',true);
+delete from app.storage_quota_overrides where farm_id='bc000000-0000-4000-9000-000000000001';
+select pg_temp.login(4);
+set local role authenticated;
+select public.chat_prepare('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000007');
+create temporary table chat_revoked_intent as select (public.upload_begin('bc000000-0000-4000-9000-000000000001',null,'chat_message','bc300000-0000-4000-9000-000000000007','photo','photo','image/jpeg',1000,'bc400000-0000-4000-9000-000000000007','jpg')->>'id')::uuid as id;
+reset role;
+select app.upload_mark_verified((select id from chat_revoked_intent),1000,'image/jpeg',null,10,10);
+set local role authenticated;
+select pg_temp.login(2);
+select public.chat_manage('bc200000-0000-4000-9000-000000000001','remove','bc100000-0000-4000-9000-000000000004');
+select pg_temp.login(4);
+select pg_temp.assert(public._chat_invalid('select public.upload_commit('''||(select id from chat_revoked_intent)||''')','upload:target'),'revoked member cannot finalise pending attachment');
+reset role;
+select set_config('request.jwt.claims','',true);
+-- An explicitly inactive farm membership must not fall back to the home farm.
+insert into public.user_farm_memberships(user_id,farm_id,role,active) values('bc100000-0000-4000-9000-000000000002','bc000000-0000-4000-9000-000000000001','operator',false)
+ on conflict(user_id,farm_id) do update set active=false;
+select pg_temp.login(2);
+set local role authenticated;
+select pg_temp.assert((select count(*)=0 from public.chat_conversations),'inactive membership denies home-farm fallback');
+reset role;
+select set_config('request.jwt.claims','',true);
+update public.user_farm_memberships set active=true where user_id='bc100000-0000-4000-9000-000000000002';
+-- Support access exists only during a visit recorded through the existing audited RPC.
+update public.users set role='rr_admin',farm_id=null where id='bc100000-0000-4000-9000-000000000006';
+select pg_temp.login(6);
+set local role authenticated;
+select pg_temp.assert((select count(*)=0 from public.chat_messages),'support cannot read without visit');
+select public.support_visit_start('bc000000-0000-4000-9000-000000000001','Review private chat issue');
+select pg_temp.assert((select count(*)>0 from public.chat_messages),'audited support visit permits reading');
+select pg_temp.assert(public._chat_refused($q$select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000008','support cannot impersonate')$q$),'support cannot send as staff');
+select public.support_visit_end('bc000000-0000-4000-9000-000000000001');
+select pg_temp.assert((select count(*)=0 from public.chat_messages),'ending support visit revokes reading');
 reset role;
 select set_config('request.jwt.claims','',true);
 update public.users set active=false where id='bc100000-0000-4000-9000-000000000004';

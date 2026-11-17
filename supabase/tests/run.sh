@@ -277,6 +277,6 @@ pg "$DB" < "$ROOT/supabase/tests/equipment_restrictions.sql"
 echo "==> running asset capacity tests (fixtures, pooling, no overselling, retirement, conversion)"
 pg "$DB" < "$ROOT/supabase/tests/asset_capacity.sql"
 
-echo "==> OK"
 echo "==> running private staff chat tests"
 pg "$DB" < "$ROOT/supabase/tests/staff_chat.sql"
+echo "==> OK"

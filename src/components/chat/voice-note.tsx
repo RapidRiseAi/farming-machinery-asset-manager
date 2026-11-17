@@ -13,6 +13,7 @@ import { useChatTask } from "./shared";
 export function VoiceNote({target,scope,locale,onBusy,onDone}:{target:UploadTarget;scope:string;locale:Lang;onBusy:(busy:boolean)=>void;onDone:()=>void}) {
   const [recording,setRecording]=useState(false),[seconds,setSeconds]=useState(0),[file,setFile]=useState<File|null>(null),[attach,setAttach]=useState(false);
   const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),timer=useRef<ReturnType<typeof setInterval>|null>(null),alive=useRef(true);
+  const [uploadBusy,setUploadBusy]=useState(false);
   const task=useChatTask(),busy=recording||!!file||task.busy;
   useEffect(()=>{onBusy(busy);},[busy,onBusy]);
   useEffect(()=>{
@@ -50,9 +51,10 @@ export function VoiceNote({target,scope,locale,onBusy,onDone}:{target:UploadTarg
     {recording?<><p role="status">{t("chat.recording",locale).replace("{seconds}",String(seconds))}</p>
       {seconds*1000>=VOICE_NOTE_MAX_MS-LIMITS.recordingWarnBeforeMs.value?<p role="status">{t("chat.recordingWarning",locale)}</p>:null}
       <Button onClick={stop}>{t("chat.stop",locale)}</Button></>:null}
-    {file&&!attach?<div className="flex flex-wrap gap-2"><Button onClick={()=>setAttach(true)}>{t("chat.saveVoice",locale)}</Button>
-      <Button variant="ghost" onClick={()=>{setFile(null);setAttach(false);}}>{t("chat.discardVoice",locale)}</Button></div>:null}
+    {file?<div className="flex flex-wrap gap-2">{!attach?<Button onClick={()=>setAttach(true)}>{t("chat.saveVoice",locale)}</Button>:null}
+      <Button variant="ghost" disabled={uploadBusy} onClick={()=>{setFile(null);setAttach(false);}}>{t("chat.discardVoice",locale)}</Button></div>:null}
     {file&&attach?<UploadField locale={locale} accept="voice" file={file} target={target} scope={scope} finish="generic" uploadLabel="voice"
+      onStateChange={state=>setUploadBusy(["preparing","starting","sending","checking","paused"].includes(state.phase))}
       onDone={()=>{setFile(null);setAttach(false);onDone();}}/>:null}
   </div>;
 }

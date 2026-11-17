@@ -15,8 +15,13 @@ export function ChatHome({farm,locale}:{farm:string;locale:Lang}) {
   const [kind,setKind]=useState("direct"),[title,setTitle]=useState(""),[people,setPeople]=useState<string[]>([]);
   const [id,setId]=useState(""); const router=useRouter(), task=useChatTask();
   const load=useCallback(async(offset=0)=>{
-    const result=await chatRequest(`?farm=${farm}&offset=${offset}`);
-    setRooms(previous=>offset?[...previous,...result.data]:result.data);setMore(result.data.length===CHAT_PAGE);setReady(true);
+    try {
+      const result=await chatRequest(`?farm=${farm}&offset=${offset}`);
+      setRooms(previous=>offset?[...new Map([...previous,...result.data].map((room:ChatSummary)=>[room.id,room])).values()]:result.data);setMore(result.data.length===CHAT_PAGE);setReady(true);
+    } catch(error) {
+      if(error instanceof Error&&error.message==="forbidden"){setRooms([]);setMore(false);setReady(false);}
+      throw error;
+    }
   },[farm]);
   useEffect(()=>{setId(crypto.randomUUID());void task.run(()=>load());},[load,task.run]);
   useEffect(()=>{

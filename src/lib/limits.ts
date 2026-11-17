@@ -54,6 +54,7 @@ const entry = (value: number, unit: LimitUnit, kind: LimitKind, customer: boolea
  */
 export const LIMITS = {
   chatBodyChars: entry(8000, "chars", "abuse", true, "Maximum text per staff chat message; split longer messages."),
+  chatRequestBytes: entry(100_000, "bytes", "abuse", true, "Bound streamed chat JSON including multibyte message text and member identifiers."),
   chatMembers: entry(100, "count", "abuse", true, "Maximum active members per group, not a subscription seat limit."),
   chatAttachments: entry(10, "count", "abuse", true, "Maximum files per message; text remains available at full storage."),
   chatPageRows: entry(50, "rows", "window", false, "Chat messages, people and conversations per page; older pages remain available."),
@@ -281,6 +282,7 @@ const IMAGE_OR_PDF = ["image/*", "application/pdf"] as const;
 const AUDIO_ANY = ["audio/*", "video/webm"] as const;
 
 export const BUCKETS = {
+  "chat-files": { maxBytes: PDF_MAX_BYTES, mimes: ["image/jpeg","image/png","image/webp","image/heic","image/heif","application/pdf","audio/webm","audio/ogg","audio/mp4"] },
   "machine-photos": { maxBytes: PHOTO_MAX_BYTES, mimes: IMAGE_ANY },
   "fault-photos": { maxBytes: PHOTO_MAX_BYTES, mimes: IMAGE_ANY },
   "checklist-photos": { maxBytes: PHOTO_MAX_BYTES, mimes: IMAGE_ANY },
