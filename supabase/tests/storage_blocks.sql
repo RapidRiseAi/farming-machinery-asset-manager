@@ -228,7 +228,8 @@ begin
     raise exception 'BLOCKS FAIL [26]: the scheduled reduction did not land at the renewal';
   end if;
   -- The issued invoice's storage is frozen.
-  if pg_temp.try(format('update public.billing_invoices set storage_incl_cents = 1 where id = %L', i.id)) = 'ok' then
+  if pg_temp.try(format('update public.billing_invoices set storage_incl_cents = 1 where id = %L', i.id)) = 'ok'
+     or pg_temp.try(format('update public.billing_invoices set storage_blocks = 9 where id = %L', i.id)) = 'ok' then
     raise exception 'BLOCKS FAIL [26]: an issued invoice''s storage changed';
   end if;
   -- A second run raises nothing and bills the month again nowhere.
