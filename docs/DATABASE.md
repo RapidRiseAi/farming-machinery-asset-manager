@@ -21,9 +21,10 @@ the authority on its columns (`supabase/migrations`, applied in filename order).
 - **A business that has not paid cannot work through anybody's session, its own included**
   (20261112090000). Every table with a `farm_id` carries restrictive `pay_gate_*` policies:
   while `app.farm_billing_gate` is not `ok`, a member cannot insert, update or delete that
-  business's rows. A `suspended` or `closed` business can still read them (pay and download:
-  the export reads through the person's own session); a `pending` one, which never paid,
-  cannot read them either. A row with no farm (the shared libraries) is never stopped, and
+  business's rows. A `suspended` or `closed` business is read by its OWNER only, for 90 days
+  (`billing_subscriptions.retrieval_ends_on`; the export reads through the owner's session),
+  and by nobody after that (20261115120000, decisions 38 and 41); a `pending` one, which never
+  paid, cannot be read at all. A row with no farm (the shared libraries) is never stopped, and
   Rapid Rise never is. `app.stopped_farm_ids(writing)` names the caller's stopped businesses
   once per statement, never per row. Tables a stopped business must keep (billing, the
   person's account and memberships, notifications, help, closure, handover) are listed
@@ -151,7 +152,17 @@ Since 20261114090300 a price row states its period price and its equipment terms
 count and price, and `app.billing_enforce_vehicle_quota` locks the subscription before it counts
 either profile. `public.asset_capacity_summary`, `asset_add_preview`, `asset_conversion_preview`,
 `convert_asset_profile` and `equipment_migration_preview` are the previews and the conversion.
-`docs/BILLING.md`.
+`billing_change_quotes` (20261115110000) is every priced mid-period change: its basis, target,
+charge, credit, next renewal, expiry, acceptance and outcome; a `now` change raises a `change`
+invoice and is made only when that invoice is paid (trigger on `billing_payments`), a
+`renewal` change writes the pending columns. `billing_account_credits` is append-only account
+credit (an upgrade that lowers the price, money for a change that could no longer be made),
+spent on the next invoice as a payment with provider `credit`. The lifecycle (20261115120000):
+`app.farm_billing_gate_on` answers for any South African day, `app.farm_read_allowed` and
+`app.farm_paid_extras_allowed` decide owner-only reading and the grace, `public.farm_lifecycle`
+says where a business stands for the stopped screens. `capacity_quote_requests`
+(20261115130000) holds a request for more than 200 full spaces made at sign-up (Rapid Rise
+only; no farm yet, so no pay gate). `docs/BILLING.md`.
 
 ## AI and voice
 
