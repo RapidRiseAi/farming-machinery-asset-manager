@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Storage blocks on the bill: block quotes, the invoice's storage, the usage invoice per day.
+  "20261118120100": "select to_regprocedure('app.billing_attach_storage(uuid,date,date)') is not null and to_regprocedure('public.billing_quote_storage(uuid,integer,uuid)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_invoices' and column_name = 'storage_incl_cents') and to_regclass('public.billing_invoices_usage_day_uq') is not null",
   // Pooled storage: the allowance, the nightly measure, automatic blocks and storage charges.
   "20261118120000": "select to_regprocedure('app.storage_allowance(uuid)') is not null and to_regclass('public.storage_usage_snapshots') is not null and to_regclass('public.storage_charges') is not null and to_regprocedure('public.storage_note_full(uuid)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_subscriptions' and column_name = 'storage_blocks')",
   // Sign-up with equipment and the 200 line; capacity quote requests above it.

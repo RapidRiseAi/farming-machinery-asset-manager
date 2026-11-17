@@ -1411,7 +1411,10 @@ declare
     -- block price; the storage month reads the period; an automatic block locks the subscription
     -- and raises its blocks. Granted to nobody, reached only through the upload reservation, the
     -- nightly measure and the storage status, which strips the money for anyone but the payer.
-    'storage_allowance','storage_month','storage_auto_block'];
+    'storage_allowance','storage_month','storage_auto_block',
+    -- Storage blocks on the bill (20261118120100): pricing and quoting a change of blocks (A2's
+    -- quote flow, actor checked inside) and putting the month's blocks on a draft invoice.
+    'storage_change_state','billing_quote_storage','billing_attach_storage'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1459,7 +1462,9 @@ declare
     -- Where a business stands (20261115120000), read by the stopped screens; see v_pub_auth_ok.
     'farm_lifecycle',
     -- A larger customer's quote request from sign-up (20261115130000), service role only.
-    'billing_request_capacity_quote'];
+    'billing_request_capacity_quote',
+    -- Storage blocks (20261118120100): service role only, the actor passed and checked inside.
+    'storage_change_preview','billing_quote_storage'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
