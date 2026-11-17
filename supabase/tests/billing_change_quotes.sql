@@ -555,6 +555,44 @@ begin
   end if;
 end $t$;
 
+-- == Scenario 12: annual software, monthly AI use on its own invoice ============================
+-- The annual yard's AI-only invoice for last month: account credit is spent on it as it is
+-- issued, an unpaid remainder past its due date starts the grace like any owed invoice, and the
+-- annual period and its renewal date do not move.
+do $t$
+declare
+  v_inv uuid;
+  s_before public.billing_subscriptions%rowtype;
+  s_after public.billing_subscriptions%rowtype;
+begin
+  select * into s_before from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000004';
+  insert into public.billing_account_credits (farm_id, subscription_id, entry, source, amount_cents, note)
+  values ('ac200000-0000-4000-9000-000000000004', 'ac260000-0000-4000-9000-000000000004', 'granted', 'plan_change', 1000, 'test credit');
+  insert into public.billing_invoices (farm_id, subscription_id, invoice_ref, status, kind, period_start, period_end,
+    issued_on, due_on, plan, billing_period, asset_count, unit_price_incl_cents, months_charged, price_version_label,
+    vat_rate_bps, ai_usage_ex_vat_cents)
+  values ('ac200000-0000-4000-9000-000000000004', 'ac260000-0000-4000-9000-000000000004', 'FW-Q-AI-1', 'draft', 'ai_usage',
+    date_trunc('month', current_date)::date - 30, date_trunc('month', current_date)::date - 1,
+    app.billing_today() - 9, app.billing_today() - 2, 'essential', 'annual', 0, 0, 1, 'AI use', 0, 3000)
+  returning id into v_inv;
+  update public.billing_invoices set status = 'open' where id = v_inv;
+  if (select amount_paid_cents from public.billing_invoices where id = v_inv) <> 1000
+     or app.billing_credit_balance('ac260000-0000-4000-9000-000000000004') <> 0 then
+    raise exception 'QUOTES FAIL [12]: the credit was not spent on the AI-only invoice of an annual business';
+  end if;
+  if not app.farm_payment_late('ac200000-0000-4000-9000-000000000004', app.billing_today()) then
+    raise exception 'QUOTES FAIL [12]: an unpaid AI-only invoice past its due date did not start the grace';
+  end if;
+  select * into s_after from public.billing_subscriptions where id = 'ac260000-0000-4000-9000-000000000004';
+  if s_after.current_period_end <> s_before.current_period_end or s_after.next_billing_on <> s_before.next_billing_on then
+    raise exception 'QUOTES FAIL [12]: monthly AI billing moved the annual period';
+  end if;
+  -- And in the grace, an addition that charges is not sold to it.
+  if app.billing_change_state('ac260000-0000-4000-9000-000000000004', null, null, 9, 0, false, app.billing_today()) ->> 'reason'
+     is distinct from 'billing-grace-no-extras' then
+    raise exception 'QUOTES FAIL [12]: an extra was sold to an annual business with an unpaid AI invoice';
+  end if;
+end $t$;
 -- == Nobody's browser reaches the engine ========================================================
 do $t$
 declare f text;
