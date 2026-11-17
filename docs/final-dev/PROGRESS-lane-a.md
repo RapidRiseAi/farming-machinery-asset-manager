@@ -2,7 +2,56 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
-## Current task: A2 (billing changes and the subscription lifecycle)
+## Current task: A3 (pooled storage, paid blocks, shared assistance spending cap)
+
+BRIEF 11 and 12; decisions 14, 15, 22, 23, 24, 34, 36; scenarios 24, 25, 26, 30, 31, 32 (and the
+storage/assistance half of 12). Started 17 Nov 2026 on 48b7987 (A1, B1, A2, Codex B2 and B3 merged).
+
+| # | Step | State |
+|---|---|---|
+| 1 | Storage allowance and pool (migration 20261118120000): pooled customer allowance, quota hooks replaced, files from before the pipeline counted (nightly snapshot of untracked objects), 80/95% warnings, status function, auto blocks setting with ceiling, transactional auto block; suite storage_pool.sql | todo |
+| 2 | Storage blocks billing (20261118120100): buy through A2's quotes (change 'storage'), reductions scheduled at the next storage month and never below what is stored, storage charge ledger, recurring monthly charge on the period invoice (monthly) and on the usage invoice (annual), generic cost-plus storage retired; suite storage_blocks.sql | todo |
+| 3 | Assistance cap (20261118120200): customer-wide budget table, existing limits migrated as chosen (owners told), blank refuses (budget_unset), customer-wide lock and spend, staff sublimits across sites, WhatsApp on the same ledger (owner acceptance, hold before send, settle on the delivery webhook's pricing, free = R0, stale = R0), event fields, AI use of every pooled site invoiced, usage corrections as credit; suite assistance_cap.sql | todo |
+| 4 | TS storage: mirror + tests, /billing storage section (status, warnings, blocks, auto setting), upload refusal offers expansion, admin usage page | todo |
+| 5 | TS assistance: /settings/ai setup (required, zero allowed, migrated notice, reset boundary), refusals, WhatsApp hooks and acceptance, admin rates | todo |
+| 6 | Docs, register rows, REPORT-A3.md | todo |
+
+Design (decided at the start, keep to it):
+- Pool = the billing root (`app.billing_root`) and every site billed through it. Allowance per
+  pool: F = max(purchased full spaces or counted, price minimum); E = included equipment of the
+  price + extra equipment paid (metered: max(included, in use)); included = max(2e9, F x 1e8 +
+  E x 2.5e7); total = included + blocks x 1e10. `app.storage_quota_overrides` (Rapid Rise by
+  hand) still wins when set. Next renewal figures use pending quantities.
+- Counted bytes = finalised pipeline files not removed + open reservations + bytes of objects in
+  the business's folders with no upload intent (files from before the pipeline and old upload
+  paths), measured nightly into `storage_usage_snapshots` (one row per pool per day; also the
+  per-period usage record). Not counted: billing-proofs, partner-*, menu-media and the
+  temporary command-audio bucket (removed by its own sweep, so no loophole).
+- Blocks: R49 per 10 GB per month (billing_settings, snapshotted on every charge), monthly
+  even for annual software. Storage month = the period for monthly subscriptions; for annual,
+  months stepped from the period start on the anchor day. Manual purchase = A2 quote, change
+  'storage', paid change invoice raises `storage_blocks`. Automatic = OFF by default; owner
+  sets a monthly rand ceiling counting existing blocks; under the pool and subscription locks
+  the block is added at once and the pro-rata amount is a storage charge on the next invoice.
+  Reduction = pending_storage_blocks at the next storage month, refused if what is stored would
+  not fit; nothing is deleted.
+- Assistance: `assistance_budgets` keyed by the billing root. No row = no paid work
+  ('budget_unset'). Existing businesses get their current effective limit as a 'migrated'
+  choice and an owner notice. Trial cap (never paid, test) and the owner maximum stay as
+  guards. Month = calendar month in Africa/Johannesburg for every plan (AI_USAGE.md), shown
+  explicitly. WhatsApp messages go on the same ledger (feature 'whatsapp_message'); billing for
+  them starts only when Rapid Rise sets a start date and the rates (Meta charges on delivery;
+  the account's rate-card currency is an account fact).
+
+Log:
+- 17 Nov: read PROGRESS, register rows, BRIEF 11/12/23, decisions, A2 and B1 reports, the AI
+  ledger, the upload pipeline, A2 quotes and the invoice generators. Meta pricing docs read
+  (developers.facebook.com/docs/whatsapp/pricing and the status webhook reference): charged
+  per delivered message; `pricing.type` regular = billable, free_customer_service and
+  free_entry_point free; 1,000 free service messages per number per month from 1 Oct 2026;
+  currency fixed per account (ZAR not in the list). Next: step 1.
+
+## A2 (complete)
 
 **TASK A2 COMPLETE** (17 Nov 2026). Final gates: tsc clean, 1162 unit tests, dashes, parity,
 keys, design and errors clean, all 82 PGlite suites pass (292 migrations). Mutations: 35 of 35
