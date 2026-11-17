@@ -255,3 +255,16 @@ left as it is lives in the 11 November entry of `LAUNCH_CHECKLIST.md`. Unused ob
 found by reading every reference in the app, the other functions, policies, views, triggers
 and the suites before anything is dropped; the last such pass was 11 November 2026
 (20261111160000).
+
+## Manual driving log (B3 R-044 candidate)
+
+Migration 20261117110000_manual_driving_log.sql adds destination, ordered planned_stops,
+plan_version and optional start/end kilometres to driving_sessions, and reading, itinerary
+and request receipt fields to driving_events. Existing defaults preserve old rows. Existing
+tenant policies, pay gates and audit triggers remain; RLS is forced on both tables. There
+are no new tables. record_manual_driving_event is authenticated-only, checks
+app.require_open_farm before replay, and is covered by the pay_gate_functions.sql definer
+audit plus behavioural tests in manual_driving.sql. The old RPC signature is unchanged.
+The deployment probe is in scripts/apply_pending.mjs; no live migration was applied.
+Deploy the additive migration before the new page, which selects these columns. Rolling
+back application code can leave the additive schema and records intact.

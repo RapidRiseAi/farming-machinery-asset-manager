@@ -6158,3 +6158,11 @@ Chrome UI checks, actual Storage-policy fixture and five caught SQL guard mutati
 The production build passed. The full SQL run retains an existing date-sensitive
 `billing_review_5.sql` failure, reproduced without B2; it is left with Claude/A2 rather
 than changing billing code or weakening a test. No merge, CI success or release is claimed.
+
+## 17 November 2026: isolated Codex B3 manual-driving candidate
+
+R-044 manual kilometre readings, current destination and ordered written stops extend
+the existing sessions/events. Atomic request receipts prevent duplicate events; itinerary
+versions refuse stale edits. EN/AF dialogs preserve failed drafts in the browser tab.
+Claude owns review/integration. Full B3 remains open. Evidence and limitations are in
+final-dev/REPORT-B3-DRIVING.md; no merge, production access or deployment occurred.

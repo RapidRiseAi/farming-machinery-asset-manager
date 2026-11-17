@@ -21,6 +21,9 @@ export type DrivingEvent = {
   recorded_by: string | null;
   lat: number | null;
   lng: number | null;
+  odometer_km?: number | null;
+  destination?: string | null;
+  planned_stops?: string[] | null;
 };
 export function stopVisits(
   events: DrivingEvent[],

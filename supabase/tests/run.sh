@@ -287,4 +287,6 @@ pg "$DB" < "$ROOT/supabase/tests/billing_signup_capacity.sql"
 
 echo "==> running private staff chat tests"
 pg "$DB" < "$ROOT/supabase/tests/staff_chat.sql"
+echo "==> running manual driving log tests"
+pg "$DB" < "$ROOT/supabase/tests/manual_driving.sql"
 echo "==> OK"

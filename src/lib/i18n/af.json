@@ -8425,5 +8425,26 @@
     "discardVoice": "Gooi opname weg",
     "recordFailed": "Die mikrofoon of opname kon nie begin nie. Jy kan steeds ’n klanklêer aanheg.",
     "draftFiles": "Lêers wat reeds by hierdie konsep aangeheg is"
+  },
+  "manualDrive": {
+    "discardDraft": "Gooi hierdie konsep weg en begin weer",
+    "stale": "Die reisplan het verander terwyl hierdie konsep oop was. Herlaai die jongste bestemming en stilhouplekke voordat jy stoor. Jou ander konsepbesonderhede bly behoue.",
+    "reloadPlan": "Herlaai reisplan; behou ander konsepbesonderhede",
+    "loading": "Jou konsep word gelaai...",
+    "km": "Kilometerteller (km)",
+    "kmHint": "Opsioneel. Vul die werklike kilometerlesing in, met hoogstens een desimaal. Dit verander nie die voertuig se diensmeter nie.",
+    "destination": "Huidige bestemming",
+    "stops": "Beplande stilhouplekke, in volgorde",
+    "stopsHint": "Een stilhouplek per reël, in reisvolgorde. Hoogstens 50 stilhouplekke van 200 karakters elk. Dit is geskrewe aanwysings, nie ’n berekende roete nie.",
+    "draftHint": "Jou konsep bly in hierdie blaaieroortjie as stoor misluk of jy die bladsy verlaat. Geen kaart- of roetediens is nodig nie.",
+    "saving": "Besig om te stoor...",
+    "failed": "Hierdie opdatering is nie voltooi nie. Jou konsep is behou. Kontroleer die lesings, bestuurder, voertuig en volgorde en probeer weer.",
+    "changed": "Hierdie versoek is reeds met ander besonderhede gestoor. Jou veranderinge is hier behou. Gaan die rygeskiedenis na voordat jy nog ’n opdatering begin.",
+    "forbidden": "Jou huidige toegang, die voertuig se geskiktheid of die rekeningstatus laat nie hierdie opdatering toe nie. Jou konsep is behou.",
+    "backwards": "Die kilometerlesing is laer as ’n vorige lesing vir hierdie rit. Kontroleer dit en probeer weer.",
+    "startKm": "Beginkilometers",
+    "endKm": "Eindkilometers",
+    "distance": "Aangetekende afstand (km)",
+    "notRecorded": "Nie aangeteken nie"
   }
 }

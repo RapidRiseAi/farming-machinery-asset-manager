@@ -37,6 +37,7 @@ export function AssistantSafeSignOutForm({
             try {
               for (const key of Object.keys(sessionStorage)) if (key.startsWith("fw-chat:")) sessionStorage.removeItem(key);
             } catch { /* A browser that denies session storage must still be able to sign out. */ }
+            try {for(const key of Object.keys(sessionStorage))if(key.startsWith("fw-driving:"))sessionStorage.removeItem(key);}catch{}
             form.requestSubmit();
           })
           .catch(() => {

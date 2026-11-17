@@ -46,6 +46,7 @@ const PROBES = {
   "20261115110000": "select to_regclass('public.billing_change_quotes') is not null and to_regclass('public.billing_account_credits') is not null and to_regprocedure('public.billing_accept_quote(uuid,uuid,bigint,bigint,bigint)') is not null and exists (select 1 from pg_trigger where tgname = 'billing_payments_z_change')",
   "20261117090000": "select to_regclass('public.chat_messages') is not null and to_regprocedure('public.chat_room(uuid)') is not null",
   "20261117090100": "select to_regprocedure('app.chat_file_readable(text)') is not null",
+  "20261117110000": "select to_regprocedure('public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision,integer)') is not null",
   // Spoken command jobs, and spoken requests up to 16,000 characters.
   "20261115100000": "select to_regclass('public.assistant_command_jobs') is not null and to_regprocedure('public.assistant_command_claim(uuid,integer)') is not null",
   // Direct uploads: the intents table, begin and commit, and the command-audio bucket where storage exists.
