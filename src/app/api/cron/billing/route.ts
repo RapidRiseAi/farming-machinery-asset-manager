@@ -134,6 +134,11 @@ export async function GET(request: Request) {
     captureError(err, { where: "cron:billing:reconcile" });
   }
 
+  // 1a == Mid-period change quotes past their time (20261115110000): a price nobody
+  // accepted closes, and an accepted change nobody paid has its invoice voided, so nothing
+  // ever charges an expired quote. One with a payment in flight is left for the reconcile.
+  await run("expire_quotes", BILLING_RPC.expireQuotes);
+
   // 2 == What each farm is billed for, recorded before it is billed.
   await run("asset_snapshots", BILLING_RPC.captureSnapshots);
 
@@ -228,6 +233,11 @@ export async function GET(request: Request) {
 
   // 6 == Cancellations that have reached their period end.
   await run("close_cancellations", BILLING_RPC.closeCancellations);
+
+  // 6a == The owner's notices (20261115120000): the first day a payment is late (seven days
+  // of grace), and 30, 7 and 1 days before the owner's reading of a stopped account closes.
+  // AFTER suspensions and closures, so a window opened tonight is counted from tonight.
+  await run("lifecycle_notices", BILLING_RPC.lifecycleNotices);
 
   // 7 == Tell the farm, last, once every state above has settled.
   await run("reminders", BILLING_RPC.enqueueReminders);

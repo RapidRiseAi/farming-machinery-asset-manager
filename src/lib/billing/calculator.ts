@@ -20,10 +20,12 @@
 
 import {
   CAPABILITY_MIN_PLAN,
+  FEATURE_MIN_PLAN,
   PLAN_PRICING,
   planAllows,
   type BillingPeriod,
   type Capability,
+  type Feature,
   type Plan,
 } from "@/lib/entitlements";
 
@@ -168,6 +170,96 @@ export type SignupRoute =
 export function signupRoute(requestedFullSpaces: number): SignupRoute {
   const n = Math.max(MIN_FULL_SPACES, whole(requestedFullSpaces));
   return n > SELF_SERVICE_MAX_FULL_SPACES ? { kind: "quote", fullSpaces: n } : { kind: "self_service", fullSpaces: n };
+}
+
+// == Mid-period changes (20261115110000) ======================================
+//
+// The same arithmetic as `app.billing_change_state` and `app.billing_prorate_cents`. The
+// screen shows what the engine stored on the quote; these exist so the rule is written down
+// and tested on the founder's figures in both languages of the codebase.
+
+/**
+ * Round to the cent the way Postgres rounds a numeric: halves away from zero. `Math.round`
+ * rounds -2.5 to -2, which would make a credit a cent smaller than the database's.
+ */
+export function roundCents(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.sign(value) * Math.round(Math.abs(value));
+}
+
+/**
+ * Days left in the period, today included, and the period's length. Mirrors the two lines in
+ * app.billing_change_state. Dates are ISO `YYYY-MM-DD`, decided in South Africa.
+ */
+export function periodDays(start: string, end: string, today: string): { remaining: number; total: number } {
+  const day = (iso: string) => Math.round(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
+  const total = Math.max(day(end) - day(start) + 1, 1);
+  const remaining = Math.max(Math.min(day(end) - day(today) + 1, total), 0);
+  return { remaining, total };
+}
+
+/** A period price for the days left, to the cent. Mirrors app.billing_prorate_cents. */
+export function prorateCents(periodCents: number, remaining: number, total: number): number {
+  if (total <= 0 || remaining <= 0) return 0;
+  return roundCents((periodCents * Math.min(remaining, total)) / total);
+}
+
+/**
+ * What adding spaces costs today: each kind priced once for the days left, then multiplied,
+ * so the invoice line is the quote to the cent. Filling a space already paid for is not an
+ * addition and costs nothing; this is only ever asked for spaces beyond what is paid.
+ */
+export function additionCents(input: {
+  plan: Plan;
+  period: BillingPeriod;
+  addFull: number;
+  addEquipment: number;
+  remaining: number;
+  total: number;
+}): number {
+  const space = fullSpacePeriodCents(input.plan, input.period);
+  if (space == null) return 0;
+  const unitFull = prorateCents(space, input.remaining, input.total);
+  const unitEquipment = prorateCents(EXTRA_EQUIPMENT_CENTS[input.period], input.remaining, input.total);
+  return whole(input.addFull) * unitFull + whole(input.addEquipment) * unitEquipment;
+}
+
+/**
+ * An upgrade made now: the whole package (full spaces and the equipment capacity carried
+ * across) valued on both plans, the difference for the days left. A lower total is a credit,
+ * never a negative charge (decision 25).
+ */
+export function upgradeDifference(input: {
+  from: Plan;
+  to: Plan;
+  period: BillingPeriod;
+  fullSpaces: number;
+  equipmentCapacity: number;
+  remaining: number;
+  total: number;
+}): { chargeCents: number; creditCents: number; fromCents: number; toCents: number } | null {
+  const before = renewal(input.from, input.period, { fullSpaces: input.fullSpaces, equipment: input.equipmentCapacity });
+  const after = renewal(input.to, input.period, { fullSpaces: input.fullSpaces, equipment: input.equipmentCapacity });
+  if (!before || !after) return null;
+  const diff =
+    input.total > 0 && input.remaining > 0
+      ? roundCents(((after.totalCents - before.totalCents) * Math.min(input.remaining, input.total)) / input.total)
+      : 0;
+  return {
+    chargeCents: Math.max(diff, 0),
+    creditCents: Math.max(-diff, 0),
+    fromCents: before.totalCents,
+    toCents: after.totalCents,
+  };
+}
+
+/**
+ * The plan features a move from one plan to another gives up. Records made with them stay
+ * readable; new use stops (decision 37). Only the gated features are listed: everything else
+ * is on every plan.
+ */
+export function lostFeatures(from: Plan, to: Plan): Feature[] {
+  return (Object.keys(FEATURE_MIN_PLAN) as Feature[]).filter((f) => planAllows(from, f) && !planAllows(to, f));
 }
 
 export type CapacityView = {

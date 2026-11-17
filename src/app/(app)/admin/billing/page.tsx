@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { must, mustAll } from "@/lib/supabase/must";
+import { must, mustAll, soft } from "@/lib/supabase/must";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
@@ -162,6 +162,21 @@ export default async function AdminBillingPage({
   const eftInstructions = ((await supabase.from("billing_settings").select("eft_instructions")
     .eq("singleton", true).maybeSingle()).data?.eft_instructions as string | null | undefined) ?? null;
   const [{ data: settingsData }, { data: priceData }, { data: subData }, { data: farmData }] = listResults;
+  // Larger customers asking for a quote at sign-up (decision 39, 20261115130000). Read through
+  // Rapid Rise's own session (the table's policy is Rapid Rise only); a failed read leaves the
+  // list out rather than the console.
+  const quoteRequests = (soft(
+    await supabase
+      .from("capacity_quote_requests")
+      .select("id, name, email, business_name, plan, billing_period, full_spaces, equipment, message, created_at")
+      .eq("status", "new")
+      .order("created_at", { ascending: false })
+      .limit(20),
+    "admin-billing:quote-requests",
+  ) ?? []) as {
+    id: string; name: string; email: string; business_name: string; plan: string; billing_period: string;
+    full_spaces: number; equipment: number; message: string | null; created_at: string;
+  }[];
 
   // Has the schedule actually been firing? The nightly pass can be inferred from the
   // notifications it writes; the billing pass writes NOTHING when nothing is due, so
@@ -261,6 +276,34 @@ export default async function AdminBillingPage({
           clears itself, and anything still being checked stays. */}
       <SavedMessage notice={savedHere} locale={locale} />
 
+      {/* == Quote requests above the online line ============================= */}
+      {quoteRequests.length > 0 ? (
+        <Card id="quote-requests">
+          <CardHeader>
+            <CardTitle>{t("adminBilling.quoteRequestsTitle", locale)}</CardTitle>
+          </CardHeader>
+          <p className="text-sm text-sand-700">{t("adminBilling.quoteRequestsLead", locale)}</p>
+          <ul className="mt-3 flex flex-col divide-y divide-sand-200">
+            {quoteRequests.map((q) => (
+              <li key={q.id} className="py-3 text-sm first:pt-0 last:pb-0">
+                <p className="font-semibold text-sand-900">{q.business_name}</p>
+                <p className="text-sand-700">
+                  {t("adminBilling.quoteRequestLine", locale)
+                    .replace("{full}", String(q.full_spaces))
+                    .replace("{equipment}", String(q.equipment))
+                    .replace("{plan}", t(`plan.${q.plan}`, locale))
+                    .replace("{period}", t(`billingPeriod.${q.billing_period}`, locale))}
+                </p>
+                <p className="text-sand-700">
+                  {q.name} · <a className="font-medium text-brand-ink underline" href={`mailto:${q.email}`}>{q.email}</a> ·{" "}
+                  {shortDate(q.created_at.slice(0, 10), locale)}
+                </p>
+                {q.message ? <p className="mt-1 text-sand-600">{q.message}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       {/* == Is the schedule still running? ==================================== */}
       <Card>
         <CardHeader>

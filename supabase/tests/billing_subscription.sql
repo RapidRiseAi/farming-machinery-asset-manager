@@ -1393,14 +1393,28 @@ declare
     -- Support equipment capacity and previews (20261114090300). They read the subscription and
     -- its price to count spaces; granted to nobody, reached only through the public previews
     -- and the conversion, which check the caller and strip the money for anyone but the payer.
-    'billing_subscription_for','lock_billing_for','asset_capacity_state','equipment_migration_state'];
+    'billing_subscription_for','lock_billing_for','asset_capacity_state','equipment_migration_state',
+    -- Mid-period changes and account credit (20261115110000). They price, accept, make and
+    -- cancel a change, raise its invoice, spend credit and settle a change payment; granted to
+    -- nobody, reached only through the service-role wrappers below and the billing triggers.
+    'farm_payment_late','billing_change_state','billing_credit_balance','billing_quote_change',
+    'billing_apply_change','billing_apply_credit','billing_invoice_spend_credit',
+    'billing_raise_change_invoice','billing_accept_quote','billing_settle_change_payment',
+    'billing_void_change_invoice','billing_cancel_quote','billing_expire_quotes',
+    -- The lifecycle (20261115120000): the gate for any day, the owner-only reading rule, the
+    -- retrieval window, paid extras in the grace, lifting a pause, owner notices, what is owed,
+    -- where a business stands, and the nightly notices.
+    'farm_billing_gate_on','farm_read_allowed','billing_retrieval_ends_on','farm_paid_extras_allowed',
+    'billing_lift_farm_pause','billing_notify_owners','farm_outstanding_cents','farm_lifecycle',
+    'billing_enqueue_lifecycle_notices'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
     'cron_close_billing_cancellations','cron_enqueue_billing_card_expiry',
     'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
     'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices',
-    'cron_generate_ai_usage_invoices','cron_apply_billing_suspensions'];
+    'cron_generate_ai_usage_invoices','cron_apply_billing_suspensions',
+    'cron_expire_billing_quotes','cron_enqueue_billing_lifecycle_notices'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1432,7 +1446,15 @@ declare
     'admin_extend_billing_access',
     -- Recording or reversing a payment made outside the app (20261029100000).
     'billing_record_manual_payment','billing_reverse_manual_payment',
-    'billing_raise_service_invoice'];
+    'billing_raise_service_invoice',
+    -- Mid-period changes (20261115110000): service role only, the actor passed and checked
+    -- again inside (app.billing_actor_may_change), the discount setter's reasoning.
+    'billing_change_preview','billing_quote_change','billing_accept_quote','billing_cancel_quote',
+    'billing_credit_balance',
+    -- Where a business stands (20261115120000), read by the stopped screens; see v_pub_auth_ok.
+    'farm_lifecycle',
+    -- A larger customer's quote request from sign-up (20261115130000), service role only.
+    'billing_request_capacity_quote'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1450,7 +1472,9 @@ declare
     'billing_advance_period','billable_asset_count','billing_card_expiry_on',
     'billing_price_for_subscription','billing_plan_change_quote',
     'farm_vehicle_allowance','billing_billable_units','farm_billing_gate',
-    'billing_reopen_subscription'];
+    'billing_reopen_subscription',
+    -- Paid extras in the grace (20261115120000): asked by the service-role AI and WhatsApp paths.
+    'farm_paid_extras_allowed'];
   -- PUBLIC wrappers a signed-in user may call. Until 20260910230000 this list was empty
   -- and did not exist, because every public.billing_* wrapper raises an invoice, settles a
   -- payment or reads a charging credential, a blanket refusal was the whole rule.
@@ -1461,7 +1485,10 @@ declare
   -- money and no credential; and the screen genuinely needs it, because the alternative is
   -- the UI and the database guard computing the same limit separately and eventually
   -- disagreeing about whether a farmer may add a bakkie.
-  v_pub_auth_ok text[] := array['farm_vehicle_allowance', 'farm_billing_gate'];
+  -- public.farm_lifecycle (20261115120000) passes the same four: it reads only, answers only for a
+  -- business the caller reaches (app.has_farm_access), gives the amount owed only to the payer,
+  -- and the stopped screens need it to say who may still read and until when.
+  v_pub_auth_ok text[] := array['farm_vehicle_allowance', 'farm_billing_gate', 'farm_lifecycle'];
   r record; n integer := 0;
 begin
   raise notice '== BILLING (j): every billing function locked down ==============';
@@ -1735,7 +1762,7 @@ begin
       -- argument name, so two arities of this would have made every existing call
       -- ambiguous. This row failing after a signature change is the point of it.
       ('billing_create_pending_signup',
-       'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer, p_promo_code text',
+       'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer, p_promo_code text, p_equipment integer',
        false),
       -- Founding Farmer pricing (20260920150000/160000). All three are service-role only:
       -- a browser that could set its own discount could set it to 100%.
@@ -1776,7 +1803,25 @@ begin
        'p_invoice uuid, p_amount_cents bigint, p_method text, p_bank_reference text, p_received_on date, p_note text, p_proof_path text, p_by uuid',
        false),
       ('billing_reverse_manual_payment', 'p_payment uuid, p_reason text, p_by uuid', false),
-      ('billing_raise_service_invoice', 'p_farm uuid, p_lines jsonb, p_due_on date, p_by uuid', false)
+      ('billing_raise_service_invoice', 'p_farm uuid, p_lines jsonb, p_due_on date, p_by uuid', false),
+      -- Mid-period changes and account credit (20261115110000), service role only, the actor
+      -- passed and checked again inside.
+      ('billing_change_preview',
+       'p_sub uuid, p_plan farm_plan, p_period billing_period, p_full integer, p_equipment_extra integer, p_current_list boolean',
+       false),
+      ('billing_quote_change',
+       'p_sub uuid, p_plan farm_plan, p_period billing_period, p_full integer, p_equipment_extra integer, p_current_list boolean, p_by uuid',
+       false),
+      ('billing_accept_quote',
+       'p_quote uuid, p_by uuid, p_charge_cents bigint, p_credit_cents bigint, p_next_renewal_cents bigint', false),
+      ('billing_cancel_quote', 'p_quote uuid, p_by uuid', false),
+      ('billing_credit_balance', 'p_sub uuid', false),
+      ('cron_expire_billing_quotes', '', false),
+      ('farm_lifecycle', 'p_farm uuid', true),
+      ('cron_enqueue_billing_lifecycle_notices', '', false),
+      ('billing_request_capacity_quote',
+       'p_name text, p_email text, p_business text, p_plan farm_plan, p_period billing_period, p_full integer, p_equipment integer, p_message text, p_lang text',
+       false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid

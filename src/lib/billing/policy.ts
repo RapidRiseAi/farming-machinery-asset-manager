@@ -158,3 +158,17 @@ export function graceEndsOn(
   if (existing) return toIsoDate(existing);
   return addDays(from, policy.graceDays);
 }
+
+/**
+ * Today in South Africa, `YYYY-MM-DD` (20261115120000): the date every lifecycle rule is
+ * decided on, as app.billing_today() decides it. The server runs in UTC, and between 00:00
+ * and 02:00 SAST the UTC date is still yesterday.
+ */
+export function billingToday(now: Date = new Date()): IsoDate {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Johannesburg",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}

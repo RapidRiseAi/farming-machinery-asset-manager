@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { rands } from "@/lib/money";
 import { FEATURE_MIN_PLAN, MIN_BILLED_SLOTS, NOT_YET_ADVERTISED, isPlan, planAllows, type Feature } from "@/lib/entitlements";
+import { EXTRA_EQUIPMENT_CENTS, SELF_SERVICE_MAX_FULL_SPACES, includedEquipment, renewal } from "@/lib/billing/calculator";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import { CheckIcon } from "@/components/ui/icons";
 
@@ -80,6 +81,12 @@ export function PlanPicker({
     vehiclesMore: string;
     totalMonthlyNote: string;
     totalAnnualNote: string;
+    /** Support equipment (20261115130000): the field, its help ({included}, {price}). */
+    equipment: string;
+    equipmentHelp: string;
+    /** Above the online line (decision 39): a capacity check and a quote, no account yet. */
+    quoteNote: string;
+    quoteTotal: string;
   };
 }) {
   const firstSellable = options.find((o) => o.monthlyCents != null) ?? options[0];
@@ -87,6 +94,7 @@ export function PlanPicker({
   const [period, setPeriod] = useState<"monthly" | "annual">("monthly");
   // Starts at the plan minimum (five slots), which is also the least anybody is billed for.
   const [vehicles, setVehicles] = useState(MIN_BILLED_SLOTS);
+  const [equipment, setEquipment] = useState(0);
   const [comparing, setComparing] = useState(false);
 
   const chosen = options.find((o) => o.plan === plan) ?? firstSellable;
@@ -94,7 +102,13 @@ export function PlanPicker({
   // `Number.parseInt("")` is NaN, which is not > 0, so an emptied box reads as zero rather
   // than rendering "R NaN" at somebody who is halfway through retyping a number.
   const count = Number.isFinite(vehicles) && vehicles > 0 ? vehicles : 0;
-  const total = unit == null ? null : unit * count;
+  const kit = Number.isFinite(equipment) && equipment > 0 ? equipment : 0;
+  // The renewal sum the invoice run uses (calculator.ts mirrors app.billing_renewal_cents):
+  // full spaces at the stated period price, at least five, plus equipment beyond the plan's
+  // allowance. Above the online line there is no price here, only a quote.
+  const overLine = count > SELF_SERVICE_MAX_FULL_SPACES;
+  const priced = unit == null || !isPlan(plan) ? null : renewal(plan, period, { fullSpaces: count, equipment: kit });
+  const total = overLine || priced == null ? null : priced.totalCents;
 
   /**
    * The comparison's rows: what every plan includes, then each gated feature in the order
@@ -112,7 +126,8 @@ export function PlanPicker({
     })),
   ];
 
-  const clampVehicles = (n: number) => Math.min(200, Math.max(MIN_BILLED_SLOTS, n));
+  // More than 200 is allowed here and becomes a quote request (decision 39), not a refusal.
+  const clampVehicles = (n: number) => Math.min(100000, Math.max(MIN_BILLED_SLOTS, n));
 
   // On a phone the plans scroll sideways under a fixed feature column, and the plan
   // somebody has chosen can start off-screen. Bring its column in beside the features when
@@ -316,7 +331,7 @@ export function PlanPicker({
             type="number"
             inputMode="numeric"
             min={MIN_BILLED_SLOTS}
-            max={200}
+            max={100000}
             value={Number.isFinite(vehicles) ? vehicles : ""}
             onChange={(e) => setVehicles(Number.parseInt(e.target.value, 10))}
             onBlur={(e) => {
@@ -336,13 +351,46 @@ export function PlanPicker({
         </div>
       </div>
 
+      {/* Support equipment: counted beside the full spaces, never part of the 200 line. */}
+      <div>
+        <label htmlFor="equipment" className="block text-sm font-medium">
+          {labels.equipment}
+        </label>
+        <p className="mt-0.5 text-sm text-sand-600">
+          {labels.equipmentHelp
+            .replace("{included}", String(isPlan(plan) ? includedEquipment(plan) : 0))
+            .replace("{price}", `${rands(EXTRA_EQUIPMENT_CENTS[period])} ${period === "annual" ? labels.perYear : labels.perMonth}`)}
+        </p>
+        <input
+          id="equipment"
+          name="equipment"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100000}
+          value={Number.isFinite(equipment) ? equipment : ""}
+          onChange={(e) => setEquipment(Number.parseInt(e.target.value, 10))}
+          onBlur={(e) => {
+            const n = Number.parseInt(e.target.value, 10);
+            setEquipment(Number.isFinite(n) ? Math.min(100000, Math.max(0, n)) : 0);
+          }}
+          className="mt-2 min-h-12 w-full rounded-lg border border-sand-300 bg-surface px-3 text-center text-lg font-semibold tabular-nums sm:min-h-11"
+        />
+      </div>
+
+      {overLine ? (
+        <p className="rounded-lg border border-callout-info-edge bg-callout-info-bg p-3 text-sm text-ink">{labels.quoteNote}</p>
+      ) : null}
+
       <div className="border-t border-sand-300 pt-4">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sand-700">{labels.total}</span>
           <span className="text-2xl font-semibold tabular-nums">
-            {total == null
-              ? labels.unavailable
-              : `${rands(total)} ${period === "annual" ? labels.perYear : labels.perMonth}`}
+            {overLine
+              ? labels.quoteTotal
+              : total == null
+                ? labels.unavailable
+                : `${rands(total)} ${period === "annual" ? labels.perYear : labels.perMonth}`}
           </span>
         </div>
         {/* What leaves the bank, and when. "R2 670 per year" and "R2 670 now" are

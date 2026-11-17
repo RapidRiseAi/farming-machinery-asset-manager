@@ -7,11 +7,12 @@ import { effectiveFarmRole, requireProfile } from "@/lib/auth";
 import { shortDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { must } from "@/lib/supabase/must";
-import { farmBillingGate } from "@/lib/billing/service";
+import { farmBillingGate, farmLifecycle } from "@/lib/billing/service";
 import { errorMessage } from "@/lib/errors";
 import { Flash } from "@/components/ui/flash";
 import { signOut } from "@/app/(app)/actions";
-import { reopenFarm } from "./actions";
+import { payToReopen, reopenFarm } from "./actions";
+import { RetrievalNotice, mayExport } from "@/components/billing/retrieval-notice";
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -82,13 +83,17 @@ export default async function ClosedPage({
 
   const farmRole = await effectiveFarmRole(farmId, profile);
   const canReopen = farmRole === "owner" || farmRole === "manager";
+  // Where it stands, from the database (20261115120000): a cancellation in its owner's 90 days
+  // of reading, an unpaid account whose 90 days are over, or a Rapid Rise hold.
+  const life = await farmLifecycle(supabase, farmId);
   // Three ways to be closed and they are not the same conversation. A farm Rapid Rise
   // suspended must not be told "your payments stopped", and a farm that cancelled on
-  // purpose should not be told it lapsed.
+  // purpose should not be told it lapsed. An unpaid account stays suspended on its
+  // subscription after its window (life.reason 'unpaid'); paying what it owes reopens it.
   const reason =
-    sub?.status === "cancelled"
+    life?.reason === "cancelled" || sub?.status === "cancelled"
       ? "cancelled"
-      : sub?.status === "downgraded"
+      : life?.reason === "unpaid" || sub?.status === "downgraded"
         ? "unpaid"
         : "suspended";
   const since = sub?.ended_on ?? sub?.downgraded_at ?? null;
@@ -112,6 +117,7 @@ export default async function ClosedPage({
         <p className="mt-4 rounded-lg bg-brand-tint p-3 text-sm text-ink">
           {t("closed.dataSafe", locale)}
         </p>
+        <RetrievalNotice life={life} isOwner={farmRole === "owner"} locale={locale} />
 
         {sp.error ? (
           <div className="mt-4">
@@ -119,7 +125,13 @@ export default async function ClosedPage({
           </div>
         ) : null}
 
-        {canReopen && reason !== "suspended" ? (
+        {canReopen && reason === "unpaid" ? (
+          <form action={payToReopen} className="mt-6">
+            {farmId !== profile.farm_id ? <input type="hidden" name="farm" value={farmId} /> : null}
+            <SubmitButton className="w-full">{t("closed.payToReopen", locale)}</SubmitButton>
+          </form>
+        ) : null}
+        {canReopen && reason === "cancelled" ? (
           <form action={reopenFarm} className="mt-6">
             {farmId !== profile.farm_id ? <input type="hidden" name="farm" value={farmId} /> : null}
             <SubmitButton className="w-full">
@@ -133,13 +145,16 @@ export default async function ClosedPage({
             and a promise you cannot act on is not one. A link, not a form, the route
             streams a file and nothing is being changed; DownloadLink keeps a second
             tap from starting a second export. */}
-        <DownloadLink
-          href={`/api/farm/export?farm=${farmId}`}
-          className="mt-3 flex min-h-12 w-full items-center justify-center rounded-lg border border-sand-300 px-4 text-sm font-medium sm:min-h-11"
-          labels={downloadLabels(locale)}
-        >
-          {t("closed.download", locale)}
-        </DownloadLink>
+        {/* The owner's export while their 90 days of reading are open (20261115120000). */}
+        {mayExport(life, farmRole === "owner") ? (
+          <DownloadLink
+            href={`/api/farm/export?farm=${farmId}`}
+            className="mt-3 flex min-h-12 w-full items-center justify-center rounded-lg border border-sand-300 px-4 text-sm font-medium sm:min-h-11"
+            labels={downloadLabels(locale)}
+          >
+            {t("closed.download", locale)}
+          </DownloadLink>
+        ) : null}
 
         {farmRole === "owner" && farmId === profile.farm_id ? (
           <p className="mt-3 text-center text-sm">

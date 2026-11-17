@@ -182,6 +182,8 @@ declare
     -- paying and the gate
     'farm_billing_gate', 'farm_vehicle_allowance', 'update_farm_billing', 'has_entitlement',
     'has_asset_entitlement',
+    -- where the business stands (20261115120000): asked by the stopped screens themselves
+    'farm_lifecycle',
     -- the person's own account and rights
     'ai_notice_ack', 'set_notification_prefs', 'erase_personal_data', 'export_personal_data',
     'whatsapp_manage_link', 'whatsapp_link_status',

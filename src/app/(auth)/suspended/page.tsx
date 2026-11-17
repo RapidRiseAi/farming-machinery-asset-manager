@@ -11,8 +11,8 @@ import { isUuid } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { must } from "@/lib/supabase/must";
-import { farmBillingGate, openInvoiceForFarm } from "@/lib/billing/service";
-import { toIsoDate } from "@/lib/billing/policy";
+import { farmBillingGate, farmLifecycle, openInvoiceForFarm } from "@/lib/billing/service";
+import { billingToday } from "@/lib/billing/policy";
 import {
   accessGraceDays,
   overdueAfterPaying,
@@ -32,12 +32,14 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { SwitchFarm } from "@/components/billing/switch-farm";
 import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { SettlingNotice } from "@/components/billing/settling-notice";
+import { RetrievalNotice, mayExport } from "@/components/billing/retrieval-notice";
 
 /**
  * The screen a farm sees once an invoice is more than seven days overdue (20261029090100).
  *
- * Decided on 26 and 27 October 2026: after the grace, access stops until the farm pays, and
- * its people may only pay and download their records. Nothing is deleted. Like /closed, it
+ * Decided on 26 and 27 October 2026, and on 12 November (decisions 38 and 41): after seven days
+ * of grace, renewals stop and for 90 days only the owner may read and download the records
+ * (the database enforces it, 20261115120000); anybody who may pay can pay. Nothing is deleted. Like /closed, it
  * lives in (auth) because the (app) layout is where the gate runs: a page inside it would
  * bounce to itself.
  */
@@ -59,6 +61,9 @@ export default async function SuspendedPage({
 
   const role = await effectiveFarmRole(farmId, profile);
   const canPay = role === "owner" || role === "manager";
+  // Who may still read, and until when (20261115120000): the owner, for 90 days.
+  const life = await farmLifecycle(supabase, farmId);
+  const isOwner = role === "owner";
 
   // What is owed, read only for somebody who may pay, and then through the SERVICE client.
   // This used to read through the caller's own client on the belief that billing rows are
@@ -101,6 +106,7 @@ export default async function SuspendedPage({
         ) : null}
 
         <p className="mt-4 rounded-lg bg-brand-tint p-3 text-sm text-ink">{t("suspended.dataSafe", locale)}</p>
+        <RetrievalNotice life={life} isOwner={isOwner} locale={locale} />
 
         {sp.error ? (
           <div className="mt-4">
@@ -138,13 +144,16 @@ export default async function SuspendedPage({
           <p className="mt-3 text-sm text-sand-700">{t("suspended.eft", locale).replace("{email}", COMPANY.email)}</p>
         ) : null}
 
-        <DownloadLink
-          href={`/api/farm/export?farm=${farmId}`}
-          className="mt-4 flex min-h-12 w-full items-center justify-center rounded-lg border border-sand-300 px-4 text-sm font-medium sm:min-h-11"
-          labels={downloadLabels(locale)}
-        >
-          {t("suspended.download", locale)}
-        </DownloadLink>
+        {/* The owner's export, while their reading is open; the team's reads are refused. */}
+        {mayExport(life, isOwner) ? (
+          <DownloadLink
+            href={`/api/farm/export?farm=${farmId}`}
+            className="mt-4 flex min-h-12 w-full items-center justify-center rounded-lg border border-sand-300 px-4 text-sm font-medium sm:min-h-11"
+            labels={downloadLabels(locale)}
+          >
+            {t("suspended.download", locale)}
+          </DownloadLink>
+        ) : null}
 
         {role === "owner" && farmId === profile.farm_id ? (
           <p className="mt-3 text-center text-sm">
@@ -189,8 +198,9 @@ async function payNowFor(svc: SupabaseClient, farmId: string) {
       .select("id, total_incl_cents, amount_paid_cents, due_on, issued_on")
       .eq("farm_id", farmId)
       .eq("status", "open")
-      // What keeps the farm paused: not a once-off service invoice.
-      .neq("kind", "service")
+      // What keeps the farm paused: not a once-off service invoice, nor a change invoice
+      // (20261115110000), which is closed rather than owed when it is not paid.
+      .not("kind", "in", "(service,change)")
       .is("deleted_at", null)
       .order("due_on", { ascending: true })
       // A farm has a handful of open invoices at most; the cap is for the read guard.
@@ -218,8 +228,8 @@ async function payNowFor(svc: SupabaseClient, farmId: string) {
     paying,
     payCents: paying ? Math.max(0, paying.total_incl_cents - paying.amount_paid_cents) : 0,
     payDue: paying ? (open.find((i) => i.id === paying.id)?.due_on ?? null) : null,
-    // The UTC date, as the gate's current_date is.
-    stillOverdueCents: overdueAfterPaying(open, refunded, paying?.id ?? null, graceDays, toIsoDate(new Date())),
+    // The South African date, as the gate decides it (20261115120000).
+    stillOverdueCents: overdueAfterPaying(open, refunded, paying?.id ?? null, graceDays, billingToday()),
     settling: await settlingOnInvoice(svc, farmId, paying?.id ?? null, "suspended:payment-attempt"),
   };
 }

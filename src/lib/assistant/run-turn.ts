@@ -109,6 +109,10 @@ function aiPaused(reason: Exclude<HoldRefusal, "not_member" | "unavailable" | "v
     own_key_broken: af
       ? "AI-hulp is gepouseer: die besigheid se eie OpenAI-sleutel werk nie. Tik en die gewone vorms werk steeds."
       : "AI help is paused: the business's own OpenAI key is not working. Typing and the normal forms still work.",
+    // A payment is late or the business is stopped (20261115120000): paid AI and voice pause.
+    billing_paused: af
+      ? "AI en stem is gepouseer omdat 'n betaling agterstallig is. Jou rekords werk steeds; die eienaar kan op die faktureringsbladsy betaal."
+      : "AI and voice are paused because a payment is overdue. Your records still work; the owner can pay on the billing page.",
   }[reason];
   return { kind: "error", code: "ai_paused", reason, message };
 }

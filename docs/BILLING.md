@@ -190,6 +190,9 @@ has been voided. Deleting an issued invoice is refused outright.
 > equipment spaces, pooled through the main site. `app.billing_enforce_vehicle_quota` locks the
 > subscription row before it counts, on every insert, restore, site move, conversion and
 > undelete, so concurrent adds cannot oversell. Buying capacity mid-period is task A2's.
+>
+> **Amended 2026-11-15 (20261115110000).** Buying capacity mid-period is a priced quote, accepted,
+> then PAID, and only then made: see section 16.
 
 Non-deleted machines, **excluding** `retired` and `sold`. **A vehicle that is out of
 service still counts**, it keeps its history and its papers, and a farm that could stop
@@ -339,6 +342,13 @@ the role first. Two locks: the grant is absent *and* no permissive write policy 
 
 ## 11. Dunning, grace and cancellation
 
+> **Superseded on 2026-11-15 (20261115120000), decisions 26, 38 and 41.** The seven days of grace
+> keep ordinary record keeping but sell nothing new that costs money (no charging change quote,
+> no paid AI or voice, no WhatsApp), and the owner is told the first day. From day eight
+> automatic renewals and card retries STOP and, for 90 days, only the owner may read and export;
+> after that nothing is readable until what is owed is paid. A cancellation keeps everything to
+> the paid-through date, then the same 90 days of owner reading; the farm row is paused too, so
+> the scheduled engines stop. See section 17. What follows is kept for history.
 > **Superseded on 2026-10-29 (20261029090100), by the founder's decision of 26 October
 > 2026.** A missed payment has seven days' grace (`billing_settings.access_grace_days`),
 > counted from the invoice's due date and read from INVOICES, so EFT and invoice customers
@@ -418,6 +428,11 @@ It is deliberately narrow:
 
 ## 11b. Refunds and disputes
 
+> **Amended 2026-11-15 (decision 26, TERMS_VERSION 2026-11-15).** The terms no longer promise a
+> refund because a customer no longer wants the service: cancelling stops the next renewal and
+> does not refund unused time; every refund request is looked at by a person, and the law's own
+> rights are not taken away. An owner can no longer end a subscription at once from /billing
+> (`billing-cancel-immediate`); ending it at once stays Rapid Rise's, after an agreed refund.
 **Founder decision, 12 September 2026, the whole policy.**
 
 Money only goes back when a person decides it should, one case at a time. The two ordinary
@@ -581,12 +596,16 @@ billing failure cannot disrupt maintenance jobs and vice versa. Same
 `Authorization: Bearer ${CRON_SECRET}` check. Steps, in order:
 
 1. **reconcile stuck attempts**, first, so a lost response is resolved before anything else
+   (1a since 20261115110000: **expire change quotes**: an unaccepted price closes, an accepted
+   change that was not paid has its invoice voided, so nothing charges an expired quote)
 2. capture asset snapshots
 3. apply pending plan changes, then generate invoices
 4. run charges
 5. apply suspensions (seven days' grace, then paused until paid, §11)
 6. close cancellations (the invoice run never renews a subscription that is ending, so a
    period-end cancellation closes on the night after its period, 20261029150000)
+6a. **lifecycle notices** (20261115120000): the first day of grace, and 30, 7 and 1 days before the
+   owner's reading closes, owners only, once each
 7. enqueue reminders, then **renewal notices** (§11a)
 8. card expiry, support escalation and delivery, dormant sign-up sweep
 9. receipts and failure emails
@@ -687,3 +706,55 @@ Measured against the production database, not asserted from the code.
   to the harness rather than to the schema. `billing_subscription.sql` passes.
 - `SUPPORT_WEBHOOK_URL` is unset, so `support_delivery` skips every night. A dispute's
   48-business-hour clock currently depends on somebody opening `/admin/support`.
+
+## 16. Mid-period changes: priced, accepted, paid, then made (20261115110000)
+
+Decision 25. Every change of plan, term or capacity is a row in `billing_change_quotes`:
+
+| Step | What happens |
+|---|---|
+| Quote | `app.billing_change_state` prices the target package on today's basis (South African date). Kept with its basis; expires after 30 minutes or at midnight in South Africa, whichever is first. A newer quote supersedes an unaccepted one. |
+| Accept | The amounts shown are passed back; under the subscription lock the change is priced again. A moved basis is `quote-changed`, an old price `quote-expired`; nothing is charged. Who, when and the amounts are kept. |
+| Now | More full spaces, more extra equipment spaces, a higher plan on the same term. With a charge: a `change` invoice for exactly that amount; the change is made only when the invoice is PAID (trigger `billing_payments_z_change`, every payment path). Without a charge: made at once. |
+| At renewal | Fewer full spaces, a lower plan, a change of term, a move to today's price list: written to the pending columns, landed by `apply_pending_plan_changes`, which marks the quote applied. Cancel, or quote again to replace. |
+
+Prices: an addition is `added x round(period price x days left / days in period)` per kind (days
+inclusive of today); half a month of an R15 equipment space is R7.50. An upgrade is
+`round((new package - old package) x days left / days)`, the package valued by
+`app.billing_renewal_cents` with the equipment capacity carried across. A lower total is account
+credit (Professional to Complete with 5 full and 15 equipment: R545 to R495, R25 credit for half a
+month), in `billing_account_credits`, spent on the next invoice as a payment with provider
+`credit`. Never a negative payment, never a refund. Under R1 left to pay is not charged.
+
+A change invoice never counts towards a pause, is never charged by the nightly run, never starts
+the dunning ladder when declined, and is voided at the end of its payment window (24 hours, or the
+period end) unless a payment is in flight. Money that arrives for a change that can no longer be
+made (window closed, period rolled over) becomes credit. Settling an attempt (restated in the same
+migration): a succeeded attempt is final; a failure duns once, on the move into `failed`; a
+delayed success after a failure or abandonment is recorded. The renewal date never moves.
+
+In grace (a payment late), a change that charges is refused `billing-grace-no-extras`; giving
+back is allowed. Above 200 full spaces a change is `billing-capacity-quote`.
+
+Tests: `supabase/tests/billing_change_quotes.sql` (scenarios 6, 7, 8, 10),
+`billing_payment_integrity.sql`, `src/lib/billing/change.test.ts`.
+
+## 17. The lifecycle (20261115120000)
+
+| State | When | Reading | Writing | Paid extras |
+|---|---|---|---|---|
+| active | paid up | everyone the roles allow | yes | yes |
+| grace | from the day after an owed invoice's due date (or a declined renewal), 7 days | as active | yes | no |
+| retrieval | day 8 unpaid (renewals and retries stop), or the day after a cancelled period's paid-through date; 90 days | the OWNER only | nobody | no |
+| closed | after the 90 days | nobody (billing tables stay open, so the owner can pay) | nobody | no |
+
+The gate keeps its four answers (`suspended` and billing `closed` are retrieval until
+`retrieval_ends_on`); owner-only reading is in `app.stopped_farm_ids(false)` and
+`app.require_open_farm(farm, false)`, so tables, Storage and definer functions all follow.
+Paying what is owed at any point, even after the 90 days, opens the business again with a fresh
+period from the payment date (`billing_restore_after_payment`); a cancelled business reopens from
+/closed. Every date is decided in South Africa. Deleting records after the 90 days is a future
+policy (decision 40, task A4): nothing here deletes anything.
+
+Tests: `supabase/tests/billing_lifecycle.sql` (scenarios 11 and 40), `pay_gate.sql`,
+`src/lib/billing/lifecycle.test.ts`.

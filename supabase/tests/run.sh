@@ -276,5 +276,13 @@ echo "==> running equipment restriction tests (plan x profile x feature at the t
 pg "$DB" < "$ROOT/supabase/tests/equipment_restrictions.sql"
 echo "==> running asset capacity tests (fixtures, pooling, no overselling, retirement, conversion)"
 pg "$DB" < "$ROOT/supabase/tests/asset_capacity.sql"
+echo "==> running mid-period change tests (quote, accept, pay, then the change; credit; renewal changes)"
+pg "$DB" < "$ROOT/supabase/tests/billing_change_quotes.sql"
+echo "==> running subscription lifecycle tests (seven days of grace, 90 days owner-only, closed, coming back)"
+pg "$DB" < "$ROOT/supabase/tests/billing_lifecycle.sql"
+echo "==> running payment integrity tests (one invoice per period and kind, settles in any order)"
+pg "$DB" < "$ROOT/supabase/tests/billing_payment_integrity.sql"
+echo "==> running sign-up capacity tests (equipment at sign-up, the 200 line, quote requests)"
+pg "$DB" < "$ROOT/supabase/tests/billing_signup_capacity.sql"
 
 echo "==> OK"

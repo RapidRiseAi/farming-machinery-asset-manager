@@ -643,6 +643,32 @@ const CODE_KEYS: Record<string, string> = {
   "equipment-convert-open-trips": "errors.equipmentConvertOpenTrips",
   "equipment-convert-tracker-linked": "errors.equipmentConvertTrackerLinked",
   "preview-bad-quantity": "errors.previewBadQuantity",
+  // == Mid-period changes (20261115110000) =====================================
+  // Raised by the quote engine with the slug as the message, or returned as a quote's
+  // `reason` when a change cannot be priced.
+  "quote-changed": "errors.quoteChanged",
+  "quote-expired": "errors.quoteExpired",
+  "quote-not-open": "errors.quoteNotOpen",
+  "quote-not-found": "errors.quoteNotFound",
+  "quote-awaiting-payment": "errors.quoteAwaitingPayment",
+  "billing-subscription-ended": "errors.billingSubscriptionEnded",
+  "billing-change-pending": "errors.billingChangePending",
+  "billing-plan-unpriced": "errors.billingPlanUnpriced",
+  "billing-change-metered": "errors.billingChangeMetered",
+  "billing-quantity-invalid": "errors.billingQuantityInvalid",
+  "billing-equipment-not-reducible": "errors.billingEquipmentNotReducible",
+  "billing-capacity-quote": "errors.billingCapacityQuote",
+  "billing-change-mixed": "errors.billingChangeMixed",
+  "billing-grace-no-extras": "errors.billingGraceNoExtras",
+  "billing-change-failed": "errors.billingChangeFailed",
+  // The owner's 90 days of reading (20261115120000).
+  "retrieval-owner-only": "errors.retrievalOwnerOnly",
+  "retrieval-ended": "errors.retrievalEnded",
+  // Ending a subscription at once is Rapid Rise's, after an agreed refund (decision 26).
+  "billing-cancel-immediate": "errors.billingCancelImmediate",
+  // Sign-up with support equipment and the 200 line (20261115130000).
+  "signup-equipment": "errors.signupEquipment",
+  "signup-capacity-quote": "errors.signupCapacityQuote",
 };
 
 /**
