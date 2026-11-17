@@ -282,5 +282,7 @@ echo "==> running subscription lifecycle tests (seven days of grace, 90 days own
 pg "$DB" < "$ROOT/supabase/tests/billing_lifecycle.sql"
 echo "==> running payment integrity tests (one invoice per period and kind, settles in any order)"
 pg "$DB" < "$ROOT/supabase/tests/billing_payment_integrity.sql"
+echo "==> running sign-up capacity tests (equipment at sign-up, the 200 line, quote requests)"
+pg "$DB" < "$ROOT/supabase/tests/billing_signup_capacity.sql"
 
 echo "==> OK"

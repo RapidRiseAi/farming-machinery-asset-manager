@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Sign-up with equipment and the 200 line; capacity quote requests above it.
+  "20261115130000": "select to_regclass('public.capacity_quote_requests') is not null and to_regprocedure('public.billing_create_pending_signup(uuid,text,text,text,farm_plan,billing_period,integer,text,integer)') is not null",
   // The lifecycle: retrieval window, the gate for any day, owner-only reading and the nightly notices.
   "20261115120000": "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_subscriptions' and column_name = 'retrieval_ends_on') and to_regprocedure('app.farm_billing_gate_on(uuid,date)') is not null and to_regprocedure('public.farm_lifecycle(uuid)') is not null and exists (select 1 from pg_trigger where tgname = 'billing_subscriptions_lift_pause')",
   // Mid-period changes: quotes, account credit, the change invoice kind and the payment trigger.

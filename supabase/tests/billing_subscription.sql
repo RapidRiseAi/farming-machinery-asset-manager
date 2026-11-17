@@ -1452,7 +1452,9 @@ declare
     'billing_change_preview','billing_quote_change','billing_accept_quote','billing_cancel_quote',
     'billing_credit_balance',
     -- Where a business stands (20261115120000), read by the stopped screens; see v_pub_auth_ok.
-    'farm_lifecycle'];
+    'farm_lifecycle',
+    -- A larger customer's quote request from sign-up (20261115130000), service role only.
+    'billing_request_capacity_quote'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
@@ -1760,7 +1762,7 @@ begin
       -- argument name, so two arities of this would have made every existing call
       -- ambiguous. This row failing after a signature change is the point of it.
       ('billing_create_pending_signup',
-       'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer, p_promo_code text',
+       'p_user uuid, p_email text, p_name text, p_farm_name text, p_plan farm_plan, p_period billing_period, p_quota integer, p_promo_code text, p_equipment integer',
        false),
       -- Founding Farmer pricing (20260920150000/160000). All three are service-role only:
       -- a browser that could set its own discount could set it to 100%.
@@ -1816,7 +1818,10 @@ begin
       ('billing_credit_balance', 'p_sub uuid', false),
       ('cron_expire_billing_quotes', '', false),
       ('farm_lifecycle', 'p_farm uuid', true),
-      ('cron_enqueue_billing_lifecycle_notices', '', false)
+      ('cron_enqueue_billing_lifecycle_notices', '', false),
+      ('billing_request_capacity_quote',
+       'p_name text, p_email text, p_business text, p_plan farm_plan, p_period billing_period, p_full integer, p_equipment integer, p_message text, p_lang text',
+       false)
     ) as t(fn, args, browser_ok)
   loop
     select p.oid into v_oid
