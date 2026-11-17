@@ -13,7 +13,7 @@ export type ConversionPreview = {
   needs?: { full_spaces?: number; equipment_spaces?: number };
   full?: { active?: number; after?: number; purchased?: number | null; free_now?: number | null; next_renewal?: number | null };
   equipment?: { active?: number; after?: number; included?: number; extra_paid?: number; extra_next_renewal?: number };
-  charge_now?: { status?: string; cents?: number | null };
+  charge_now?: { status?: string; cents?: number | null; reason?: string | null };
   /** Present only for the payer. */
   renewal?: { before_cents?: number | null; after_cents?: number | null };
   plans?: { plan: string; renewal_cents: number | null; current: boolean }[];
@@ -64,6 +64,15 @@ export function ConversionReview({ preview, locale }: { preview: ConversionPrevi
           {t("assets.convertNeedsSpace", locale)
             .replace("{full}", String(needFull))
             .replace("{equipment}", String(needEq))}
+          {/* Priced today for the days left (20261115110000); the amount reaches the payer only. */}
+          {preview.charge_now?.status === "quote" && preview.charge_now.cents != null ? (
+            <span className="mt-1 block">
+              {t("assets.convertSpacePrice", locale).replace("{amount}", rands(preview.charge_now.cents))}
+            </span>
+          ) : null}
+          {preview.charge_now?.status === "unavailable" && preview.charge_now.reason ? (
+            <span className="mt-1 block">{errorMessage(preview.charge_now.reason, locale)}</span>
+          ) : null}
         </p>
       ) : null}
       {toEquipment && !blocker ? <p className="text-sand-600">{t("assets.convertKeepsHistory", locale)}</p> : null}

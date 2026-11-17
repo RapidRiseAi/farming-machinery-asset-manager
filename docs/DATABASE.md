@@ -21,9 +21,10 @@ the authority on its columns (`supabase/migrations`, applied in filename order).
 - **A business that has not paid cannot work through anybody's session, its own included**
   (20261112090000). Every table with a `farm_id` carries restrictive `pay_gate_*` policies:
   while `app.farm_billing_gate` is not `ok`, a member cannot insert, update or delete that
-  business's rows. A `suspended` or `closed` business can still read them (pay and download:
-  the export reads through the person's own session); a `pending` one, which never paid,
-  cannot read them either. A row with no farm (the shared libraries) is never stopped, and
+  business's rows. A `suspended` or `closed` business is read by its OWNER only, for 90 days
+  (`billing_subscriptions.retrieval_ends_on`; the export reads through the owner's session),
+  and by nobody after that (20261115120000, decisions 38 and 41); a `pending` one, which never
+  paid, cannot be read at all. A row with no farm (the shared libraries) is never stopped, and
   Rapid Rise never is. `app.stopped_farm_ids(writing)` names the caller's stopped businesses
   once per statement, never per row. Tables a stopped business must keep (billing, the
   person's account and memberships, notifications, help, closure, handover) are listed
@@ -151,7 +152,17 @@ Since 20261114090300 a price row states its period price and its equipment terms
 count and price, and `app.billing_enforce_vehicle_quota` locks the subscription before it counts
 either profile. `public.asset_capacity_summary`, `asset_add_preview`, `asset_conversion_preview`,
 `convert_asset_profile` and `equipment_migration_preview` are the previews and the conversion.
-`docs/BILLING.md`.
+`billing_change_quotes` (20261115110000) is every priced mid-period change: its basis, target,
+charge, credit, next renewal, expiry, acceptance and outcome; a `now` change raises a `change`
+invoice and is made only when that invoice is paid (trigger on `billing_payments`), a
+`renewal` change writes the pending columns. `billing_account_credits` is append-only account
+credit (an upgrade that lowers the price, money for a change that could no longer be made),
+spent on the next invoice as a payment with provider `credit`. The lifecycle (20261115120000):
+`app.farm_billing_gate_on` answers for any South African day, `app.farm_read_allowed` and
+`app.farm_paid_extras_allowed` decide owner-only reading and the grace, `public.farm_lifecycle`
+says where a business stands for the stopped screens. `capacity_quote_requests`
+(20261115130000) holds a request for more than 200 full spaces made at sign-up (Rapid Rise
+only; no farm yet, so no pay gate). `docs/BILLING.md`.
 
 ## AI and voice
 
@@ -212,9 +223,48 @@ business that has not paid keeps).
 
 ## Keeping it tidy
 
+### B2 private staff conversations (17 November 2026, isolated branch)
+
+`20261117090000_staff_chat.sql` adds `chat_conversations`, `chat_members`,
+`chat_messages`, `chat_attachments` and `chat_events`. All have forced RLS and the
+existing account pay gate. Authenticated sessions have SELECT only; checked RPCs perform
+changes. Active internal membership is required, including an explicit inactive-membership
+denial instead of a home-farm fallback. Owners have no implicit access. Support reading
+requires an open audited support visit. New/re-added members see publication sequences
+after joining. Only the group creator manages membership; direct pairs remain direct.
+
+`chat_events` is the private append-only audit trail for these tables. They deliberately
+do not use the farm-wide audit trigger, which would disclose private conversations to
+nonmember owners. Events keep actor, action, record and time, with no body or title.
+
+`20261117090100_chat_uploads.sql` extends the existing upload target/commit functions with
+`chat_message`, uses the same quota reservation and byte validation, and adds private
+`chat-files` Storage policies. `chat_file_readable` applies conversation and message RLS
+rules to bytes. Restrictive policies prevent a broader legacy policy from granting chat
+access or permitting unreserved direct writes. The business-wide ZIP excludes this private
+bucket, while service quota and closure cleanup retain it in their inventory.
+
+Probes are in `apply_pending.mjs`; `staff_chat.sql` is in `run.sh`. Optional local checks
+`chat_review_check.mjs storage` and `mutations` exercise the actual migration with a Storage
+schema fixture and verify five guards fail when removed. `general_chat` defaults to
+unreleased. See `final-dev/REPORT-B2.md` for acceptance blockers and live checks.
+
 `scripts/apply_pending.mjs --dry` says what production is missing. Supabase's advisors
 (security and performance) are read after schema changes; what they flag and why it is
 left as it is lives in the 11 November entry of `LAUNCH_CHECKLIST.md`. Unused objects are
 found by reading every reference in the app, the other functions, policies, views, triggers
 and the suites before anything is dropped; the last such pass was 11 November 2026
 (20261111160000).
+
+## Manual driving log (B3 R-044 candidate)
+
+Migration 20261117110000_manual_driving_log.sql adds destination, ordered planned_stops,
+plan_version and optional start/end kilometres to driving_sessions, and reading, itinerary
+and request receipt fields to driving_events. Existing defaults preserve old rows. Existing
+tenant policies, pay gates and audit triggers remain; RLS is forced on both tables. There
+are no new tables. record_manual_driving_event is authenticated-only, checks
+app.require_open_farm before replay, and is covered by the pay_gate_functions.sql definer
+audit plus behavioural tests in manual_driving.sql. The old RPC signature is unchanged.
+The deployment probe is in scripts/apply_pending.mjs; no live migration was applied.
+Deploy the additive migration before the new page, which selects these columns. Rolling
+back application code can leave the additive schema and records intact.

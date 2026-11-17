@@ -128,6 +128,20 @@ export const BILLING_RPC = {
   // reach the invoice the visitor is about to pay.
   checkPromoCode: "billing_check_promo_code",
   setSubscriptionDiscount: "billing_set_subscription_discount",
+  // Mid-period changes (20261115110000): priced, accepted, paid, and only then made. All
+  // service-role only; the owner is checked in the action and again in the engine (p_by).
+  changePreview: "billing_change_preview",
+  quoteChange: "billing_quote_change",
+  acceptQuote: "billing_accept_quote",
+  cancelQuote: "billing_cancel_quote",
+  creditBalance: "billing_credit_balance",
+  expireQuotes: "cron_expire_billing_quotes",
+  // The lifecycle (20261115120000): where a business stands, for the stopped screens, and the
+  // owner's notices (the first day of grace, before reading closes).
+  lifecycle: "farm_lifecycle",
+  lifecycleNotices: "cron_enqueue_billing_lifecycle_notices",
+  // More than 200 full spaces at sign-up (decision 39, 20261115130000): a quote request.
+  requestCapacityQuote: "billing_request_capacity_quote",
 } as const;
 
 /** `billing_attempt_kind`. */
@@ -580,7 +594,9 @@ export async function openInvoiceForFarm(
       .eq("status", "open")
       // Not a once-off service invoice (20261029110000): the subscription's checkout pays
       // what keeps the farm running; stickers and training are paid by EFT or their link.
-      .neq("kind", "service")
+      // Nor a change invoice (20261115110000): it is paid by name from the change it buys,
+      // and an unpaid one is closed rather than owed, so the stopped pages never present it.
+      .not("kind", "in", "(service,change)")
       .is("deleted_at", null)
       .order("due_on", { ascending: true, nullsFirst: false })
       .limit(5),
@@ -935,6 +951,11 @@ export async function beginCheckout(
     userId?: string | null;
     /** Injected in tests, as the worker's is. Never resolved from the environment there. */
     provider?: SaasBillingProvider | null;
+    /**
+     * Pay this invoice rather than the oldest owed: a change invoice (20261115110000), which
+     * the generic pick leaves out. It must be this farm's, open and owed.
+     */
+    invoiceId?: string | null;
   },
 ): Promise<CheckoutStart> {
   const provider = input.provider !== undefined ? input.provider : await getSaasProvider();
@@ -952,8 +973,17 @@ export async function beginCheckout(
   const subscription = await farmSubscription(supabase, input.farmId);
   if (!subscription) return { ok: false, code: "billing-no-subscription" };
 
-  let invoice = await openInvoiceForFarm(supabase, input.farmId);
-  if (!invoice) {
+  const named = input.invoiceId ?? null;
+  const pick = async (): Promise<InvoiceRow | null> => {
+    if (!named) return openInvoiceForFarm(supabase, input.farmId);
+    const row = await getInvoiceById(supabase, named);
+    return row && row.farm_id === input.farmId && row.status === "open" && row.total_incl_cents > row.amount_paid_cents
+      ? row
+      : null;
+  };
+
+  let invoice = await pick();
+  if (!invoice && !named) {
     // Nothing open: it may simply be time to raise this period's. With no active price
     // version this makes nothing, which is the shipped state.
     const generated = await generateInvoicesFor(supabase, subscription.id);
@@ -993,7 +1023,7 @@ export async function beginCheckout(
   // still moving, and the person is asked to look at it again rather than charged a figure
   // nobody has seen.
   if (amountOwedChanged(claim.error)) {
-    const fresh = await openInvoiceForFarm(supabase, input.farmId);
+    const fresh = await pick();
     if (!fresh) return { ok: false, code: "billing-nothing-due" };
     // The EFT paid this invoice in full and another is now the oldest owed. That is not
     // the bill the person pressed Pay for, so they see the page again before paying it.
@@ -1636,6 +1666,194 @@ export async function changeSubscriptionPlan(
   });
   if (error) return { result: null, error: { message: redactMessage(error.message), code: error.code } };
   return { result: (data ?? null) as PlanChangeResult | null, error: null };
+}
+
+// == Mid-period changes (20261115110000) ======================================
+
+/** One side of a priced change: what the package is, or becomes. */
+export type ChangeSide = {
+  plan: string;
+  period: string;
+  price_version?: string | null;
+  full: number | null;
+  equipment_extra: number;
+  equipment_included: number;
+  equipment_capacity: number;
+};
+
+/**
+ * What `app.billing_change_state` answers: a change priced on today's basis. `now` is made
+ * once paid (more spaces, a higher plan); `renewal` is scheduled (fewer spaces, a lower plan,
+ * a change of term); `unavailable` carries a reason slug that `errors.ts` translates.
+ */
+export type ChangeState = {
+  kind: "now" | "renewal" | "no_change" | "unavailable";
+  reason: string | null;
+  change: "capacity" | "plan";
+  subscription_id?: string;
+  status?: string;
+  exempt?: boolean;
+  metered?: boolean;
+  today?: string;
+  effective_on?: string | null;
+  from?: ChangeSide;
+  to?: ChangeSide;
+  in_use?: { full: number; equipment: number };
+  period?: {
+    start: string | null;
+    end: string | null;
+    renewal_on: string | null;
+    days_remaining: number;
+    days_in_period: number;
+  };
+  money?: {
+    charge_now_cents: number;
+    credit_now_cents: number;
+    waived_cents: number;
+    unit_full_cents: number;
+    unit_equipment_cents: number;
+    credit_balance_cents: number;
+    pay_now_cents: number;
+    current_renewal_cents: number | null;
+    next_renewal_cents: number | null;
+  };
+  /** Present once a quote has been kept for acceptance. */
+  quote_id?: string;
+  expires_at?: string;
+};
+
+/** A change somebody asked to price. Null keeps the present value. */
+export type ChangeRequest = {
+  subscriptionId: string;
+  plan?: string | null;
+  billingPeriod?: string | null;
+  fullSpaces?: number | null;
+  equipmentExtra?: number | null;
+  /** Move the agreement to today's price list at the same plan. */
+  currentList?: boolean;
+};
+
+function changeArgs(input: ChangeRequest) {
+  return {
+    p_sub: input.subscriptionId,
+    p_plan: input.plan ?? null,
+    p_period: input.billingPeriod ?? null,
+    p_full: input.fullSpaces ?? null,
+    p_equipment_extra: input.equipmentExtra ?? null,
+    p_current_list: input.currentList ?? false,
+  };
+}
+
+/**
+ * Price a change and keep the price for the owner to accept (it expires in 30 minutes, or at
+ * midnight in South Africa). An `unavailable` or `no_change` answer keeps nothing.
+ */
+export async function quoteChange(
+  supabase: SupabaseClient,
+  input: ChangeRequest & { by: string },
+): Promise<{ state: ChangeState | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.quoteChange, { ...changeArgs(input), p_by: input.by });
+  if (error) return { state: null, error: { message: redactMessage(error.message), code: error.code } };
+  return { state: (data as ChangeState | null) ?? null, error: null };
+}
+
+/** What accepting a quote did. */
+export type AcceptResult = {
+  applied: "now" | "scheduled" | "awaiting_payment";
+  quote_id: string;
+  invoice_id?: string | null;
+  charge_cents?: number;
+  credit_cents?: number;
+  outstanding_cents?: number;
+  effective_on?: string | null;
+  repeat?: boolean;
+};
+
+/**
+ * Accept a quote at the amounts shown. The engine prices it again under the subscription
+ * lock and refuses a moved basis (`quote-changed`) or an old price (`quote-expired`); the
+ * refusal's message is the slug.
+ */
+export async function acceptQuote(
+  supabase: SupabaseClient,
+  input: { quoteId: string; by: string; chargeCents: number; creditCents: number; nextRenewalCents: number | null },
+): Promise<{ result: AcceptResult | null; error: ServiceError | null }> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.acceptQuote, {
+    p_quote: input.quoteId,
+    p_by: input.by,
+    p_charge_cents: input.chargeCents,
+    p_credit_cents: input.creditCents,
+    p_next_renewal_cents: input.nextRenewalCents,
+  });
+  if (error) return { result: null, error: { message: redactMessage(error.message), code: error.code } };
+  return { result: (data as AcceptResult | null) ?? null, error: null };
+}
+
+/** Cancel a quote, a change waiting for its payment, or a change scheduled for the renewal. */
+export async function cancelQuote(
+  supabase: SupabaseClient,
+  input: { quoteId: string; by: string },
+): Promise<{ error: ServiceError | null }> {
+  const { error } = await supabase.rpc(BILLING_RPC.cancelQuote, { p_quote: input.quoteId, p_by: input.by });
+  if (error) return { error: { message: redactMessage(error.message), code: error.code } };
+  return { error: null };
+}
+
+/**
+ * Where a business stands (20261115120000), from the person's own session: active, grace
+ * (a payment late, extras paused), pending, retrieval (stopped; the owner reads and exports
+ * until `retrieval_ends_on`) or closed. `outstanding_cents` is present for the payer only.
+ * Null when it cannot be read: callers decide whether that fails open or closed.
+ */
+export type FarmLifecycle = {
+  state: "active" | "grace" | "pending" | "retrieval" | "closed";
+  gate: BillingGate;
+  reason: "unpaid" | "cancelled" | "rapid_rise" | null;
+  today: string;
+  overdue_since: string | null;
+  grace_ends_on: string | null;
+  paid_through: string | null;
+  ended_on: string | null;
+  retrieval_ends_on: string | null;
+  outstanding_cents?: number;
+};
+
+export async function farmLifecycle(supabase: SupabaseClient, farmId: string): Promise<FarmLifecycle | null> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.lifecycle, { p_farm: farmId });
+  if (error) {
+    captureError(error, { where: "billing:lifecycle", farmId });
+    return null;
+  }
+  return (data as FarmLifecycle | null) ?? null;
+}
+/** The account's credit, in cents. Null when it cannot be read (the page then shows none). */
+export async function creditBalance(supabase: SupabaseClient, subscriptionId: string): Promise<number | null> {
+  const { data, error } = await supabase.rpc(BILLING_RPC.creditBalance, { p_sub: subscriptionId });
+  if (error) {
+    captureError(error, { where: "billing:credit-balance" });
+    return null;
+  }
+  return typeof data === "number" ? data : Number(data ?? 0);
+}
+/**
+ * The engine's refusals are raised with a slug as the message (`quote-changed`, `forbidden`,
+ * `billing-in-flight`). Anything else is a failed save, never shown as it came.
+ */
+const CHANGE_REFUSALS = new Set([
+  "quote-changed",
+  "quote-expired",
+  "quote-not-open",
+  "quote-not-found",
+  "quote-awaiting-payment",
+  "billing-in-flight",
+  "billing-no-subscription",
+  "forbidden",
+]);
+
+export function changeRefusal(error: ServiceError | null): string | null {
+  if (!error) return null;
+  const word = error.message.trim();
+  return CHANGE_REFUSALS.has(word) ? word : null;
 }
 
 /**

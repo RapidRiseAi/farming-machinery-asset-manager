@@ -50,7 +50,7 @@ export const SUBSCRIPTION_COLUMNS =
   // `asset_quota` is the number of vehicle slots BOUGHT (20260910230000). Null means this
   // subscription predates the quota model and is still metered on what it counts, which is
   // why the screen has to distinguish the two rather than showing 0.
-  "id, farm_id, plan, billing_period, status, asset_quota, pending_quota, pending_quota_on, " +
+  "id, farm_id, plan, billing_period, status, asset_quota, equipment_extra_quota, pending_quota, pending_quota_on, " +
   "price_version_id, price_version_label, trial_ends_on, " +
   // The farm's own deal (20260920150000). Read here so the estimate on screen is the same
   // figure the invoice generator will bill.
@@ -89,6 +89,8 @@ export type SubscriptionRow = {
   billing_period: string;
   status: string;
   asset_quota: number | null;
+  /** Extra support-equipment spaces paid for this period (20261114090300). */
+  equipment_extra_quota?: number | null;
   pending_quota: number | null;
   pending_quota_on: string | null;
   /** The price this subscription is held at, when one has been pinned. */
@@ -1329,6 +1331,19 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "billing.savedCardRemoved", tone: "success" };
     case "billing-details":
       return { key: "billing.savedBillingDetails", tone: "success" };
+    // Mid-period changes (20261115110000). Made, it is a confirmation the page then shows;
+    // scheduled, waiting for its payment, credited or cancelled, it stays put, because the
+    // money or the date it names is what the owner has to be able to read again.
+    case "change-made":
+      return { key: "billing.savedChangeMade", tone: "success" };
+    case "change-scheduled":
+      return { key: "billing.savedChangeScheduled", tone: "info" };
+    case "change-awaiting":
+      return { key: "billing.savedChangeAwaiting", tone: "info" };
+    case "change-credited":
+      return { key: "billing.savedChangeCredited", tone: "info" };
+    case "change-cancelled":
+      return { key: "billing.savedChangeCancelled", tone: "info" };
 
     // == Rapid Rise's own screen. Same resolver on purpose: two screens describing one
     //    outcome in two ways is how a support call and a customer stop agreeing. ==
@@ -1415,4 +1430,59 @@ export function quoteReasonKey(reason: string | null | undefined): string {
   if (r.includes("needs at least") && r.includes("vehicle slots")) return "billing.quotePlanNeedsSlots";
   if (r.includes("below what the provider")) return "billing.quoteBelowMinimum";
   return "billing.quoteUnavailableBody";
+}
+
+// == Mid-period changes (20261115110000) ======================================
+
+/** The quote columns the owner's screen reads (RLS: the payer and Rapid Rise only). */
+export const QUOTE_COLUMNS =
+  "id, subscription_id, change, mode, status, from_plan, from_period, from_full, from_equipment_extra, " +
+  "full_in_use, equipment_in_use, period_end, to_plan, to_period, to_full, to_equipment_extra, " +
+  "days_remaining, days_in_period, charge_now_cents, credit_now_cents, current_renewal_cents, " +
+  "next_renewal_cents, effective_on, expires_at, payment_due_by, invoice_id, detail, created_at, accepted_at";
+
+export type QuoteRow = {
+  id: string;
+  subscription_id: string;
+  change: "capacity" | "plan";
+  mode: "now" | "renewal";
+  status: "quoted" | "awaiting_payment" | "scheduled" | "applied" | "credited" | "cancelled" | "expired" | "superseded";
+  from_plan: string;
+  from_period: string;
+  from_full: number | null;
+  from_equipment_extra: number;
+  full_in_use: number;
+  equipment_in_use: number;
+  period_end: string | null;
+  to_plan: string;
+  to_period: string;
+  to_full: number | null;
+  to_equipment_extra: number;
+  days_remaining: number;
+  days_in_period: number;
+  charge_now_cents: number;
+  credit_now_cents: number;
+  current_renewal_cents: number | null;
+  next_renewal_cents: number | null;
+  effective_on: string;
+  expires_at: string;
+  payment_due_by: string | null;
+  invoice_id: string | null;
+  detail: { money?: { pay_now_cents?: number; credit_balance_cents?: number; waived_cents?: number } } | null;
+  created_at: string;
+  accepted_at: string | null;
+};
+
+/** A quote the owner can still accept: not yet accepted and not past its time. */
+export function quoteOpen(q: Pick<QuoteRow, "status" | "expires_at">, now: Date = new Date()): boolean {
+  return q.status === "quoted" && Date.parse(q.expires_at) > now.getTime();
+}
+
+/**
+ * What the owner pays today for an accepted change, after the credit the account holds. The
+ * engine stored it on the quote; this only reads it, falling back to the full charge.
+ */
+export function quotePayNow(q: Pick<QuoteRow, "charge_now_cents" | "detail">): number {
+  const v = q.detail?.money?.pay_now_cents;
+  return typeof v === "number" && v >= 0 ? v : q.charge_now_cents;
 }

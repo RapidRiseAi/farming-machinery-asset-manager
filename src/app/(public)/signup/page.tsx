@@ -43,7 +43,7 @@ import { signUp } from "./actions";
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; quote?: string }>;
 }) {
   const sp = await searchParams;
   // Pre-auth there is no profile to read a language from, so the device decides.
@@ -101,6 +101,11 @@ export default async function SignUpPage({
         <div className="mt-5">
           <Flash tone="error" message={errorMessage(sp.error, locale)} />
         </div>
+      ) : null}      {/* More than 200 full spaces: the request is with Rapid Rise (decision 39). */}
+      {sp.quote === "sent" ? (
+        <div className="mt-5">
+          <Flash tone="success" message={t("signup.quoteSent", locale)} />
+        </div>
       ) : null}
 
       <form action={signUp} className="mt-8 space-y-5">
@@ -148,6 +153,10 @@ export default async function SignUpPage({
             unavailable: t("signup.unavailable", locale),
             choosePlan: t("signup.choosePlan", locale),
             howOften: t("signup.howOften", locale),
+            equipment: t("signup.equipment", locale),
+            equipmentHelp: t("signup.equipmentHelp", locale),
+            quoteNote: t("signup.quoteNote", locale),
+            quoteTotal: t("signup.quoteTotal", locale),
           }}
         />
 

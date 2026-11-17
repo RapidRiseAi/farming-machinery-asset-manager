@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { effectiveFarmRole, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { farmBillingGate, reopenFarmSubscription } from "@/lib/billing/service";
+import { beginCheckout, billingContactEmail, farmBillingGate, farmLifecycle, reopenFarmSubscription } from "@/lib/billing/service";
 import { isUuid } from "@/lib/ids";
 
 /**
@@ -54,4 +54,32 @@ export async function reopenFarm(formData: FormData): Promise<void> {
 
   // The gate now answers 'pending', so /activate is reachable and carries the invoice.
   redirect(`/activate${which ? `?${which}` : ""}`);
+}
+
+/**
+ * An unpaid account whose 90 days of reading have passed (20261115120000): paying what it
+ * owes opens it again, exactly as paying during the 90 days does (the restore after payment
+ * starts a fresh period from the payment date, so the weeks it was stopped are not billed).
+ * The checkout pays the oldest owed invoice; nothing new is raised.
+ */
+export async function payToReopen(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  const asked = String(formData.get("farm") ?? "");
+  const farmId = isUuid(asked) ? asked : profile.farm_id;
+  if (!farmId) redirect("/home");
+  const which = farmId !== profile.farm_id ? `farm=${farmId}` : "";
+
+  const farmRole = await effectiveFarmRole(farmId, profile);
+  if (farmRole !== "owner" && farmRole !== "manager") bounce("forbidden", which);
+
+  const rls = await createClient();
+  if ((await farmBillingGate(rls, farmId)) !== "closed") redirect("/home");
+  const life = await farmLifecycle(rls, farmId);
+  if (life?.reason !== "unpaid") bounce("billing-nothing-due", which);
+
+  const service = createServiceClient();
+  const email = await billingContactEmail(service, farmId, profile.email);
+  const started = await beginCheckout(service, { farmId, email, userId: profile.id });
+  if (!started.ok) bounce(started.code, which);
+  redirect(started.url);
 }

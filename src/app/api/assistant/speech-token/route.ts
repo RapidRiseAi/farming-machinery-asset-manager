@@ -189,6 +189,8 @@ export async function POST(request: Request) {
     if (session.reason === "voice_off") return jsonError("voice_off", 403);
     if (session.reason === "not_member") return jsonError("forbidden", 403);
     if (session.reason === "token_rate") return jsonError("rate_limited", 429, { "Retry-After": "600" });
+    // A payment is late or the business is stopped (20261115120000): an expected state, not a fault.
+    if (session.reason === "billing_paused") return jsonError("billing_paused", 402);
     captureError(new Error(`voice session not opened (${session.reason ?? "unknown"})`), { where: "speech-token:session" });
     return jsonError("speech_unavailable", 503);
   }

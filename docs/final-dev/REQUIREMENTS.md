@@ -29,7 +29,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-006 | Renewal formula F x rate + max(0, E - A) x equipment rate; four monthly fixtures and annual equivalents | S4 | none | E (A1) | A1 | Sc1: asset_capacity.sql [1], calculator.test.ts, view.test.ts |
 | R-007 | Purchased full capacity distinct from active full-asset count; retiring frees a space, does not reduce the purchase | S4, D27 | `asset_quota` vs `app.billable_asset_count` (20260910230000) | E (A1) | A1 | Sc5: asset_capacity.sql [5] |
 | R-008 | Equipment counted as a quantity (no per-item free/paid label) | S4, D-pricing | none | E (A1) | A1 | asset_capacity.sql [5], calculator.test.ts |
-| R-009 | Self-service 5 to 200 full spaces; 201+ routed to capacity check and quote; not a combined equipment cap | S4, D39 | signup picker clamps 5..200 (`src/app/(public)/signup/plan-picker.tsx`); server has no ceiling | C (A1 rule done; A2 signup route) | A1 (rule), A2 (signup route) | Sc2: calculator.test.ts signupRoute, asset_capacity.sql [2] |
+| R-009 | Self-service 5 to 200 full spaces; 201+ routed to capacity check and quote; not a combined equipment cap | S4, D39 | signup picker clamps 5..200 (`src/app/(public)/signup/plan-picker.tsx`); server has no ceiling | E (A2; website part A5) | A1 (rule), A2 (signup route) | Sc2: calculator.test.ts signupRoute, asset_capacity.sql [2], billing_signup_capacity.sql, billing_change_quotes.sql [39] |
 | R-010 | One plan across a customer's sites; capacity, allowance, storage and budget pooled once; no grouping inferred from email | S4, D2, D22 | `farms.billed_through` main-site grouping (20261107150000) | C (A1 equipment and full pooled; A3 storage, budget) | A1 (equipment), A3 (storage, budget) | Sc3: asset_capacity.sql [3] |
 | R-011 | Lowest-total plan that supplies the needed features is recommended; never auto-switch | S4 | none | E (A1) | A1 | calculator.test.ts comparePlans; previews list every plan |
 | R-012 | Money in integer cents; snapshot currency, tax, prices, contract version; issued invoices immutable; old prices pinned | S4 | `billing_freeze_invoice`, `billing_freeze_price_version`, `billing_price_for_subscription` | E (A1) | A1 (new version), A2 | billing_subscription.sql (0), asset_capacity.sql [5] |
@@ -49,7 +49,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-026 | Equipment refused on every plan: driver workflow, own trips, tracking, road licensing, fuel-use analysis, TCO, depreciation, loan/lease, budgets, detailed tyres | S5, D3, D33 | none | E (A1) | A1 | Sc14: equipment_restrictions.sql |
 | R-027 | Trailer on the equipment profile may be referenced by a full vehicle's trip without gaining any refused tool | S5, D32 | `trips.trailer_id`, `second_trailer_id` | E (A1) | A1 | Sc15: equipment_restrictions.sql |
 | R-028 | Eligible equipment may take the full profile; vehicles never take the equipment profile | S5, D1, D27 | none | E (A1) | A1 | equipment_profile.sql, asset_capacity.sql [9] |
-| R-029 | Conversion keeps identity, documents, history; previews extra capacity and current/renewal totals; audited | S5, D27 | none | C (A1 preview, conversion, audit; A2 prices the space bought today) | A1 (preview, convert), A2 (proration) | Sc9: asset_capacity.sql [9] |
+| R-029 | Conversion keeps identity, documents, history; previews extra capacity and current/renewal totals; audited | S5, D27 | none | E (A1, A2: the space bought today is priced, bought through a quote) | A1 (preview, convert), A2 (proration) | Sc9: asset_capacity.sql [9] |
 | R-030 | Retiring equipment stops its extra charge at next renewal; no current-period refund; history kept | S5, D6 | `retired` excluded from `billable_asset_count` | E (A1) | A1 (count), A2 (renewal) | Sc5: asset_capacity.sql [5] |
 | R-031 | Restore needs available capacity; no archive/restore cycling to dodge fees or charge twice; no new work on retired equipment | S5, D6 | `returnMachineToService` (out_of_service only); quota trigger | E (A1) | A1 | Sc4, Sc5: asset_capacity.sql [4] [5] |
 | R-032 | Transfers within a customer do not consume capacity twice; cross-customer handover explicit | S5 | `move_machine_to_site` (20261107110000) | C (A1 capacity; A6 handover audit) | A1 (capacity), A6 (handover audit) | Sc4: asset_capacity.sql [4] |
@@ -64,11 +64,11 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-041 | Profile check on every server path: pages, actions, API, RPC, policies, imports, offline sync, exports, jobs, assistant, WhatsApp, partner links, public API | S6, D19 | none for profile | E (A1) at the table; B4 assistant and WhatsApp wording | A1 (DB rules), B4 (assistant/WhatsApp wording) | Sc14: equipment_restrictions.sql |
 | R-042 | Essential keeps job costs, parts/labour lines, finance documents, repair records, core tyres and loan/lease for full assets | S6, D33 | `can_view_farm_costs`, `can_view_farm_finance` ungated by plan | E | A1 | Sc16: equipment_restrictions.sql |
 | R-043 | Budgets, TCO, depreciation on Professional+ for full assets | S6, S7, D33 | `tco` gate (PLAN_FEATURES.md) | E (A1) | A1 | Sc16: equipment_restrictions.sql |
-| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | C (A1 key and equipment refusal; B3 written stops) | A1 (key), B3 (workflow) | equipment_restrictions.sql |
+| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | X (A1 key; Codex B3 manual workflow, awaiting Claude integration review) | A1 (key), B3 (workflow) | equipment_restrictions.sql; manual_driving.sql; REPORT-B3-DRIVING.md |
 | R-045 | Trip scheduling, assignments, trailer reference, delivery evidence, trip finance on Professional and Complete | S8, D16 | trips ungated by plan (`src/app/(app)/trips/actions.ts`) | C (A1 plan gate; B3 workflow) | A1 (gate), B3 (workflow) | equipment_restrictions.sql (plan gates) |
 | R-046 | Maps, route planning, reported locations, driving paths on Complete only, plus readiness flag; gate provider calls and writes | S8, D18 | `featureOn("map")` only (`src/lib/routing/access.ts`) | C (A1 plan gate and mapsAvailable; B3 provider paths) | A1 (gate), B3 (provider paths) | equipment_restrictions.sql (plan gates) |
 | R-047 | Sale and warranty packs every plan for both profiles; financial section obeys plan/profile/cost permission | S7, D33 | `/api/packs/machine/[id]/sale`, `warranty` (tco on cost section) | E (A1) | A1 | pack-data machineAllows |
-| R-048 | General chat on every plan (feature key defined here, built by B2) | S14, D20 | none | M (A1 key defined; B2 builds) | A1 (key), B2 | Sc19 |
+| R-048 | General chat on every plan (feature key defined here, built by B2) | S14, D20 | `/chat`, `general_chat` readiness and staff membership gate | X (B2 isolated; Claude review and live checks pending) | A1 (key), B2 | Sc19; REPORT-B2.md |
 | R-049 | Costs not globally hidden on Essential | S6 | cost visibility by role only | E | A1 | Sc16 |
 | R-050 | Resource-site roles authoritative; billing authority grants no operational access | S6 | `app.effective_farm_role`, `is_farm_billing_admin` | E | A6 | Sc18 |
 | R-051 | Downgrade keeps read/export of saved higher-tier records; no new premium computation | S6, D37 | none explicit | M | B3 | Sc17 |
@@ -107,23 +107,23 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-080 | One customer-wide monthly rand cap for AI, voice, paid WhatsApp; owner sets it; no R200 default; blank is not unlimited | S12, D23 | per-farm `ai_default_limit_cents` 20000 (20261004100000) | C | A3 | Sc30 |
 | R-081 | Reservation before paid work incl. 30% markup and in-flight work; settle; staff sublimits | S12 | AI ledger holds (`ai_reservations`) | C | A3 | Sc31 |
 | R-082 | Free WhatsApp message R0; AI billed once; BYOK not rebilled | S12, D24 | `farm_ai_keys`, `usage_rates` | C | A3 | Sc32 |
-| R-083 | Invoice uniqueness per customer + period + category | S12, S15 | `billing_invoices_farm_period_uq`; usage invoices by `runOnce` | C | A2, A3 | Sc10 |
+| R-083 | Invoice uniqueness per customer + period + category | S12, S15 | `billing_invoices_farm_period_uq`; usage invoices by `runOnce` | E (A2 for subscription kinds; A3 for usage) | A2, A3 | Sc10 |
 | R-084 | Equipment assistance on Complete limited to permitted tasks; confirmation before writes | S12, D19 | `apply_assistant_proposal` (no profile check) | C | A1 (DB rule), B4 (assistant) | Sc36 |
 | R-085 | WhatsApp text, reminders, photos, voice notes; sender verification, site context, replay protection, app upload link for oversized media; real-phone tests | S13, D21 | `src/lib/whatsapp/*`, 20261015175415, 20261104210000 | X | B4 | Sc33 |
 | R-086 | Paid WhatsApp needs owner acceptance of charges and cap with timestamp/version | S13, D24 | none | M | B4, A3 | Sc33 |
-| R-087 | General staff chat: direct and group, membership, pagination, retry, unread, attachments, partner isolation | S14, D20 | none (only `work_request_events`, `support_ticket_messages`) | M | B2 | Sc19, Sc34 |
+| R-087 | General staff chat: direct and group, membership, pagination, retry, unread, attachments, partner isolation | S14, D20 | `chat_*`, `/api/chat`, B1 uploads; shared-job discussions retained | X (B2 isolated; Claude review and live checks pending) | B2 | Sc19, Sc34; staff_chat.sql, protocol/privacy tests, chat_ui_check.mjs; REPORT-B2.md |
 
 ### Billing lifecycle (S15)
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-090 | Additions prorated to the renewal, acceptance before capacity; filling paid/included space free | S15, D25 | `billing_quota_change_quote` full slots only | C | A2 | Sc6 |
-| R-091 | Upgrades immediate with remaining-period difference on the whole package incl. allowances; credit when lower | S15, D25 | `billing_plan_change_quote` (charge only, no credit) | C | A2 | Sc7 |
-| R-092 | Downgrades and reductions at renewal, never below 5; pending change edit/cancel; revalidate | S15, D25, D27 | `pending_plan`, `pending_quota`, `apply_pending_plan_changes` | C | A2 | Sc8 |
-| R-093 | Cancellation stops next renewal, access to paid-through date, no automatic refund | S15, D26 | `setCancellation`, `billing_close_cancellations` | C | A2 | Sc11 |
-| R-094 | Failed renewal: 7 days grace (no paid extras), then 90 days owner-only read/export | S15, D41, D38 | 7 days grace then suspended (`farm_billing_gate`) | C | A2 | Sc11, Sc40 |
-| R-095 | Reactivation without duplicate charge or replay | S15 | `billing_restore_after_payment` | C | A2 | Sc10 |
-| R-096 | Paystack webhook authenticity, amount, currency, attempt and quote version | S15 | `src/lib/billing/webhook.ts` | E | A2 | Sc10 |
+| R-090 | Additions prorated to the renewal, acceptance before capacity; filling paid/included space free | S15, D25 | `billing_quota_change_quote` full slots only | E (A2) | A2 | Sc6: billing_change_quotes.sql, change.test.ts |
+| R-091 | Upgrades immediate with remaining-period difference on the whole package incl. allowances; credit when lower | S15, D25 | `billing_plan_change_quote` (charge only, no credit) | E (A2) | A2 | Sc7: billing_change_quotes.sql, change.test.ts |
+| R-092 | Downgrades and reductions at renewal, never below 5; pending change edit/cancel; revalidate | S15, D25, D27 | `pending_plan`, `pending_quota`, `apply_pending_plan_changes` | E (A2) | A2 | Sc8, Sc10: billing_change_quotes.sql |
+| R-093 | Cancellation stops next renewal, access to paid-through date, no automatic refund | S15, D26 | `setCancellation`, `billing_close_cancellations` | E (A2; legal read of the terms is external) | A2 | Sc11: billing_lifecycle.sql |
+| R-094 | Failed renewal: 7 days grace (no paid extras), then 90 days owner-only read/export | S15, D41, D38 | 7 days grace then suspended (`farm_billing_gate`) | E (A2) | A2 | Sc11, Sc40: billing_lifecycle.sql, pay_gate.sql, lifecycle.test.ts |
+| R-095 | Reactivation without duplicate charge or replay | S15 | `billing_restore_after_payment` | E (A2) | A2 | Sc10, Sc11: billing_lifecycle.sql |
+| R-096 | Paystack webhook authenticity, amount, currency, attempt and quote version | S15 | `src/lib/billing/webhook.ts` | E (A2: settle guards, quote bound through its invoice) | A2 | Sc10: billing_payment_integrity.sql, billing_change_quotes.sql, webhook.test.ts |
 
 ### Export, retention, deletion (S16)
 
@@ -165,7 +165,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-131 | RLS on every new table (chat, equipment, intents, exports, usage) | S20 | pay gate and fence suites | C | each owner, A6 audit | Sc37 |
 | R-132 | Password recovery, invite, magic link, deep links, removed-member sessions | S20 | `src/app/(auth)`, `src/app/auth` | C | A6 | Sc38 |
 | R-133 | Media backup pipeline and restore drill from a separate copy | S21 | `.github/workflows/file-copy.yml`, `docs/BACKUP.md` (secrets missing) | X | A6 | Sc39 |
-| R-134 | Scheduler auth, locks, health checks, alerts; lifecycle stops scheduled writes | S21 | `/api/health`, `cron_runs`, `CRON_SECRET` | C | A6, A2 | Sc40 |
+| R-134 | Scheduler auth, locks, health checks, alerts; lifecycle stops scheduled writes | S21 | `/api/health`, `cron_runs`, `CRON_SECRET` | C (A2 lifecycle part E: billing_lifecycle.sql; A6 the rest) | A6, A2 | Sc40 |
 | R-135 | Load tests on disposable/staging data only | S21 | none (no k6 scripts) | M | A6 | Sc42 |
 | R-136 | Forward-only migrations, release sequence, rollback, migration preview, feature flags | S24 | `scripts/apply_pending.mjs`, `deploy_compatibility.sql` | C | A6 (A1 for equipment preview) | Sc37 |
 | R-137 | Deliverables matrix, catalogue, billing examples, provider checklist, readiness status | S25 | none | M | A6 | n/a |
@@ -175,7 +175,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
 | R-140 | Website comparison table with equipment allowances, minimum, extra equipment price, annual totals, storage, assistance | S22 | website repo (not read in A1: lane access) | C | A5 | Sc41 |
-| R-141 | Signup carries plan, period, full spaces and equipment, tamper-resistant; never activated from URL | S22 | `src/app/(public)/signup`, `app.create_pending_signup` | C | A2 (server), A5 (website) | Sc41 |
+| R-141 | Signup carries plan, period, full spaces and equipment, tamper-resistant; never activated from URL | S22 | `src/app/(public)/signup`, `app.create_pending_signup` | C (A2 server and app form E: billing_signup_capacity.sql; A5 website) | A2 (server), A5 (website) | Sc41 |
 | R-142 | App pricing/help/legal copy, FAQ, renewal and cancellation text, limits source of truth, revised plan PDF | S22 | `src/lib/legal.ts`, help pages, `C:\projects\output\pdf\build_fleetwise_review.py` | C | A5 | Sc41 |
 | R-143 | Customer guidance EN/AF for equipment, quotas, spending, chat, exports, payments, devices | S25.8 | help pages | M | A5 | review |
 

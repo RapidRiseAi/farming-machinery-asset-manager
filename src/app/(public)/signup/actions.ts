@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { PLANS, BILLING_PERIODS, billedSlots, perVehiclePeriodCents, type Plan } from "@/lib/entitlements";
 import { BILLING_RPC } from "@/lib/billing/service";
+import { SELF_SERVICE_MAX_FULL_SPACES } from "@/lib/billing/calculator";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email/verify";
@@ -15,8 +16,9 @@ import { captureError } from "@/lib/observability";
 import { checkTurnstile } from "@/lib/security/turnstile";
 import type { BillingPeriod } from "@/lib/entitlements";
 
-/** The most vehicles somebody may buy on the public form without talking to us first. */
-const MAX_SELF_SERVE_VEHICLES = 200;
+// The most full spaces somebody may buy on the public form (decision 39): more is a capacity
+// check and a quote, recorded below, never a refusal. Mirrors app.self_service_max_full_spaces().
+const MAX_SELF_SERVE_VEHICLES = SELF_SERVICE_MAX_FULL_SPACES;
 
 function bounce(code: string): never {
   redirect(`/signup?error=${encodeURIComponent(code)}`);
@@ -50,6 +52,9 @@ export async function signUp(formData: FormData): Promise<void> {
   const plan = String(formData.get("plan") ?? "") as Plan;
   const period = String(formData.get("billing_period") ?? "monthly") as BillingPeriod;
   const vehicles = Number.parseInt(String(formData.get("vehicles") ?? ""), 10);
+  // Support equipment (20261115130000): zero or more, counted apart from the full spaces.
+  const equipmentRaw = String(formData.get("equipment") ?? "").trim();
+  const equipment = equipmentRaw === "" ? 0 : Number.parseInt(equipmentRaw, 10);
   // Optional, upper-cased here so "founding20" typed at six in the morning is the code on
   // the offer sheet. Blank means no code and is not an error.
   // No public promo codes (founder record of 26 October 2026): a Founding Farmer deal is
@@ -65,7 +70,7 @@ export async function signUp(formData: FormData): Promise<void> {
   if (!(PLANS as readonly string[]).includes(plan)) bounce("signup-plan");
   if (!(BILLING_PERIODS as readonly string[]).includes(period)) bounce("signup-plan");
   if (!Number.isFinite(vehicles) || vehicles < 1) bounce("signup-vehicles");
-  if (vehicles > MAX_SELF_SERVE_VEHICLES) bounce("signup-too-many");
+  if (!Number.isFinite(equipment) || equipment < 0 || equipment > 100000) bounce("signup-equipment");
 
   // The tick is required, and the VERSION is checked rather than trusted. The form posts
   // what the page rendered, so a deploy between load and submit cannot record agreement to
@@ -107,6 +112,28 @@ export async function signUp(formData: FormData): Promise<void> {
   // it would otherwise cause is turning away a real customer at the front door, and the
   // abuse it would otherwise permit costs a dormant row that the nightly sweep removes.
   if (!slotError && slot === false) bounce("signup-busy");
+
+  // == Above the online line: a quote request, not an account (decision 39) ===============
+  // Behind the same bot check and rate limit as a sign-up. No auth user, farm or invoice is
+  // made; Rapid Rise checks the capacity and quotes, and is told of the request.
+  if (vehicles > MAX_SELF_SERVE_VEHICLES) {
+    const { error: quoteError } = await svc.rpc(BILLING_RPC.requestCapacityQuote, {
+      p_name: name,
+      p_email: email,
+      p_business: farmName,
+      p_plan: plan,
+      p_period: period,
+      p_full: vehicles,
+      p_equipment: equipment,
+      p_message: null,
+      p_lang: await deviceLocale(),
+    });
+    if (quoteError) {
+      captureError(quoteError, { where: "signup:capacity-quote" });
+      bounce("signup-failed");
+    }
+    redirect("/signup?quote=sent");
+  }
 
   // Somebody who started a sign-up, abandoned the payment and came back. Their auth user
   // already owns this address, so a second createUser would fail with a message about
@@ -167,6 +194,7 @@ export async function signUp(formData: FormData): Promise<void> {
     // At least the plan minimum (five), which app.create_pending_signup also enforces.
     p_quota: billedSlots(vehicles),
     p_promo_code: promoCode || null,
+    p_equipment: equipment,
   });
 
   if (error) {
@@ -178,6 +206,8 @@ export async function signUp(formData: FormData): Promise<void> {
     // this sign-up was being written. Say THAT rather than "something went wrong", because
     // the fix is to take the code off and try again, and nobody guesses that.
     if (error.message?.includes("SIGNUP_PROMO")) bounce("signup-promo");
+    if (error.message?.includes("signup-capacity-quote")) bounce("signup-capacity-quote");
+    if (error.message?.includes("signup-equipment")) bounce("signup-equipment");
     bounce("signup-failed");
   }
 

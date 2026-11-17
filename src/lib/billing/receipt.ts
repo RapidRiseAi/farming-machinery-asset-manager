@@ -217,8 +217,10 @@ export async function loadReceipt(
     }
   }
 
-  // A service invoice prints its own lines (20261029110000); every other kind is plan-shaped.
-  const serviceLines = inv.kind === "service"
+  // A service invoice prints its own lines (20261029110000), and so does a change invoice
+  // (20261115110000): one line saying what the accepted change bought and for how many days.
+  // Every other kind is plan-shaped.
+  const serviceLines = inv.kind === "service" || inv.kind === "change"
     ? ((must(
         await supabase
           .from("billing_invoice_lines")
