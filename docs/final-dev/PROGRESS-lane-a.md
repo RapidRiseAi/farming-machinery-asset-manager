@@ -13,9 +13,9 @@ BRIEF 15, 4 (signup range), 16 first paragraph; decisions 25, 26, 27, 38, 39, 41
 | 2 | Plan changes: upgrade now with credit, downgrade at renewal, pending edit/cancel | done |
 | 3 | Cancellation: period end only for owners, wording, legal flags | done |
 | 4 | Failed renewal: grace 7 days, then 90 days owner-only retrieval, then closed (20261115120000) | done |
-| 5 | Reactivation without duplicate charge or replay | in progress (tested in billing_lifecycle.sql) |
-| 6 | Payment integrity: out-of-order settles, void invoice payments, quote version, uniqueness | in progress |
-| 7 | Signup: 5 to 200 full spaces with equipment; 201+ capacity quote request | todo |
+| 5 | Reactivation without duplicate charge or replay | done (billing_lifecycle.sql: pay in grace, in retrieval, after the window; reopen) |
+| 6 | Payment integrity: out-of-order settles, void invoice payments, quote version, uniqueness | done (settle guards in 20261115110000; billing_payment_integrity.sql) |
+| 7 | Signup: 5 to 200 full spaces with equipment; 201+ capacity quote request | in progress (SQL 20261115130000 written, untested; TS todo) |
 
 Design (decided at the start, keep to it):
 - `billing_change_quotes`: one row per priced change (target plan, period, full spaces, extra
@@ -60,7 +60,12 @@ Log:
   (a contractor no longer reads a suspended customer). TS: /suspended and /closed show who may
   read and until when, owner-only download, pay to reopen an unpaid account, export route
   refuses non-owners in words, grace notice and credit on /billing, notification templates.
-  Next: step 3 wording (terms, cancel dialog, owner cancels at period end only), then gates. Next: step 3 cancellation (owner period-end only, wording, legal flags).
+  Next: step 3 wording (terms, cancel dialog, owner cancels at period end only), then gates.
+- 17 Nov (resumed): steps 3 to 6 committed (1933476 and after). billing_review_5.sql money-10 failed
+  today: its simulation set the anchor to the pre-fix start day, so it passed only on days 1 to 15
+  of a month; fixed the simulation (anchor = day billing starts, the approved rule) and added a
+  direct assertion of the rule (mutation caught on any date). The redundant uniqueness migration
+  was dropped (index exists since 20261010090000). Now: step 7 (signup suite, TS, admin list). Next: step 3 cancellation (owner period-end only, wording, legal flags).
 
 ## A1 (complete)
 

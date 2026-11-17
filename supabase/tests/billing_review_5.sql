@@ -522,9 +522,20 @@ declare v_sub uuid; i record;
 begin
   -- Exactly what app.start_billing_subscription writes, run 15 days ago with a 14-day trial.
   v_sub := app.start_billing_subscription('d4000000-0000-0000-0000-000000000091', 'complete', 'monthly', 14);
+  -- The rule itself, at any date: the anchor is the day billing starts, not the start day.
+  if (select anchor_day from billing_subscriptions where id = v_sub)
+     <> extract(day from (select next_billing_on from billing_subscriptions where id = v_sub))::int then
+    raise exception 'REVIEW5 FAIL [money-10 trial-anchor]: the anchor is not the day billing starts (anchor %, billing starts %)',
+      (select anchor_day from billing_subscriptions where id = v_sub),
+      (select next_billing_on from billing_subscriptions where id = v_sub);
+  end if;
+  -- Moved 15 days back as a whole, anchor included: the function run 15 days ago would have
+  -- anchored on the day billing starts, which is today. (This set the anchor to the START
+  -- day, the pre-fix value, so the test passed only while that day number was higher than
+  -- today's, the first half of a month, and failed from the 16th: 17 November 2026.)
   update billing_subscriptions
      set trial_ends_on = trial_ends_on - 15, next_billing_on = next_billing_on - 15,
-         anchor_day = extract(day from current_date - 15)::int, asset_quota = 1
+         anchor_day = extract(day from next_billing_on - 15)::int, asset_quota = 1
    where id = v_sub;
   perform app.generate_billing_invoices(v_sub);
   select * into i from billing_invoices where subscription_id = v_sub;
