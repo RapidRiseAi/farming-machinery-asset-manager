@@ -38,6 +38,7 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  "20261117110000": "select to_regprocedure('public.record_manual_driving_event(uuid,uuid,uuid,uuid,text,uuid,timestamptz,text,text,numeric,text,text[],double precision,double precision)') is not null",
   // Spoken command jobs, and spoken requests up to 16,000 characters.
   "20261115100000": "select to_regclass('public.assistant_command_jobs') is not null and to_regprocedure('public.assistant_command_claim(uuid,integer)') is not null",
   // Direct uploads: the intents table, begin and commit, and the command-audio bucket where storage exists.

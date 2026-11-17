@@ -32,7 +32,10 @@ export function AssistantSafeSignOutForm({
         setClearing(true);
         setError(null);
         void clearAllOfflineVoiceData()
-          .then(() => form.requestSubmit())
+          .then(() => {
+            try {for(const key of Object.keys(sessionStorage))if(key.startsWith("fw-driving:"))sessionStorage.removeItem(key);}catch{}
+            form.requestSubmit();
+          })
           .catch(() => {
             clearingRef.current = false;
             setClearing(false);

@@ -278,3 +278,5 @@ echo "==> running asset capacity tests (fixtures, pooling, no overselling, retir
 pg "$DB" < "$ROOT/supabase/tests/asset_capacity.sql"
 
 echo "==> OK"
+echo "==> running manual driving log tests"
+pg "$DB" < "$ROOT/supabase/tests/manual_driving.sql"

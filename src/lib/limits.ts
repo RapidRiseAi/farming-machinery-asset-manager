@@ -34,7 +34,7 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 
 export type LimitKind = "commercial" | "abuse" | "provider" | "window";
-export type LimitUnit = "bytes" | "ms" | "rows" | "chars" | "count" | "pixels" | "bps";
+export type LimitUnit = "bytes" | "ms" | "rows" | "chars" | "count" | "pixels" | "bps" | "km";
 
 export type LimitEntry = {
   readonly value: number;
@@ -53,6 +53,9 @@ const entry = (value: number, unit: LimitUnit, kind: LimitKind, customer: boolea
  * docs, the tests and any "what are my limits" screen walk.
  */
 export const LIMITS = {
+  drivingStops: entry(50, "count", "abuse", true, "Maximum written itinerary stops per driving session, not a plan entitlement."),
+  drivingStopsTextChars: entry(10050, "chars", "abuse", false, "Fifty stop names of two hundred characters with line separators."),
+  drivingMaxKm: entry(999999999.9, "km", "abuse", false, "Finite nonnegative odometer values with at most one decimal place."),
   // == Media an app user attaches (decisions 8 to 12) ==================================
   photoMaxBytes: entry(20 * MB, "bytes", "commercial", true, "Decision 8: photos up to 20 MB."),
   pdfMaxBytes: entry(50 * MB, "bytes", "commercial", true, "Decision 9: PDFs up to 50 MB, kept unchanged."),

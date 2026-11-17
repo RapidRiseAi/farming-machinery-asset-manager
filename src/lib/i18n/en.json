@@ -8288,5 +8288,23 @@
     "reviewHint": "For an unusual item: say what it is and how it is used. A person looks at it; nothing is billed or changed automatically.",
     "reviewReason": "What is unusual about it",
     "reviewSend": "Send"
+  },
+  "manualDrive": {
+    "loading": "Loading your draft...",
+    "km": "Odometer (km)",
+    "kmHint": "Optional. Enter the actual kilometre reading, with up to one decimal. This does not change the vehicle’s service meter.",
+    "destination": "Current destination",
+    "stops": "Planned stops, in order",
+    "stopsHint": "One stop per line, in travel order. Up to 50 stops, 200 characters each. These are written instructions, not a calculated route.",
+    "draftHint": "Your draft stays in this browser tab if saving fails or you leave this page. No map or routing service is needed.",
+    "saving": "Saving...",
+    "failed": "This update did not finish. Your draft is kept. Check the readings, driver, vehicle and event order, then retry.",
+    "changed": "This request was already saved with different details. Your changes are kept here. Review the driving history before starting another update.",
+    "forbidden": "Your current access, vehicle eligibility or account status does not allow this update. Your draft is kept.",
+    "backwards": "The kilometre reading is lower than an earlier reading in this drive. Check it and try again.",
+    "startKm": "Starting km",
+    "endKm": "Finishing km",
+    "distance": "Recorded distance (km)",
+    "notRecorded": "Not recorded"
   }
 }
