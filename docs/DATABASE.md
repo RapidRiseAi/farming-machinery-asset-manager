@@ -190,8 +190,23 @@ uploaded, finalised, failed, expired). Written only by `upload_begin` and `uploa
 nightly sweep; a person reads their own. `app.upload_settings` holds the switch that makes
 Storage refuse a person's direct writes outside a reserved path, and
 `app.storage_quota_overrides` a hand-set limit; `app.storage_quota_bytes` and
-`app.storage_pool_farm_ids` are the hooks task A3 replaces with the pooled allowance.
+`app.storage_pool_farm_ids` are the hooks task A3 replaced with the pooled allowance.
 `docs/LIMITS.md` explains the flow.
+
+Pooled storage (20261118120000, task A3). One pool per customer: the billing site and every
+site billed through it (`app.storage_pool_farm_ids`). `app.storage_allowance` is max(2 GB,
+full spaces x 100 MB + equipment spaces x 25 MB) plus 10 GB per paid block, decimal bytes,
+now and at the next renewal; `billing_subscriptions.storage_blocks` (and
+`pending_storage_blocks`/`_on`) are the paid blocks. `storage_usage_snapshots` is what each
+site stored on each South African day (pipeline files, objects with no upload intent, open
+reservations; the billing site's row carries the allowance), written by
+`cron_storage_measure` and read by the owner; it is the per-period record of storage.
+`storage_pool_settings` (owner, audited) holds automatic blocks (off by default, a monthly
+ceiling counting held blocks, the accepted terms version) and which warnings were sent.
+`storage_charges` (owner reads, audited, never changed except the invoice stamp) is a monthly
+block charge or the pro-rata part of an automatic block. `storage_pool_status` (anyone with
+access; money for the payer), `storage_set_auto` (owner) and `storage_note_full` (after a
+refused upload) are the person-facing functions.
 
 `assistant_command_jobs` (20261115100000) is one spoken command longer than the instant
 hearing: its uploaded recording (an intent of purpose `command_audio` in the service-only

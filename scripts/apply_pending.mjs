@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Pooled storage: the allowance, the nightly measure, automatic blocks and storage charges.
+  "20261118120000": "select to_regprocedure('app.storage_allowance(uuid)') is not null and to_regclass('public.storage_usage_snapshots') is not null and to_regclass('public.storage_charges') is not null and to_regprocedure('public.storage_note_full(uuid)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_subscriptions' and column_name = 'storage_blocks')",
   // Sign-up with equipment and the 200 line; capacity quote requests above it.
   "20261115130000": "select to_regclass('public.capacity_quote_requests') is not null and to_regprocedure('public.billing_create_pending_signup(uuid,text,text,text,farm_plan,billing_period,integer,text,integer)') is not null",
   // The lifecycle: retrieval window, the gate for any day, owner-only reading and the nightly notices.

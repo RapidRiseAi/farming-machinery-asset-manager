@@ -1406,7 +1406,12 @@ declare
     -- where a business stands, and the nightly notices.
     'farm_billing_gate_on','farm_read_allowed','billing_retrieval_ends_on','farm_paid_extras_allowed',
     'billing_lift_farm_pause','billing_notify_owners','farm_outstanding_cents','farm_lifecycle',
-    'billing_enqueue_lifecycle_notices'];
+    'billing_enqueue_lifecycle_notices',
+    -- Pooled storage (20261118120000): the allowance reads the subscription, its price and the
+    -- block price; the storage month reads the period; an automatic block locks the subscription
+    -- and raises its blocks. Granted to nobody, reached only through the upload reservation, the
+    -- nightly measure and the storage status, which strips the money for anyone but the payer.
+    'storage_allowance','storage_month','storage_auto_block'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',

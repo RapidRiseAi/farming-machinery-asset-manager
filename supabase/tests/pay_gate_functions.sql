@@ -184,6 +184,9 @@ declare
     'has_asset_entitlement',
     -- where the business stands (20261115120000): asked by the stopped screens themselves
     'farm_lifecycle',
+    -- how full the storage pool is (20261118120000): reads only, asked by the billing screen and
+    -- the owner of a stopped business deciding what to download
+    'storage_pool_status',
     -- the person's own account and rights
     'ai_notice_ack', 'set_notification_prefs', 'erase_personal_data', 'export_personal_data',
     'whatsapp_manage_link', 'whatsapp_link_status',
