@@ -9,8 +9,8 @@ storage/assistance half of 12). Started 17 Nov 2026 on 48b7987 (A1, B1, A2, Code
 
 | # | Step | State |
 |---|---|---|
-| 1 | Storage allowance and pool (migration 20261118120000): pooled customer allowance, quota hooks replaced, files from before the pipeline counted (nightly snapshot of untracked objects), 80/95% warnings, status function, auto blocks setting with ceiling, transactional auto block; suite storage_pool.sql | todo |
-| 2 | Storage blocks billing (20261118120100): buy through A2's quotes (change 'storage'), reductions scheduled at the next storage month and never below what is stored, storage charge ledger, recurring monthly charge on the period invoice (monthly) and on the usage invoice (annual), generic cost-plus storage retired; suite storage_blocks.sql | todo |
+| 1 | Storage allowance and pool (migration 20261118120000): pooled customer allowance, quota hooks replaced, files from before the pipeline counted (nightly snapshot of untracked objects), 80/95% warnings, status function, auto blocks setting with ceiling, transactional auto block; suite storage_pool.sql | SQL done (12/12 mutations); TS in step 4 |
+| 2 | Storage blocks billing (20261118120100): buy through A2's quotes (change 'storage'), reductions scheduled at the next storage month and never below what is stored, storage charge ledger, recurring monthly charge on the period invoice (monthly) and on the usage invoice (annual), generic cost-plus storage retired; suite storage_blocks.sql | SQL done (12/12 mutations); TS in step 4 |
 | 3 | Assistance cap (20261118120200): customer-wide budget table, existing limits migrated as chosen (owners told), blank refuses (budget_unset), customer-wide lock and spend, staff sublimits across sites, WhatsApp on the same ledger (owner acceptance, hold before send, settle on the delivery webhook's pricing, free = R0, stale = R0), event fields, AI use of every pooled site invoiced, usage corrections as credit; suite assistance_cap.sql | todo |
 | 4 | TS storage: mirror + tests, /billing storage section (status, warnings, blocks, auto setting), upload refusal offers expansion, admin usage page | todo |
 | 5 | TS assistance: /settings/ai setup (required, zero allowed, migrated notice, reset boundary), refusals, WhatsApp hooks and acceptance, admin rates | todo |
@@ -50,6 +50,14 @@ Log:
   per delivered message; `pricing.type` regular = billable, free_customer_service and
   free_entry_point free; 1,000 free service messages per number per month from 1 Oct 2026;
   currency fixed per account (ZAR not in the list). Next: step 1.
+- 18 Nov: steps 1 and 2 SQL committed (through 623d917). The full notice is a separate call
+  (public.storage_note_full) because the refusal rolls back its own transaction. The usage
+  invoice (kind ai_usage) now also carries storage for annual subscribers and the AI use of
+  pooled sites (it never reached them before); one usage invoice per customer per day is an
+  index (billing_payment_integrity.sql adjusted). Suites must use app.billing_today() for
+  storage months and current_date for the invoice run (they differ 22:00 to 24:00 UTC).
+  Tool trap: a Bash command containing "=>" hangs this harness; use edit.js with a spec file.
+  Next: step 3 (assistance cap migration 20261118120200).
 
 ## A2 (complete)
 
