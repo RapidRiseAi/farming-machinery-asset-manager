@@ -98,6 +98,7 @@ try{
  await evaluate('window.renderDrive()');await until(`document.body.innerText.includes('Start')`);await click('Start');
  await until(`!!document.querySelector('[id$="-notes"]')`);
  await type('[id$="-notes"]','Changed retry draft');
+ await type('[id$="-km"]','130');
  await evaluate(`window.fixture.stale=false;window.fixture.fail=false;window.fixture.changed=true`);
  await click('Save');await until(`document.body.innerText.includes('Discard this draft')`);
  const usedRequest=await evaluate('window.fixture.calls.at(-1).draft.request');
