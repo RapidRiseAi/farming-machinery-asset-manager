@@ -21,6 +21,19 @@ and say so (the fuel-card CSV's 2 MiB, the partner logo bucket's 2 MiB).
 
 ## What a customer can attach (commercial)
 
+B2 staff chat uses these same media limits and the existing pooled quota hook. Its private
+`chat-files` bucket accepts the listed photo types, PDF and audio WebM/Ogg/MP4, up to the
+50 MB bucket ceiling; B1 verifies the lower photo/voice limits and rejects video tracks.
+Text continues to work at full storage. No recording or playback invokes paid AI.
+
+B2 catalogue entries (`src/lib/limits.ts`, new limits rather than changed entitlements):
+8,000 characters/message, 100 active members/group, ten attachments/message and 100,000
+received JSON bytes/request are abuse guards. Fifty messages/rooms/people per page is a
+display window, with pagination. The SQL list/directory offset guard is 100,000 rows;
+it is not a retention rule. Conversation checks poll every 15 seconds and lists every
+30 seconds when visible, in addition to Realtime update signals. The creator manages the
+group; this member limit is not a paid seat cap.
+
 | Media | In the app | Through WhatsApp (provider restriction) |
 |---|---|---|
 | Photo | 20 MB (20,000,000 bytes) | 6 MiB (unchanged until task B4) |
@@ -233,3 +246,12 @@ A spoken command (decision 11) may run to ten minutes:
   contractual term, with "try again"; then the nightly job removes it. A voice note attached
   to a fault is an attachment and is never removed by this. This is about FLEETWISE's own
   copy; what a provider keeps is governed by that provider's terms, not promised here.
+
+## Manual driving (B3 R-044 candidate)
+
+The drivingStops, drivingStopsTextChars and drivingMaxKm entries are abuse guards:
+50 ordered stops, 200 characters per stop, 10,050 raw textarea characters including line
+breaks, and readings from 0 to 999,999,999.9 km with at most one decimal place. Destination
+and location allow 200 characters; notes allow 2,000. The parser and database validate
+submitted data; the UI exposes the stop limit. These are not a paid route calculation or
+a commercial history-retention limit. No route/map provider is called for written stops.

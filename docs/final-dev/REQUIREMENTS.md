@@ -64,11 +64,11 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-041 | Profile check on every server path: pages, actions, API, RPC, policies, imports, offline sync, exports, jobs, assistant, WhatsApp, partner links, public API | S6, D19 | none for profile | E (A1) at the table; B4 assistant and WhatsApp wording | A1 (DB rules), B4 (assistant/WhatsApp wording) | Sc14: equipment_restrictions.sql |
 | R-042 | Essential keeps job costs, parts/labour lines, finance documents, repair records, core tyres and loan/lease for full assets | S6, D33 | `can_view_farm_costs`, `can_view_farm_finance` ungated by plan | E | A1 | Sc16: equipment_restrictions.sql |
 | R-043 | Budgets, TCO, depreciation on Professional+ for full assets | S6, S7, D33 | `tco` gate (PLAN_FEATURES.md) | E (A1) | A1 | Sc16: equipment_restrictions.sql |
-| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | C (A1 key and equipment refusal; B3 written stops) | A1 (key), B3 (workflow) | equipment_restrictions.sql |
+| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | X (A1 key; Codex B3 manual workflow, awaiting Claude integration review) | A1 (key), B3 (workflow) | equipment_restrictions.sql; manual_driving.sql; REPORT-B3-DRIVING.md |
 | R-045 | Trip scheduling, assignments, trailer reference, delivery evidence, trip finance on Professional and Complete | S8, D16 | trips ungated by plan (`src/app/(app)/trips/actions.ts`) | C (A1 plan gate; B3 workflow) | A1 (gate), B3 (workflow) | equipment_restrictions.sql (plan gates) |
 | R-046 | Maps, route planning, reported locations, driving paths on Complete only, plus readiness flag; gate provider calls and writes | S8, D18 | `featureOn("map")` only (`src/lib/routing/access.ts`) | C (A1 plan gate and mapsAvailable; B3 provider paths) | A1 (gate), B3 (provider paths) | equipment_restrictions.sql (plan gates) |
 | R-047 | Sale and warranty packs every plan for both profiles; financial section obeys plan/profile/cost permission | S7, D33 | `/api/packs/machine/[id]/sale`, `warranty` (tco on cost section) | E (A1) | A1 | pack-data machineAllows |
-| R-048 | General chat on every plan (feature key defined here, built by B2) | S14, D20 | none | M (A1 key defined; B2 builds) | A1 (key), B2 | Sc19 |
+| R-048 | General chat on every plan (feature key defined here, built by B2) | S14, D20 | `/chat`, `general_chat` readiness and staff membership gate | X (B2 isolated; Claude review and live checks pending) | A1 (key), B2 | Sc19; REPORT-B2.md |
 | R-049 | Costs not globally hidden on Essential | S6 | cost visibility by role only | E | A1 | Sc16 |
 | R-050 | Resource-site roles authoritative; billing authority grants no operational access | S6 | `app.effective_farm_role`, `is_farm_billing_admin` | E | A6 | Sc18 |
 | R-051 | Downgrade keeps read/export of saved higher-tier records; no new premium computation | S6, D37 | none explicit | M | B3 | Sc17 |
@@ -111,7 +111,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-084 | Equipment assistance on Complete limited to permitted tasks; confirmation before writes | S12, D19 | `apply_assistant_proposal` (no profile check) | C | A1 (DB rule), B4 (assistant) | Sc36 |
 | R-085 | WhatsApp text, reminders, photos, voice notes; sender verification, site context, replay protection, app upload link for oversized media; real-phone tests | S13, D21 | `src/lib/whatsapp/*`, 20261015175415, 20261104210000 | X | B4 | Sc33 |
 | R-086 | Paid WhatsApp needs owner acceptance of charges and cap with timestamp/version | S13, D24 | none | M | B4, A3 | Sc33 |
-| R-087 | General staff chat: direct and group, membership, pagination, retry, unread, attachments, partner isolation | S14, D20 | none (only `work_request_events`, `support_ticket_messages`) | M | B2 | Sc19, Sc34 |
+| R-087 | General staff chat: direct and group, membership, pagination, retry, unread, attachments, partner isolation | S14, D20 | `chat_*`, `/api/chat`, B1 uploads; shared-job discussions retained | X (B2 isolated; Claude review and live checks pending) | B2 | Sc19, Sc34; staff_chat.sql, protocol/privacy tests, chat_ui_check.mjs; REPORT-B2.md |
 
 ### Billing lifecycle (S15)
 

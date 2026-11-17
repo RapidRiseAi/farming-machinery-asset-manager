@@ -135,3 +135,27 @@ session, and invite staff who previously used anonymous capture.
   data: guest gate, login return path and unauthenticated endpoint refusals.
 - Run an authenticated browser/phone check on a staging database with this migration
   before release. No real hardware provider has been connected or commissioned.
+
+## B3 manual-log candidate, 17 November 2026
+
+The isolated Codex R-044 contribution adds optional kilometre readings, a current
+destination and up to 50 ordered written stops to start, arrive, depart and finish.
+Manual capture works on Essential, Professional and Complete without a routing provider.
+Readings are independent of the asset service meter. Missing readings stay unknown;
+distance is shown only when both start and finish readings exist. Intermediate readings
+cannot decrease within one session. Existing sessions and legacy writers remain valid.
+
+The new record_manual_driving_event RPC rechecks current membership, account and asset
+eligibility, binds retries to their original payload, and preserves existing event rules.
+Coordinates on this path require Complete and map readiness. An itinerary version refuses
+stale edits. Reload itinerary explicitly adopts current instructions and keeps other draft
+details. A changed retry is refused; after checking history the user can explicitly discard
+that draft to start another. Successful saves clear the tab draft.
+
+Drafts use sessionStorage, scoped by login, farm, session and event kind, cleared at sign-out.
+They survive navigation/reload in that tab when browser storage is available. Closing the
+tab, clearing browser data or disabling storage is not durable offline recovery. There is
+no automatic offline queue. Failed saves remain visible and need a deliberate retry online.
+
+See final-dev/REPORT-B3-DRIVING.md for verification and integration limits. Full B3, broader
+map gates, trips, imports and native Android are still open; this is not a release notice.

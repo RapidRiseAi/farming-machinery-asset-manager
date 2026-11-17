@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const HEADERS = { "Cache-Control": "private, no-store, max-age=0" } as const;
 /** Records whose file is an ordinary attachment, finished here. The rest finish in their own route. */
-const GENERIC = new Set(["machine", "fault", "checklist_instance", "work_request", "finance_agreement", "asset_contract"]);
+const GENERIC = new Set(["machine", "fault", "checklist_instance", "work_request", "finance_agreement", "asset_contract", "chat_message"]);
 const KINDS = new Set(["photo", "voice", "doc", "invoice"]);
 
 /**

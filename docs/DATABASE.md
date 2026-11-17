@@ -223,9 +223,48 @@ business that has not paid keeps).
 
 ## Keeping it tidy
 
+### B2 private staff conversations (17 November 2026, isolated branch)
+
+`20261117090000_staff_chat.sql` adds `chat_conversations`, `chat_members`,
+`chat_messages`, `chat_attachments` and `chat_events`. All have forced RLS and the
+existing account pay gate. Authenticated sessions have SELECT only; checked RPCs perform
+changes. Active internal membership is required, including an explicit inactive-membership
+denial instead of a home-farm fallback. Owners have no implicit access. Support reading
+requires an open audited support visit. New/re-added members see publication sequences
+after joining. Only the group creator manages membership; direct pairs remain direct.
+
+`chat_events` is the private append-only audit trail for these tables. They deliberately
+do not use the farm-wide audit trigger, which would disclose private conversations to
+nonmember owners. Events keep actor, action, record and time, with no body or title.
+
+`20261117090100_chat_uploads.sql` extends the existing upload target/commit functions with
+`chat_message`, uses the same quota reservation and byte validation, and adds private
+`chat-files` Storage policies. `chat_file_readable` applies conversation and message RLS
+rules to bytes. Restrictive policies prevent a broader legacy policy from granting chat
+access or permitting unreserved direct writes. The business-wide ZIP excludes this private
+bucket, while service quota and closure cleanup retain it in their inventory.
+
+Probes are in `apply_pending.mjs`; `staff_chat.sql` is in `run.sh`. Optional local checks
+`chat_review_check.mjs storage` and `mutations` exercise the actual migration with a Storage
+schema fixture and verify five guards fail when removed. `general_chat` defaults to
+unreleased. See `final-dev/REPORT-B2.md` for acceptance blockers and live checks.
+
 `scripts/apply_pending.mjs --dry` says what production is missing. Supabase's advisors
 (security and performance) are read after schema changes; what they flag and why it is
 left as it is lives in the 11 November entry of `LAUNCH_CHECKLIST.md`. Unused objects are
 found by reading every reference in the app, the other functions, policies, views, triggers
 and the suites before anything is dropped; the last such pass was 11 November 2026
 (20261111160000).
+
+## Manual driving log (B3 R-044 candidate)
+
+Migration 20261117110000_manual_driving_log.sql adds destination, ordered planned_stops,
+plan_version and optional start/end kilometres to driving_sessions, and reading, itinerary
+and request receipt fields to driving_events. Existing defaults preserve old rows. Existing
+tenant policies, pay gates and audit triggers remain; RLS is forced on both tables. There
+are no new tables. record_manual_driving_event is authenticated-only, checks
+app.require_open_farm before replay, and is covered by the pay_gate_functions.sql definer
+audit plus behavioural tests in manual_driving.sql. The old RPC signature is unchanged.
+The deployment probe is in scripts/apply_pending.mjs; no live migration was applied.
+Deploy the additive migration before the new page, which selects these columns. Rolling
+back application code can leave the additive schema and records intact.

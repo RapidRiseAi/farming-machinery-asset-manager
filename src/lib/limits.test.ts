@@ -88,6 +88,7 @@ test("the founder's media limits are decimal and read back as whole numbers", ()
 
 test("every bucket can hold the largest file of each class it is for, and the project limit covers every bucket", () => {
   const holds: Record<string, Array<keyof typeof MEDIA_CLASSES>> = {
+    "chat-files": ["photo", "pdf", "voice"],
     "machine-photos": ["photo"], "fault-photos": ["photo"], "checklist-photos": ["photo"],
     "fault-voice": ["voice"], "jobcard-photos": ["photo", "pdf"], "machine-docs": ["photo", "pdf"],
     "partner-docs": ["photo", "pdf"], "partner-receipts": ["photo", "pdf"], "finance-docs": ["photo", "pdf"],
@@ -113,7 +114,8 @@ test("what still passes through a function fits Vercel's body limit; resumable c
 });
 
 test("the database's class limits and bucket settings are the catalogue's", () => {
-  const sql = readFileSync(join(SRC, "..", "supabase", "migrations", "20261115090000_upload_pipeline.sql"), "utf8");
+  const sql = ["20261115090000_upload_pipeline.sql","20261117090100_chat_uploads.sql"]
+    .map(name=>readFileSync(join(SRC, "..", "supabase", "migrations", name), "utf8")).join("\n");
   const maxBytes = /function app\.upload_class_max_bytes[\s\S]*?end::bigint/.exec(sql)?.[0] ?? "";
   for (const [cls, spec] of Object.entries(MEDIA_CLASSES)) {
     assert.match(maxBytes, new RegExp(`when '${cls}' then ${spec.maxBytes}\\b`), `${cls} bytes in SQL`);

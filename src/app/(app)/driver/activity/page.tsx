@@ -7,20 +7,13 @@ import { t } from "@/lib/i18n";
 import { COMPANY } from "@/lib/legal";
 import { stopVisits, type DrivingEvent } from "@/lib/driving";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
-import {
-  DialogForm,
-  DialogFields,
-  DialogActions,
-} from "@/components/ui/dialog-form";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { DialogForm } from "@/components/ui/dialog-form";
 import { Disclosure } from "@/components/ui/disclosure";
-import { DrivingLocation } from "@/components/driving-location";
 import { RouteRecorder } from "@/components/map/route-recorder";
 import { mapsAvailable } from "@/lib/features";
-import { recordActivity } from "./actions";
+import { saveManualActivity } from "./actions";
+import { ManualDriveForm } from "@/components/manual-drive-form";
+import { drivingDistance, type ManualDriveContext } from "@/lib/manual-driving";
 import { isUuid } from "@/lib/ids";
 
 type Person = { id: string; name: string };
@@ -30,6 +23,11 @@ type Session = {
   driver_id: string;
   started_at: string;
   ended_at: string | null;
+  destination: string | null;
+  planned_stops: string[];
+  plan_version: number;
+  start_km: number | null;
+  end_km: number | null;
 };
 export default async function ActivityPage({
   searchParams,
@@ -70,7 +68,7 @@ export default async function ActivityPage({
   );
   let history = db
     .from("driving_sessions")
-    .select("id,machine_id,driver_id,started_at,ended_at")
+    .select("id,machine_id,driver_id,started_at,ended_at,destination,planned_stops,plan_version,start_km,end_km")
     .eq("farm_id", farm)
     .not("ended_at", "is", null)
     .order("started_at", { ascending: false })
@@ -79,7 +77,7 @@ export default async function ActivityPage({
   if (sp.machine) history = history.eq("machine_id", sp.machine);
   let activeQuery = db
     .from("driving_sessions")
-    .select("id,machine_id,driver_id,started_at,ended_at")
+    .select("id,machine_id,driver_id,started_at,ended_at,destination,planned_stops,plan_version,start_km,end_km")
     .eq("farm_id", farm)
     .is("ended_at", null)
     .order("started_at", { ascending: false });
@@ -137,112 +135,19 @@ export default async function ActivityPage({
     }).format(new Date(value));
   const name = (list: Person[], id: string) =>
     list.find((p) => p.id === id)?.name ?? id;
-  const form = (kind: string, session?: Session) => (
+  const form = (kind: ManualDriveContext["kind"], session?: Session) => (
     <DialogForm
       key={`${kind}-${session?.id ?? "new"}`}
       trigger={t(`driving.${kind}`, locale)}
       title={t(`driving.${kind}`, locale)}
       closeLabel={t("ui.close", locale)}
     >
-      <form action={recordActivity}>
-        <DialogFields>
-          <input type="hidden" name="farm" value={farm} />
-          <input type="hidden" name="kind" value={kind} />
-          <input type="hidden" name="session" value={session?.id ?? ""} />
-          {session ? (
-            <>
-              <input type="hidden" name="machine" value={session.machine_id} />
-              <input type="hidden" name="driver" value={session.driver_id} />
-              <p>
-                {name(drivers, session.driver_id)} ·{" "}
-                {name(machines, session.machine_id)}
-              </p>
-            </>
-          ) : (
-            <>
-              <Field
-                label={t("driving.vehicle", locale)}
-                htmlFor="driving-machine"
-              >
-                <Select
-                  id="driving-machine"
-                  name="machine"
-                  defaultValue={sp.machine ?? ""}
-                  required
-                >
-                  <option value="">{t("driving.choose", locale)}</option>
-                  {machines.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              {manage ? (
-                <Field
-                  label={t("driving.driver", locale)}
-                  htmlFor="driving-driver"
-                >
-                  <Select
-                    id="driving-driver"
-                    name="driver"
-                    defaultValue={sp.driver ?? profile.id}
-                    required
-                  >
-                    {drivers.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              ) : (
-                <input type="hidden" name="driver" value={profile.id} />
-              )}
-            </>
-          )}
-          <Field
-            label={t("driving.location", locale)}
-            htmlFor={`${kind}-${session?.id ?? "new"}-location`}
-          >
-            <Input
-              id={`${kind}-${session?.id ?? "new"}-location`}
-              name="location"
-              maxLength={200}
-              required={kind === "arrive"}
-            />
-          </Field>
-          {manage && (
-            <Field
-              label={t("driving.time", locale)}
-              htmlFor={`${kind}-${session?.id ?? "new"}-time`}
-              hint={t("driving.timeHint", locale)}
-            >
-              <Input
-                id={`${kind}-${session?.id ?? "new"}-time`}
-                name="at"
-                type="datetime-local"
-              />
-            </Field>
-          )}
-          <Field
-            label={t("driving.notes", locale)}
-            htmlFor={`${kind}-${session?.id ?? "new"}-notes`}
-          >
-            <Input
-              id={`${kind}-${session?.id ?? "new"}-notes`}
-              name="notes"
-              maxLength={2000}
-            />
-          </Field>
-          {(!manage || session?.driver_id === profile.id) && (
-            <DrivingLocation locale={locale} />
-          )}
-        </DialogFields>
-        <DialogActions cancelLabel={t("common.cancel", locale)}>
-          <SubmitButton>{t("common.save", locale)}</SubmitButton>
-        </DialogActions>
-      </form>
+      <ManualDriveForm key={`${profile.id}:${farm}:${session?.id??"new"}:${kind}`}
+        context={{farm,kind,session:session?.id??null}} user={profile.id} locale={locale}
+        manage={manage} vehicles={machines} drivers={drivers} mapOn={mapOn} save={saveManualActivity}
+        initial={{machine:session?.machine_id??sp.machine??"",driver:session?.driver_id??sp.driver??profile.id,
+          destination:session?.destination??"",stops:session?.planned_stops.join("\n")??"",planVersion:String(session?.plan_version??0)}}/>
+
     </DialogForm>
   );
   return (
@@ -311,6 +216,12 @@ export default async function ActivityPage({
                   ? ` → ${date(s.ended_at)}`
                   : ` · ${t(last?.kind === "arrive" ? "driving.atLocation" : "driving.onJourney", locale)}`}
               </p>
+              <div className="flex flex-col gap-2 text-sm">
+                <p>{t("manualDrive.destination",locale)}: {s.destination||t("manualDrive.notRecorded",locale)}</p>
+                {s.planned_stops.length?<ol className="list-decimal pl-5" aria-label={t("manualDrive.stops",locale)}>{s.planned_stops.map((stop,i)=><li key={i}>{stop}</li>)}</ol>:null}
+                <p>{t("manualDrive.startKm",locale)}: {s.start_km??t("manualDrive.notRecorded",locale)} · {t("manualDrive.endKm",locale)}: {s.end_km??t("manualDrive.notRecorded",locale)}</p>
+                <p>{t("manualDrive.distance",locale)}: {drivingDistance(s.start_km,s.end_km)??t("manualDrive.notRecorded",locale)}</p>
+              </div>
               {position && (
                 <p>
                   {t("driving.location", locale)}:{" "}
@@ -349,6 +260,9 @@ export default async function ActivityPage({
                         · {t("driving.recorded", locale)} {date(e.recorded_at)}
                       </p>
                       {e.notes && <p>{e.notes}</p>}
+                      {e.odometer_km!=null?<p>{t("manualDrive.km",locale)}: {e.odometer_km}</p>:null}
+                      {e.destination?<p>{t("manualDrive.destination",locale)}: {e.destination}</p>:null}
+                      {e.planned_stops?.length?<ol className="list-decimal pl-5">{e.planned_stops.map((stop,i)=><li key={i}>{stop}</li>)}</ol>:null}
                       {e.lat != null && e.lng != null && (
                         <a
                           className="underline"

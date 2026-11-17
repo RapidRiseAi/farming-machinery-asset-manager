@@ -6143,3 +6143,26 @@ its stopped-page and checkout work was taken from there and finished. All fixed 
 Suite `billing_review_5.sql` (the verifiers' twelve proofs plus a plan-change case) fails
 without the migration and passes with it; every other fix has a unit test that fails when
 the fix is taken out. 54 SQL suites, 835 unit tests.
+
+## 17 November 2026: B2 private staff chat, isolated Codex contribution
+
+Branch `codex/final-b2-chat-20261116`, based on A1/B1 at `be6fae7`, adds direct/group
+staff chat, membership RLS, retained drafts, idempotent sends, private audit events,
+notifications and B1 photo/PDF/voice uploads. A service-backed business export was also
+closed to private chat attachments. `general_chat` remains unreleased.
+
+Claude remains orchestrator and final reviewer. No active A2 work, integration branch,
+production credentials or deployed service was changed. Evidence and remaining integration
+checks are in `docs/final-dev/REPORT-B2.md`: 1,157 unit tests, type/static checks, isolated
+Chrome UI checks, actual Storage-policy fixture and five caught SQL guard mutations.
+The production build passed. The full SQL run retains an existing date-sensitive
+`billing_review_5.sql` failure, reproduced without B2; it is left with Claude/A2 rather
+than changing billing code or weakening a test. No merge, CI success or release is claimed.
+
+## 17 November 2026: isolated Codex B3 manual-driving candidate
+
+R-044 manual kilometre readings, current destination and ordered written stops extend
+the existing sessions/events. Atomic request receipts prevent duplicate events; itinerary
+versions refuse stale edits. EN/AF dialogs preserve failed drafts in the browser tab.
+Claude owns review/integration. Full B3 remains open. Evidence and limitations are in
+final-dev/REPORT-B3-DRIVING.md; no merge, production access or deployment occurred.
