@@ -12,7 +12,7 @@ const { build }=createRequire(require.resolve('tsx/package.json'))('esbuild');
 const root=resolve(import.meta.dirname,'..');
 const chromePath=['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Google/Chrome/Application/chrome.exe','/usr/bin/google-chrome','/usr/bin/chromium'].find(existsSync);
 if(!chromePath)throw new Error('Chrome required for manual driving UI evidence');
-const fixture="\nimport React from 'react';import {createRoot} from 'react-dom/client';\nimport {ManualDriveForm} from './src/components/manual-drive-form';\nimport {DialogForm} from './src/components/ui/dialog-form';\nconst id='db000000-0000-4000-9000-000000000001';\nwindow.fixture={fail:true,calls:[],events:[],refreshes:0,version:1};\nconst save=async(draft,context)=>{const f=window.fixture;f.calls.push({draft,context});await new Promise(r=>setTimeout(r,200));\n if(f.stale)return {ok:false,reason:'stale'};if(f.fail)return {ok:false,reason:'invalid'};if(!f.events.includes(draft.request))f.events.push(draft.request);return {ok:true};};\nwindow.fetch=()=>{throw new Error('Unexpected network request')};\nconst root=createRoot(document.getElementById('root'));\nwindow.renderDrive=(show=true,locale='en',session=false)=>root.render(show?<DialogForm key={locale+session} trigger=\"Start\" title=\"Manual drive fixture\" closeLabel=\"Close\">\n <ManualDriveForm context={{farm:id,kind:session?'depart':'start',session:session?id:null}} user={id} locale={locale} manage={true}\n vehicles={[{id,name:'Truck'}]} drivers={[{id,name:'Driver'}]} initial={{machine:id,driver:id,planVersion:String(window.fixture.version),destination:window.fixture.version===1?'Mill':'Port',stops:window.fixture.version===1?'Depot':'Dock'}} mapOn={false} save={save}/>\n </DialogForm>:<p>Other screen</p>);\nwindow.renderDrive();\n";
+const fixture="\nimport React from 'react';import {createRoot} from 'react-dom/client';\nimport {ManualDriveForm} from './src/components/manual-drive-form';\nimport {DialogForm} from './src/components/ui/dialog-form';\nconst id='db000000-0000-4000-9000-000000000001';\nwindow.fixture={fail:true,calls:[],events:[],refreshes:0,version:1};\nconst save=async(draft,context)=>{const f=window.fixture;f.calls.push({draft,context});await new Promise(r=>setTimeout(r,200));\n if(f.changed)return {ok:false,reason:'changed'};if(f.stale)return {ok:false,reason:'stale'};if(f.fail)return {ok:false,reason:'invalid'};if(!f.events.includes(draft.request))f.events.push(draft.request);return {ok:true};};\nwindow.fetch=()=>{throw new Error('Unexpected network request')};\nconst root=createRoot(document.getElementById('root'));\nwindow.renderDrive=(show=true,locale='en',session=false)=>root.render(show?<DialogForm key={locale+session} trigger=\"Start\" title=\"Manual drive fixture\" closeLabel=\"Close\">\n <ManualDriveForm context={{farm:id,kind:session?'depart':'start',session:session?id:null}} user={id} locale={locale} manage={true}\n vehicles={[{id,name:'Truck'}]} drivers={[{id,name:'Driver'}]} initial={{machine:id,driver:id,planVersion:String(window.fixture.version),destination:window.fixture.version===1?'Mill':'Port',stops:window.fixture.version===1?'Depot':'Dock'}} mapOn={false} save={save}/>\n </DialogForm>:<p>Other screen</p>);\nwindow.renderDrive();\n";
 const stubs={
  'next/link':`import React from 'react';export default function Link({href,children,...rest}){return <a href={href} {...rest}>{children}</a>}`,
  'next/navigation':`export function useRouter(){return {push(path){window.fixture.pushed=path},refresh(){window.fixture.refreshes++}}}export function usePathname(){return '/chat'}export function useSearchParams(){return new URLSearchParams()}`,
@@ -94,6 +94,18 @@ try{
  assert.equal(await evaluate('window.fixture.calls.at(-1).draft.planVersion'),'2');
  assert.equal(await evaluate('window.fixture.calls.at(-1).draft.request===window.fixture.calls.at(-2).draft.request'),true);
  console.log('PASS stale itinerary recovery adopts latest instructions and keeps notes, km and request');
+ await evaluate('window.renderDrive(false)');await until(`document.body.innerText.includes('Other screen')`);
+ await evaluate('window.renderDrive()');await until(`document.body.innerText.includes('Start')`);await click('Start');
+ await until(`!!document.querySelector('[id$="-notes"]')`);
+ await type('[id$="-notes"]','Changed retry draft');
+ await evaluate(`window.fixture.stale=false;window.fixture.fail=false;window.fixture.changed=true`);
+ await click('Save');await until(`document.body.innerText.includes('Discard this draft')`);
+ const usedRequest=await evaluate('window.fixture.calls.at(-1).draft.request');
+ await click('Discard this draft and start again');
+ await until(`document.querySelector('[id$="-notes"]')?.value===''`);
+ await evaluate('window.fixture.changed=false');await click('Save');await until(`!document.querySelector('[role="dialog"]')`);
+ assert.notEqual(await evaluate('window.fixture.calls.at(-1).draft.request'),usedRequest,'explicit discard creates a new request');
+ console.log('PASS changed retry stays visible until explicit draft discard');
  assert.deepEqual(errors,[],'no browser exceptions');
  console.log('PASS malformed reading refused, saved draft cleared, Afrikaans desktop render');
 }finally{

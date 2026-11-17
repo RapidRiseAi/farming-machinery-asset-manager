@@ -233,3 +233,12 @@ A spoken command (decision 11) may run to ten minutes:
   contractual term, with "try again"; then the nightly job removes it. A voice note attached
   to a fault is an attachment and is never removed by this. This is about FLEETWISE's own
   copy; what a provider keeps is governed by that provider's terms, not promised here.
+
+## Manual driving (B3 R-044 candidate)
+
+The drivingStops, drivingStopsTextChars and drivingMaxKm entries are abuse guards:
+50 ordered stops, 200 characters per stop, 10,050 raw textarea characters including line
+breaks, and readings from 0 to 999,999,999.9 km with at most one decimal place. Destination
+and location allow 200 characters; notes allow 2,000. The parser and database validate
+submitted data; the UI exposes the stop limit. These are not a paid route calculation or
+a commercial history-retention limit. No route/map provider is called for written stops.

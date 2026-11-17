@@ -15,7 +15,7 @@ update public.machines set profile='equipment' where id='db200000-0000-4000-9000
 update public.feature_flags set released=true where key='map';
 create function pg_temp.login(n integer) returns void language sql as $$select set_config('request.jwt.claims',jsonb_build_object('sub','db100000-0000-4000-9000-00000000000'||n,'role','authenticated','aal','aal2')::text,true)$$;
 create function pg_temp.assert(ok boolean,why text) returns void language plpgsql as $$begin if ok is distinct from true then raise exception 'MANUAL: %',why;end if;end$$;
-create function public._manual_refused(q text) returns boolean language plpgsql as $$begin execute q;return false;exception when insufficient_privilege or invalid_parameter_value then return true;end$$;
+create function public._manual_refused(q text) returns boolean language plpgsql as $$begin execute q;return false;exception when insufficient_privilege or invalid_parameter_value or check_violation then return true;end$$;
 create temporary table ids(kind text primary key,id uuid);grant all on ids to authenticated;
 select pg_temp.login(2);set local role authenticated;
 insert into ids values('start',public.record_manual_driving_event('db300000-0000-4000-9000-000000000001','db000000-0000-4000-9000-000000000001','db200000-0000-4000-9000-000000000001','db100000-0000-4000-9000-000000000002','start',p_at=>now()-interval '1 hour',p_km=>100.1,p_destination=>'Mill',p_stops=>array['Depot','Mill']));

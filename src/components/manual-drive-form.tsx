@@ -51,6 +51,7 @@ export function ManualDriveForm({context,user,locale,manage,vehicles,drivers,ini
     <ReportPending pending={busy}/>
     <fieldset disabled={busy||saved} className="contents">
       <DialogFields>
+        {context.session?<p>{drivers.find(p=>p.id===draft.driver)?.name??draft.driver} · {vehicles.find(p=>p.id===draft.machine)?.name??draft.machine}</p>:null}
         {!context.session?<>
           <Field label={t("driving.vehicle",locale)} htmlFor={`${key}-machine`}><Select id={`${key}-machine`} value={draft.machine} required onChange={e=>field("machine",e.target.value)}>
             <option value="">{t("driving.choose",locale)}</option>{vehicles.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
@@ -71,6 +72,10 @@ export function ManualDriveForm({context,user,locale,manage,vehicles,drivers,ini
         <p className="text-sm text-ink-muted">{t("manualDrive.draftHint",locale)}</p>
         {failure?<p role="alert" className="text-sm text-status-overdue">{t(failure==="stale"?"manualDrive.stale":failure==="changed"?"manualDrive.changed":failure==="forbidden"?"manualDrive.forbidden":failure==="backwards"?"manualDrive.backwards":"manualDrive.failed",locale)}</p>:null}
         {failure==="stale"?<Button variant="secondary" onClick={()=>{setAdoptPlan(true);router.refresh();}}>{t("manualDrive.reloadPlan",locale)}</Button>:null}
+        {failure==="changed"?<Button variant="secondary" onClick={()=>{
+          const value={request:crypto.randomUUID(),machine:"",driver:user,at:"",location:"",notes:"",km:"",destination:"",stops:"",lat:"",lng:"",planVersion:"0",...initial};
+          update(value);setFailure(null);
+        }}>{t("manualDrive.discardDraft",locale)}</Button>:null}
       </DialogFields>
       <DialogActions cancelLabel={t("common.cancel",locale)}><SubmitButton disabled={busy||saved}>{t(busy?"manualDrive.saving":"common.save",locale)}</SubmitButton></DialogActions>
     </fieldset>

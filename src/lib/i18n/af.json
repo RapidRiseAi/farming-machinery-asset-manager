@@ -8290,6 +8290,7 @@
     "reviewSend": "Stuur"
   },
   "manualDrive": {
+    "discardDraft": "Gooi hierdie konsep weg en begin weer",
     "stale": "Die reisplan het verander terwyl hierdie konsep oop was. Herlaai die jongste bestemming en stilhouplekke voordat jy stoor. Jou ander konsepbesonderhede bly behoue.",
     "reloadPlan": "Herlaai reisplan; behou ander konsepbesonderhede",
     "loading": "Jou konsep word gelaai...",

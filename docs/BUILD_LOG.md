@@ -6143,3 +6143,11 @@ its stopped-page and checkout work was taken from there and finished. All fixed 
 Suite `billing_review_5.sql` (the verifiers' twelve proofs plus a plan-change case) fails
 without the migration and passes with it; every other fix has a unit test that fails when
 the fix is taken out. 54 SQL suites, 835 unit tests.
+
+## 17 November 2026: isolated Codex B3 manual-driving candidate
+
+R-044 manual kilometre readings, current destination and ordered written stops extend
+the existing sessions/events. Atomic request receipts prevent duplicate events; itinerary
+versions refuse stale edits. EN/AF dialogs preserve failed drafts in the browser tab.
+Claude owns review/integration. Full B3 remains open. Evidence and limitations are in
+final-dev/REPORT-B3-DRIVING.md; no merge, production access or deployment occurred.
