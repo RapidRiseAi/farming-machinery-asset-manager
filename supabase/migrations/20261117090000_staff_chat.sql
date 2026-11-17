@@ -155,7 +155,7 @@ select app.pay_gate_apply('chat_events');
 
 create or replace function public.chat_create(p_id uuid, p_farm uuid, p_kind text, p_title text, p_people uuid[])
 returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
-declare people uuid[]; person uuid; result uuid; pair text;
+declare people uuid[]; person uuid; result uuid; pair text; existing public.chat_conversations;
 begin
   if not app.chat_staff(auth.uid(), p_farm) or not app.chat_ready(p_farm) then
     raise exception 'forbidden' using errcode = '42501'; end if;
@@ -171,9 +171,19 @@ begin
   end loop;
   pair := case when p_kind = 'direct' then array_to_string(people, ':') end;
   -- Request id and direct-pair locks avoid duplicate conversations on retries or races.
-  perform pg_advisory_xact_lock(hashtextextended('chat-create:' || coalesce(pair, p_id::text) || p_farm::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('chat-request:' || p_id::text, 0));
+  if pair is not null then perform pg_advisory_xact_lock(hashtextextended('chat-pair:' || pair || p_farm::text, 0)); end if;
+  select * into existing from public.chat_conversations where id=p_id;
+  if found then
+    if not app.chat_can_read(existing.id) then raise exception 'forbidden' using errcode='42501'; end if;
+    if existing.farm_id<>p_farm or existing.kind<>p_kind or existing.direct_key is distinct from pair
+      or (p_kind='group' and (existing.title<>btrim(p_title) or people is distinct from
+        (select array_agg(user_id order by user_id) from public.chat_members where conversation_id=p_id and removed_at is null))) then
+      raise exception 'chat-request-changed'; end if;
+    return existing.id;
+  end if;
   select c.id into result from public.chat_conversations c
-    where (c.id = p_id or (pair is not null and c.farm_id = p_farm and c.direct_key = pair));
+    where pair is not null and c.farm_id = p_farm and c.direct_key = pair;
   if result is not null then
     if not app.chat_can_read(result) then raise exception 'forbidden' using errcode = '42501'; end if;
     return result;

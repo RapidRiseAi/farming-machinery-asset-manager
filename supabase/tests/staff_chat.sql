@@ -11,6 +11,10 @@ select ('bc100000-0000-4000-9000-00000000000'||n)::uuid,
  ('bc000000-0000-4000-9000-00000000000'||case when n=5 then 2 else 1 end)::uuid,
  case when n in (1,5) then 'owner'::public.user_role else 'operator'::public.user_role end,
  'Person '||n,'chat'||n||'@example.test',true from generate_series(1,6)n;
+insert into public.workshops(id,name) values('bc500000-0000-4000-9000-000000000001','Chat external partner');
+insert into auth.users(id,email) values('bc100000-0000-4000-9000-000000000007','external-chat@example.test');
+insert into public.users(id,workshop_id,role,name,email) values('bc100000-0000-4000-9000-000000000007','bc500000-0000-4000-9000-000000000001','workshop','External mechanic','external-chat@example.test');
+insert into public.workshop_links(workshop_id,farm_id,status) values('bc500000-0000-4000-9000-000000000001','bc000000-0000-4000-9000-000000000001','active');
 create function pg_temp.login(n integer) returns void language sql as $$
  select set_config('request.jwt.claims',jsonb_build_object('sub','bc100000-0000-4000-9000-00000000000'||n,'role','authenticated','aal','aal2')::text,true);
 $$;
@@ -29,12 +33,18 @@ reset role;
 insert into public.farm_feature_access(farm_id,key) values('bc000000-0000-4000-9000-000000000001','general_chat');
 set local role authenticated;
 select public.chat_create('bc200000-0000-4000-9000-000000000001','bc000000-0000-4000-9000-000000000001','group','Private',array['bc100000-0000-4000-9000-000000000003'::uuid]);
+select public.chat_create('bc200000-0000-4000-9000-000000000001','bc000000-0000-4000-9000-000000000001','group','Private',array['bc100000-0000-4000-9000-000000000003'::uuid]);
+select pg_temp.assert(public._chat_invalid($q$select public.chat_create('bc200000-0000-4000-9000-000000000001','bc000000-0000-4000-9000-000000000001','group','Changed group',array['bc100000-0000-4000-9000-000000000003'::uuid])$q$,'chat-request-changed'),'changed create retry does not silently discard new choices');
 select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000001','private secret');
 select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000001','private secret');
 select pg_temp.assert((select count(*)=1 from public.chat_messages),'retry sends once');
 select pg_temp.assert(public._chat_invalid($q$select public.chat_send('bc200000-0000-4000-9000-000000000001','bc300000-0000-4000-9000-000000000001','different text')$q$,'chat-request-changed'),'changed retry cannot silently lose text');
 select pg_temp.assert(public._chat_refused($q$insert into public.chat_members(conversation_id,farm_id,user_id,is_admin) values('bc200000-0000-4000-9000-000000000001','bc000000-0000-4000-9000-000000000001','bc100000-0000-4000-9000-000000000001',true)$q$),'no direct member writes');
 select pg_temp.assert(public._chat_refused($q$select public.chat_manage('bc200000-0000-4000-9000-000000000001','add','bc100000-0000-4000-9000-000000000005')$q$),'no cross-customer invitation');
+select pg_temp.assert(public._chat_refused($q$select public.chat_manage('bc200000-0000-4000-9000-000000000001','add','bc100000-0000-4000-9000-000000000007')$q$),'linked partner cannot join internal group');
+select pg_temp.login(7);
+select pg_temp.assert((select count(*)=0 from public.chat_messages),'linked partner reads no internal messages');
+select pg_temp.assert(public._chat_refused($q$select public.chat_people('bc000000-0000-4000-9000-000000000001')$q$),'linked partner cannot search internal staff');
 select pg_temp.login(1);
 select pg_temp.assert((select count(*)=0 from public.chat_messages),'owner is not a secret member');
 select pg_temp.assert((select count(*)=0 from public.chat_conversations),'owner cannot enumerate rooms');

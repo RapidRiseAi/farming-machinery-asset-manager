@@ -14,6 +14,7 @@ export function ChatHome({farm,locale}:{farm:string;locale:Lang}) {
   const [rooms,setRooms]=useState<ChatSummary[]>([]),[more,setMore]=useState(false),[ready,setReady]=useState(false);
   const [kind,setKind]=useState("direct"),[title,setTitle]=useState(""),[people,setPeople]=useState<string[]>([]);
   const [id,setId]=useState(""); const router=useRouter(), task=useChatTask();
+  const {run}=task;
   const load=useCallback(async(offset=0)=>{
     try {
       const result=await chatRequest(`?farm=${farm}&offset=${offset}`);
@@ -23,15 +24,15 @@ export function ChatHome({farm,locale}:{farm:string;locale:Lang}) {
       throw error;
     }
   },[farm]);
-  useEffect(()=>{setId(crypto.randomUUID());void task.run(()=>load());},[load,task.run]);
+  useEffect(()=>{setId(crypto.randomUUID());void run(()=>load());},[load,run]);
   useEffect(()=>{
     const db=createClient();
-    const refresh=()=>{if(document.visibilityState==="visible")void task.run(()=>load());};
+    const refresh=()=>{if(document.visibilityState==="visible")void run(()=>load());};
     const channel=db.channel(`chat-list:${farm}`).on("postgres_changes",{event:"UPDATE",schema:"public",table:"chat_conversations",filter:`farm_id=eq.${farm}`},refresh).subscribe();
     const timer=setInterval(refresh,30000);
     window.addEventListener("online",refresh);
     return()=>{clearInterval(timer);window.removeEventListener("online",refresh);void db.removeChannel(channel);};
-  },[farm,load,task.run]);
+  },[farm,load,run]);
   return <div className="flex flex-col gap-4">
     <p className="text-sm text-sand-600">{t("chat.privacy",locale)}</p>
     <div className="flex flex-wrap gap-2">
