@@ -309,3 +309,12 @@ the database: a new or edited `trip_routes` row and a new `asset_positions` row 
 (`plan-feature-maps`, `maps-not-ready`), and a delivery's `pod_lat`/`pod_lng` is kept only
 where maps are allowed. Reads are unchanged, so every saved trip, route and position stays
 readable on any plan. Suite: `supabase/tests/trips_by_plan.sql`.
+
+## Scheduled work by plan, and the weekly digest once a week (B3)
+
+Migration 20261119100000_scheduled_work_by_plan.sql adds no table. AARTO nomination
+reminders go only to a business whose plan includes AARTO and whose `app.farm_billing_gate`
+is `ok`. `app.enqueue_weekly_digest` sends one `weekly_digest` per open business per South
+African week (`app.sast_week_start`, Monday 00:00 SAST), whichever run gets there first,
+under a per-business advisory lock; the nightly route asks Monday to Wednesday so a missed
+Monday catches up. Suite: `supabase/tests/scheduled_work_by_plan.sql`.
