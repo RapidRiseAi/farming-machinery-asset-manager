@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PAGE_ROWS } from "@/lib/supabase/read-all";
 import { isUuid } from "@/lib/ids";
+import { EXPORT_TABLES } from "@/lib/farm-export/tables";
 
 /**
  * Everything this farm has put into FLEETWISE, as one JSON file.
@@ -47,78 +48,12 @@ import { isUuid } from "@/lib/ids";
  */
 const CAP = 50_000;
 
-/** Every column of `machines` a farm user may read, less the QR capture token. */
-const MACHINE_COLUMNS =
-  "id, farm_id, name, type, make, model, year, serial_no, reg_no, meter_type, status, " +
-  "current_reading, current_reading_date, purchase_date, warranty_expiry_date, " +
-  "warranty_expiry_hours, assigned_operator_id, location, notes, created_at, deleted_at, " +
-  "cost_centre, department, primary_attachment_id";
-
 /**
- * The tables a farm would actually want back, where each is read from, and the ordering
- * that makes the file readable. `attachments` carries metadata only, the files themselves
- * live in Storage and are served by signed URL; listing their paths without the bytes would
- * be a tease, so the export says so in `notes` rather than pretending.
+ * The tables and how each is read live in one list shared with the complete export job
+ * (`src/lib/farm-export/tables.ts`). `attachments` carries metadata only: the files themselves
+ * come with the complete export (`/api/farm/export/jobs`), which this file's notes point to.
  */
-/** `key`: the unique column paging ends on, for a table without an `id`. */
-const TABLES: Array<{ name: string; source?: string; columns?: string; order?: string; farmColumn?: string; key?: string }> = [
-  { name: "farms", farmColumn: "id" },
-  { name: "machines", columns: MACHINE_COLUMNS, order: "name" },
-  { name: "meter_readings", order: "reading_date" },
-  { name: "service_plan_lines" },
-  { name: "job_cards", source: "job_cards_visible", order: "created_at" },
-  { name: "job_card_lines", source: "job_card_lines_visible" },
-  { name: "faults", order: "created_at" },
-  { name: "cost_entries", order: "occurred_on" },
-  { name: "fuel_issues", source: "fuel_issues_visible", order: "date" },
-  { name: "fuel_deliveries", source: "fuel_deliveries_visible", order: "date" },
-  { name: "licences", order: "expiry_date" },
-  { name: "work_requests", source: "work_requests_visible", order: "created_at" },
-  { name: "budgets" },
-  { name: "stock_items" },
-  { name: "checklist_instances", order: "created_at" },
-  { name: "usage_logs", order: "occurred_on" },
-  { name: "billing_invoices", order: "issued_on" },
-  // Added 2026-11-05 (launch tracker "Farm export: finance tables and large farms"): the
-  // finance and lease records, and the operational tables built since this list was made.
-  // Finance rows come back only for a role that may read them (`can_view_farm_finance`);
-  // a manager without that sees the tables named as unavailable rather than empty.
-  { name: "finance_agreements", order: "created_at" },
-  { name: "finance_instalments", order: "due_date" },
-  { name: "asset_contracts", order: "created_at" },
-  { name: "fuel_tanks" },
-  { name: "fuel_dips", order: "created_at" },
-  { name: "meter_replacements", order: "created_at" },
-  { name: "asset_aliases" },
-  { name: "watch_items", order: "created_at" },
-  { name: "stock_movements", source: "stock_movements_visible", order: "created_at" },
-  { name: "service_kits" },
-  { name: "checklist_templates" },
-  // No id column: its key is the (job card, service line) pair.
-  { name: "job_card_service_lines", order: "service_plan_line_id", key: "job_card_id" },
-  { name: "tyres" },
-  { name: "tyre_fitments", order: "created_at" },
-  { name: "tyre_checks", order: "created_at" },
-  { name: "incidents", order: "created_at" },
-  { name: "warranty_claims", order: "created_at" },
-  { name: "fines", order: "created_at" },
-  { name: "driver_credentials" },
-  { name: "driving_sessions", order: "created_at" },
-  { name: "driving_events", order: "occurred_at" },
-  // Trips, their loads and money, planned routes and reported positions (B3). After a
-  // downgrade these stay the business's to take away (decision 37); the reads are the
-  // person's own, so trip money comes back only for an owner or manager.
-  { name: "trips", order: "created_at" },
-  { name: "trip_jobs", order: "created_at" },
-  { name: "trip_income", key: "trip_id" },
-  { name: "trip_expenses", order: "created_at" },
-  { name: "trip_routes", key: "trip_id" },
-  { name: "asset_positions", order: "recorded_at" },
-  { name: "fuel_card_statements", order: "created_at" },
-  { name: "fuel_card_transactions", order: "created_at" },
-  { name: "user_farm_memberships" },
-  { name: "attachments", order: "created_at" },
-];
+const TABLES = EXPORT_TABLES;
 
 export const dynamic = "force-dynamic";
 
@@ -229,9 +164,9 @@ export async function GET(request: Request) {
         const notes = [
           "Every table here is scoped by the same row-level security that governs the app, and " +
             "to this one farm, so it contains exactly what the person who asked for it may read.",
-          "Photos, voice notes and uploaded documents are NOT in this file. They live in " +
-            "storage and are referenced by path (the attachments table); ask " +
-            "team@rapidriseai.com for a copy of the files.",
+          "Photos, voice notes and uploaded documents are NOT in this file. They are referenced by " +
+            "path (the attachments table); the complete export, prepared in the background with a " +
+            "manifest of every file, includes them.",
           truncated.length
             ? `Capped at ${CAP} rows: ${truncated.join(", ")}. Ask us for the rest.`
             : `No table reached the ${CAP}-row cap.`,

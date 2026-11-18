@@ -31,6 +31,17 @@ step 3 complete export jobs (records under the requester's session, files listed
 at the cutoff and copied by a worker); step 4 retention schedules on farm_closures (disabled, dry
 run); step 5 docs, register, report. Git writes work for this worker (commits are mine from here).
 
+18 Nov, step 1 DONE (18c09d4..5920ba2): 20261120100000_service_orders.sql rewritten (Codex's draft
+had per-farm jsonb terms and invoiced DFY by hand outside the subscription). Now: explicit DFY
+prices on done_for_you_quotes (legacy rows untouched), owner acceptance of the total, landing at the
+renewal on a private retired price row (invoice run bills it), plan-change guard, dfy_end via A2's
+pending change; catalogue rules as data (QR kits not ready); service_orders accepted then invoiced
+once; service_work_entries. Suite service_orders.sql 18/18 SQL mutations caught; TS mirror
+service-orders.ts 5/5 mutations. Step 2 (UI) committed through e5a3a59: /billing ServicesCard,
+owner accept actions, admin AdminServices card, cron step, EN/AF keys, error codes. Gates: tsc,
+1225 unit tests (0 fail), dashes, parity, keys, design, errors clean. Full SQL suite running.
+Next: step 3 complete export jobs (migration 20261120110000).
+
 A4 remains INCOMPLETE. No requirement row closed, no migration written. Remaining: service
 orders and quote acceptance, durable complete export/manifest/media jobs, retention on
 farm_closures, readiness flags, UI/i18n, BACKUP/legal checklist, full tests and REPORT-A4.
