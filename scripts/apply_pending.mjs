@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Trips and maps by plan after a downgrade; the map readiness flag in the database (B3).
+  "20261119090000": "select to_regprocedure('app.trips_history_guard()') is not null and to_regprocedure('app.require_maps_ready()') is not null and to_regprocedure('app.maps_allowed(uuid)') is not null",
   // The customer's assistance budget, WhatsApp on the AI ledger, the event record.
   "20261118120200": "select to_regclass('public.assistance_budgets') is not null and to_regclass('public.whatsapp_usage_holds') is not null and to_regprocedure('public.whatsapp_usage_settle(text,text,boolean,text,text)') is not null and to_regprocedure('public.assistance_accept_whatsapp(uuid,boolean,text)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ai_usage' and column_name = 'billing_root')",
   // Storage blocks on the bill: block quotes, the invoice's storage, the usage invoice per day.
