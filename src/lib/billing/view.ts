@@ -1336,6 +1336,11 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
     // money or the date it names is what the owner has to be able to read again.
     case "change-made":
       return { key: "billing.savedChangeMade", tone: "success" };
+    // Automatic storage blocks switched on or off (20261118120000).
+    case "storage-auto-on":
+      return { key: "billing.savedStorageAutoOn", tone: "info" };
+    case "storage-auto-off":
+      return { key: "billing.savedStorageAutoOff", tone: "success" };
     case "change-scheduled":
       return { key: "billing.savedChangeScheduled", tone: "info" };
     case "change-awaiting":
