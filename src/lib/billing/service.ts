@@ -896,12 +896,13 @@ async function resolveStaleCheckout(
   provider: SaasBillingProvider,
   farmId: string,
   invoiceId: string,
-): Promise<"freed" | "paid" | "busy"> {
+  amountCents: number,
+): Promise<"freed" | "paid" | "busy" | { resume: string; reference: string }> {
   const { reconcileAttempt, STALE_PENDING_MINUTES } = await import("./worker");
 
   const { data, error } = await supabase
     .from("billing_payment_attempts")
-    .select(ATTEMPT_COLUMNS)
+    .select(`${ATTEMPT_COLUMNS}, authorization_url`)
     .eq("farm_id", farmId)
     .eq("invoice_id", invoiceId)
     .in("status", ["pending", "unknown"])
@@ -914,11 +915,23 @@ async function resolveStaleCheckout(
   }
   // No row: it settled between the claim and this read. The next press reads what it
   // settled as, which is the honest answer to "give it a moment".
-  const attempt = (data as AttemptRow | null) ?? null;
+  const attempt = (data as (AttemptRow & { authorization_url?: string | null }) | null) ?? null;
   if (!attempt || attempt.status !== "pending" || attempt.kind !== "initial_checkout") return "busy";
   const ageMinutes = (Date.now() - new Date(attempt.requested_at).getTime()) / 60_000;
   // Written so an unreadable date is "too young", never "old enough".
-  if (!(ageMinutes >= STALE_PENDING_MINUTES)) return "busy";
+  if (!(ageMinutes >= STALE_PENDING_MINUTES)) {
+    // == Pay pressed again while the first checkout is still open (repeat-tap follow-up) ==
+    // The owner closed Paystack's tab, or the answer to the first press was lost, and
+    // pressed Pay again. That was refused as "in progress" for half an hour. The same
+    // checkout is resumed instead: the page Paystack made for this attempt, its reference,
+    // no second attempt and no second page. Only for the same invoice at the same amount
+    // owed, and only with a Paystack address recorded; anything else is still in progress.
+    const url = attempt.authorization_url ?? null;
+    if (url && isPaystackCheckoutUrl(url) && Number(attempt.amount_incl_cents) === amountCents) {
+      return { resume: url, reference: attempt.attempt_ref };
+    }
+    return "busy";
+  }
 
   let outcome: Awaited<ReturnType<typeof reconcileAttempt>>;
   try {
@@ -1060,7 +1073,8 @@ export async function beginCheckout(
   // way, and only an answer that no money moved frees the invoice for one more claim. A
   // payment that went through means the invoice is paid: nothing is charged again.
   if (!claim.attemptId) {
-    const blocked = await resolveStaleCheckout(supabase, provider, input.farmId, invoice.id);
+    const blocked = await resolveStaleCheckout(supabase, provider, input.farmId, invoice.id, amount);
+    if (typeof blocked === "object") return { ok: true, url: blocked.resume, reference: blocked.reference, invoiceId: invoice.id };
     if (blocked === "paid") return { ok: false, code: "billing-nothing-due" };
     if (blocked === "busy") return { ok: false, code: "billing-in-flight" };
     reference = newAttemptReference();
