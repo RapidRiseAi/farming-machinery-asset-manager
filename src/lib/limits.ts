@@ -61,6 +61,20 @@ export const LIMITS = {
   drivingStops: entry(50, "count", "abuse", true, "Maximum written itinerary stops per driving session, not a plan entitlement."),
   drivingStopsTextChars: entry(10050, "chars", "abuse", false, "Fifty stop names of two hundred characters with line separators."),
   drivingMaxKm: entry(999999999.9, "km", "abuse", false, "Finite nonnegative odometer values with at most one decimal place."),
+  // == Pooled attachment storage (decisions 14, 15 and 34; 20261118120000) ==============
+  storageMinBytes: entry(2000 * MB, "bytes", "commercial", true,
+    "Decision 14: every customer's pool is at least 2 GB (decimal)."),
+  storagePerFullSpaceBytes: entry(100 * MB, "bytes", "commercial", true,
+    "Decision 14: each purchased full space adds 100 MB to the one shared pool, never a per-asset cap."),
+  storagePerEquipmentSpaceBytes: entry(25 * MB, "bytes", "commercial", true,
+    "Decision 14: each equipment space, included or extra, adds 25 MB to the pool."),
+  storageBlockBytes: entry(10_000 * MB, "bytes", "commercial", true,
+    "Decision 15: an optional paid block adds 10 GB (R49 a month, charged monthly)."),
+  storageWarnPercent: entry(80, "count", "abuse", true,
+    "Engineering default, not a founder term: owners are warned at 80% full."),
+  storageUrgentPercent: entry(95, "count", "abuse", true,
+    "Engineering default, not a founder term: owners are warned again at 95% full."),
+
   // == Media an app user attaches (decisions 8 to 12) ==================================
   photoMaxBytes: entry(20 * MB, "bytes", "commercial", true, "Decision 8: photos up to 20 MB."),
   pdfMaxBytes: entry(50 * MB, "bytes", "commercial", true, "Decision 9: PDFs up to 50 MB, kept unchanged."),
@@ -229,6 +243,12 @@ export const TRACKER_BATCH_MAX_BYTES = LIMITS.trackerBatchMaxBytes.value;
 export const OFFLINE_PAYLOAD_MAX_CHARS = LIMITS.offlinePayloadMaxChars.value;
 export const READ_ALL_MAX_ROWS = LIMITS.readAllMaxRows.value;
 export const JOURNAL_MAX_LINES = LIMITS.journalMaxLines.value;
+export const STORAGE_MIN_BYTES = LIMITS.storageMinBytes.value;
+export const STORAGE_PER_FULL_SPACE_BYTES = LIMITS.storagePerFullSpaceBytes.value;
+export const STORAGE_PER_EQUIPMENT_SPACE_BYTES = LIMITS.storagePerEquipmentSpaceBytes.value;
+export const STORAGE_BLOCK_BYTES = LIMITS.storageBlockBytes.value;
+export const STORAGE_WARN_PERCENT = LIMITS.storageWarnPercent.value;
+export const STORAGE_URGENT_PERCENT = LIMITS.storageUrgentPercent.value;
 
 // == Media classes: what each kind of attachment may be ================================
 
