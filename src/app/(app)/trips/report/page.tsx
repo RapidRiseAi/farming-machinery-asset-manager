@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { must, mustAll } from "@/lib/supabase/must";
 import { readAll, readByIds } from "@/lib/supabase/read-all";
 import { tripDistance, tripReport, type ReportTrip } from "@/lib/trips";
+import { TRIP_REPORT_WINDOW_DAYS } from "@/lib/limits";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -24,7 +25,7 @@ import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { updateSettings } from "../../settings/actions";
 
 /** The window this report covers, said on the page: it is not an all-time total. */
-const WINDOW_DAYS = 90;
+const WINDOW_DAYS = TRIP_REPORT_WINDOW_DAYS;
 
 /**
  * What each vehicle earned over its last 90 days of finished work. Owners and managers only,

@@ -8109,7 +8109,11 @@
     "fault": "Fout",
     "drivingRecords": "Bestuursrekords",
     "tripSummary": "{{Trip}} {n}: beplan {planned} km, aangeteken {driven} km.",
-    "openTrip": "Maak die {{trip}} oop"
+    "openTrip": "Maak die {{trip}} oop",
+    "reportedAgo": "Gerapporteer {when}",
+    "lastKnownAgo": "Laaste bekende posisie, {when}: geen verslag sedertdien nie",
+    "lastSeenTitle": "Waar elke {{asset}} laas gesien is",
+    "lastSeenHint": "Dit is die laaste posisies wat 'n foon of spoorder gestuur het, met hul ouderdom. 'n Foon hou op stuur wanneer sy skerm sluit, so 'n ou posisie is nie waar die {{asset}} nou is nie."
   },
   "trips": {
     "title": "{{Trips}}",

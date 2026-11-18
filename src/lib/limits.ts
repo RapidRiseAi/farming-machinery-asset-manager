@@ -185,6 +185,9 @@ export const LIMITS = {
   // == Display and query windows (never contractual history limits) ====================
   readAllMaxRows: entry(100_000, "rows", "window", false, "Paged reads stop and report beyond this."),
   journalMaxLines: entry(100_000, "rows", "window", false, "Accounting journal export; choose a shorter period beyond."),
+  positionRecentMs: entry(10 * MINUTE, "ms", "window", true,
+    "A reported position older than this is shown as the last known position with its age, never as current or live."),
+  tripReportWindowDays: entry(90, "count", "window", true, "The trip earnings report covers the last 90 days and says so; older trips stay on their own pages and in the export."),
 } as const satisfies Record<string, LimitEntry>;
 
 export type LimitName = keyof typeof LIMITS;
@@ -194,6 +197,8 @@ export type LimitName = keyof typeof LIMITS;
 export const PHOTO_MAX_BYTES = LIMITS.photoMaxBytes.value;
 export const PDF_MAX_BYTES = LIMITS.pdfMaxBytes.value;
 export const VOICE_NOTE_MAX_BYTES = LIMITS.voiceNoteMaxBytes.value;
+export const POSITION_RECENT_MS = LIMITS.positionRecentMs.value;
+export const TRIP_REPORT_WINDOW_DAYS = LIMITS.tripReportWindowDays.value;
 export const VOICE_NOTE_MAX_MS = LIMITS.voiceNoteMaxMs.value;
 export const COMMAND_AUDIO_MAX_MS = LIMITS.commandAudioMaxMs.value;
 export const COMMAND_AUDIO_MAX_BYTES = LIMITS.commandAudioMaxBytes.value;

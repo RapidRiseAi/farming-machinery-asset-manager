@@ -81,3 +81,16 @@ export function cleanPoints(
   }
   return out;
 }
+
+/**
+ * How current a reported position is. A phone stops sending when its screen locks and a
+ * tracker when it loses signal, so the newest point is often old: past `recentMs` it is the
+ * LAST KNOWN position, shown with its age, and nothing on the map ever calls it live
+ * (BRIEF section 8). A position from the future (a wrong clock) is treated as just now.
+ */
+export function positionFreshness(at: string, now: Date, recentMs: number): { recent: boolean; ageMs: number } {
+  const time = Date.parse(at);
+  if (!Number.isFinite(time)) return { recent: false, ageMs: Number.POSITIVE_INFINITY };
+  const ageMs = Math.max(0, now.getTime() - time);
+  return { recent: ageMs <= recentMs, ageMs };
+}

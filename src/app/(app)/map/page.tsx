@@ -6,7 +6,8 @@ import { mapsAvailable } from "@/lib/features";
 import { dateTime, num, relativeDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { isUuid } from "@/lib/ids";
-import { lastSeen, routeKm, routeLine, type TrackedPoint } from "@/lib/map-data";
+import { lastSeen, positionFreshness, routeKm, routeLine, type TrackedPoint } from "@/lib/map-data";
+import { POSITION_RECENT_MS } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/server";
 import { mustAll } from "@/lib/supabase/must";
 import { Badge } from "@/components/ui/badge";
@@ -140,6 +141,13 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
   ];
 
   const seen = lastSeen(sightings);
+  // Never "live": a phone stops sending when its screen locks and a tracker when it loses
+  // signal. Each vehicle's newest point says how old it is, and an old one says it is only
+  // the last known position (BRIEF section 8, POSITION_RECENT_MS).
+  const now = new Date();
+  const seenLabel = (at: string) =>
+    t(positionFreshness(at, now, POSITION_RECENT_MS).recent ? "map.reportedAgo" : "map.lastKnownAgo", locale)
+      .replace("{when}", relativeDate(at, locale));
   const markers: MapMarker[] = trip
     ? (planned?.waypoints ?? []).map((w, i) => ({
         id: `stop-${i}`,
@@ -166,7 +174,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
           lat: p.lat,
           lng: p.lng,
           title: nameOf.get(p.machineId) ?? "",
-          detail: dateTime(p.at, locale),
+          detail: `${seenLabel(p.at)} · ${dateTime(p.at, locale)}`,
           kind: "vehicle" as const,
         })),
         ...faults.map((f) => ({
@@ -215,6 +223,24 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
           {route.length > 1 ? t("map.routeKm", locale).replace("{km}", () => num(routeKm(route))) : t("map.noRoute", locale)}{" "}
           <Link href="/map" className="underline">{t("map.backToFleet", locale)}</Link>
         </p>
+      ) : null}
+
+      {!trip && !chosen && seen.length > 0 ? (
+        <Card>
+          <CardHeader><CardTitle as="h3">{t("map.lastSeenTitle", locale)}</CardTitle></CardHeader>
+          <p className="mb-2 text-sm text-sand-600">{t("map.lastSeenHint", locale)}</p>
+          <ul className="flex flex-col divide-y divide-sand-100">
+            {[...seen].sort((a, b) => b.at.localeCompare(a.at)).map((p) => {
+              const recent = positionFreshness(p.at, now, POSITION_RECENT_MS).recent;
+              return (
+                <li key={p.machineId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span className="min-w-0 break-words font-medium text-sand-900">{nameOf.get(p.machineId) ?? ""}</span>
+                  <Badge tone={recent ? "ok" : "warning"}>{seenLabel(p.at)}</Badge>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
       ) : null}
 
       {trips.length > 0 ? (
