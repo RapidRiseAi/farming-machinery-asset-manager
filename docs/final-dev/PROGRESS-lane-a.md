@@ -4,6 +4,13 @@ Read this and `git log` first when resuming. Never restart a step that is marked
 
 ## Current task: A4 (service orders, complete export, retention and deletion)
 
+**TASK A4 COMPLETE** (19 Nov 2026). Final gates at 7d231ea (docs only since): tsc clean, 1236 unit
+tests (0 fail, 1 skipped), dashes, parity, keys, design and errors clean; full SQL suite 97/97 on
+PGlite. Mutations 47/47 SQL, 12/12 TS. Register rows R-100, R-102, R-115, R-116, R-124 E (A4);
+R-101 X (ships off). The harness refused docs/final-dev/REPORT-A4.md (as for A1 to A3): the full
+report is the worker's final message. Next checks: CI on real Postgres, a staging run with real
+Storage, ui:check of /billing, /settings, /admin/farms/[id], /admin/retention.
+
 Started 18 Nov 2026 on e3593f0. A3 and B3 are complete; A4 was not started.
 Reading requirements R-100/101/102/115/116/124 and existing quote/export/closure code.
 Next: extend accepted quotes and optional orders; durable session-scoped media export;
