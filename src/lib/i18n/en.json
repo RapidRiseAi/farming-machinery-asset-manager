@@ -8366,7 +8366,13 @@
     "reportTrip": "{{Trip}}",
     "difference": "Difference",
     "tolerance": "Allowed difference (%)",
-    "toleranceHint": "A {{trip}} further or shorter than this, by the odometer, is flagged."
+    "toleranceHint": "A {{trip}} further or shorter than this, by the odometer, is flagged.",
+    "savedTitle": "Saved route and positions",
+    "savedHint": "Kept as a record. Maps are not on this business's plan, so nothing is drawn and nothing new is recorded; what was saved stays readable and can be downloaded.",
+    "savedStops": "Planned stops",
+    "savedPositions": "Recorded positions",
+    "savedPositionsValue": "{n}, from {first} to {last}",
+    "savedDownload": "Download the positions (CSV)"
   },
   "upload": {
     "err": {

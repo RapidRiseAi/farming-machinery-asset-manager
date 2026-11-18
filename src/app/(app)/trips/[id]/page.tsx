@@ -35,6 +35,7 @@ import {
   startTrip,
 } from "../actions";
 import { TripRouteCard } from "./route-card";
+import { TripSavedTracking } from "./saved-tracking";
 import { UploadField } from "@/components/upload/upload-field";
 
 export const dynamic = "force-dynamic";
@@ -183,7 +184,9 @@ export default async function TripPage({
         ) : null}
       </Card>
 
-      {mapOn ? <TripRouteCard trip={trip} viewerId={profile.id} manager={manager} kmMeter={kmMeter} locale={locale} /> : null}
+      {mapOn
+        ? <TripRouteCard trip={trip} viewerId={profile.id} manager={manager} kmMeter={kmMeter} locale={locale} />
+        : <TripSavedTracking trip={trip} locale={locale} />}
 
       <Card>
         <CardHeader

@@ -8366,7 +8366,13 @@
     "reportTrip": "{{Trip}}",
     "difference": "Verskil",
     "tolerance": "Toegelate verskil (%)",
-    "toleranceHint": "'n {{Trip}} wat volgens die odometer verder of korter as dit is, word gemerk."
+    "toleranceHint": "'n {{Trip}} wat volgens die odometer verder of korter as dit is, word gemerk.",
+    "savedTitle": "Gestoorde roete en posisies",
+    "savedHint": "Bewaar as 'n rekord. Kaarte is nie op hierdie besigheid se plan nie, so niks word geteken nie en niks nuuts word opgeneem nie; wat gestoor is, bly leesbaar en kan afgelaai word.",
+    "savedStops": "Beplande stoppunte",
+    "savedPositions": "Opgeneemde posisies",
+    "savedPositionsValue": "{n}, van {first} tot {last}",
+    "savedDownload": "Laai die posisies af (CSV)"
   },
   "upload": {
     "err": {
