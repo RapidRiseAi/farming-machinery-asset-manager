@@ -42,6 +42,19 @@ owner accept actions, admin AdminServices card, cron step, EN/AF keys, error cod
 1225 unit tests (0 fail), dashes, parity, keys, design, errors clean. Full SQL suite 95/95 (PGlite).
 Next: step 3 complete export jobs (migration 20261120110000).
 
+18 to 19 Nov, step 3 DONE (50a9ff1..9466ec9): 20261120110000_complete_export.sql (farm_export_jobs,
+farm_export_job_files, bucket farm-exports outside the pool, export_readable_files as SECURITY
+INVOKER, create/claim/record/finish/retry/cleanup/orphans); src/lib/farm-export/{tables,archive,
+job,access}.ts; routes /api/farm/export/jobs (+ step, download, retry), /api/cron/exports; nightly
+export_worker and export_cleanup; CompleteExport on settings, suspended, closed, close-account.
+Mutations 15/15 SQL, 7/7 TS. Step 4 DONE (c6d9c77..7d231ea): 20261120120000_retention_schedules.sql
+(settings off, schedules, holds, dry-run preview, warnings only when on, retention_delete through
+close_farm_permanently with reason retention, deletion-ledger bucket); src/lib/retention.ts with
+runRetention (needs RETENTION_DELETION=enabled too), closure logins, ledger on manual closure;
+/admin/retention; BACKUP.md section 8; CRON.md. Mutations 14/14 SQL. Gates at 7d231ea: tsc, 1236
+unit tests (0 fail), dashes, parity, keys, design, errors; full SQL suite 97/97 (PGlite).
+Next: step 5, register rows, REPORT-A4.md.
+
 A4 remains INCOMPLETE. No requirement row closed, no migration written. Remaining: service
 orders and quote acceptance, durable complete export/manifest/media jobs, retention on
 farm_closures, readiness flags, UI/i18n, BACKUP/legal checklist, full tests and REPORT-A4.
