@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { exportArchivePath } from "@/lib/farm-export-policy";
+import { EXPORT_FILE_ATTEMPTS, EXPORT_KEEP_DAYS, EXPORT_LINK_MS, EXPORT_MAX_FILES, EXPORT_PART_BYTES, EXPORTS_PER_DAY } from "@/lib/limits";
 import { zipStream } from "@/lib/zip";
 
 /**
@@ -19,21 +20,16 @@ import { zipStream } from "@/lib/zip";
  * == Names ======================================================================================
  * Nothing from a storage key or a table name reaches an archive path unchecked: files go through
  * `exportArchivePath` (hashed, portable, never `..` or an absolute path, chat and command audio
- * refused), records are `records/<table>.<chunk>.ndjson` for a plain table name.
+ * refused), records are `records/TABLE.CHUNK.ndjson` for a plain table name.
  */
 
-/** About 40 MB a part: under a 50 MB per-object upload limit with room for the ZIP headers. */
-export const PART_TARGET_BYTES = 40_000_000;
-/** How long a finished archive is kept, at most: public.export_job_finish decides it (never past the reading window). */
-export const ARCHIVE_KEEP_DAYS = 7;
-/** A download link's life. A new one is made on every press while the archive is kept. */
-export const LINK_SECONDS = 600;
-/** Attempts at one file before it is reported missing rather than retried again. */
-export const FILE_ATTEMPTS = 3;
-/** Files listed for one export; beyond it the manifest says the export is capped. */
-export const MAX_FILES = 200_000;
-/** Exports a business may start in one South African day (each one copies every file). */
-export const EXPORTS_PER_DAY = 5;
+/** The limits live in the catalogue (src/lib/limits.ts); these names are what the export reads. */
+export const PART_TARGET_BYTES = EXPORT_PART_BYTES;
+export const ARCHIVE_KEEP_DAYS = EXPORT_KEEP_DAYS;
+export const LINK_SECONDS = EXPORT_LINK_MS / 1000;
+export const FILE_ATTEMPTS = EXPORT_FILE_ATTEMPTS;
+export const MAX_FILES = EXPORT_MAX_FILES;
+export { EXPORTS_PER_DAY };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

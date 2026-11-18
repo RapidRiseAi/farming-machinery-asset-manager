@@ -216,6 +216,17 @@ their file size is bounded only by Vercel's 4.5 MB request limit; that is far ab
 | `positionRecentMs` (B3, new) | 10 minutes: a reported position older than this is shown as the last known position with its age, never as current or live (`/map`) |
 | `tripReportWindowDays` (B3, new) | 90 days: the trip earnings report says it covers only the last 90 days; older trips stay on their pages and in the export |
 
+### The complete export with files (A4, new)
+
+| Name | Value |
+|---|---|
+| `exportPartBytes` | 40 MB a ZIP part, under a 50 MB per-object upload limit (a Free project's ceiling; the live project limit is a dashboard fact); a larger file goes alone in its own part |
+| `exportMaxFiles` | 200,000 files listed for one export; beyond it the contents list says the export is capped |
+| `exportsPerDay` | 5 complete exports a business may start in one South African day (also in `public.export_job_create`) |
+| `exportKeepDays` | 7 days a finished export is kept, never past the owner's last reading day (also in `public.export_job_finish`) |
+| `exportLinkMs` | 10 minutes a download link works; a new one on every press while the export is kept |
+| `exportFileAttempts` | 3 attempts at one file before it is reported missing with its reason |
+
 ## Photo reduction
 
 One reducer for every photo (`src/lib/upload/compress.ts`, used by the upload control, the

@@ -12,6 +12,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildManifest, exportObjectPath, fileEntryName, missingReason, partName, recordsEntryName, zipPart } from "./archive";
 import { filesStep, recordsStep, runExportStep, type ExportJob } from "./job";
 import { EXPORT_TABLES, NEVER_EXPORTED } from "./tables";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { EXPORT_KEEP_DAYS, EXPORTS_PER_DAY } from "@/lib/limits";
+
+const MIGRATION = readFileSync(join(import.meta.dirname, "../../../supabase/migrations/20261120110000_complete_export.sql"), "utf8");
 
 type Row = Record<string, unknown>;
 type Filter = (row: Row) => boolean;
@@ -259,4 +264,9 @@ test("archive names are portable and scoped; the manifest states scope and omiss
 
   const zip = await zipPart([{ name: "records/a.1.ndjson", bytes: new TextEncoder().encode("{}\n") }]);
   assert.equal(new DataView(zip.buffer).getUint32(0, true), 0x04034b50);
+});
+
+test("the database's daily limit and keeping time are the catalogue's", () => {
+  assert.ok(MIGRATION.includes(`= v_today) >= ${EXPORTS_PER_DAY} then`), "export_job_create counts the catalogue's daily limit");
+  assert.ok(MIGRATION.includes(`v_expires timestamptz := now() + interval '${EXPORT_KEEP_DAYS} days';`), "export_job_finish keeps the catalogue's days");
 });
