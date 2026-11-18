@@ -134,6 +134,12 @@ export async function beginUpload(
   if (error) {
     const refusal = refusalFromDb(error);
     if (refusal.code === "upload-unavailable") captureError(error, { where: "upload:begin", extra: { code: error.code ?? null } });
+    // The refusal rolled its own transaction back, so the owners are told here, once per
+    // allowance (20261118120000). Best effort: telling them must never change the answer.
+    if (refusal.code === "upload-storage-full" && input.target.farmId) {
+      const told = await db.rpc("storage_note_full", { p_farm: input.target.farmId });
+      if (told.error) captureError(told.error, { where: "upload:storage-note-full" });
+    }
     return refusal;
   }
   const row = data as BeginRow;
