@@ -11,7 +11,7 @@ storage/assistance half of 12). Started 17 Nov 2026 on 48b7987 (A1, B1, A2, Code
 |---|---|---|
 | 1 | Storage allowance and pool (migration 20261118120000): pooled customer allowance, quota hooks replaced, files from before the pipeline counted (nightly snapshot of untracked objects), 80/95% warnings, status function, auto blocks setting with ceiling, transactional auto block; suite storage_pool.sql | SQL done (12/12 mutations); TS in step 4 |
 | 2 | Storage blocks billing (20261118120100): buy through A2's quotes (change 'storage'), reductions scheduled at the next storage month and never below what is stored, storage charge ledger, recurring monthly charge on the period invoice (monthly) and on the usage invoice (annual), generic cost-plus storage retired; suite storage_blocks.sql | SQL done (12/12 mutations); TS in step 4 |
-| 3 | Assistance cap (20261118120200): customer-wide budget table, existing limits migrated as chosen (owners told), blank refuses (budget_unset), customer-wide lock and spend, staff sublimits across sites, WhatsApp on the same ledger (owner acceptance, hold before send, settle on the delivery webhook's pricing, free = R0, stale = R0), event fields, AI use of every pooled site invoiced, usage corrections as credit; suite assistance_cap.sql | todo |
+| 3 | Assistance cap (20261118120200): customer-wide budget table, existing limits migrated as chosen (owners told), blank refuses (budget_unset), customer-wide lock and spend, staff sublimits across sites, WhatsApp on the same ledger (owner acceptance, hold before send, settle on the delivery webhook's pricing, free = R0, stale = R0), event fields, AI use of every pooled site invoiced, usage corrections as credit; suite assistance_cap.sql | SQL done (16/16 mutations); usage corrections as credit NOT built (see report) |
 | 4 | TS storage: mirror + tests, /billing storage section (status, warnings, blocks, auto setting), upload refusal offers expansion, admin usage page | todo |
 | 5 | TS assistance: /settings/ai setup (required, zero allowed, migrated notice, reset boundary), refusals, WhatsApp hooks and acceptance, admin rates | todo |
 | 6 | Docs, register rows, REPORT-A3.md | todo |
@@ -58,6 +58,11 @@ Log:
   storage months and current_date for the invoice run (they differ 22:00 to 24:00 UTC).
   Tool trap: a Bash command containing "=>" hangs this harness; use edit.js with a spec file.
   Next: step 3 (assistance cap migration 20261118120200).
+- 18 Nov (after a usage-limit stop): step 3 SQL committed (through the 16/16 mutation commit).
+  Migrated value = the billing site's own farm_ai_settings limit or the R200 default, so the
+  trial guard reproduces every current effective limit exactly. ai_usage.sql and
+  test_account_fence.sql now choose a budget in their fixtures. Next: step 4 (TS storage), then
+  step 5 (TS assistance and the WhatsApp hooks).
 
 ## A2 (complete)
 
