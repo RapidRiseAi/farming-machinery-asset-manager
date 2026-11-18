@@ -4,6 +4,15 @@ Worker log for `final/lane-b`. Read this and `git log` first when resuming; neve
 
 ## Task B3 (started 18 Nov 2026 at 45e5efd)
 
+## TASK B3 COMPLETE
+
+Final gates at the last commit: tsc clean; 1209 unit tests pass (1 skipped); dashes, i18n
+parity and keys, design lint, errors clean; node scripts/migrate_check.mjs --suite 94/94
+PASS (PGlite). The harness refused docs/final-dev/REPORT-B3.md: the full report is the
+worker's final message. Six migrations 20261119090000 to 20261119140000, all probed.
+Blocker: founder reads Mapbox's current Product Terms on storing routes before the map
+flag is released (docs/ROUTING.md).
+
 Driving logs, trips and maps by plan; imports, repeat taps, offline gaps; history after a
 downgrade. R-044 (manual driving log, Codex, 20261117110000) is built and reviewed: verify
 and build on it, never rebuild. Steps, committed one by one:
