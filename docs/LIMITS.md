@@ -51,6 +51,22 @@ Text, forms, records, downloads and existing files are never limited by these ca
 file larger than allowed is refused with a translated sentence and the person's typed text
 and chosen file stay in the form.
 
+## The storage pool (task A3, 20261118120000)
+
+One allowance per customer (the billing site and every site billed through it), decimal bytes:
+max(2,000,000,000, full spaces x 100,000,000 + equipment spaces x 25,000,000), plus
+10,000,000,000 per paid block (`storageMinBytes`, `storagePerFullSpaceBytes`,
+`storagePerEquipmentSpaceBytes`, `storageBlockBytes` in `src/lib/limits.ts`; mirrored by
+`src/lib/storage-allowance.ts` and pinned to the migration by its test). Full spaces are the
+purchased ones (at least the minimum); equipment spaces are the included ones plus the extra
+paid for. Owners are warned at 80% and 95% (`storageWarnPercent`, `storageUrgentPercent`:
+engineering defaults, not founder terms). At full only a new attachment upload is refused
+(`upload:storage_full`, then `storage_note_full` tells the owners once); text, forms, records
+and downloads carry on and nothing is deleted. Counted: finalised pipeline files, open
+reservations, and objects in the business's folders with no upload intent (measured nightly),
+in every bucket except billing proofs, contractors' books, menu media and temporary command
+audio. Downloads are never charged (decision 36).
+
 ## How a file travels
 
 Large file bodies never pass through a Vercel function (BRIEF section 10). The browser
