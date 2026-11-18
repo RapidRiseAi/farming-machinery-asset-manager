@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { driverHours } from "./driver-hours";
 import { langOf } from "./i18n";
-import { marginPerKmCents, randsToCents, tripDistance, tripFields } from "./trips";
+import { marginPerKmCents, randsToCents, tripDistance, tripFields, tripReport, tripResultCents } from "./trips";
 
 test("each kind of company is asked about what it carries", () => {
   assert.deepEqual(tripFields(langOf("en", "friendly", "game_drive")), { goods: false, passengers: true });
@@ -73,4 +73,65 @@ test("a week over the limit is flagged, and each driver is separate", () => {
   const hours = driverHours([...days, { driverId: "b", start: "2026-11-07T08:00:00Z", end: "2026-11-07T09:00:00Z" }], policy, now);
   assert.equal(hours.find((h) => h.driverId === "a")?.overWeek, true);
   assert.equal(hours.find((h) => h.driverId === "b")?.overWeek, false);
+});
+
+// == The trip report (B3, R-061): honest about what it cannot know ====================
+const done = (id: string, machine: string, open: number | null, close: number | null) =>
+  ({ id, machine_id: machine, status: "completed", opening_reading: open, closing_reading: close });
+
+test("cancelled and unfinished trips are reported, never summed", () => {
+  const report = tripReport(
+    [done("t1", "m1", 100, 200), { ...done("t2", "m1", 0, 50), status: "cancelled" }, { ...done("t3", "m1", 200, null), status: "underway" }],
+    new Map([["t1", 10000], ["t2", 99999], ["t3", 88888]]),
+    new Map([["t2", 500]]),
+  );
+  assert.equal(report.finished, 1);
+  assert.equal(report.cancelled, 1);
+  assert.equal(report.unfinished, 1);
+  assert.equal(report.vehicles[0].incomeCents, 10000);
+  assert.equal(report.vehicles[0].expenseCents, 0);
+});
+
+test("a trip without readings adds money but no distance, and stays out of the per-km figure", () => {
+  const report = tripReport(
+    [done("a", "m1", 0, 100), done("b", "m1", null, null)],
+    new Map([["a", 20000], ["b", 1000000]]),
+    new Map([["a", 0]]),
+  );
+  const [v] = report.vehicles;
+  assert.equal(v.trips, 2);
+  assert.equal(v.tripsWithKm, 1);
+  assert.equal(v.km, 100);
+  assert.equal(v.incomeCents, 1020000);
+  // From trip a only: R200 over 100 km. Counting b's income over a's distance would say R102/km.
+  assert.equal(v.perKmCents, 200);
+  assert.equal(report.withoutReadings, 1);
+});
+
+test("no distance means no per-km figure, never a division by zero", () => {
+  const report = tripReport([done("z", "m1", 500, 500)], new Map([["z", 5000]]), new Map());
+  assert.equal(report.zeroKm, 1);
+  assert.equal(report.vehicles[0].perKmCents, null);
+  assert.equal(tripReport([], new Map(), new Map()).vehicles.length, 0);
+});
+
+test("a trip with no income entered is counted as unknown income, not as R0 earned", () => {
+  const report = tripReport([done("n", "m1", 0, 10)], new Map(), new Map([["n", 3000]]));
+  assert.equal(report.vehicles[0].tripsWithoutIncome, 1);
+  assert.equal(report.vehicles[0].expenseCents, 3000);
+  assert.equal(tripResultCents(null, 3000), null);
+  assert.equal(tripResultCents(10000, 3000), 7000);
+  assert.equal(tripResultCents(0, 0), 0);
+});
+
+test("only each trip's own expenses are counted: one trip's costs never reach another's", () => {
+  const report = tripReport(
+    [done("x", "m1", 0, 10), done("y", "m2", 0, 10)],
+    new Map([["x", 1000], ["y", 1000]]),
+    new Map([["x", 400], ["other-trip", 99999]]),
+  );
+  const m1 = report.vehicles.find((v) => v.machineId === "m1");
+  const m2 = report.vehicles.find((v) => v.machineId === "m2");
+  assert.equal(m1?.expenseCents, 400);
+  assert.equal(m2?.expenseCents, 0);
 });
