@@ -60,6 +60,7 @@ export async function transcribeVoiceNote(
       return {
         ok: false,
         reason: hold.reason === "farm_limit" || hold.reason === "member_limit" ? hold.reason
+          : hold.reason === "budget_unset" ? "farm_limit"
           : hold.reason === "unavailable" ? "unavailable" : "ai_off",
       };
     }

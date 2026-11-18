@@ -280,8 +280,11 @@ export async function POST(request: Request) {
   if (hearings.length) return NextResponse.json({ hearings }, { headers: HEADERS });
 
   const refusal = results.find((result) => result.refused)?.refused;
-  if (refusal === "farm_limit" || refusal === "member_limit") {
-    return fail("ai_limit_reached", 402, { scope: refusal === "farm_limit" ? "farm" : "member" });
+  if (refusal === "farm_limit" || refusal === "member_limit" || refusal === "budget_unset") {
+    return fail("ai_limit_reached", 402, {
+      scope: refusal === "member_limit" ? "member" : "farm",
+      ...(refusal === "budget_unset" ? { budget: "unset" } : {}),
+    });
   }
   if (refusal && refusal !== "unavailable") return fail(refusal, 403);
   return fail("transcription_unavailable", 503);

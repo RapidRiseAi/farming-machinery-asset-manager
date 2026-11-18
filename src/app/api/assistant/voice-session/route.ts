@@ -65,8 +65,11 @@ export async function POST(request: Request) {
   }
   // Nothing was held: the next attempt must be free to try again.
   await claim.release();
-  if (session.reason === "farm_limit" || session.reason === "member_limit") {
-    return fail("ai_limit_reached", 402, { scope: session.reason === "farm_limit" ? "farm" : "member" });
+  if (session.reason === "farm_limit" || session.reason === "member_limit" || session.reason === "budget_unset") {
+    return fail("ai_limit_reached", 402, {
+      scope: session.reason === "member_limit" ? "member" : "farm",
+      ...(session.reason === "budget_unset" ? { budget: "unset" } : {}),
+    });
   }
   if (session.reason === "voice_off") return fail("voice_off", 403);
   if (session.reason === "not_member") return fail("forbidden", 403);
