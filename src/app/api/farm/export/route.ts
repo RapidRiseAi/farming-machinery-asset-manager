@@ -6,7 +6,7 @@ import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { captureError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { readAll } from "@/lib/supabase/read-all";
+import { PAGE_ROWS } from "@/lib/supabase/read-all";
 import { isUuid } from "@/lib/ids";
 
 /**
@@ -39,8 +39,12 @@ import { isUuid } from "@/lib/ids";
  * vehicles has no business pulling the whole book.
  */
 
-/** Per table, so one enormous farm cannot produce a response nothing can open. */
-const CAP = 5000;
+/**
+ * Per table, so one enormous business cannot produce a response nothing can open. Rows are
+ * read and written a page at a time (B3, BRIEF section 19: no giant in-memory work), so the
+ * cap bounds the file and the time, not the memory; it was 5,000 when a table was held whole.
+ */
+const CAP = 50_000;
 
 /** Every column of `machines` a farm user may read, less the QR capture token. */
 const MACHINE_COLUMNS =
@@ -100,6 +104,17 @@ const TABLES: Array<{ name: string; source?: string; columns?: string; order?: s
   { name: "driver_credentials" },
   { name: "driving_sessions", order: "created_at" },
   { name: "driving_events", order: "occurred_at" },
+  // Trips, their loads and money, planned routes and reported positions (B3). After a
+  // downgrade these stay the business's to take away (decision 37); the reads are the
+  // person's own, so trip money comes back only for an owner or manager.
+  { name: "trips", order: "created_at" },
+  { name: "trip_jobs", order: "created_at" },
+  { name: "trip_income", key: "trip_id" },
+  { name: "trip_expenses", order: "created_at" },
+  { name: "trip_routes", key: "trip_id" },
+  { name: "asset_positions", order: "recorded_at" },
+  { name: "fuel_card_statements", order: "created_at" },
+  { name: "fuel_card_transactions", order: "created_at" },
   { name: "user_farm_memberships" },
   { name: "attachments", order: "created_at" },
 ];
@@ -174,41 +189,58 @@ export async function GET(request: Request) {
           `"exported_by":${JSON.stringify(profile.id)},"data":{`);
         let firstTable = true;
         for (const spec of TABLES) {
-          // Every page up to the cap: a single read stops at the API's thousandth row.
-          const { data, error, truncated: cut } = await readAll<Record<string, unknown>>(() => {
-            const query = supabase
+          // A page at a time, written as it arrives, up to the cap: a single read stops at the
+          // API's thousandth row, and holding a whole table was the in-memory work to avoid.
+          const key = spec.key ?? "id";
+          let wrote = 0;
+          let failed = false;
+          for (let from = 0; from < CAP; from += PAGE_ROWS) {
+            const to = Math.min(from + PAGE_ROWS, CAP) - 1;
+            const base = supabase
               .from(spec.source ?? spec.name)
               .select(spec.columns ?? "*")
               .eq(spec.farmColumn ?? "farm_id", farmId);
-            return spec.order ? query.order(spec.order, { ascending: true }) : query;
-          }, { maxRows: CAP, key: spec.key });
-          if (error) {
-            // A table this deployment does not have, or one this role cannot read at all.
-            // Named rather than silently absent, so nobody reads it as "we had none".
+            const ordered = spec.order ? base.order(spec.order, { ascending: true }) : base;
+            const { data, error } = await ordered.order(key, { ascending: true }).range(from, to);
+            if (error) {
+              // A table this deployment does not have, or one this role cannot read at all.
+              // Named rather than silently absent, so nobody reads it as "we had none". A
+              // failure after rows were written cannot be undone in a stream: the file errors.
+              if (wrote > 0) throw new Error(`export: ${spec.name} failed part-way`);
+              failed = true;
+              break;
+            }
+            const rows = (Array.isArray(data) ? data : []) as unknown as Record<string, unknown>[];
+            // Purchase and finance figures for a role that may see the farm's costs: they are
+            // not readable from the machines table itself (20260903074350). Ten at a time.
+            if (spec.name === "machines" && rows.length > 0 && costsVisible) {
+              for (let i = 0; i < rows.length; i += 10) {
+                const batch = rows.slice(i, i + 10);
+                const figures = await Promise.all(batch.map((m) => readMachineFinancials(supabase, String(m.id))));
+                batch.forEach((m, j) => {
+                  const f = figures[j];
+                  if (!f) return;
+                  const money: Record<string, unknown> = { ...f };
+                  delete money.machine_id;
+                  delete money.farm_id;
+                  Object.assign(m, money);
+                });
+              }
+            }
+            if (wrote === 0) write(`${firstTable ? "" : ","}\n${JSON.stringify(spec.name)}:[`);
+            for (const row of rows) {
+              write(`${wrote ? "," : ""}\n${JSON.stringify(row)}`);
+              wrote += 1;
+            }
+            if (rows.length < to - from + 1) break;
+            if (to + 1 >= CAP) truncated.push(spec.name);
+          }
+          if (failed) {
             unavailable.push(spec.name);
             continue;
           }
-          const rows = data ?? [];
-          if (cut) truncated.push(spec.name);
-          // Purchase and finance figures for a role that may see the farm's costs: they are
-          // not readable from the machines table itself (20260903074350). Ten at a time.
-          if (spec.name === "machines" && rows.length > 0 && costsVisible) {
-            for (let i = 0; i < rows.length; i += 10) {
-              const batch = rows.slice(i, i + 10);
-              const figures = await Promise.all(batch.map((m) => readMachineFinancials(supabase, String(m.id))));
-              batch.forEach((m, j) => {
-                const f = figures[j];
-                if (!f) return;
-                const money: Record<string, unknown> = { ...f };
-                delete money.machine_id;
-                delete money.farm_id;
-                Object.assign(m, money);
-              });
-            }
-          }
-          write(`${firstTable ? "" : ","}\n${JSON.stringify(spec.name)}:[`);
-          rows.forEach((row, i) => write(`${i ? "," : ""}\n${JSON.stringify(row)}`));
-          write(rows.length ? "\n]" : "]");
+          if (wrote === 0) write(`${firstTable ? "" : ","}\n${JSON.stringify(spec.name)}:[`);
+          write(wrote ? "\n]" : "]");
           firstTable = false;
         }
         const notes = [

@@ -21,6 +21,8 @@ insert into public.machines (id, farm_id, name, type) values
 insert into public.driving_sessions (id, farm_id, machine_id, driver_id, started_at) values
   ('e8300000-0000-4000-9000-000000000001', 'e8000000-0000-4000-9000-000000000001',
    'e8200000-0000-4000-9000-000000000001', 'e8100000-0000-4000-9000-000000000002', now());
+-- Positions need the map released to the business as well as Complete (20261119090000).
+insert into public.farm_feature_access (farm_id, key) values ('e8000000-0000-4000-9000-000000000001', 'map');
 insert into public.asset_positions (farm_id, machine_id, session_id, recorded_at, lat, lng) values
   ('e8000000-0000-4000-9000-000000000001', 'e8200000-0000-4000-9000-000000000001',
    'e8300000-0000-4000-9000-000000000001', now(), -25.7, 28.2),
