@@ -315,4 +315,6 @@ echo "==> running service orders tests (activation catalogue, Done-For-You agree
 pg "$DB" < "$ROOT/supabase/tests/service_orders.sql"
 echo "==> running complete export tests (the requester's own file list, one job at a time, lease, retry, cleanup; scenarios 20 and 29)"
 pg "$DB" < "$ROOT/supabase/tests/complete_export.sql"
+echo "==> running retention schedule tests (dry run while off, warnings, holds, reactivation, the closure path; scenarios 11 and 29)"
+pg "$DB" < "$ROOT/supabase/tests/retention_schedules.sql"
 echo "==> OK"

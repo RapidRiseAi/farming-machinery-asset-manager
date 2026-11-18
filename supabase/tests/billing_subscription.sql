@@ -1422,7 +1422,10 @@ declare
     -- Done-For-You agreements and service orders (20261120100000): the tax snapshot reads
     -- billing_settings; the nightly apply writes the agreement's private price row and pins the
     -- subscription. Granted to nobody, reached through the service-role wrappers and the cron.
-    'service_tax_snapshot','dfy_apply_due'];
+    'service_tax_snapshot','dfy_apply_due',
+    -- Scheduled deletion (20261120120000): the checks read payment attempts in flight. Granted to
+    -- nobody; reached through retention_preview and retention_delete (service role).
+    'retention_checks'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1476,7 +1479,9 @@ declare
     'storage_change_preview','billing_quote_storage',
     -- Done-For-You agreements (20261120100000): service role only, the actor passed and checked
     -- inside (app.service_rr_actor, app.service_owner_actor). dfy_end schedules the next plan.
-    'dfy_offer','dfy_accept','dfy_end'];
+    'dfy_offer','dfy_accept','dfy_end',
+    -- The deletion preview counts the billing tables it keeps (20261120120000): service role only.
+    'retention_preview'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
