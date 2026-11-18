@@ -84,6 +84,23 @@ assistant, WhatsApp, import, API, tracker feed): `equipment_restrictions.sql`.
 | API access | Done-For-You | `api_token_resolve` returns `api_allowed` from the plan; settings page and actions | OK |
 | Hardware, tracking and provider feeds | Done-For-You | `configure_driver_connection` and `ingest_driving_event` check the plan | **Fixed** (20261104220000): a feed could be switched on, and kept receiving, on any plan |
 
+## After a downgrade (decision 37, task B3)
+
+Saved records of a feature the plan no longer includes stay readable and exportable by the
+people whose role and site already allowed it; nothing new is collected, no analysis is
+worked out afresh, and no paid provider is called. Where each stands:
+
+| Feature | What stays | What stops | Where enforced |
+|---|---|---|---|
+| Trips (Professional) | trip list and pages, loads, deliveries, income and expense records; in the business export | new trips, loads and money; starting a planned trip; editing; the trip earnings report and a trip's result; a trip already underway can still be finished and a planned one cancelled |  on pages and actions;  and siblings (20261119090000) |
+| Maps and tracking (Complete +  flag) | a trip's saved stops, planned distance and recorded positions, as text and a CSV, without a map | new positions, routes, redrawn routes, a delivery's location; tracker feeds answered  | ;  in the database (20261119090000) |
+| Fuel (Professional) | the newest 200 draws and deliveries read-only on /fuel; all of them in the export | balances, consumption, anomalies, new draws (also a draw queued offline before the downgrade) |  on pages/actions;  (20261119130000) |
+| AARTO fines (Complete) | the newest 200 fines read-only on /fines; all in the export | new fines, nomination, deadline reminders | ; reminders by plan (20261119100000) |
+| Dashboards, advanced reports, TCO, budgets, depreciation, consolidated sites, accounting exports | the underlying records (machines, costs, budgets) and the business export | the analysis itself and scheduled reports | existing gates; scheduled reports check the plan at claim time (20261013110000) |
+
+The business export () is the exit route for every plan: it holds the raw
+records of every feature above and none of the higher plan's analysis.
+
 ## Also fixed in this audit
 
 - Every CSV export neutralises cells that begin like a spreadsheet formula
