@@ -60,6 +60,12 @@ select pg_temp.assert(public._trips_refusal($q$insert into public.trip_routes(tr
   values ('cb300000-0000-4000-9000-000000000002','cb000000-0000-4000-9000-000000000001','[{"lat":-25,"lng":28},{"lat":-25.1,"lng":28.1}]','[[28,-25],[28.1,-25.1]]',1000,60,'mapbox')$q$) like 'plan-feature-maps%',
   '[13] a planned route needs Complete');
 
+-- A driver from another business cannot be named on a trip (they would read its loads).
+select pg_temp.assert(public._trips_refusal($q$insert into public.trips(farm_id,number,machine_id,driver_id) values ('cb000000-0000-4000-9000-000000000001',0,'cb200000-0000-4000-9000-000000000002','cb100000-0000-4000-9000-000000000004')$q$) like 'trip-driver-not-member%',
+  'a trip cannot name a driver from another business');
+select pg_temp.assert(public._trips_refusal($q$update public.trips set driver_id = 'cb100000-0000-4000-9000-000000000003' where id = 'cb300000-0000-4000-9000-000000000002'$q$) like 'trip-driver-not-member%',
+  'a trip cannot be moved to a driver from another business');
+
 -- == [17] Downgrade to Essential ==========================================================
 reset role; select set_config('request.jwt.claims','',true);
 update public.farms set plan = 'essential' where id = 'cb000000-0000-4000-9000-000000000001';

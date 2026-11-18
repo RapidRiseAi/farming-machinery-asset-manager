@@ -196,3 +196,29 @@ create trigger trip_routes_maps_ready before insert or update on public.trip_rou
 drop trigger if exists asset_positions_maps_ready on public.asset_positions;
 create trigger asset_positions_maps_ready before insert or update on public.asset_positions
   for each row execute function app.require_maps_ready();
+
+-- == A trip's driver is somebody on this business ======================================
+-- A driver reads their own trip by `driver_id = auth.uid()` (20261107130000), so a trip
+-- naming a person from another business would show that person this business's loads and
+-- customers. The screen offers only this business's people; a direct write could name
+-- anyone. A new or changed driver must be an active driver-capable member of the trip's
+-- business (app.driver_member, the driving log's own rule). Existing rows are not judged.
+create or replace function app.trips_driver_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.driver_id is not null
+     and (tg_op = 'INSERT' or new.driver_id is distinct from old.driver_id)
+     and not app.driver_member(new.driver_id, new.farm_id) then
+    raise exception 'trip-driver-not-member' using errcode = 'P0001', hint = 'Choose a driver from this business.';
+  end if;
+  return new;
+end
+$$;
+revoke all on function app.trips_driver_guard() from public, anon, authenticated;
+drop trigger if exists trips_driver_guard on public.trips;
+create trigger trips_driver_guard before insert or update of driver_id on public.trips
+  for each row execute function app.trips_driver_guard();
