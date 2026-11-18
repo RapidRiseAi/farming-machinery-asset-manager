@@ -5611,7 +5611,9 @@
     "retrievalEnded": "Die tyd om hierdie rekords te lees en uit te voer, het verby gegaan. Betaal wat verskuldig is, of begin weer, om hulle oop te maak.",
     "billingCancelImmediate": "'n Kansellering stop die volgende hernuwing, en jy behou alles tot die einde van die tydperk waarvoor jy betaal het. E-pos ons om dit gouer te beëindig.",
     "signupEquipment": "Kies 'n heel getal ondersteuningstoerusting, nul of meer.",
-    "signupCapacityQuote": "Meer as 200 volle plekke word met ons gereël. Stuur die vorm weer om vir 'n kwotasie te vra."
+    "signupCapacityQuote": "Meer as 200 volle plekke word met ons gereël. Stuur die vorm weer om vir 'n kwotasie te vra.",
+    "mapsNotReady": "Kaarte is nog nie vir hierdie besigheid beskikbaar nie. Ritte, vragte en die geskrewe stoppunte werk sonder hulle.",
+    "tripDriverNotMember": "Kies 'n bestuurder wat vir hierdie besigheid werk."
   },
   "billing": {
     "title": "Rekening",

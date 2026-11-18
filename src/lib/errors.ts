@@ -632,6 +632,9 @@ const CODE_KEYS: Record<string, string> = {
   "equipment-review-closed": "errors.equipmentReviewClosed",
   "plan-feature-trips": "errors.planFeatureTrips",
   "plan-feature-maps": "errors.planFeatureMaps",
+  // Trips and maps after a downgrade, map readiness in the database (20261119090000).
+  "maps-not-ready": "errors.mapsNotReady",
+  "trip-driver-not-member": "errors.tripDriverNotMember",
   // Capacity and conversion (20261114090300).
   "equipment-limit-reached": "errors.equipmentLimitReached",
   "equipment-not-in-agreement": "errors.equipmentNotInAgreement",

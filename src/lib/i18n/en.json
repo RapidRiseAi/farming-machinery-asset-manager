@@ -5611,7 +5611,9 @@
     "retrievalEnded": "The time to read and export these records has ended. Pay what is owed, or start again, to open them.",
     "billingCancelImmediate": "A cancellation stops the next renewal, and you keep everything until the end of the period you have paid for. To end it sooner, email us.",
     "signupEquipment": "Choose a whole number of support equipment, zero or more.",
-    "signupCapacityQuote": "More than 200 full spaces is arranged with us. Send the form again to ask for a quote."
+    "signupCapacityQuote": "More than 200 full spaces is arranged with us. Send the form again to ask for a quote.",
+    "mapsNotReady": "Maps are not available to this business yet. Trips, loads and the written stops work without them.",
+    "tripDriverNotMember": "Choose a driver who works for this business."
   },
   "billing": {
     "title": "Billing",
