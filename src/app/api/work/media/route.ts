@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { effectiveFarmRole, getProfile, farmIsUsable } from "@/lib/auth";
+import { effectiveFarmRole, getProfile, farmIsUsable, type Profile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadWorkRequestMedia } from "@/lib/workrequest-media";
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   if (claim.state === "running") return NextResponse.json({ error: "still-saving" }, { status: 409 });
   let answer: NextResponse;
   try {
-    answer = await save();
+    answer = await save(profile);
   } catch (failure) {
     await claim.release();
     throw failure;
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   else await claim.release();
   return answer;
 
-  async function save(): Promise<NextResponse> {
+  async function save(profile: Profile): Promise<NextResponse> {
   const { data: wrData, error: wrError } = await supabase
     .from("work_requests")
     .select("id, farm_id, machine_id, workshop_id, status, vat_rate_bps")
