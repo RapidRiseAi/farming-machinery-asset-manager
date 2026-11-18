@@ -13,6 +13,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { whatsappAssistantContext, type WhatsAppLink } from "./identity";
 import { whatsappEnabled } from "./config";
 import { sendWhatsApp } from "./client";
+import { holdWhatsAppMessage, recordWhatsAppSent, releaseWhatsAppHold } from "./paid";
 import { UNSUPPORTED_MESSAGE, replyWindowOpen } from "./protocol";
 import { clarificationAnswer, confirmationAction, renderWhatsAppResponse } from "./conversation";
 import {
@@ -332,10 +333,30 @@ export async function processWhatsAppInbox(limit = 1) {
           .eq("id", link.id).eq("lease_id", lease);
         if (cleared.error) throw new Error("whatsapp_recovery_failed");
       }
+      // Paid WhatsApp (20261118120200): a reply is a service message, held on the customer's
+      // spending limit before it goes out once Rapid Rise bills WhatsApp. Refused (no acceptance,
+      // no limit, the limit reached, a payment late): not sent; the app still has everything.
+      const hold = await holdWhatsAppMessage(db, { farmId: link.farm_id, userId: link.user_id, category: "service" });
+      if (hold.kind === "refused") {
+        const { error } = await db.from("whatsapp_inbox").update({ state: "cancelled", error_code: `paid_${hold.reason}`.slice(0, 40) })
+          .eq("id", item.id).eq("lease_id", lease);
+        if (error) throw error;
+        continue;
+      }
       const claimed = await db.from("whatsapp_inbox").update({ state: "sending" })
         .eq("id", item.id).eq("lease_id", lease).eq("state", "ready").select("id").maybeSingle();
-      if (claimed.error || !claimed.data) continue;
-      const providerId = await sendWhatsApp(link.phone, { type: "text", text: { body: reply, preview_url: false } });
+      if (claimed.error || !claimed.data) {
+        await releaseWhatsAppHold(db, hold, "not_claimed");
+        continue;
+      }
+      let providerId: string;
+      try {
+        providerId = await sendWhatsApp(link.phone, { type: "text", text: { body: reply, preview_url: false } });
+      } catch (error) {
+        await releaseWhatsAppHold(db, hold, "send_failed");
+        throw error;
+      }
+      await recordWhatsAppSent(db, hold, providerId);
       const sent = await db.from("whatsapp_inbox").update({ state: "sent", provider_reply_id: providerId })
         .eq("id", item.id).eq("lease_id", lease).eq("state", "sending");
       if (sent.error) throw new Error("whatsapp_delivery_unknown");
@@ -392,15 +413,34 @@ export async function deliverWhatsAppNotifications() {
       await db.from("whatsapp_notification_delivery").update({ state: "cancelled" }).eq("notification_id", row.notification_id).eq("state", "queued");
       continue;
     }
+    // Paid WhatsApp (20261118120200): an alert is a utility template, held on the customer's
+    // spending limit before it goes out once Rapid Rise bills WhatsApp. Refused: not sent on
+    // WhatsApp; the alert is already in the app.
+    const hold = await holdWhatsAppMessage(db, { farmId: link.farm_id, userId: link.user_id, category: "utility" });
+    if (hold.kind === "refused") {
+      await db.from("whatsapp_notification_delivery").update({ state: "cancelled", error_code: `paid_${hold.reason}`.slice(0, 40) })
+        .eq("notification_id", row.notification_id).eq("state", "queued");
+      continue;
+    }
     const claim = await db.from("whatsapp_notification_delivery").update({ state: "sending" })
       .eq("notification_id", row.notification_id).eq("state", "queued").select("notification_id").maybeSingle();
-    if (claim.error) throw new Error("whatsapp_notification_claim_failed");
-    if (!claim.data) continue;
+    if (claim.error || !claim.data) {
+      await releaseWhatsAppHold(db, hold, "not_claimed");
+      if (claim.error) throw new Error("whatsapp_notification_claim_failed");
+      continue;
+    }
     try {
-      const id = await sendWhatsApp(link.phone, { type: "template", template: {
-        name: ["job_assigned", "fault_assigned"].includes(note.template) ? assignmentTemplate : template,
-        language: { code: process.env.WHATSAPP_TEMPLATE_LANGUAGE ?? "en" },
-      } });
+      let id: string;
+      try {
+        id = await sendWhatsApp(link.phone, { type: "template", template: {
+          name: ["job_assigned", "fault_assigned"].includes(note.template) ? assignmentTemplate : template,
+          language: { code: process.env.WHATSAPP_TEMPLATE_LANGUAGE ?? "en" },
+        } });
+      } catch (error) {
+        await releaseWhatsAppHold(db, hold, "send_failed");
+        throw error;
+      }
+      await recordWhatsAppSent(db, hold, id);
       const saved = await db.from("whatsapp_notification_delivery").update({ state: "sent", provider_id: id })
         .eq("notification_id", row.notification_id).eq("state", "sending");
       if (saved.error) throw new Error("whatsapp_delivery_unknown");
