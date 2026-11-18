@@ -577,8 +577,14 @@ while receiving, and API failures log no message text. Messages are escaped as R
 the assistant has no chat-ingestion path or automatic transcription.
 
 Storage downloads use the caller's authenticated client. Restrictive bucket policies apply
-even if a legacy policy is broad. The service-backed business ZIP excludes `chat-files`,
-because business ownership is insufficient to read private chats. Notifications include
+even if a legacy policy is broad. The business ZIP uses a service-only inventory but reads
+each object's bytes through the requester's own Storage session (A4 checkpoint, 18 November
+2026). Both export endpoints check `farm_lifecycle`, including owner-only retrieval and its
+deadline, and fail closed when that check fails. The ZIP excludes `chat-files` and temporary
+`command-audio`, because business ownership is insufficient to read private chats. Archive
+names use a bucket, path hash and sanitized basename instead of trusting a stored path.
+A restricted or missing object fails the legacy ZIP; a durable complete export with an
+omissions manifest remains A4 work in progress. Notifications include
 only a conversation href and generic translated text. Realtime publishes conversation
 updates checked by RLS, not message bodies; see [Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
 An open client's next refresh clears revoked data; already downloaded bytes cannot be recalled.

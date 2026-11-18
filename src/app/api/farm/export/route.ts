@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getProfile, currentFarmId, effectiveFarmRole, accessibleFarms } from "@/lib/auth";
-import { farmBillingGate, farmLifecycle } from "@/lib/billing/service";
+import { farmLifecycle } from "@/lib/billing/service";
+import { exportRefusal } from "@/lib/farm-export-policy";
 import { canViewFarmCosts, readMachineFinancials } from "@/lib/cost-visibility";
 import { captureError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
@@ -146,29 +147,11 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
-  // A business that has never paid reads none of its records through its own session
-  // (20261112090000). An export now would be a file of empty tables that looks whole, and
-  // its stamp below would let an owner go on to close the account on the strength of it.
-  if (role !== "rr_admin") {
-    const gate = await farmBillingGate(supabase, farmId);
-    if (gate === "pending") {
-      return NextResponse.json({ error: "farm-not-active" }, { status: 402 });
-    }
-    // A stopped business is read by its owner only, for 90 days (decisions 38 and 41,
-    // 20261115120000). The database already refuses everybody else's reads; an export for a
-    // manager now would be a file of empty tables that looks whole, so it is refused in words.
-    if (gate === "suspended" || gate === "closed") {
-      if (role !== "owner") {
-        return NextResponse.json({ error: "retrieval-owner-only" }, { status: 403 });
-      }
-      const life = await farmLifecycle(supabase, farmId);
-      // Not readable: refused rather than exported empty.
-      if (!life) return NextResponse.json({ error: "export-unavailable" }, { status: 503 });
-      if (life.state === "closed" && life.reason !== "rapid_rise") {
-        return NextResponse.json({ error: "retrieval-ended" }, { status: 402 });
-      }
-    }
-  }
+  // Use the lifecycle's gate rather than the screen gate, which deliberately fails open
+  // on a read error. A failed export check must not produce an apparently complete file.
+  const lifecycle = role === "rr_admin" ? null : await farmLifecycle(supabase, farmId);
+  const refusal = exportRefusal(role, lifecycle?.gate ?? null, lifecycle);
+  if (refusal) return NextResponse.json({ error: refusal.error }, { status: refusal.status });
   const costsVisible = await canViewFarmCosts(supabase, farmId);
   const exportedAt = new Date().toISOString();
   const encoder = new TextEncoder();

@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { accessibleFarms, currentFarmId, effectiveFarmRole, getProfile } from "@/lib/auth";
 import { isUuid } from "@/lib/ids";
 import { createServiceClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
+import { farmLifecycle } from "@/lib/billing/service";
+import { exportRefusal } from "@/lib/farm-export-policy";
+import { readExportFiles } from "@/lib/farm-export-files";
 import { zipStream } from "@/lib/zip";
 import { businessExportFiles } from "@/lib/chat/privacy";
 
@@ -34,6 +38,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  const session = await createClient();
+  const lifecycle = role === "rr_admin" ? null : await farmLifecycle(session, farmId);
+  const refusal = exportRefusal(role, lifecycle?.gate ?? null, lifecycle);
+  if (refusal) return NextResponse.json({ error: refusal.error }, { status: refusal.status });
+
   const svc = createServiceClient();
   // The list decides what is served, so a bucket or path typed into the address reaches nothing
   // that is not already this business's own.
@@ -43,18 +52,9 @@ export async function GET(request: Request) {
   const files = businessExportFiles((data as StoredFile[] | null) ?? [], bucket);
   if (files.length === 0) return NextResponse.json({ error: "empty" }, { status: 404 });
 
-  async function* read() {
-    for (const file of files) {
-      const { data: blob, error: readError } = await svc.storage.from(file.bucket_id).download(file.name);
-      if (readError || !blob) throw new Error(`could not read a file from ${file.bucket_id}`);
-      yield {
-        name: file.name.split("/").slice(1).join("/"),
-        bytes: new Uint8Array(await blob.arrayBuffer()),
-      };
-    }
-  }
-
-  return new NextResponse(zipStream(read()), {
+  // The service inventory is not permission to read its files. Storage must check the
+  // requester's own session for every object, including restricted finance documents.
+  return new NextResponse(zipStream(readExportFiles(session, files, farmId)), {
     status: 200,
     headers: {
       "content-type": "application/zip",

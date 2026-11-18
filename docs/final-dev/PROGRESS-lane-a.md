@@ -2,7 +2,40 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
-## Current task: A3 (pooled storage, paid blocks, shared assistance spending cap)
+## Current task: A4 (service orders, complete export, retention and deletion)
+
+Started 18 Nov 2026 on e3593f0. A3 and B3 are complete; A4 was not started.
+Reading requirements R-100/101/102/115/116/124 and existing quote/export/closure code.
+Next: extend accepted quotes and optional orders; durable session-scoped media export;
+extend farm_closures with disabled, dry-run-first operational retention; gates and report.
+No production, live database, provider purchase, push or merge is authorised.
+
+18 Nov checkpoint: commits BLOCKED. Every git add/commit fails creating
+`C:/projects/farming-machinery-asset-manager/.git/worktrees/-fw-lane-a/index.lock`
+with Permission denied despite the declared writable root. Manager must restore the
+session's Git metadata write access, then commit the existing diff before continuing.
+Commit message prepared in ignored `scratchpad/a4-commit-message.txt`.
+
+Implemented but UNCOMMITTED: shared export lifecycle refusals, requester-session file
+downloads (old file ZIP used the service client), portable hashed archive paths, exclusion
+of private chat and temporary command audio. New farm-export-policy/files tests plus
+existing export/chat tests pass (12). Mutation run: 15/15 caught and restored; initial
+unknown-gate survivor fixed by a distinct test. tsc and all lint gates pass. Full unit run:
+1216 passed, 1 skipped, 0 failed. Full SQL suite finished: 94/94 pass on PGlite,
+304 migrations applied cleanly. After mutation restore, tsc and the 12 focused tests
+passed again; dashes and git diff --check clean. No browser or provider test run.
+Logs and mutation runner are in ignored scratchpad/a4-* (no data, secrets or archives).
+
+A4 remains INCOMPLETE. No requirement row closed, no migration written. Remaining: service
+orders and quote acceptance, durable complete export/manifest/media jobs, retention on
+farm_closures, readiness flags, UI/i18n, BACKUP/legal checklist, full tests and REPORT-A4.
+Findings to continue: billing_record_dfy_quote currently applies a per-vehicle price at
+once and hardcodes ten charged months for annual quotes; replace the new offer path with
+explicit accepted recurring totals without rewriting old agreements. The legacy file ZIP
+now fails if any object is restricted/missing; the complete job needs explicit omissions
+and retry. Keep B3's table stream as the basis, adding storage_usage_snapshots/charges.
+
+## A3 (complete)
 
 **TASK A3 COMPLETE** (18 Nov 2026). Final gates: tsc clean, 1181 unit tests (0 fail), dashes,
 parity, keys, design and errors clean; all 87 PGlite suites pass (298 migrations) after the last
