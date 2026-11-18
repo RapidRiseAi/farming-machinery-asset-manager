@@ -158,6 +158,10 @@ export async function GET(request: Request) {
   await step("upload_sweep", () => sweepUploads(supabase));
   // Temporary spoken-command audio: done, cancelled, or past its recovery window (20261115100000).
   await step("command_audio_sweep", () => sweepCommandAudio(supabase));
+  // What each customer stores, for the day (20261118120000): files with no upload intent count
+  // against the pool from here, the 80% and 95% warnings go out, and the day's row is the
+  // record of storage for the billing period. After the sweeps, so removed files are gone.
+  await run("storage_measure", "cron_storage_measure");
 
   await step("ai_fx_rate", () => refreshFxRate(supabase));
   await step("ai_prices", () => refreshPrices(supabase));

@@ -74,6 +74,59 @@ export async function setAiInvoicing(formData: FormData): Promise<void> {
   done("invoicing-saved");
 }
 
+/** Meta's pricing categories a business's messages fall in (developers.facebook.com/docs/whatsapp/pricing). */
+const WHATSAPP_CATEGORIES = ["utility", "service", "marketing", "authentication"] as const;
+const SUPPLIER_TAX = ["unconfirmed", "no_vat_charged", "vat_charged_claimable", "vat_charged_not_claimable"] as const;
+
+/**
+ * Paid WhatsApp (20261118120200): the per-message rate for each category, read from the WhatsApp
+ * account's own rate card (USD per message, as Meta bills this account), the day billing starts,
+ * and how the suppliers' invoices are taxed as an accountant confirmed it. Billing cannot start
+ * without a utility and a service rate in force: a message nobody can price is never sent paid.
+ * A start date in the past is refused, as for AI invoicing. Rates are new price rows, so every
+ * settled message keeps the rate it was billed at.
+ */
+export async function setWhatsappBilling(formData: FormData): Promise<void> {
+  const adminId = await requireRrAdmin();
+  const startsRaw = String(formData.get("starts") ?? "").trim();
+  if (startsRaw !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(startsRaw)) done("admin-invalid");
+  const tax = String(formData.get("tax") ?? "unconfirmed");
+  if (!(SUPPLIER_TAX as readonly string[]).includes(tax)) done("admin-invalid");
+  const rates: { model: string; usd: number }[] = [];
+  for (const category of WHATSAPP_CATEGORIES) {
+    const raw = String(formData.get(`rate_${category}`) ?? "").trim().replace(",", ".");
+    if (raw === "") continue;
+    const usd = Number(raw);
+    if (!Number.isFinite(usd) || usd < 0 || usd > 5) done("admin-invalid");
+    rates.push({ model: `whatsapp/${category}`, usd });
+  }
+  const service = createServiceClient();
+  const { data: current, error: currentError } = await service
+    .from("billing_settings").select("whatsapp_billing_starts_on").eq("singleton", true).maybeSingle();
+  if (currentError) failed(currentError, "whatsapp:read");
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Johannesburg" }).format(new Date());
+  if (startsRaw !== "" && startsRaw < today && startsRaw !== current?.whatsapp_billing_starts_on) done("invoicing-past");
+
+  if (rates.length > 0) {
+    const { error } = await service.from("ai_prices").insert(
+      rates.map((r) => ({ model: r.model, unit: "message", usd_per_unit: r.usd, source: "manual", confirmed_by: adminId })));
+    if (error) failed(error, "whatsapp:rates");
+  }
+  if (startsRaw !== "") {
+    const { data: priced, error: pricedError } = await service
+      .from("ai_prices").select("model").eq("unit", "message").in("model", ["whatsapp/utility", "whatsapp/service"]);
+    if (pricedError) failed(pricedError, "whatsapp:priced");
+    const models = new Set((priced ?? []).map((p) => String(p.model)));
+    if (!models.has("whatsapp/utility") || !models.has("whatsapp/service")) done("whatsapp-billing-unpriced");
+  }
+  const { error } = await service
+    .from("billing_settings")
+    .update({ whatsapp_billing_starts_on: startsRaw === "" ? null : startsRaw, supplier_tax_treatment: tax })
+    .eq("singleton", true);
+  if (error) failed(error, "whatsapp:settings");
+  done("whatsapp-billing-saved");
+}
+
 export async function setManualFxRate(formData: FormData): Promise<void> {
   await requireRrAdmin();
   const rate = Number(String(formData.get("rate") ?? "").replace(",", "."));

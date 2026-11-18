@@ -74,7 +74,18 @@ const envelopeSchema = z.object({
     changes: z.array(z.object({ field: z.string(), value: z.object({
       metadata: z.object({ phone_number_id: z.string() }).optional(),
       messages: z.array(messageSchema).max(100).optional(),
-      statuses: z.array(z.object({ id: z.string().max(300), status: z.enum(["sent", "delivered", "read", "failed"]) })).max(100).optional(),
+      statuses: z.array(z.object({
+        id: z.string().max(300),
+        status: z.enum(["sent", "delivered", "read", "failed"]),
+        // Meta's pricing on a delivered or read status (per-message pricing): billable is
+        // deprecated in favour of type and category; both are read (20261118120200).
+        pricing: z.object({
+          billable: z.boolean().optional(),
+          pricing_model: z.string().max(20).optional(),
+          type: z.string().max(60).optional(),
+          category: z.string().max(60).optional(),
+        }).optional(),
+      })).max(100).optional(),
     }) })).max(100),
   })).max(100),
 });

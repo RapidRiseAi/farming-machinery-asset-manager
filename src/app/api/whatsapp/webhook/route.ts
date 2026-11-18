@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { whatsappConfig, whatsappEnabled } from "@/lib/whatsapp/config";
 import { equalSecret, hashLinkToken, inboundContent, parseWebhook, validSignature, linkMessageToken } from "@/lib/whatsapp/protocol";
 import { processWhatsAppInbox } from "@/lib/whatsapp/worker";
+import { settleWhatsAppStatus } from "@/lib/whatsapp/paid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
           service.from("whatsapp_notification_delivery").update({ delivery_status: status.status }).eq("provider_id", status.id),
         ]);
         if (results.some(r => r.error)) throw new Error("status_store_failed");
+        // Settles the message's hold on the spending limit: R0 when Meta says it was free.
+        await settleWhatsAppStatus(service, status);
       }
       for (const message of value.messages ?? []) {
         // Username-only identities are not guessed or matched by display name.

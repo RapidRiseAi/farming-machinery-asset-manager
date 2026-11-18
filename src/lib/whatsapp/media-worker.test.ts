@@ -63,6 +63,8 @@ async function run(world: World): Promise<Seen> {
       return json({ Key: "ok" });
     }
     const route = url.pathname.replace("/rest/v1/", "");
+    // WhatsApp billing off (the default until Rapid Rise sets it): replies are not held.
+    if (route === "rpc/whatsapp_usage_reserve") return json({ ok: true, metered: false });
     if (route === "rpc/whatsapp_claim") return json([{ id: "inbox-1", link_id: "link", message_at: new Date().toISOString(),
       reply: null, media_kind: null, media_id: null, media_mime: null, ...world.inbox }]);
     if (route === "rpc/whatsapp_delivery_target") return json({ id: "link", user_id: "employee", farm_id: "farm",

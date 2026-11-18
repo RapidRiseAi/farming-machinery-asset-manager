@@ -1,7 +1,8 @@
 \set ON_ERROR_STOP on
 -- Payment integrity (BRIEF section 15; R-083, R-096; scenario 10): one invoice per customer,
 -- period and kind of charge (billing_invoices_farm_period_uq for periods, billing_invoices_ai_usage_uq
--- since 20261010090000 for AI-only invoices, one change invoice per quote since 20261115110000); settling an attempt is safe against duplicate, out-of-order,
+-- since 20261010090000 for AI-only invoices, one change invoice per quote since 20261115110000, one
+-- usage invoice per customer per day since 20261118120100); settling an attempt is safe against duplicate, out-of-order,
 -- pending, declined, abandoned and late answers; a payment never counts twice. The webhook's
 -- own checks (signature, amount, currency, farm, invoice, reference) are tested in
 -- src/lib/billing/webhook.test.ts and worker.test.ts; this is what the database guarantees
@@ -17,14 +18,14 @@ begin
 exception when others then
   return sqlerrm;
 end $$;
-create or replace function pg_temp.invoice(p_ref text, p_kind text, p_start date, p_end date) returns uuid
+create or replace function pg_temp.invoice(p_ref text, p_kind text, p_start date, p_end date, p_issued date default current_date) returns uuid
 language plpgsql as $$
 declare v uuid;
 begin
   insert into public.billing_invoices (farm_id, subscription_id, invoice_ref, status, kind, period_start, period_end,
     issued_on, due_on, plan, billing_period, asset_count, unit_price_incl_cents, months_charged, price_version_label, vat_rate_bps)
   values ('a2100000-0000-4000-9000-000000000001', 'a2160000-0000-4000-9000-000000000001', p_ref, 'draft', p_kind,
-          p_start, p_end, current_date, current_date, 'essential', 'monthly', 5, 4900, 1, 'launch-2026-11-eq', 0)
+          p_start, p_end, p_issued, p_issued, 'essential', 'monthly', 5, 4900, 1, 'launch-2026-11-eq', 0)
   returning id into v;
   update public.billing_invoices set status = 'open' where id = v;
   return v;
@@ -47,7 +48,7 @@ begin
   if v not like '%billing_invoices_farm_period_uq%' then
     raise exception 'INTEGRITY FAIL [uq]: a second period invoice for the same customer and period: %', v;
   end if;
-  perform pg_temp.invoice('FW-INT-A1', 'ai_usage', date_trunc('month', current_date)::date - 30, date_trunc('month', current_date)::date - 1);
+  perform pg_temp.invoice('FW-INT-A1', 'ai_usage', date_trunc('month', current_date)::date - 30, date_trunc('month', current_date)::date - 1, current_date - 1);
   v := pg_temp.try(format('select pg_temp.invoice(%L, %L, %L::date, %L::date)', 'FW-INT-A2', 'ai_usage',
                           date_trunc('month', current_date)::date - 30, date_trunc('month', current_date)::date - 1));
   if v not like '%billing_invoices_ai_usage_uq%' then
@@ -55,6 +56,12 @@ begin
   end if;
   -- A different kind for the same period is a different charge, and is allowed.
   perform pg_temp.invoice('FW-INT-A3', 'ai_usage', current_date - 10, current_date + 19);
+  -- But one usage invoice per customer per day (20261118120100), whatever span it names.
+  v := pg_temp.try(format('select pg_temp.invoice(%L, %L, %L::date, %L::date)', 'FW-INT-A4', 'ai_usage',
+                          current_date - 70, current_date - 40));
+  if v not like '%billing_invoices_usage_day_uq%' then
+    raise exception 'INTEGRITY FAIL [uq]: a second usage invoice for the same customer on one day: %', v;
+  end if;
 end $t$;
 
 -- == Settling an attempt, whatever order the answers come in =====================================

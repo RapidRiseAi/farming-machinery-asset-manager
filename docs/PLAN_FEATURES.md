@@ -62,7 +62,7 @@ assistant, WhatsApp, import, API, tracker feed): `equipment_restrictions.sql`.
 | Printable QR labels, selected offline capture | All | ungated; QR fuel capture is `fuel` | OK |
 | Users, roles, permissions, no seat fee | All | ungated | OK |
 | Finance, lease and contract records | All (finance permission) | `can_view_farm_finance`; exports `advanced_reports` in `asset-finance-export.ts` | OK |
-| Attachment storage 100 MB per paid asset, min 1 GB | All | **not metered or enforced** | Superseded by decision 14 (max(2 GB, 100 MB a full space + 25 MB an equipment space)); task A3 |
+| Attachment storage max(2 GB, 100 MB a full space + 25 MB an equipment space), pooled per customer, R49 10 GB blocks | All | `app.storage_allowance` behind every upload reservation (20261118120000); blocks through A2 quotes and on the bill (20261118120100) | **Built** (A3): warnings 80/95%, only new attachments stop at full, automatic blocks off by default with an owner ceiling; no transfer charges |
 | Fuel capture, consumption, alerts | Professional | `fuel` on page, actions, driver home, QR, CSV, SARS logbook | OK |
 | Total cost of ownership, cost per hour or km | Professional | `tco`: machine list column, machine page (overview figure, lifetime stats, repair ratio), machine file PDF cost per hour, sale pack cost section | **Fixed**: these relied on cost visibility alone |
 | Budgets and replacement insights | Professional | `tco`: machine page budgets card; add, edit and delete budget actions on the budget's own farm | **Fixed**: the actions had no plan gate and checked the role on the selected farm |
@@ -78,7 +78,8 @@ assistant, WhatsApp, import, API, tracker feed): `equipment_restrictions.sql`.
 | AI assistant and voice | Complete | `voice_ai` in `assistant/context.ts` for every assistant route | OK |
 | WhatsApp | Complete | `whatsapp_member` requires the plan rank in SQL | OK; voice notes and photos built 4 November, not yet released |
 | AI usage at cost +30% | Complete | AI ledger and invoicing (docs/AI_USAGE.md) | OK |
-| WhatsApp provider cost +30% | Complete | **not metered** | Open: no paid WhatsApp traffic should run until metered |
+| WhatsApp provider cost +30% | Complete | held and settled on the AI ledger under the customer's spending limit (20261118120200); free messages R0 | **Built** (A3), off until Rapid Rise sets the start date and the account's rates on /admin/ai; owner acceptance on /settings/ai; real-phone delivery unverified (B4) |
+| One monthly spending limit for paid AI, voice and WhatsApp | Complete (assistance eligibility) | `assistance_budgets` per customer, chosen by the owner, no default (20261118120200) | **Built** (A3): existing businesses keep their limit as their choice |
 | Human fleet management | Done-For-You, quoted | no catalogue price; quote-only (20261104200000) | OK; accepted-quote recording is open |
 | API access | Done-For-You | `api_token_resolve` returns `api_allowed` from the plan; settings page and actions | OK |
 | Hardware, tracking and provider feeds | Done-For-You | `configure_driver_connection` and `ingest_driving_event` check the plan | **Fixed** (20261104220000): a feed could be switched on, and kept receiving, on any plan |

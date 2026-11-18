@@ -32,6 +32,8 @@ export type HoldRefusal =
   | "token_rate"
   /** A payment is late (the seven days of grace) or the business is stopped: paid AI, voice and WhatsApp pause (20261115120000). */
   | "billing_paused"
+  /** The owner has not chosen a monthly limit for paid assistance: no paid work, never unlimited (20261118120200). */
+  | "budget_unset"
   | "unavailable";
 
 export type Hold =
@@ -59,7 +61,7 @@ export type Attempt = {
 
 const REFUSALS = new Set<HoldRefusal>([
   "not_member", "voice_off", "ai_off", "notice_required", "ai_off_for_you", "farm_limit", "member_limit", "token_rate",
-  "billing_paused",
+  "billing_paused", "budget_unset",
 ]);
 
 const num = (value: unknown): number | null => {

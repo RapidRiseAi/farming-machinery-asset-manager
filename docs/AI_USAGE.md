@@ -355,6 +355,45 @@ stops it). From that day:
   off); a paused or switched-off message as a calm notice instead of an error; a footer
   switch to turn AI help back on.
 
+## One spending limit per customer (20261118120200, task A3)
+
+Supersedes "Owner limits that hold" above where they differ (founder decisions 22, 23 and 24):
+
+- **One limit for the whole customer.** `assistance_budgets` holds one monthly rand amount per
+  billing site; every site billed through it spends from it, and spend is summed over all of
+  them. Holds take the customer's budget row as their lock, so two people at two sites cannot
+  both pass the last rand.
+- **Chosen by the owner, no default.** No row: holds are refused `budget_unset` and the free
+  paths carry on. Zero is a valid choice. The R200 platform default is no longer read. The
+  trial cap (never paid, test accounts) and the owner maximum stay as guards. Existing
+  businesses got their own setting, or the default they were on, as a `migrated` choice
+  (`app.assistance_migrate_existing`), which reproduces every effective limit exactly, and their
+  owners were told.
+- **Staff sublimits** hold across the customer (the lowest set for the person on any site,
+  against their spend on all of them) and never lift the customer's limit.
+- **The month** stays the calendar month in Africa/Johannesburg for every plan; /settings/ai
+  states the zone and the next reset.
+- **WhatsApp on the same ledger** (feature `whatsapp_message`, provider `whatsapp_cloud`):
+  alerts (utility templates) and replies (service messages) are held before they are sent and
+  settled from Meta's delivery status, which says whether the message was billable
+  (`pricing.type` regular) or free (free_customer_service, free_entry_point): free = R0, failed
+  = R0, no status in 72 hours = R0 with the estimate kept. Meta charges only delivered messages
+  (developers.facebook.com/docs/whatsapp/pricing, read 17 Nov 2026). Billing starts only when
+  Rapid Rise sets `billing_settings.whatsapp_billing_starts_on` and the per-category rates
+  (`ai_prices`, model `whatsapp/<category>`, USD per message from the account's rate card) on
+  /admin/ai; until then sending is unchanged. Once on, a paid send needs the owner's acceptance
+  on /settings/ai (time, terms version `whatsapp-charges-2026-11`, the cap then), a rate for the
+  category and room in the budget, or it is not sent on WhatsApp (the alert stays in the app).
+  The AI work on a WhatsApp message is an AI row; the message is its own row; nothing is billed
+  twice.
+- **The event record** on every row: customer (`billing_root`), rate version, supplier
+  currency, supplier tax treatment (`billing_settings.supplier_tax_treatment`, "unconfirmed"
+  until an accountant records it), pricing category, beside the provider request id
+  (`generation_id`), exchange rate, margin, provider cost and the amount billed.
+
+Tests: `supabase/tests/assistance_cap.sql` (scenarios 30, 31, 32), `ai_usage.sql`,
+`src/lib/whatsapp/paid.test.ts`, `delivery.test.ts`.
+
 ## Not built yet
 
 - A margin change taking effect from the next month with notice to owners.

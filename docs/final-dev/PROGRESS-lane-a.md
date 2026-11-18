@@ -2,7 +2,88 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
-## Current task: A2 (billing changes and the subscription lifecycle)
+## Current task: A3 (pooled storage, paid blocks, shared assistance spending cap)
+
+**TASK A3 COMPLETE** (18 Nov 2026). Final gates: tsc clean, 1181 unit tests (0 fail), dashes,
+parity, keys, design and errors clean; all 87 PGlite suites pass (298 migrations) after the last
+code and doc change. Mutations: 40 SQL + 7 TS, all caught. The harness refused to write
+`docs/final-dev/REPORT-A3.md` (as for A1, A2 and B1): the full report is the worker's final
+message; the runner saves it as the report. Next checks: CI on real Postgres, a browser walk of
+/billing and /settings/ai, then the external actions listed in the report.
+
+BRIEF 11 and 12; decisions 14, 15, 22, 23, 24, 34, 36; scenarios 24, 25, 26, 30, 31, 32 (and the
+storage/assistance half of 12). Started 17 Nov 2026 on 48b7987 (A1, B1, A2, Codex B2 and B3 merged).
+
+| # | Step | State |
+|---|---|---|
+| 1 | Storage allowance and pool (migration 20261118120000): pooled customer allowance, quota hooks replaced, files from before the pipeline counted (nightly snapshot of untracked objects), 80/95% warnings, status function, auto blocks setting with ceiling, transactional auto block; suite storage_pool.sql | SQL done (12/12 mutations); TS in step 4 |
+| 2 | Storage blocks billing (20261118120100): buy through A2's quotes (change 'storage'), reductions scheduled at the next storage month and never below what is stored, storage charge ledger, recurring monthly charge on the period invoice (monthly) and on the usage invoice (annual), generic cost-plus storage retired; suite storage_blocks.sql | SQL done (12/12 mutations); TS in step 4 |
+| 3 | Assistance cap (20261118120200): customer-wide budget table, existing limits migrated as chosen (owners told), blank refuses (budget_unset), customer-wide lock and spend, staff sublimits across sites, WhatsApp on the same ledger (owner acceptance, hold before send, settle on the delivery webhook's pricing, free = R0, stale = R0), event fields, AI use of every pooled site invoiced, usage corrections as credit; suite assistance_cap.sql | SQL done (16/16 mutations); usage corrections as credit NOT built (see report) |
+| 4 | TS storage: mirror + tests, /billing storage section (status, warnings, blocks, auto setting), upload refusal offers expansion, admin usage page | done (gates passed at the step 4 commit; no browser run) |
+| 5 | TS assistance: /settings/ai setup (required, zero allowed, migrated notice, reset boundary), refusals, WhatsApp hooks and acceptance, admin rates | done (gates passed; TS mutations 7/7) |
+| 6 | Docs, register rows, REPORT-A3.md | done (report in the final message: write refused) |
+
+Design (decided at the start, keep to it):
+- Pool = the billing root (`app.billing_root`) and every site billed through it. Allowance per
+  pool: F = max(purchased full spaces or counted, price minimum); E = included equipment of the
+  price + extra equipment paid (metered: max(included, in use)); included = max(2e9, F x 1e8 +
+  E x 2.5e7); total = included + blocks x 1e10. `app.storage_quota_overrides` (Rapid Rise by
+  hand) still wins when set. Next renewal figures use pending quantities.
+- Counted bytes = finalised pipeline files not removed + open reservations + bytes of objects in
+  the business's folders with no upload intent (files from before the pipeline and old upload
+  paths), measured nightly into `storage_usage_snapshots` (one row per pool per day; also the
+  per-period usage record). Not counted: billing-proofs, partner-*, menu-media and the
+  temporary command-audio bucket (removed by its own sweep, so no loophole).
+- Blocks: R49 per 10 GB per month (billing_settings, snapshotted on every charge), monthly
+  even for annual software. Storage month = the period for monthly subscriptions; for annual,
+  months stepped from the period start on the anchor day. Manual purchase = A2 quote, change
+  'storage', paid change invoice raises `storage_blocks`. Automatic = OFF by default; owner
+  sets a monthly rand ceiling counting existing blocks; under the pool and subscription locks
+  the block is added at once and the pro-rata amount is a storage charge on the next invoice.
+  Reduction = pending_storage_blocks at the next storage month, refused if what is stored would
+  not fit; nothing is deleted.
+- Assistance: `assistance_budgets` keyed by the billing root. No row = no paid work
+  ('budget_unset'). Existing businesses get their current effective limit as a 'migrated'
+  choice and an owner notice. Trial cap (never paid, test) and the owner maximum stay as
+  guards. Month = calendar month in Africa/Johannesburg for every plan (AI_USAGE.md), shown
+  explicitly. WhatsApp messages go on the same ledger (feature 'whatsapp_message'); billing for
+  them starts only when Rapid Rise sets a start date and the rates (Meta charges on delivery;
+  the account's rate-card currency is an account fact).
+
+Log:
+- 17 Nov: read PROGRESS, register rows, BRIEF 11/12/23, decisions, A2 and B1 reports, the AI
+  ledger, the upload pipeline, A2 quotes and the invoice generators. Meta pricing docs read
+  (developers.facebook.com/docs/whatsapp/pricing and the status webhook reference): charged
+  per delivered message; `pricing.type` regular = billable, free_customer_service and
+  free_entry_point free; 1,000 free service messages per number per month from 1 Oct 2026;
+  currency fixed per account (ZAR not in the list). Next: step 1.
+- 18 Nov: steps 1 and 2 SQL committed (through 623d917). The full notice is a separate call
+  (public.storage_note_full) because the refusal rolls back its own transaction. The usage
+  invoice (kind ai_usage) now also carries storage for annual subscribers and the AI use of
+  pooled sites (it never reached them before); one usage invoice per customer per day is an
+  index (billing_payment_integrity.sql adjusted). Suites must use app.billing_today() for
+  storage months and current_date for the invoice run (they differ 22:00 to 24:00 UTC).
+  Tool trap: a Bash command containing "=>" hangs this harness; use edit.js with a spec file.
+  Next: step 3 (assistance cap migration 20261118120200).
+- 18 Nov (after a usage-limit stop): step 3 SQL committed (through the 16/16 mutation commit).
+  Migrated value = the billing site's own farm_ai_settings limit or the R200 default, so the
+  trial guard reproduces every current effective limit exactly. ai_usage.sql and
+  test_account_fence.sql now choose a budget in their fixtures. Next: step 4 (TS storage), then
+  step 5 (TS assistance and the WhatsApp hooks).
+- 18 Nov: step 4 done. Full SQL suite 87/87 at 6fbd349. Storage catalogue entries in
+  limits.ts, src/lib/storage-allowance.ts (+ test pinned to the migration), StorageCard on
+  /billing (blocks through requestChange change=storage, saveStorageAuto), upload refusal
+  calls storage_note_full, nightly cron_storage_measure, /admin/usage is a cost view only
+  (raiseUsageInvoice removed). Gates: tsc, 1177 unit tests (0 fail), dashes, parity, keys,
+  design, errors. Next: step 5.
+- 18 Nov: step 5 done. budget_unset through the ledger, assistant, voice routes and WhatsApp
+  voice; /settings/ai setup card, reset and sites lines, migrated note, paid WhatsApp
+  acceptance; src/lib/whatsapp/paid.ts holds alerts (utility) and replies (service) and the
+  webhook settles from Meta's pricing; /admin/ai sets WhatsApp billing (date, rates, supplier
+  tax). Gates: tsc, 1181 unit tests (0 fail), dashes, parity, keys, design, errors. Next:
+  step 6 (docs, register, report), then a final full SQL suite.
+
+## A2 (complete)
 
 **TASK A2 COMPLETE** (17 Nov 2026). Final gates: tsc clean, 1162 unit tests, dashes, parity,
 keys, design and errors clean, all 82 PGlite suites pass (292 migrations). Mutations: 35 of 35

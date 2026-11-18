@@ -660,6 +660,12 @@ const CODE_KEYS: Record<string, string> = {
   "billing-capacity-quote": "errors.billingCapacityQuote",
   "billing-change-mixed": "errors.billingChangeMixed",
   "billing-grace-no-extras": "errors.billingGraceNoExtras",
+  // Storage blocks and automatic storage (20261118120000, 20261118120100).
+  "storage-reduction-over-usage": "errors.storageReductionOverUsage",
+  "storage-ceiling-invalid": "errors.storageCeilingInvalid",
+  "storage-ceiling-too-low": "errors.storageCeilingTooLow",
+  "storage-terms-required": "errors.storageTermsRequired",
+  "storage-auto-failed": "errors.storageAutoFailed",
   "billing-change-failed": "errors.billingChangeFailed",
   // The owner's 90 days of reading (20261115120000).
   "retrieval-owner-only": "errors.retrievalOwnerOnly",
