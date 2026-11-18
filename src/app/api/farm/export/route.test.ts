@@ -4,10 +4,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const source = readFileSync(join(process.cwd(), "src/app/api/farm/export/route.ts"), "utf8");
+// The table list is shared with the complete export job (A4).
+const tables = readFileSync(join(process.cwd(), "src/lib/farm-export/tables.ts"), "utf8");
 
 test("the farm export includes the finance and lease records (permanent closure depends on it)", () => {
   for (const table of ["finance_agreements", "finance_instalments", "asset_contracts", "incidents", "tyres", "fines", "attachments"]) {
-    assert.ok(source.includes(`name: "${table}"`), `${table} is missing from the export`);
+    assert.ok(tables.includes(`name: "${table}"`), `${table} is missing from the export`);
   }
 });
 
@@ -19,7 +21,7 @@ test("the farm export streams instead of building one string, and fails loudly r
 
 test("saved trips, routes and positions are in the export, so a downgrade keeps them the business's (decision 37)", () => {
   for (const table of ["trips", "trip_jobs", "trip_income", "trip_expenses", "trip_routes", "asset_positions", "fines", "fuel_issues"]) {
-    assert.ok(source.includes(`name: "${table}"`), `${table} is missing from the export`);
+    assert.ok(tables.includes(`name: "${table}"`), `${table} is missing from the export`);
   }
 });
 

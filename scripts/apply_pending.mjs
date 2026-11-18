@@ -38,6 +38,12 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Scheduled deletion after the reading window, shipped switched off (A4).
+  "20261120120000": "select to_regclass('public.farm_retention_schedules') is not null and to_regclass('public.farm_retention_holds') is not null and to_regclass('public.retention_settings') is not null and to_regprocedure('public.retention_delete(uuid)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'farm_closures' and column_name = 'pending_logins')",
+  // The complete export with files, as a job (A4).
+  "20261120110000": "select to_regclass('public.farm_export_jobs') is not null and to_regclass('public.farm_export_job_files') is not null and to_regprocedure('public.export_readable_files(uuid,text,text,integer)') is not null and to_regprocedure('public.export_job_finish(uuid,uuid,text)') is not null",
+  // Done-For-You agreements and the activation catalogue as orders (A4).
+  "20261120100000": "select to_regclass('public.service_orders') is not null and to_regclass('public.service_work_entries') is not null and to_regprocedure('public.dfy_accept(uuid,uuid,bigint)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'done_for_you_quotes' and column_name = 'recurring_incl_cents')",
   // The accounting summary summed in the database (B3).
   "20261119140000": "select to_regprocedure('public.farm_journal_totals(uuid,date,date)') is not null and to_regprocedure('public.partner_journal_accounts(uuid,date,date)') is not null",
   // One capture, one record, online or queued; the fuel plan asked again on reconnect (B3).

@@ -27,6 +27,7 @@ import { rapidRiseEft } from "@/lib/billing/eft";
 import { signOut } from "@/app/(app)/actions";
 import { payOverdueAction } from "./actions";
 import { DownloadLink } from "@/components/ui/download-link";
+import { CompleteExport } from "@/components/export/complete-export";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { SwitchFarm } from "@/components/billing/switch-farm";
@@ -153,6 +154,13 @@ export default async function SuspendedPage({
           >
             {t("suspended.download", locale)}
           </DownloadLink>
+        ) : null}
+        {/* The complete export with files, the owner's while the 90 days run (20261120110000). */}
+        {mayExport(life, isOwner) && farmId ? (
+          <div className="mt-4 text-left">
+            <h2 className="mb-2 text-sm font-semibold text-sand-900">{t("exportJob.title", locale)}</h2>
+            <CompleteExport farmId={farmId} locale={locale} labels={downloadLabels(locale)} />
+          </div>
         ) : null}
 
         {role === "owner" && farmId === profile.farm_id ? (

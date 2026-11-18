@@ -1,4 +1,6 @@
 import { finishClosureFiles } from "@/lib/farm-closure";
+import { cleanExportArchives, runExportWorker } from "@/lib/farm-export/job";
+import { finishClosureLogins, runRetention } from "@/lib/retention";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { captureError } from "@/lib/observability";
@@ -57,6 +59,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** The complete export worker's share of the nightly run. */
+const EXPORT_BUDGET_MS = 45_000;
 /** Notification delivery's share of the nightly run, after the reports' 40 seconds. */
 const NOTIFY_BUDGET_MS = 40_000;
 /** The nights the weekly digest is asked for: Monday, and two catch-up nights after it. */
@@ -151,6 +155,11 @@ export async function GET(request: Request) {
   // Files a permanent closure could not remove, then what five years have released.
   await step("closure_files", () => finishClosureFiles(supabase));
   await run("closure_purge", "purge_expired_closures");
+  // Logins a closure could not remove, then the deletion schedule after the reading window
+  // (20261120120000): a dry run with nothing deleted and nobody warned until the founder switches
+  // it on in the database AND RETENTION_DELETION=enabled is set on the deployment.
+  await step("closure_logins", () => finishClosureLogins(supabase));
+  await step("retention", () => runRetention(supabase));
   // Route trails older than six months (20261107120000).
   await run("positions_purge", "cron_purge_positions");
   // Place search answers older than a month (20261111130000).
@@ -160,6 +169,10 @@ export async function GET(request: Request) {
   await step("upload_sweep", () => sweepUploads(supabase));
   // Temporary spoken-command audio: done, cancelled, or past its recovery window (20261115100000).
   await step("command_audio_sweep", () => sweepCommandAudio(supabase));
+  // Complete exports (20261120110000): the files and manifest of jobs nobody is watching, then
+  // archives past their keeping time and objects whose job is gone, in bounded batches.
+  await step("export_worker", () => runExportWorker(supabase, EXPORT_BUDGET_MS));
+  await step("export_cleanup", () => cleanExportArchives(supabase));
   // Request claims older than the two-day retry window, with any answer a replay kept (20261119110000).
   await run("request_claims_sweep", "cron_sweep_request_claims");
   // What each customer stores, for the day (20261118120000): files with no upload intent count

@@ -2,7 +2,76 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
-## Current task: A3 (pooled storage, paid blocks, shared assistance spending cap)
+## Current task: A4 (service orders, complete export, retention and deletion)
+
+**TASK A4 COMPLETE** (19 Nov 2026). Final gates at 7d231ea (docs only since): tsc clean, 1236 unit
+tests (0 fail, 1 skipped), dashes, parity, keys, design and errors clean; full SQL suite 97/97 on
+PGlite. Mutations 47/47 SQL, 12/12 TS. Register rows R-100, R-102, R-115, R-116, R-124 E (A4);
+R-101 X (ships off). The harness refused docs/final-dev/REPORT-A4.md (as for A1 to A3): the full
+report is the worker's final message. Next checks: CI on real Postgres, a staging run with real
+Storage, ui:check of /billing, /settings, /admin/farms/[id], /admin/retention.
+
+Started 18 Nov 2026 on e3593f0. A3 and B3 are complete; A4 was not started.
+Reading requirements R-100/101/102/115/116/124 and existing quote/export/closure code.
+Next: extend accepted quotes and optional orders; durable session-scoped media export;
+extend farm_closures with disabled, dry-run-first operational retention; gates and report.
+No production, live database, provider purchase, push or merge is authorised.
+
+18 Nov resumed: manager committed checkpoint as e36b9bd. Git metadata is deliberately
+read-only; this is NOT a blocker. Manager commits automatically every three minutes.
+Worker must never run git writes. Keep this progress file current instead.
+
+Implemented in e36b9bd: shared export lifecycle refusals, requester-session file
+downloads (old file ZIP used the service client), portable hashed archive paths, exclusion
+of private chat and temporary command audio. New farm-export-policy/files tests plus
+existing export/chat tests pass (12). Mutation run: 15/15 caught and restored; initial
+unknown-gate survivor fixed by a distinct test. tsc and all lint gates pass. Full unit run:
+1216 passed, 1 skipped, 0 failed. Full SQL suite finished: 94/94 pass on PGlite,
+304 migrations applied cleanly. After mutation restore, tsc and the 12 focused tests
+passed again; dashes and git diff --check clean. No browser or provider test run.
+Logs and mutation runner are in ignored scratchpad/a4-* (no data, secrets or archives).
+
+18 Nov (Claude Opus worker, resumed after Codex): read PROGRESS, git log, register rows, BRIEF
+16/18/23, decisions, A2/A3/B3 handovers, export routes, closure flow, DFY quote path, invoice run.
+Plan: step 1 service orders migration (rewrite of 607b3e5) + suite + probe; step 2 service TS/UI;
+step 3 complete export jobs (records under the requester's session, files listed under the session
+at the cutoff and copied by a worker); step 4 retention schedules on farm_closures (disabled, dry
+run); step 5 docs, register, report. Git writes work for this worker (commits are mine from here).
+
+18 Nov, step 1 DONE (18c09d4..5920ba2): 20261120100000_service_orders.sql rewritten (Codex's draft
+had per-farm jsonb terms and invoiced DFY by hand outside the subscription). Now: explicit DFY
+prices on done_for_you_quotes (legacy rows untouched), owner acceptance of the total, landing at the
+renewal on a private retired price row (invoice run bills it), plan-change guard, dfy_end via A2's
+pending change; catalogue rules as data (QR kits not ready); service_orders accepted then invoiced
+once; service_work_entries. Suite service_orders.sql 18/18 SQL mutations caught; TS mirror
+service-orders.ts 5/5 mutations. Step 2 (UI) committed through e5a3a59: /billing ServicesCard,
+owner accept actions, admin AdminServices card, cron step, EN/AF keys, error codes. Gates: tsc,
+1225 unit tests (0 fail), dashes, parity, keys, design, errors clean. Full SQL suite 95/95 (PGlite).
+Next: step 3 complete export jobs (migration 20261120110000).
+
+18 to 19 Nov, step 3 DONE (50a9ff1..9466ec9): 20261120110000_complete_export.sql (farm_export_jobs,
+farm_export_job_files, bucket farm-exports outside the pool, export_readable_files as SECURITY
+INVOKER, create/claim/record/finish/retry/cleanup/orphans); src/lib/farm-export/{tables,archive,
+job,access}.ts; routes /api/farm/export/jobs (+ step, download, retry), /api/cron/exports; nightly
+export_worker and export_cleanup; CompleteExport on settings, suspended, closed, close-account.
+Mutations 15/15 SQL, 7/7 TS. Step 4 DONE (c6d9c77..7d231ea): 20261120120000_retention_schedules.sql
+(settings off, schedules, holds, dry-run preview, warnings only when on, retention_delete through
+close_farm_permanently with reason retention, deletion-ledger bucket); src/lib/retention.ts with
+runRetention (needs RETENTION_DELETION=enabled too), closure logins, ledger on manual closure;
+/admin/retention; BACKUP.md section 8; CRON.md. Mutations 14/14 SQL. Gates at 7d231ea: tsc, 1236
+unit tests (0 fail), dashes, parity, keys, design, errors; full SQL suite 97/97 (PGlite).
+Next: step 5, register rows, REPORT-A4.md.
+
+A4 remains INCOMPLETE. No requirement row closed, no migration written. Remaining: service
+orders and quote acceptance, durable complete export/manifest/media jobs, retention on
+farm_closures, readiness flags, UI/i18n, BACKUP/legal checklist, full tests and REPORT-A4.
+Findings to continue: billing_record_dfy_quote currently applies a per-vehicle price at
+once and hardcodes ten charged months for annual quotes; replace the new offer path with
+explicit accepted recurring totals without rewriting old agreements. The legacy file ZIP
+now fails if any object is restricted/missing; the complete job needs explicit omissions
+and retry. Keep B3's table stream as the basis, adding storage_usage_snapshots/charges.
+
+## A3 (complete)
 
 **TASK A3 COMPLETE** (18 Nov 2026). Final gates: tsc clean, 1181 unit tests (0 fail), dashes,
 parity, keys, design and errors clean; all 87 PGlite suites pass (298 migrations) after the last

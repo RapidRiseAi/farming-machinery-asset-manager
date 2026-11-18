@@ -12,6 +12,7 @@ import {
   type StoredFile,
 } from "@/lib/farm-closure";
 import { captureError } from "@/lib/observability";
+import { writeLedger } from "@/lib/retention";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -58,6 +59,8 @@ export async function confirmClosure(formData: FormData): Promise<void> {
   const result = data as { closure: string; logins: string[]; files: StoredFile[] };
 
   // It has happened. Nothing below may send them back to a page for an account that is gone.
+  // The deletion ledger, which a database restore does not roll back (docs/BACKUP.md).
+  await writeLedger(svc, { closureId: result.closure, farmId, reason: "owner", closedAt: new Date().toISOString() });
   const left = await removeFiles(svc, result.files);
   const { error: saveError } = await svc.from("farm_closures").update({ pending_files: left }).eq("id", result.closure);
   if (saveError) captureError(saveError, { where: "closure:pending-files" });

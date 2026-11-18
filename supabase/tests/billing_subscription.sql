@@ -1418,7 +1418,14 @@ declare
     -- The customer's assistance budget (20261118120200): the cap with the trial guard (reads the
     -- trial amount), and whether WhatsApp use is billed yet (reads its start date). Granted to
     -- nobody; reached through the AI ledger and the service-role WhatsApp functions.
-    'assistance_cap','whatsapp_billing_on','assistance_migrate_existing'];
+    'assistance_cap','whatsapp_billing_on','assistance_migrate_existing',
+    -- Done-For-You agreements and service orders (20261120100000): the tax snapshot reads
+    -- billing_settings; the nightly apply writes the agreement's private price row and pins the
+    -- subscription. Granted to nobody, reached through the service-role wrappers and the cron.
+    'service_tax_snapshot','dfy_apply_due',
+    -- Scheduled deletion (20261120120000): the checks read payment attempts in flight. Granted to
+    -- nobody; reached through retention_preview and retention_delete (service role).
+    'retention_checks'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1426,7 +1433,8 @@ declare
     'cron_apply_pending_plan_changes','cron_sweep_dormant_signups',
     'cron_escalate_support_tickets','cron_enqueue_billing_renewal_notices',
     'cron_generate_ai_usage_invoices','cron_apply_billing_suspensions',
-    'cron_expire_billing_quotes','cron_enqueue_billing_lifecycle_notices'];
+    'cron_expire_billing_quotes','cron_enqueue_billing_lifecycle_notices',
+    'cron_apply_service_agreements'];
   -- The wrappers service.ts calls by name. Separate from the cron list because they
   -- exist for a different reason: PostgREST exposes `public` only, so without these the
   -- charging path is unreachable no matter how the `app` functions are granted.
@@ -1468,7 +1476,12 @@ declare
     -- A larger customer's quote request from sign-up (20261115130000), service role only.
     'billing_request_capacity_quote',
     -- Storage blocks (20261118120100): service role only, the actor passed and checked inside.
-    'storage_change_preview','billing_quote_storage'];
+    'storage_change_preview','billing_quote_storage',
+    -- Done-For-You agreements (20261120100000): service role only, the actor passed and checked
+    -- inside (app.service_rr_actor, app.service_owner_actor). dfy_end schedules the next plan.
+    'dfy_offer','dfy_accept','dfy_end',
+    -- The deletion preview counts the billing tables it keeps (20261120120000): service role only.
+    'retention_preview'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.
