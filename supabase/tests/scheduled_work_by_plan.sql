@@ -37,7 +37,8 @@ select app.enqueue_aarto_nomination_reminders();
 select pg_temp.assert(pg_temp.sent('ce000000-0000-4000-9000-000000000001','aarto_nomination_due') = 1, 'Complete and open: the reminder goes');
 select pg_temp.assert(pg_temp.sent('ce000000-0000-4000-9000-000000000002','aarto_nomination_due') = 0, '[17] after a downgrade from Complete no AARTO reminder goes');
 select pg_temp.assert(pg_temp.sent('ce000000-0000-4000-9000-000000000003','aarto_nomination_due') = 0, '[40] a business that is not open gets no reminder');
-select pg_temp.assert((select count(*) = 3 from public.fines), '[17] the saved fines stay');
+-- Only this suite's businesses: CI runs every suite on one database, so other suites' fines may exist.
+select pg_temp.assert((select count(*) = 3 from public.fines where farm_id::text like 'ce000000-0000-4000-9000-00000000000%'), '[17] the saved fines stay');
 
 -- == The weekly digest: once a week per open business =======================================
 select app.enqueue_weekly_digest();
