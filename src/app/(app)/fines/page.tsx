@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { checkEntitlement, currentFarmId } from "@/lib/auth";
+import { checkEntitlement, currentFarmId, effectiveFarmRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { readAll } from "@/lib/supabase/read-all";
 import { must, mustAll } from "@/lib/supabase/must";
@@ -21,6 +21,7 @@ import { lapsedOn, type CredentialRow } from "@/lib/driver-credentials";
 import { enumLabel, shortDate, todayLocal } from "@/lib/format";
 import { createFine, identifyDriver, updateFineStatus, deleteFine } from "./actions";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
+import { SavedRecords } from "@/components/entitlement/saved-records";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -61,6 +62,9 @@ const NEXT_STATUSES: Record<string, readonly FineStatusValue[]> = {
 };
 
 
+/** Saved fines listed after a downgrade: the newest; the export holds all. */
+const HISTORY_ROWS = 200;
+
 export default async function FinesPage({
   searchParams,
 }: {
@@ -72,10 +76,59 @@ export default async function FinesPage({
   const profile = gate.profile;
   const locale = profile.lang;
   if (!gate.allowed) {
+    // After a downgrade the saved fines stay readable (decision 37), as recorded: no
+    // nomination, no deadline reminders, no new fine. Read with the person's own session.
+    const historyFarm = await currentFarmId(profile);
+    const historyRole = historyFarm ? await effectiveFarmRole(historyFarm, profile) : null;
+    const db = await createClient();
+    const saved = historyFarm
+      ? await db
+          .from("fines")
+          .select("id, machine_id, notice_number, authority, offence, offence_date, amount_cents, status")
+          .eq("farm_id", historyFarm)
+          .is("deleted_at", null)
+          .order("offence_date", { ascending: false })
+          .limit(HISTORY_ROWS)
+      : null;
+    if (saved?.error) throw new Error("Saved fines are temporarily unavailable.");
+    const rows = (saved?.data ?? []) as {
+      id: string; machine_id: string | null; notice_number: string | null; authority: string | null;
+      offence: string | null; offence_date: string | null; amount_cents: number | null; status: string;
+    }[];
     return (
       <PageContainer size="wide">
         <PageHeader title={t("fines.title", locale)} infoKey="fines" locale={locale} />
-        <UpgradeNotice feature="aarto" requiredPlan={gate.requiredPlan} currentPlan={gate.plan} locale={locale} />
+        <UpgradeNotice
+          feature="aarto"
+          requiredPlan={gate.requiredPlan}
+          currentPlan={gate.plan}
+          locale={locale}
+          compact={rows.length > 0}
+          canUpgrade={historyRole === "owner"}
+        />
+        {rows.length > 0 ? (
+          <SavedRecords
+            locale={locale}
+            feature="aarto"
+            farmId={historyFarm}
+            canExport={historyRole === "owner" || historyRole === "manager"}
+            shown={HISTORY_ROWS}
+          >
+            <ul className="flex flex-col divide-y divide-sand-100">
+              {rows.map((f) => (
+                <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <span className="min-w-0 break-words">
+                    <span className="block font-medium text-sand-900">{[f.notice_number, f.authority].filter(Boolean).join(" · ") || "-"}</span>
+                    <span className="block text-sand-600">
+                      {[f.offence_date ? shortDate(f.offence_date, locale) : null, f.offence, f.amount_cents != null ? rands(Number(f.amount_cents)) : null].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sand-700">{fineStatusLabel(f.status as Parameters<typeof fineStatusLabel>[0], locale)}</span>
+                </li>
+              ))}
+            </ul>
+          </SavedRecords>
+        ) : null}
       </PageContainer>
     );
   }
