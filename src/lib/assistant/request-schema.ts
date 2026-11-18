@@ -13,6 +13,8 @@ export const assistantTurnRequestSchema = z
     locale: z.enum(["en-ZA", "af-ZA"]),
     channel: z.enum(["typed", "voice"]),
     voiceCaptureId: z.uuid().optional(),
+    /** One id per request until it is answered: a retry after a lost answer is not paid for twice. */
+    requestId: z.uuid().optional(),
     supersedesVoiceCaptureIds: z.array(z.uuid()).min(1).max(5).optional(),
     sttConfidence: z.number().min(0).max(1).optional(),
     /**

@@ -145,6 +145,8 @@ export type AssistantTurnRequest = {
   input: string;
   locale: AssistantLocale;
   channel: AssistantChannel;
+  /** Set by the client per request until it is answered (the server claims it). */
+  requestId?: string;
   voiceCaptureId?: string;
   /** Earlier voice captures made non-actionable when this corrected/retried text is submitted. */
   supersedesVoiceCaptureIds?: string[];
