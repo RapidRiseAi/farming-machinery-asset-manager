@@ -30,7 +30,15 @@ and build on it, never rebuild. Steps, committed one by one:
 
 ### B3 done
 
-- (nothing yet)
+- Step 1 DB (72f7085..a694d6d): migration 20261119090000_trips_maps_history.sql (plan gate
+  on updates of saved trips/loads/money with cancel and finish-underway exceptions; map
+  readiness in the database for routes and positions; POD location only with maps; a
+  trip's driver must be a member of the business). Suite trips_by_plan.sql PASSES, in
+  run.sh; probe; DATABASE.md; history guard mutation caught.
+- Step 1 TS (4b0e67b): tripReport/tripResultCents in src/lib/trips.ts with tests.
+  NEXT: report page uses tripReport (window said, counts), detail page history mode and
+  result line, server-side plan checks in trips/actions.ts, errors for maps-not-ready and
+  trip-driver-not-member.
 
 ## Task
 
