@@ -16,6 +16,10 @@ type Action = (formData: FormData) => Promise<void>;
 
 /** "5 full spaces, 1 extra equipment space", or the plan and term. */
 function sideLabel(q: QuoteRow, side: "from" | "to", locale: Lang): string {
+  if (q.change === "storage") {
+    const blocks = side === "from" ? q.from_storage_blocks : q.to_storage_blocks;
+    return t("billing.storageBlocksSide", locale).replace("{n}", String(blocks ?? 0));
+  }
   if (q.change === "plan") {
     const plan = side === "from" ? q.from_plan : q.to_plan;
     const period = side === "from" ? q.from_period : q.to_period;
@@ -85,7 +89,7 @@ export function ChangeReview({
         ) : null}
         {quote.current_renewal_cents != null || quote.next_renewal_cents != null ? (
           <Fact
-            label={t("billing.changeRenewal", locale)}
+            label={t(quote.change === "storage" ? "billing.storageMonthlyLabel" : "billing.changeRenewal", locale)}
             value={t("billing.changeBeforeAfter", locale)
               .replace("{before}", quote.current_renewal_cents != null ? rands(quote.current_renewal_cents) : "-")
               .replace("{after}", quote.next_renewal_cents != null ? rands(quote.next_renewal_cents) : "-")}
@@ -107,8 +111,15 @@ export function ChangeReview({
           <p className="mt-1">{t("billing.changeLostKept", locale)}</p>
         </div>
       ) : null}
+      {quote.change === "storage" ? (
+        <p className="mt-3 text-sm leading-relaxed text-sand-800">
+          {t(atRenewal ? "billing.storageReduceNote" : "billing.storageMonthlyNote", locale)}
+        </p>
+      ) : null}
       <p className="mt-3 text-sm leading-relaxed text-sand-800">
-        {t(atRenewal ? "billing.changeAtRenewalNote" : payNow > 0 ? "billing.changePaidFirstNote" : "billing.changeNowNote", locale)}
+        {t(atRenewal
+          ? (quote.change === "storage" ? "billing.storageAtMonthNote" : "billing.changeAtRenewalNote")
+          : payNow > 0 ? "billing.changePaidFirstNote" : "billing.changeNowNote", locale)}
       </p>
 
       {open ? (
