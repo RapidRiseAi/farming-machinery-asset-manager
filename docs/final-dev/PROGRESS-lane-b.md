@@ -36,9 +36,16 @@ and build on it, never rebuild. Steps, committed one by one:
   trip's driver must be a member of the business). Suite trips_by_plan.sql PASSES, in
   run.sh; probe; DATABASE.md; history guard mutation caught.
 - Step 1 TS (4b0e67b): tripReport/tripResultCents in src/lib/trips.ts with tests.
-  NEXT: report page uses tripReport (window said, counts), detail page history mode and
-  result line, server-side plan checks in trips/actions.ts, errors for maps-not-ready and
-  trip-driver-not-member.
+- Step 1 done (e77f6f3): report page (window said, cancelled/unfinished/missing readings,
+  per-km from trips with readings, Professional only), trip page history mode + result,
+  plan checks in actions, error words.
+- Step 2 done: ROUTING.md provider recheck (Mapbox route storage = maps release blocker,
+  tiles need a production source), positions labelled with age/last known (never live),
+  positionRecentMs + tripReportWindowDays in limits.ts, tracker feed refused plainly after
+  a downgrade. Full SQL suite 88/88 after fixture fixes (82b1a86).
+- Step 3 in progress: SavedRecords frame; fuel and fines history read-only; export paged
+  (cap 50,000) with trips/routes/positions/fuel cards. NEXT: AARTO reminders plan+gate
+  (migration with the digest fix), retained positions on the trip page without a map.
 
 ## Task
 
