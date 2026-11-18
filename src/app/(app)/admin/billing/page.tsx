@@ -243,6 +243,9 @@ export default async function AdminBillingPage({
         .from("billing_service_catalogue")
         .select("code, name_en, name_af, unit_en, unit_af, unit_price_incl_cents")
         .eq("active", true)
+        // Priced per case only: the optional services with agreed rules are offered as orders
+        // the owner accepts first (20261120100000), and QR kits are not offered until ready.
+        .eq("pricing", "quoted")
         .order("sort")
         .limit(20),
       "admin-billing:catalogue",
