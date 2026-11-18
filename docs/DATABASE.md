@@ -326,3 +326,11 @@ Migration 20261119110000_request_claim_answers.sql lets `request_claims.outcome`
 answered again from its claim instead of paid for twice, and adds
 `public.cron_sweep_request_claims()` (service role), which the nightly job runs to remove
 every claim older than two days. Suite: `supabase/tests/request_claim_answers.sql`.
+
+## A service template once per machine (B3)
+
+Migration 20261119120000_service_template_once.sql adds `service_plan_lines.template_id`
+(nullable, existing lines keep null) and the partial unique index
+`service_plan_lines_template_once` on (machine, template, task folded) for live lines that
+carry a template: two presses of "apply template" cannot double a machine's plan. Lines
+added by hand are not constrained. Suite: `supabase/tests/service_template_once.sql`.
