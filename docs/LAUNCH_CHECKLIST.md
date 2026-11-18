@@ -173,10 +173,15 @@ Order: correctness and security first, then load, then product.
       imports, invites, report schedules, readings, contractor links), the two email routes
       (and Resend's idempotency key), checklists, API tokens, QR captures (`p_client`);
       emailed-link accept/decline/paid guarded. Proven by `spam_check.mjs` check 6.
-- [ ] **Taps, release 2 follow-ups (medium):** work-request media capture id; assistant turn,
+- [x] **Taps, release 2 follow-ups (medium):** work-request media capture id; assistant turn,
       transcribe and voice-session ids (AI spend on a retry); activation "Pay" resuming an
       attempt already in flight; contractor vehicle sync claim; service template unique per
       machine. (The recurring invoice generator locks its schedule since 2026-10-27.)
+      2026-11-18 (task B3): work media claims its request id; an assistant turn and an AI
+      transcription answer a retry from their claim (`respondOnce`, 20261119110000; the
+      voice session already did); Pay resumes the checkout already open; the vehicle copy
+      claim was already in place and now has a test; a template is applied once per machine
+      in the database (20261119120000). docs/final-dev/REPORT-B3.md.
 - [x] **Taps, release 3 (errors):** server actions report what they catch and never put a
       raw database message in the address bar; reads that fail stop pretending to be empty.
       2026-10-20: `errorCode` on 109 redirects (refusals keep their words, our failures are
@@ -200,7 +205,9 @@ Order: correctness and security first, then load, then product.
       was typed; push toggle, speech-token, checklist copies, vehicle sync and the
       activity log's slow policy (3.9 s to 0.16 s) are done.
 - [ ] **Errors follow-ups:** a form that fails on a dropped connection could queue offline
-      (needs the online path's request id in the offline envelope); the address sweep's
+      (needs the online path's request id in the offline envelope; DONE 2026-11-18 by B3: a
+      queued capture keeps the online request id and `apply_offline_capture_once`,
+      20261119130000, recognises it); the address sweep's
       accounts (`SWEEP_ACCOUNTS`, `SWEEP_PASSWORD` in `.env.local`) are not in CI.
       **Founder:** set `OPS_ALERT_EMAIL` and a `SENTRY_DSN` in Vercel; read from the
       account again on 2026-10-27, neither is set (nor `AI_ALERT_EMAIL`,
@@ -268,8 +275,11 @@ Order: correctness and security first, then load, then product.
       with their history), `handover_moves.sql`.
 - [x] **H9** Module switches per farm and a simple mode for operators (per the founder's decision).
       2026-11-05 (`9b64488`), on the Settings page under Menus.
-- [ ] **UX** Weekly owner digest email (built: `cron_enqueue_weekly_digest`, Mondays); empty
+- [x] **UX** Weekly owner digest email (built: `cron_enqueue_weekly_digest`, Mondays); empty
       states that teach and assistant suggested questions still open.
+      2026-11-18 (task B3): the digest goes once a week per open business, asked Monday to
+      Wednesday so a missed Monday catches up (20261119100000); the empty states without a
+      hint now teach; starters fill the typing box and never send a paid turn (guard test).
 - [x] **H5** Keep the click-through test farm out of Rapid Rise's admin totals (removal at launch).
       2026-10-14: `farms.is_test` (20261014110000); all four production farms marked (the founder
       confirmed each is a test). Left out of the admin farm count, the billing console's totals and

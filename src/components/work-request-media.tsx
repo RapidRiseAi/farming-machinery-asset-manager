@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDialogForm } from "@/components/ui/dialog-form";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import { errorMessage } from "@/lib/errors";
 import { ReportPending } from "@/components/ui/pending-guard";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { UploadField } from "@/components/upload/upload-field";
+import { newRequestId, REQUEST_FIELD } from "@/lib/request-id";
 
 /**
  * Uploader for work-request quote / invoice / proof attachments. Recording an invoice
@@ -27,6 +28,8 @@ export function WorkRequestMedia({ workRequestId, farmId, locale = "en", allowed
   const [kind, setKind] = useState<"photo" | "quote" | "invoice">(allowedKinds[0] ?? "photo");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // One id for this capture until it is saved: a retry after a lost answer is the same save.
+  const attempt = useRef<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,6 +39,8 @@ export function WorkRequestMedia({ workRequestId, farmId, locale = "en", allowed
     const fd = new FormData(formEl);
     fd.set("work_request_id", workRequestId);
     fd.set("kind", kind);
+    attempt.current ??= newRequestId();
+    fd.set(REQUEST_FIELD, attempt.current);
     // A file still on its way would be sent without it: wait for it, or remove it.
     if (formEl.querySelector("[data-upload-pending]")) { setErr(t("upload.stillSending", locale)); return; }
     setBusy(true);
@@ -52,6 +57,7 @@ export function WorkRequestMedia({ workRequestId, farmId, locale = "en", allowed
         setErr(errorMessage(result.error, locale) ?? t("work.mediaError", locale));
         return;
       }
+      attempt.current = null;
       formEl.reset();
       router.refresh();
       close();

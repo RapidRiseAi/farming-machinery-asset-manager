@@ -53,6 +53,8 @@ insert into public.machines (id, farm_id, name, type, profile, meter_type, assig
   ('eb120000-0000-4000-9000-000000000022', 'eb100000-0000-4000-9000-000000000002', 'Plough', 'implement', 'equipment', 'none', null);
 insert into public.fuel_tanks (id, farm_id, name) values
   ('eb130000-0000-4000-9000-000000000001', 'eb100000-0000-4000-9000-000000000003', 'Bowser');
+-- Map writes need the readiness flag as well as Complete (20261119090000).
+insert into public.farm_feature_access (farm_id, key) values ('eb100000-0000-4000-9000-000000000003', 'map');
 
 -- == Every table that records restricted work carries the rule ===========================
 do $t$

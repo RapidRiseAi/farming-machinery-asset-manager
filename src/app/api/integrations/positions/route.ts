@@ -74,6 +74,11 @@ export async function POST(request: Request) {
     p_machine_external: parsed.data.machine_id,
     p_points: points.map((p) => ({ at: p.at, lat: p.lat, lng: p.lng, speed: p.speed })),
   });
+  // The business is no longer on Complete (decision 37: no new tracking after a downgrade):
+  // a refusal, not an outage, so the feed is told plainly instead of retrying for ever.
+  if (error?.code === "P0001" && /^(plan-feature-maps|maps-not-ready)/.test(error.message ?? "")) {
+    return NextResponse.json({ error: "maps_unavailable" }, { status: 403 });
+  }
   if (error) {
     const status = error.code === "22023" ? 409 : error.code === "42501" ? 403 : 503;
     const code = error.code === "22023" ? "event_rejected" : error.code === "42501" ? "forbidden" : "unavailable";

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { boundsOf, cleanPoints, lastSeen, routeKm, routeLine } from "./map-data";
+import { boundsOf, cleanPoints, lastSeen, routeKm, routeLine, positionFreshness } from "./map-data";
 
 test("each vehicle shows where it was last", () => {
   const seen = lastSeen([
@@ -52,4 +52,16 @@ test("one request cannot carry an endless list", () => {
   const now = new Date("2026-11-07T12:00:00Z");
   const many = Array.from({ length: 500 }, () => ({ lat: 1, lng: 1, at: "2026-11-07T11:00:00Z" }));
   assert.equal(cleanPoints(many, now).length, 200);
+});
+
+test("a position is recent only within the window; older is the last known position, never current", () => {
+  const now = new Date("2026-11-18T12:00:00Z");
+  const tenMinutes = 10 * 60 * 1000;
+  assert.deepEqual(positionFreshness("2026-11-18T11:55:00Z", now, tenMinutes), { recent: true, ageMs: 5 * 60 * 1000 });
+  assert.equal(positionFreshness("2026-11-18T11:50:00Z", now, tenMinutes).recent, true);
+  assert.equal(positionFreshness("2026-11-18T11:49:59Z", now, tenMinutes).recent, false);
+  assert.equal(positionFreshness("2026-11-17T12:00:00Z", now, tenMinutes).ageMs, 24 * 60 * 60 * 1000);
+  // A wrong clock in the future is "just now", not a negative age; garbage is never recent.
+  assert.deepEqual(positionFreshness("2026-11-18T12:30:00Z", now, tenMinutes), { recent: true, ageMs: 0 });
+  assert.equal(positionFreshness("not a date", now, tenMinutes).recent, false);
 });

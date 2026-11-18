@@ -38,6 +38,18 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The accounting summary summed in the database (B3).
+  "20261119140000": "select to_regprocedure('public.farm_journal_totals(uuid,date,date)') is not null and to_regprocedure('public.partner_journal_accounts(uuid,date,date)') is not null",
+  // One capture, one record, online or queued; the fuel plan asked again on reconnect (B3).
+  "20261119130000": "select to_regprocedure('public.apply_offline_capture_once(uuid,timestamptz,text,text,uuid,jsonb)') is not null",
+  // A service template applied to a machine once (B3).
+  "20261119120000": "select to_regclass('public.service_plan_lines_template_once') is not null",
+  // A replayed answer fits in a claim; claims older than two days swept nightly (B3).
+  "20261119110000": "select to_regprocedure('public.cron_sweep_request_claims()') is not null",
+  // AARTO reminders by plan and open business; the weekly digest once a week with catch-up (B3).
+  "20261119100000": "select to_regprocedure('app.sast_week_start(timestamptz)') is not null",
+  // Trips and maps by plan after a downgrade; the map readiness flag in the database (B3).
+  "20261119090000": "select to_regprocedure('app.trips_history_guard()') is not null and to_regprocedure('app.require_maps_ready()') is not null and to_regprocedure('app.maps_allowed(uuid)') is not null",
   // The customer's assistance budget, WhatsApp on the AI ledger, the event record.
   "20261118120200": "select to_regclass('public.assistance_budgets') is not null and to_regclass('public.whatsapp_usage_holds') is not null and to_regprocedure('public.whatsapp_usage_settle(text,text,boolean,text,text)') is not null and to_regprocedure('public.assistance_accept_whatsapp(uuid,boolean,text)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ai_usage' and column_name = 'billing_root')",
   // Storage blocks on the bill: block quotes, the invoice's storage, the usage invoice per day.

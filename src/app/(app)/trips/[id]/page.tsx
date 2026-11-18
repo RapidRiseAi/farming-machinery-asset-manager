@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
+import { effectiveFarmRole, farmAllows, homePathFor, requireProfile } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { mapsAvailable } from "@/lib/features";
 import { dateTime, num } from "@/lib/format";
@@ -12,7 +12,7 @@ import { must } from "@/lib/supabase/must";
 import { signedUrlsByPath } from "@/lib/signed-urls";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { EXPENSE_KINDS, TRIP_STATUS_TONE, tripDistance, tripFields } from "@/lib/trips";
+import { EXPENSE_KINDS, TRIP_STATUS_TONE, tripDistance, tripFields, tripResultCents } from "@/lib/trips";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
@@ -35,6 +35,7 @@ import {
   startTrip,
 } from "../actions";
 import { TripRouteCard } from "./route-card";
+import { TripSavedTracking } from "./saved-tracking";
 import { UploadField } from "@/components/upload/upload-field";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,11 @@ export default async function TripPage({
   const role = await effectiveFarmRole(trip.farm_id, profile);
   const manager = role === "owner" || role === "manager";
   const canWork = manager || trip.driver_id === profile.id;
+  // Trip work is Professional and up (decision 16). Below it, a saved trip is a record to
+  // read (decision 37): only a trip already underway may be finished, with its deliveries,
+  // and a planned one cancelled. The database holds the same line (20261119090000).
+  const tripsOn = await farmAllows(trip.farm_id, "trips", profile);
+  const canDeliver = canWork && (tripsOn ? trip.status !== "cancelled" : trip.status === "underway");
 
   const [jobs, machines, driver, income, expenses] = await Promise.all([
     supabase.from("trip_jobs").select("id, customer, reference, description, weight_kg, passengers, seal_no, pickup, dropoff, status, delivered_at, received_by, pod_note, pod_photo_path, pod_signature_path").eq("trip_id", id).is("deleted_at", null).order("created_at"),
@@ -120,6 +126,7 @@ export default async function TripPage({
   const fields = tripFields(locale);
   const km = tripDistance(trip);
   const expenseTotal = expenseRows.reduce((sum, e) => sum + Number(e.amount_cents), 0);
+  const result = tripResultCents(incomeRow ? Number(incomeRow.amount_cents) : null, expenseTotal);
   const label = t("trips.titleOne", locale).replace("{n}", String(trip.number));
 
   return (
@@ -128,6 +135,11 @@ export default async function TripPage({
       <PageHeader title={label} actions={<Badge tone={TRIP_STATUS_TONE[trip.status] ?? "neutral"}>{t(`trips.statusName.${trip.status}`, locale)}</Badge>} />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
       <Flash tone="success" message={sp.saved === "route" ? t("routes.savedFlash", locale) : undefined} />
+      {!tripsOn ? (
+        <p role="status" className="rounded-xl border border-sand-200 bg-callout-warn-bg p-3 text-sm text-callout-warn-ink">
+          {t("trips.historyNotice", locale)}
+        </p>
+      ) : null}
 
       <Card>
         <FactList>
@@ -142,7 +154,7 @@ export default async function TripPage({
           {trip.notes ? <Fact label={t("trips.notes", locale)} value={trip.notes} /> : null}
         </FactList>
 
-        {canWork && trip.status === "planned" ? (
+        {canWork && tripsOn && trip.status === "planned" ? (
           <form action={startTrip} className="mt-4 flex flex-wrap items-end gap-3">
             <input type="hidden" name="id" value={trip.id} />
             <div className="min-w-0 flex-1 basis-48">
@@ -172,12 +184,14 @@ export default async function TripPage({
         ) : null}
       </Card>
 
-      {mapOn ? <TripRouteCard trip={trip} viewerId={profile.id} manager={manager} kmMeter={kmMeter} locale={locale} /> : null}
+      {mapOn
+        ? <TripRouteCard trip={trip} viewerId={profile.id} manager={manager} kmMeter={kmMeter} locale={locale} />
+        : <TripSavedTracking trip={trip} locale={locale} />}
 
       <Card>
         <CardHeader
           action={
-            manager && trip.status !== "completed" && trip.status !== "cancelled" ? (
+            manager && tripsOn && trip.status !== "completed" && trip.status !== "cancelled" ? (
               <DialogForm trigger={t("trips.addLoad", locale)} triggerVariant="secondary" title={t("trips.addLoad", locale)} closeLabel={close}>
                 <form action={addTripJob}>
                   <input type="hidden" name="trip_id" value={trip.id} />
@@ -264,7 +278,7 @@ export default async function TripPage({
                     )}
                   </div>
                 </div>
-              ) : canWork && trip.status !== "cancelled" ? (
+              ) : canDeliver ? (
                 <DialogForm trigger={t("trips.signOff", locale)} triggerVariant="primary" title={t("trips.signOff", locale)} description={j.customer} closeLabel={close} size="md">
                   <form action={deliverTripJob}>
                     <input type="hidden" name="job_id" value={j.id} />
@@ -315,6 +329,13 @@ export default async function TripPage({
             <Fact label={t("trips.income", locale)} value={incomeRow ? rands(Number(incomeRow.amount_cents)) : "-"} />
             {incomeRow?.invoice_ref ? <Fact label={t("trips.invoiceRef", locale)} value={incomeRow.invoice_ref} /> : null}
             <Fact label={t("trips.expenses", locale)} value={rands(expenseTotal)} />
+            {/* The result is the plan's trip finance (decision 16): not shown on a lower plan. */}
+            {tripsOn ? (
+              <Fact
+                label={t("trips.result", locale)}
+                value={result == null ? t("trips.resultUnknown", locale) : rands(result)}
+              />
+            ) : null}
           </FactList>
           {expenseRows.length > 0 ? (
             <ul className="mt-2 text-sm text-sand-600">
@@ -323,6 +344,7 @@ export default async function TripPage({
               ))}
             </ul>
           ) : null}
+          {tripsOn ? (
           <div className="mt-3 flex flex-wrap gap-2">
             <DialogForm trigger={t("trips.setIncome", locale)} triggerVariant="secondary" title={t("trips.setIncome", locale)} closeLabel={close} size="md">
               <form action={saveTripIncome}>
@@ -364,6 +386,7 @@ export default async function TripPage({
               </form>
             </DialogForm>
           </div>
+          ) : null}
         </Card>
       ) : null}
     </PageContainer>

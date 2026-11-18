@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { errorCode } from "@/lib/action-errors";
-import { requireFarmRole, requireProfile, requireRole } from "@/lib/auth";
+import { farmAllows, requireFarmRole, requireProfile, requireRole } from "@/lib/auth";
 import { recordMeterReading } from "@/lib/domain/fleet-commands";
 import { todayLocal } from "@/lib/format";
 import { isUuid } from "@/lib/ids";
@@ -37,6 +37,9 @@ export async function createTrip(formData: FormData) {
   const farmId = profile.farm_id;
   const machineId = uuid(formData, "machine_id");
   if (!farmId || !machineId) redirect("/trips?error=trip-vehicle");
+  // Trip scheduling is Professional and up (decision 16). The database refuses it too
+  // (20261114090200); asked here first so the answer is the plan, said plainly.
+  if (!(await farmAllows(farmId, "trips", profile))) redirect("/trips?error=plan-feature-trips");
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -156,6 +159,21 @@ export async function deliverTripJob(formData: FormData) {
   const outcome = String(formData.get("outcome") ?? "delivered") === "failed" ? "failed" : "delivered";
   const receivedBy = text(formData, "received_by");
   if (outcome === "delivered" && !receivedBy) redirect(`/trips/${tripId}?error=trip-received-by`);
+
+  // The trip as this person may see it, before any file is stored: below Professional only a
+  // trip already underway may have its deliveries signed off (20261119090000), and a refusal
+  // after the upload would leave the signature behind with nothing pointing at it.
+  const { data: tripRow, error: tripReadError } = await (await createClient())
+    .from("trips")
+    .select("farm_id, status")
+    .eq("id", tripId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (tripReadError) redirect(`/trips/${tripId}?error=${errorCode(tripReadError, "app/trips/actions:deliverTripJob:trip", "trip-failed")}`);
+  if (!tripRow || tripRow.farm_id !== farmId) redirect("/trips?error=trip-failed");
+  if (tripRow.status !== "underway" && !(await farmAllows(farmId, "trips", profile))) {
+    redirect(`/trips/${tripId}?error=plan-feature-trips`);
+  }
 
   const svc = createServiceClient();
   const base = `${farmId}/trips/${jobId}`;

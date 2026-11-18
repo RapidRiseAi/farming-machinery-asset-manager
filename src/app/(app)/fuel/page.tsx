@@ -7,6 +7,8 @@ import { canViewFarmCosts } from "@/lib/cost-visibility";
 import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
+import { SavedRecords } from "@/components/entitlement/saved-records";
+import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { meterLabel } from "@/lib/machine-options";
 import {
   fuelActivitiesFor,
@@ -61,6 +63,9 @@ type TankBalance = {
   book_at_dip_litres: number | null;
 };
 
+/** Saved records shown after a downgrade, of each kind: the newest; the export holds all. */
+const HISTORY_ROWS = 200;
+
 /** A tank below this share of its capacity says so in words. */
 const LOW_TANK_PCT = 15;
 
@@ -80,6 +85,27 @@ export default async function FuelPage({
   // U+00A0 keeps "1 427 L" on one line; num() already groups with a no-break space.
   const litres = (n: number | null | undefined) => `${num(n ?? 0, 0)} ${L}`;
   if (!gate.allowed) {
+    // After a downgrade the saved diesel records stay readable (decision 37): the newest
+    // draws and deliveries, as they were recorded, through the person's own session. No
+    // balances, consumption or anomaly analysis is worked out, and nothing can be added.
+    const historyFarm = await currentFarmId(profile);
+    const historyRole = historyFarm ? await effectiveFarmRole(historyFarm, profile) : null;
+    const db = await createClient();
+    const [savedIssues, savedDeliveries, savedTanks, savedMachines] = historyFarm
+      ? await Promise.all([
+          db.from("fuel_issues_visible").select("id, tank_id, machine_id, date, litres, meter_reading").eq("farm_id", historyFarm).is("deleted_at", null).order("date", { ascending: false }).limit(HISTORY_ROWS),
+          db.from("fuel_deliveries_visible").select("id, tank_id, date, litres, supplier, invoice_no").eq("farm_id", historyFarm).is("deleted_at", null).order("date", { ascending: false }).limit(HISTORY_ROWS),
+          db.from("fuel_tanks").select("id, name").eq("farm_id", historyFarm),
+          db.from("machines").select("id, name").eq("farm_id", historyFarm).limit(5000),
+        ])
+      : [null, null, null, null];
+    if (savedIssues?.error || savedDeliveries?.error || savedTanks?.error || savedMachines?.error) {
+      throw new Error("Saved fuel records are temporarily unavailable.");
+    }
+    const draws = (savedIssues?.data ?? []) as { id: string; tank_id: string; machine_id: string | null; date: string; litres: number | null; meter_reading: number | null }[];
+    const drops = (savedDeliveries?.data ?? []) as { id: string; tank_id: string; date: string; litres: number | null; supplier: string | null; invoice_no: string | null }[];
+    const tankLabel = new Map(((savedTanks?.data ?? []) as { id: string; name: string }[]).map((r) => [r.id, r.name]));
+    const machineLabel = new Map(((savedMachines?.data ?? []) as { id: string; name: string }[]).map((r) => [r.id, r.name]));
     return (
       <PageContainer size="wide">
         <PageHeader title={t("nav.fuel", locale)} infoKey="fuel" locale={locale} />
@@ -88,7 +114,46 @@ export default async function FuelPage({
           requiredPlan={gate.requiredPlan}
           currentPlan={gate.plan}
           locale={locale}
+          compact={draws.length + drops.length > 0}
+          canUpgrade={historyRole === "owner"}
         />
+        {draws.length + drops.length > 0 ? (
+          <SavedRecords
+            locale={locale}
+            feature="fuel"
+            farmId={historyFarm}
+            canExport={historyRole === "owner" || historyRole === "manager"}
+            shown={HISTORY_ROWS}
+          >
+            <div className="overflow-x-auto">
+              <Table>
+                <Thead>
+                  <Tr>
+                    <Th>{t("fuel.date", locale)}</Th>
+                    <Th>{t("savedRecords.what", locale)}</Th>
+                    <Th>{t("fuel.tank", locale)}</Th>
+                    <Th>{t("fuel.litres", locale)}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {[
+                    ...draws.map((d) => ({ key: `i${d.id}`, date: d.date, what: machineLabel.get(d.machine_id ?? "") ?? t("savedRecords.fuelDraw", locale), tank: d.tank_id, litres: d.litres })),
+                    ...drops.map((d) => ({ key: `d${d.id}`, date: d.date, what: [t("savedRecords.fuelDelivery", locale), d.supplier, d.invoice_no].filter(Boolean).join(" · "), tank: d.tank_id, litres: d.litres })),
+                  ]
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .map((row) => (
+                      <Tr key={row.key}>
+                        <Td>{shortDate(row.date, locale)}</Td>
+                        <Td>{row.what}</Td>
+                        <Td>{tankLabel.get(row.tank) ?? "-"}</Td>
+                        <Td className="tnum">{litres(row.litres)}</Td>
+                      </Tr>
+                    ))}
+                </Tbody>
+              </Table>
+            </div>
+          </SavedRecords>
+        ) : null}
       </PageContainer>
     );
   }

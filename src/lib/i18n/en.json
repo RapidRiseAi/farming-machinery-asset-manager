@@ -617,7 +617,9 @@
       "reg_twice": "Registration twice in this file",
       "name_on_farm": "A {{asset}} with this name is already in your fleet",
       "profile_invalid": "Unknown profile (use full or equipment)",
-      "profile_not_eligible": "A vehicle cannot be support equipment"
+      "profile_not_eligible": "A vehicle cannot be support equipment",
+      "same_on_farm": "Already in your fleet: same name, type, make, model and year, with no serial or registration to tell them apart. Add a serial or registration, or change the name if it is another one.",
+      "same_twice": "The same row twice in this file, with no serial or registration to tell them apart."
     },
     "identityCard": "Details",
     "purchaseDate": "Purchase date",
@@ -707,7 +709,8 @@
     "problemsOpen": "With an open problem",
     "tankLitres": "Fuel tank size (litres)",
     "tankLitresHint": "Used to spot a fuel card fill that is more than the tank holds.",
-    "profile": "Profile"
+    "profile": "Profile",
+    "qrSheetEmptyHint": "Add your {{assets}} first: each one gets its own QR code to print and stick on, so drivers can report faults and readings from it."
   },
   "machineType": {
     "tractor": "Tractor",
@@ -2045,7 +2048,7 @@
     "namesAndMore": "{names} and {n} more."
   },
   "offline": {
-    "mediaTooLarge": "Use a JPEG, PNG or WebP photo under 6 MB and a voice note under 8 MB. Remove or replace the attachment, then try again.",
+    "mediaTooLarge": "Use a JPEG, PNG or WebP photo up to 20 MB and a voice note up to 20 MB (ten minutes). Remove or replace the attachment, then try again.",
     "review": "Review saved captures",
     "reviewHelp": "These captures are stored on this device. Retry when connected. A rejected capture or conflict stays here: check the {{asset}} or job card, export a backup if needed, then record any correction before removing the saved copy. Exports include media and may contain private information.",
     "storageFailed": "Could not save or read this device's drafts. Your form has not been cleared. Keep it open and try again when connected.",
@@ -2077,7 +2080,17 @@
     "savedOnPhone": "Saved on this phone",
     "toSync": "{count} to sync",
     "savedHere": "Saved on this phone",
-    "syncNow": "Sync now"
+    "syncNow": "Sync now",
+    "reason": {
+      "plan": "Not saved: your business's plan no longer includes this. It is kept here; download a backup if you need it, then remove it.",
+      "equipment": "Not saved: this {{asset}} is support equipment, which does not take this kind of record. It is kept here for you to check.",
+      "access": "Not saved: your access changed since this was captured (your role, or you were removed from the business). It is kept here; ask the owner, then record it again if it is still needed.",
+      "gone": "Not saved: the {{asset}} or job card is no longer there, or the business is paused. It is kept here for you to check.",
+      "invalid": "Not saved: a value was refused (for example a reading below the last one, or a date in the future). It is kept here; record a corrected one, then remove this copy.",
+      "account": "Not saved: this was captured by another account on this phone. Sign in as that account to send it.",
+      "review": "Not saved yet: it needs a person to look at it (it was changed after it was first sent). It is kept here.",
+      "conflict": "Saved, but it disagrees with a newer record (for example a later reading). Check the {{asset}} and correct it there if needed."
+    }
   },
   "meterSource": {
     "app": "In-app",
@@ -3029,7 +3042,8 @@
     "upgradeRequired": "This action requires the Complete plan.",
     "continueRecording": "Continue recording",
     "sectionMore": "Dates, status and notes",
-    "markAs": "Mark as: {status}"
+    "markAs": "Mark as: {status}",
+    "emptyHint": "When the office records a traffic fine for one of your {{assets}}, it shows here with its nomination deadline."
   },
   "budget": {
     "title": "Budgets",
@@ -5611,7 +5625,13 @@
     "retrievalEnded": "The time to read and export these records has ended. Pay what is owed, or start again, to open them.",
     "billingCancelImmediate": "A cancellation stops the next renewal, and you keep everything until the end of the period you have paid for. To end it sooner, email us.",
     "signupEquipment": "Choose a whole number of support equipment, zero or more.",
-    "signupCapacityQuote": "More than 200 full spaces is arranged with us. Send the form again to ask for a quote."
+    "signupCapacityQuote": "More than 200 full spaces is arranged with us. Send the form again to ask for a quote.",
+    "mapsNotReady": "Maps are not available to this business yet. Trips, loads and the written stops work without them.",
+    "tripDriverNotMember": "Choose a driver who works for this business.",
+    "importEmpty": "Choose a CSV file with your {{assets}} first.",
+    "importHeader": "The file's first row must name the columns, with at least a name column. Download the template to see the layout.",
+    "importNoValid": "No row in the file could be imported. The preview shows what each row needs.",
+    "importTooMany": "That file has more rows than one import takes. Split it into smaller files."
   },
   "billing": {
     "title": "Billing",
@@ -8107,7 +8127,14 @@
     "fault": "Fault",
     "drivingRecords": "Driving records",
     "tripSummary": "{{Trip}} {n}: planned {planned} km, recorded {driven} km.",
-    "openTrip": "Open the {{trip}}"
+    "openTrip": "Open the {{trip}}",
+    "reportedAgo": "Reported {when}",
+    "lastKnownAgo": "Last known position, {when}: no report since",
+    "lastSeenTitle": "Where each {{asset}} was last seen",
+    "lastSeenHint": "These are the last positions a phone or tracker sent, with their age. A phone stops sending when its screen locks, so an old position is not where the {{asset}} is now.",
+    "justNow": "just now",
+    "minutesAgo": "{n} min ago",
+    "hoursAgo": "{n} h ago"
   },
   "trips": {
     "title": "{{Trips}}",
@@ -8139,7 +8166,7 @@
     "ended": "Ended",
     "distance": "Distance",
     "status": "Status",
-    "notes": "Notes",
+    "notes": "Notes and instructions for the driver",
     "statusName": {
       "planned": "Planned",
       "underway": "Underway",
@@ -8198,9 +8225,12 @@
       "reading": "The reading at the end cannot be below the reading at the start.",
       "customer": "Enter the customer's name.",
       "receivedBy": "Enter who received it.",
-      "photo": "That photo could not be saved. Use a photo smaller than 8 MB.",
+      "photo": "That photo could not be saved. Use a JPEG, PNG or WebP photo up to 20 MB.",
       "amount": "Enter an amount, like 1250.50."
-    }
+    },
+    "historyNotice": "Kept as a record. Your plan no longer includes trip work, so this {{trip}} stays readable and in your export, but cannot be changed. A {{trip}} already underway can still be finished, and a planned one cancelled.",
+    "result": "After expenses",
+    "resultUnknown": "Not known: no income entered"
   },
   "hours": {
     "title": "Driver hours",
@@ -8223,11 +8253,16 @@
   },
   "tripReport": {
     "title": "What each {{asset}} earned",
-    "lead": "Finished {{trips}} from the last 90 days. Expenses are those added to a {{trip}}, not fuel or servicing.",
+    "lead": "Finished {{trips}} from the last {days} days only, not all time. Expenses are only those added to a {{trip}}: fuel, job cards and services stay in the {{asset}}'s costs and are not added again here.",
     "emptyTitle": "Nothing finished yet",
     "emptyHint": "This fills in once {{trips}} are finished with their income added.",
     "count": "{{Trips}}",
-    "perKm": "Per km after expenses"
+    "perKm": "Per km after expenses",
+    "withoutReadings": "{n} finished without a reading at the start or the end: their money is counted, but they are left out of the distance and the per-km figure.",
+    "zeroKm": "{n} finished with the same reading at both ends, so they show no distance.",
+    "notCounted": "{cancelled} cancelled and {unfinished} not yet finished in the same {days} days are not counted.",
+    "withoutIncome": "{n} without income entered",
+    "result": "After expenses"
   },
   "fuelCards": {
     "title": "Fuel cards",
@@ -8349,7 +8384,13 @@
     "reportTrip": "{{Trip}}",
     "difference": "Difference",
     "tolerance": "Allowed difference (%)",
-    "toleranceHint": "A {{trip}} further or shorter than this, by the odometer, is flagged."
+    "toleranceHint": "A {{trip}} further or shorter than this, by the odometer, is flagged.",
+    "savedTitle": "Saved route and positions",
+    "savedHint": "Kept as a record. Maps are not on this business's plan, so nothing is drawn and nothing new is recorded; what was saved stays readable and can be downloaded.",
+    "savedStops": "Planned stops",
+    "savedPositions": "Recorded positions",
+    "savedPositionsValue": "{n}, from {first} to {last}",
+    "savedDownload": "Download the positions (CSV)"
   },
   "upload": {
     "err": {
@@ -8529,5 +8570,14 @@
     "endKm": "Finishing km",
     "distance": "Recorded distance (km)",
     "notRecorded": "Not recorded"
+  },
+  "savedRecords": {
+    "title": "Saved records",
+    "hint": "Your plan no longer includes {feature}. What was saved stays readable here and in the business export. Nothing new can be added, and no new analysis is worked out.",
+    "newest": "The newest {n} of each kind are listed; the export holds them all.",
+    "export": "Download the business export",
+    "what": "What",
+    "fuelDraw": "Diesel drawn",
+    "fuelDelivery": "Delivery"
   }
 }

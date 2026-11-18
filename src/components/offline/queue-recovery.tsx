@@ -5,6 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { dequeue, listMutations, subscribe } from "@/lib/offline/queue";
 import { flush } from "@/lib/offline/sync";
 import type { QueuedMutation } from "@/lib/offline/types";
+import { syncReasonKey } from "@/lib/offline/sync-refusal";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
@@ -67,7 +68,8 @@ export function QueueRecovery({ userId, locale }: { userId: string | null | unde
     {items.map(item => <article key={item.client_id} className="rounded-xl border border-sand-200 p-4">
       <h2 className="font-semibold">{t(`offline.types.${item.type}`, locale)}</h2>
       <p className="mt-1 text-sm text-sand-600">{new Date(item.queued_at).toLocaleString()}</p>
-      {item.sync_error ? <p className="mt-2 text-sm text-status-due">{t("offline.needsReview", locale)}</p> : null}
+      {/* Why it was kept, in words: a changed plan, profile or access is said as such (B3). */}
+      {item.sync_error ? <p className="mt-2 text-sm text-status-due">{t(syncReasonKey(item.sync_error), locale)}</p> : null}
       <dl className="my-3 grid gap-1 text-sm">
         {Object.entries(item.fields).filter(([key]) => key !== "token" && !key.startsWith("$")).map(([key, value]) =>
           <div key={key} className="break-words"><dt className="inline font-medium">{key}: </dt><dd className="inline">{value}</dd></div>)}

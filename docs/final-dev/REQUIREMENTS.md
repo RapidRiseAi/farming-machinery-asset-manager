@@ -64,14 +64,14 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-041 | Profile check on every server path: pages, actions, API, RPC, policies, imports, offline sync, exports, jobs, assistant, WhatsApp, partner links, public API | S6, D19 | none for profile | E (A1) at the table; B4 assistant and WhatsApp wording | A1 (DB rules), B4 (assistant/WhatsApp wording) | Sc14: equipment_restrictions.sql |
 | R-042 | Essential keeps job costs, parts/labour lines, finance documents, repair records, core tyres and loan/lease for full assets | S6, D33 | `can_view_farm_costs`, `can_view_farm_finance` ungated by plan | E | A1 | Sc16: equipment_restrictions.sql |
 | R-043 | Budgets, TCO, depreciation on Professional+ for full assets | S6, S7, D33 | `tco` gate (PLAN_FEATURES.md) | E (A1) | A1 | Sc16: equipment_restrictions.sql |
-| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | X (A1 key; Codex B3 manual workflow, awaiting Claude integration review) | A1 (key), B3 (workflow) | equipment_restrictions.sql; manual_driving.sql; REPORT-B3-DRIVING.md |
-| R-045 | Trip scheduling, assignments, trailer reference, delivery evidence, trip finance on Professional and Complete | S8, D16 | trips ungated by plan (`src/app/(app)/trips/actions.ts`) | C (A1 plan gate; B3 workflow) | A1 (gate), B3 (workflow) | equipment_restrictions.sql (plan gates) |
-| R-046 | Maps, route planning, reported locations, driving paths on Complete only, plus readiness flag; gate provider calls and writes | S8, D18 | `featureOn("map")` only (`src/lib/routing/access.ts`) | C (A1 plan gate and mapsAvailable; B3 provider paths) | A1 (gate), B3 (provider paths) | equipment_restrictions.sql (plan gates) |
+| R-044 | Driving log, km readings, destination, written ordered stops on every plan | S8, D16 | `/driver/activity`, `driving_sessions`/`driving_events` | E (A1 key; Codex manual workflow reviewed; B3 verified; device run pending) | A1 (key), B3 (workflow) | equipment_restrictions.sql; manual_driving.sql; REPORT-B3-DRIVING.md |
+| R-045 | Trip scheduling, assignments, trailer reference, delivery evidence, trip finance on Professional and Complete | S8, D16 | trips by plan on pages, actions and tables; history after a downgrade; driver must be on the business (20261119090000) | E (B3; browser walk pending) | A1 (gate), B3 (workflow) | Sc13: trips_by_plan.sql [13]; equipment_restrictions.sql; trips.test.ts |
+| R-046 | Maps, route planning, reported locations, driving paths on Complete only, plus readiness flag; gate provider calls and writes | S8, D18 | `mapsAvailable` on screens and provider routes; `app.require_maps_ready` on route and position writes; POD location only with maps (20261119090000) | E (B3; maps stay unreleased: provider terms blocker in ROUTING.md) | A1 (gate), B3 (provider paths) | Sc13: trips_by_plan.sql, map_features.sql, trip_routes.sql, map-data.test.ts |
 | R-047 | Sale and warranty packs every plan for both profiles; financial section obeys plan/profile/cost permission | S7, D33 | `/api/packs/machine/[id]/sale`, `warranty` (tco on cost section) | E (A1) | A1 | pack-data machineAllows |
 | R-048 | General chat on every plan (feature key defined here, built by B2) | S14, D20 | `/chat`, `general_chat` readiness and staff membership gate | X (B2 isolated; Claude review and live checks pending) | A1 (key), B2 | Sc19; REPORT-B2.md |
 | R-049 | Costs not globally hidden on Essential | S6 | cost visibility by role only | E | A1 | Sc16 |
 | R-050 | Resource-site roles authoritative; billing authority grants no operational access | S6 | `app.effective_farm_role`, `is_farm_billing_admin` | E | A6 | Sc18 |
-| R-051 | Downgrade keeps read/export of saved higher-tier records; no new premium computation | S6, D37 | none explicit | M | B3 | Sc17 |
+| R-051 | Downgrade keeps read/export of saved higher-tier records; no new premium computation | S6, D37 | trips, fuel, fines readable; positions as text and CSV; export holds trips/routes/positions; AARTO reminders by plan; offline fuel replay asks the plan (20261119090000, 100000, 130000) | E (B3; budgets/TCO/depreciation records via export only) | B3 | Sc17: trips_by_plan.sql [17], scheduled_work_by_plan.sql, offline_capture_once.sql, export route.test.ts; PLAN_FEATURES.md "After a downgrade" |
 | R-052 | Professional/Complete catalogue (fuel, bowsers, fuel-card CSV, TCO, budgets, depreciation, reports, dashboards, scheduled reports, accounting exports, fleet packs) | S7 | gates `fuel`, `tco`, `dashboard`, `advanced_reports` | E | A1 | Sc16 |
 | R-053 | Complete: consolidated sites, AARTO, AI/voice/WhatsApp eligibility, maps once verified | S7 | `multi_site`, `aarto`, `voice_ai`, `whatsapp` | C | A1 (maps key) | Sc13 |
 | R-054 | Precise legal wording: no certified compliance, insurer approval or certification claims | S7, D17 | `src/lib/legal.ts`, help copy | C | A5 | review |
@@ -80,11 +80,11 @@ Postgres confirms it on merge. A state in brackets names what another task still
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-060 | Manual driving workflows survive routing or geocoding failure; no map required for written stops | S8 | trips work without the map flag | C | B3 | Sc13, Sc35 |
-| R-061 | Trip finance: provenance, units, no duplicated job/fuel costs, honest zero/missing handling | S8 | `/trips/report` | C | B3 | Sc13 |
-| R-062 | Provider terms, quotas, attribution, global geocoding throttle rechecked | S8 | `docs/ROUTING.md`, `place_search_slot` | C | B3 | Sc35 |
+| R-060 | Manual driving workflows survive routing or geocoding failure; no map required for written stops | S8 | written stops save with no coordinates; trips and loads need no route service; planner errors are its own | E (B3) | B3 | Sc13: manual_driving.sql, trips_by_plan.sql [13]; Sc35 web part |
+| R-061 | Trip finance: provenance, units, no duplicated job/fuel costs, honest zero/missing handling | S8 | `tripReport` (src/lib/trips.ts): finished trips only, per-km from trips with both readings, unknown income said, window said; trip result on the phone | E (B3) | B3 | Sc13: trips.test.ts |
+| R-062 | Provider terms, quotas, attribution, global geocoding throttle rechecked | S8 | `docs/ROUTING.md` "Provider terms rechecked, 18 November 2026"; `place_search_slot` unchanged | X (B3; Mapbox route storage question is a founder/legal read before maps release) | B3 | Sc35: place_search.sql; ROUTING.md citations |
 | R-063 | Android wrapper with background location, permissions, foreground service, queue, deep links | S8 | none (no Capacitor) | M | B6 | Sc35 |
-| R-064 | External tracker ingestion stays Done-For-You and quoted | S8 | `ingest_tracker_positions`, `configure_driver_connection` plan check | E | B3 | Sc35 |
+| R-064 | External tracker ingestion stays Done-For-You and quoted | S8 | `ingest_tracker_positions`, `configure_driver_connection` plan check; a feed after a downgrade is refused (`maps_unavailable`) | E (B3) | B3 | Sc35: trip_routes.sql, trips_by_plan.sql |
 
 ### Limits, uploads, storage (S9, S10, S11)
 
@@ -150,12 +150,12 @@ Postgres confirms it on merge. A state in brackets names what another task still
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-120 | Machine import: reading dates, null unknown readings, whole-year validation, counts agree, idempotent repeat | S19 | `src/app/(app)/machines/import/csv.ts` | C | B3 | Sc14 |
+| R-120 | Machine import: reading dates, null unknown readings, whole-year validation, counts agree, idempotent repeat | S19 | `csv.ts`: repeat of an unidentified row refused (`machineKey`); refusals said in words | E (B3) | B3 | Sc14: csv.test.ts |
 | R-121 | Bulk import applies type validation, profile entitlements and atomic capacity reservation | S19 | slot check before insert + quota trigger | E (A1) | A1 | csv.test.ts, asset_capacity.sql [4] |
-| R-122 | Repeat-tap gaps: work-request media id, assistant/transcribe/voice ids, activation attempt resume, contractor sync claim, service template uniqueness | S19 | LAUNCH_CHECKLIST "Taps, release 2 follow-ups" | C | B3 | Sc23 |
-| R-123 | Offline envelopes share request ids with online attempts; recheck membership/profile/plan on reconnect | S19 | `/api/sync`, `apply_offline_capture`, `src/lib/offline` | C (A1 profile rule in the DB; B3 request ids) | B3 (ids), A1 (profile rule in DB) | equipment_restrictions.sql (offline replay) |
-| R-124 | Large exports and accounting summary aggregated in SQL, bounded | S19 | accounting summary sums lines in the page | C | A4 | Sc42 |
-| R-125 | Weekly digest delivery, empty states, assistant suggested actions | S19 | `cron_enqueue_weekly_digest` | C | B3 | review |
+| R-122 | Repeat-tap gaps: work-request media id, assistant/transcribe/voice ids, activation attempt resume, contractor sync claim, service template uniqueness | S19 | work media claim; `respondOnce` for turn and transcribe (voice-session already claimed); checkout resumes an open attempt; sync claim verified; template once per machine (20261119110000, 120000) | E (B3) | B3 | Sc23: work/media route.test.ts, request-claim.test.ts, request-id.test.ts, checkout-cancel.test.ts, contractor sync.test.ts, request_claim_answers.sql, service_template_once.sql |
+| R-123 | Offline envelopes share request ids with online attempts; recheck membership/profile/plan on reconnect | S19 | queued capture keeps the online request id; `apply_offline_capture_once`; refusals kept and explained (20261119130000) | E (B3; A1 profile rule in DB) | B3 (ids), A1 (profile rule in DB) | offline_capture_once.sql, envelope.test.ts, sync-refusal.test.ts, equipment_restrictions.sql |
+| R-124 | Large exports and accounting summary aggregated in SQL, bounded | S19 | business export streamed page by page (50,000 a table); accounting summary in SQL (20261119140000) | C (B3 part done; A4 owns the complete export with files) | A4 | Sc42: journal_summary.sql, export route.test.ts |
+| R-125 | Weekly digest delivery, empty states, assistant suggested actions | S19 | digest once a week per open business with catch-up (20261119100000); teaching empty states; starters fill the box only | E (B3) | B3 | scheduled_work_by_plan.sql, starters.test.ts |
 
 ### Security, infrastructure, release (S20, S21, S24, S25)
 
@@ -251,13 +251,13 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-015 | L106 to L113 final domain check, launch day | A6 release sequence |
 | I-016 | L120 support phone, L122 election-day holiday | Founder; A5 copy uses the configured contact settings |
 | I-017 | L133 "WhatsApp after launch; debit orders later" | WhatsApp superseded by D21 (B4). Debit orders: not in the BRIEF, classified EX for this round |
-| I-018 | L176 taps release 2 follow-ups | B3 (R-122) |
-| I-019 | L202 offline request id in envelope; sweep accounts in CI | B3 (R-123); sweep accounts: A6 |
+| I-018 | L176 taps release 2 follow-ups | B3 (R-122): closed |
+| I-019 | L202 offline request id in envelope; sweep accounts in CI | B3 (R-123): closed; sweep accounts: A6 |
 | I-020 | L209 export in memory, accounting summary in page | A4 (R-100, R-124); export already streams (`47a8455`), media completeness is open |
 | I-021 | L261 H4 load test | A6 (R-135), blocked by I-008 |
-| I-022 | L271 weekly digest, empty states, suggested questions | B3 (R-125) |
+| I-022 | L271 weekly digest, empty states, suggested questions | B3 (R-125): closed |
 | I-023 | L335 activation catalogue as orders | A4 (R-116) |
-| I-024 | L356 map tiles and lawyer read of tracking wording | B3 (readiness flag `map` stays), founder for the legal read |
+| I-024 | L356 map tiles and lawyer read of tracking wording | B3: flag `map` stays off; tiles need a production source (ROUTING.md); founder for the legal read |
 | I-025 | L358 Android app | B6 (R-063), blocked by I-013 for store publication |
 | I-026 | L360 media backup has no external copy | A6 (R-133), blocked by I-012 |
 | I-027 | L363 definer audit, WebView needs, remaining "not yet" items | A6 (R-130), B6 (WebView), A1 (this inventory) |
@@ -278,7 +278,7 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | ID | Item | Resolution |
 |---|---|---|
 | I-036 | ROUTING "Later: the own route server (OSRM)" | Classified: founder decision 2026-11-11, switch at about 1,000 trips/month; not a launch item; B3 rechecks provider terms (R-062) |
-| I-037 | ROUTING map tiles must leave the free test service | B3 with I-024 |
+| I-037 | ROUTING map tiles must leave the free test service | B3: recorded in ROUTING.md "Provider terms rechecked"; founder chooses the source |
 | I-038 | BACKUP restore drill and readiness checklists (§5 to §7) | A6 (R-133) |
 | I-039 | WHATSAPP real-phone linking and messages unverified | B4 (R-085), blocked by I-013 |
 | I-040 | Scattered media caps: `src/app/(app)/finance/actions.ts` 8 MiB, `src/app/(app)/trips/actions.ts` 8 MiB, `src/app/api/assistant/transcribe/route.ts` 2,000,000 bytes, `src/lib/whatsapp/media.ts` 6 MiB/4 MiB, `src/app/(app)/fuel/cards/actions.ts` 2 MiB (keep), admin proof 4 MiB | B1 (R-070, R-071) |
@@ -295,10 +295,10 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | ID | Item | Resolution |
 |---|---|---|
 | I-050 | 1 Goods-vehicle compliance (COF, NRTA, DG, abnormal loads) | EX: speculative; not in the reviewed offer. Existing licence types cover permits generically |
-| I-051 | 2 Trips, loads, proof of delivery, trailer pairing | In scope through D16 and D32: B3 (workflow), A1 (trailer reference gate) |
+| I-051 | 2 Trips, loads, proof of delivery, trailer pairing | In scope through D16 and D32: B3 (workflow, closed), A1 (trailer reference gate) |
 | I-052 | 3 Telematics adapters | Done-For-You quoted per provider (S8); generic ingestion exists (`/api/integrations/*`); no adapter commissioned: EX until a customer commissions one |
 | I-053 | 4 Fuel cards | E: built 20261107140000 (`fuel_card_statements`, CSV review, Professional) |
-| I-054 | 5 Driver hours and fatigue | "Basic work/rest records" on every plan (D17): B3 verifies `/trips/hours`; fatigue policy engine EX |
+| I-054 | 5 Driver hours and fatigue | "Basic work/rest records" on every plan (D17): B3 verified `/trips/hours` is ungated and counts trips and driving logs once; fatigue policy engine EX |
 | I-055 | 6 Approvals and purchasing | EX: speculative enterprise proposal (S17) |
 | I-056 | 7 SSO and directory provisioning | EX (S17); two-step sign-in exists for staff and is offered to owners |
 | I-057 | 8 Group billing above sites | E for full spaces (20261107150000); equipment pooling A1 |

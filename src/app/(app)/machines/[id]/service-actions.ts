@@ -149,7 +149,14 @@ export async function applyTemplate(formData: FormData) {
   const today = todayLocal();
   const currentReading = (mach as { current_reading: number | null } | null)?.current_reading ?? null;
 
-  const rows = lines.filter((l) => !existingTasks.has(String(l.task ?? "").trim().toLowerCase())).map((l) => {
+  // A task once, even when the template itself names it twice.
+  const fresh = lines.filter((l) => {
+    const task = String(l.task ?? "").trim().toLowerCase();
+    if (!task || existingTasks.has(task)) return false;
+    existingTasks.add(task);
+    return true;
+  });
+  const rows = fresh.map((l) => {
     const interval_hours = l.interval_hours ?? null;
     const interval_months = l.interval_months ?? null;
     const last_done_reading = interval_hours != null ? currentReading : null;
@@ -158,6 +165,9 @@ export async function applyTemplate(formData: FormData) {
     return {
       farm_id: farmId,
       machine_id: machineId,
+      // The template it came from: one machine holds each template task once, in the
+      // database (20261119120000), so two presses at once cannot double the plan.
+      template_id: templateId,
       task: l.task,
       interval_hours,
       interval_months,
@@ -171,6 +181,12 @@ export async function applyTemplate(formData: FormData) {
   // Everything already on the machine: nothing to add, and saying so is the honest answer.
   if (rows.length === 0) redirect(withTab(`/machines/${machineId}?saved=template`, "servicing"));
   const { error } = await supabase.from("service_plan_lines").insert(rows);
+  // Another press applied this template first: the plan already holds its tasks, which is
+  // the honest answer to this press too.
+  if (error?.code === "23505" && /service_plan_lines_template_once/.test(`${error.message ?? ""} ${(error as { details?: string }).details ?? ""}`)) {
+    revalidatePath(`/machines/${machineId}`);
+    redirect(withTab(`/machines/${machineId}?saved=template`, "servicing"));
+  }
   if (error) redirect(withTab(`/machines/${machineId}?error=${errorCode(error, "app/machines/[id]/service-actions:applyTemplate")}`, "servicing"));
   revalidatePath(`/machines/${machineId}`);
   redirect(withTab(`/machines/${machineId}?saved=template`, "servicing"));

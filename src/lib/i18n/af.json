@@ -617,7 +617,9 @@
       "reg_twice": "Registrasie twee keer in hierdie lêer",
       "name_on_farm": "'n {{Asset}} met hierdie naam is reeds in jou vloot",
       "profile_invalid": "Onbekende profiel (gebruik full of equipment)",
-      "profile_not_eligible": "'n Voertuig kan nie ondersteuningstoerusting wees nie"
+      "profile_not_eligible": "'n Voertuig kan nie ondersteuningstoerusting wees nie",
+      "same_on_farm": "Reeds in jou vloot: dieselfde naam, tipe, merk, model en jaar, sonder 'n reeksnommer of registrasie om hulle uitmekaar te ken. Voeg 'n reeksnommer of registrasie by, of verander die naam as dit 'n ander een is.",
+      "same_twice": "Dieselfde ry twee keer in hierdie lêer, sonder 'n reeksnommer of registrasie om hulle uitmekaar te ken."
     },
     "identityCard": "Besonderhede",
     "purchaseDate": "Aankoopdatum",
@@ -707,7 +709,8 @@
     "problemsOpen": "Met 'n oop probleem",
     "tankLitres": "Brandstoftenkgrootte (liter)",
     "tankLitresHint": "Word gebruik om 'n brandstofkaartvulling te sien wat meer is as wat die tenk hou.",
-    "profile": "Profiel"
+    "profile": "Profiel",
+    "qrSheetEmptyHint": "Voeg eers jou {{assets}} by: elkeen kry sy eie QR-kode om te druk en op te plak, sodat bestuurders foute en lesings daarvandaan kan aanmeld."
   },
   "machineType": {
     "tractor": "Trekker",
@@ -2045,7 +2048,7 @@
     "namesAndMore": "{names} en nog {n}."
   },
   "offline": {
-    "mediaTooLarge": "Gebruik ’n JPEG-, PNG- of WebP-foto kleiner as 6 MB en ’n stemnota kleiner as 8 MB. Verwyder of vervang die aanhegsel en probeer weer.",
+    "mediaTooLarge": "Gebruik 'n JPEG-, PNG- of WebP-foto van tot 20 MB en 'n stemnota van tot 20 MB (tien minute). Verwyder of vervang die aanhegsel en probeer weer.",
     "review": "Hersien gestoorde inskrywings",
     "reviewHelp": "Dié inskrywings is op hierdie toestel gestoor. Probeer weer wanneer jy verbind is. ’n Geweierde inskrywing of konflik bly hier: kontroleer die {{asset}} of werkkaart, laai ’n rugsteun af indien nodig, en teken enige regstelling aan voordat jy die gestoorde kopie verwyder. Rugsteune bevat media en kan privaat inligting bevat.",
     "storageFailed": "Kon nie hierdie toestel se konsepte stoor of lees nie. Jou vorm is nie skoongemaak nie. Hou dit oop en probeer weer wanneer jy verbind is.",
@@ -2077,7 +2080,17 @@
     "savedOnPhone": "Op hierdie foon gestoor",
     "toSync": "{count} wag",
     "savedHere": "Gestoor op hierdie foon",
-    "syncNow": "Sinkroniseer nou"
+    "syncNow": "Sinkroniseer nou",
+    "reason": {
+      "plan": "Nie gestoor nie: jou besigheid se plan sluit dit nie meer in nie. Dit word hier bewaar; laai 'n rugsteun af as jy dit nodig het, en verwyder dit dan.",
+      "equipment": "Nie gestoor nie: hierdie {{asset}} is ondersteuningstoerusting, wat nie hierdie soort rekord neem nie. Dit word hier bewaar sodat jy dit kan nagaan.",
+      "access": "Nie gestoor nie: jou toegang het verander sedert dit opgeneem is (jou rol, of jy is van die besigheid verwyder). Dit word hier bewaar; vra die eienaar, en neem dit weer op as dit steeds nodig is.",
+      "gone": "Nie gestoor nie: die {{asset}} of werkkaart is nie meer daar nie, of die besigheid is gepouseer. Dit word hier bewaar sodat jy dit kan nagaan.",
+      "invalid": "Nie gestoor nie: 'n waarde is geweier (byvoorbeeld 'n lesing laer as die vorige een, of 'n datum in die toekoms). Dit word hier bewaar; neem 'n reggestelde een op en verwyder dan hierdie kopie.",
+      "account": "Nie gestoor nie: dit is deur 'n ander rekening op hierdie foon opgeneem. Teken as daardie rekening in om dit te stuur.",
+      "review": "Nog nie gestoor nie: iemand moet daarna kyk (dit is verander nadat dit eers gestuur is). Dit word hier bewaar.",
+      "conflict": "Gestoor, maar dit verskil van 'n nuwer rekord (byvoorbeeld 'n latere lesing). Gaan die {{asset}} na en stel dit daar reg indien nodig."
+    }
   },
   "meterSource": {
     "app": "In-toep",
@@ -3029,7 +3042,8 @@
     "upgradeRequired": "Hierdie aksie vereis die Volledig-plan.",
     "continueRecording": "Gaan voort met aanteken",
     "sectionMore": "Datums, status en notas",
-    "markAs": "Merk as: {status}"
+    "markAs": "Merk as: {status}",
+    "emptyHint": "Wanneer die kantoor 'n verkeersboete vir een van jou {{assets}} aanteken, wys dit hier met die sperdatum vir benoeming."
   },
   "budget": {
     "title": "Begrotings",
@@ -5611,7 +5625,13 @@
     "retrievalEnded": "Die tyd om hierdie rekords te lees en uit te voer, het verby gegaan. Betaal wat verskuldig is, of begin weer, om hulle oop te maak.",
     "billingCancelImmediate": "'n Kansellering stop die volgende hernuwing, en jy behou alles tot die einde van die tydperk waarvoor jy betaal het. E-pos ons om dit gouer te beëindig.",
     "signupEquipment": "Kies 'n heel getal ondersteuningstoerusting, nul of meer.",
-    "signupCapacityQuote": "Meer as 200 volle plekke word met ons gereël. Stuur die vorm weer om vir 'n kwotasie te vra."
+    "signupCapacityQuote": "Meer as 200 volle plekke word met ons gereël. Stuur die vorm weer om vir 'n kwotasie te vra.",
+    "mapsNotReady": "Kaarte is nog nie vir hierdie besigheid beskikbaar nie. Ritte, vragte en die geskrewe stoppunte werk sonder hulle.",
+    "tripDriverNotMember": "Kies 'n bestuurder wat vir hierdie besigheid werk.",
+    "importEmpty": "Kies eers 'n CSV-lêer met jou {{assets}}.",
+    "importHeader": "Die lêer se eerste ry moet die kolomme benoem, met ten minste 'n naamkolom. Laai die sjabloon af om die uitleg te sien.",
+    "importNoValid": "Geen ry in die lêer kon ingevoer word nie. Die voorskou wys wat elke ry nodig het.",
+    "importTooMany": "Daardie lêer het meer rye as wat een invoer neem. Verdeel dit in kleiner lêers."
   },
   "billing": {
     "title": "Rekening",
@@ -8107,7 +8127,14 @@
     "fault": "Fout",
     "drivingRecords": "Bestuursrekords",
     "tripSummary": "{{Trip}} {n}: beplan {planned} km, aangeteken {driven} km.",
-    "openTrip": "Maak die {{trip}} oop"
+    "openTrip": "Maak die {{trip}} oop",
+    "reportedAgo": "Gerapporteer {when}",
+    "lastKnownAgo": "Laaste bekende posisie, {when}: geen verslag sedertdien nie",
+    "lastSeenTitle": "Waar elke {{asset}} laas gesien is",
+    "lastSeenHint": "Dit is die laaste posisies wat 'n foon of spoorder gestuur het, met hul ouderdom. 'n Foon hou op stuur wanneer sy skerm sluit, so 'n ou posisie is nie waar die {{asset}} nou is nie.",
+    "justNow": "so pas",
+    "minutesAgo": "{n} min gelede",
+    "hoursAgo": "{n} h gelede"
   },
   "trips": {
     "title": "{{Trips}}",
@@ -8139,7 +8166,7 @@
     "ended": "Geëindig",
     "distance": "Afstand",
     "status": "Status",
-    "notes": "Notas",
+    "notes": "Notas en instruksies vir die bestuurder",
     "statusName": {
       "planned": "Beplan",
       "underway": "Aan die gang",
@@ -8198,9 +8225,12 @@
       "reading": "Die lesing aan die einde kan nie laer as die lesing aan die begin wees nie.",
       "customer": "Tik die kliënt se naam in.",
       "receivedBy": "Tik in wie dit ontvang het.",
-      "photo": "Daardie foto kon nie gestoor word nie. Gebruik 'n foto kleiner as 8 MB.",
+      "photo": "Daardie foto kon nie gestoor word nie. Gebruik 'n JPEG-, PNG- of WebP-foto van tot 20 MB.",
       "amount": "Tik 'n bedrag in, soos 1250.50."
-    }
+    },
+    "historyNotice": "Bewaar as 'n rekord. Jou plan sluit nie meer ritwerk in nie, so hierdie {{trip}} bly leesbaar en in jou uitvoer, maar kan nie verander word nie. 'n {{Trip}} wat reeds aan die gang is, kan steeds voltooi word, en 'n beplande een gekanselleer.",
+    "result": "Na uitgawes",
+    "resultUnknown": "Onbekend: geen inkomste ingevoer nie"
   },
   "hours": {
     "title": "Bestuurdersure",
@@ -8223,11 +8253,16 @@
   },
   "tripReport": {
     "title": "Wat elke {{asset}} verdien het",
-    "lead": "Voltooide {{trips}} van die laaste 90 dae. Uitgawes is dié wat by 'n {{trip}} gevoeg is, nie brandstof of diens nie.",
+    "lead": "Voltooide {{trips}} van slegs die laaste {days} dae, nie alle tyd nie. Uitgawes is net dié wat by 'n {{trip}} gevoeg is: brandstof, werkkaarte en dienste bly in die {{asset}} se koste en word nie hier weer bygetel nie.",
     "emptyTitle": "Nog niks voltooi nie",
     "emptyHint": "Dit vul in sodra {{trips}} voltooi is met hul inkomste bygevoeg.",
     "count": "{{Trips}}",
-    "perKm": "Per km na uitgawes"
+    "perKm": "Per km na uitgawes",
+    "withoutReadings": "{n} voltooi sonder 'n lesing aan die begin of die einde: hul geld word getel, maar hulle is uit die afstand en die per-km-syfer gelaat.",
+    "zeroKm": "{n} voltooi met dieselfde lesing aan albei kante, so hulle wys geen afstand nie.",
+    "notCounted": "{cancelled} gekanselleer en {unfinished} nog nie voltooi nie in dieselfde {days} dae word nie getel nie.",
+    "withoutIncome": "{n} sonder inkomste ingevoer",
+    "result": "Na uitgawes"
   },
   "fuelCards": {
     "title": "Brandstofkaarte",
@@ -8349,7 +8384,13 @@
     "reportTrip": "{{Trip}}",
     "difference": "Verskil",
     "tolerance": "Toegelate verskil (%)",
-    "toleranceHint": "'n {{Trip}} wat volgens die odometer verder of korter as dit is, word gemerk."
+    "toleranceHint": "'n {{Trip}} wat volgens die odometer verder of korter as dit is, word gemerk.",
+    "savedTitle": "Gestoorde roete en posisies",
+    "savedHint": "Bewaar as 'n rekord. Kaarte is nie op hierdie besigheid se plan nie, so niks word geteken nie en niks nuuts word opgeneem nie; wat gestoor is, bly leesbaar en kan afgelaai word.",
+    "savedStops": "Beplande stoppunte",
+    "savedPositions": "Opgeneemde posisies",
+    "savedPositionsValue": "{n}, van {first} tot {last}",
+    "savedDownload": "Laai die posisies af (CSV)"
   },
   "upload": {
     "err": {
@@ -8529,5 +8570,14 @@
     "endKm": "Eindkilometers",
     "distance": "Aangetekende afstand (km)",
     "notRecorded": "Nie aangeteken nie"
+  },
+  "savedRecords": {
+    "title": "Gestoorde rekords",
+    "hint": "Jou plan sluit nie meer {feature} in nie. Wat gestoor is, bly hier en in die besigheid se uitvoer leesbaar. Niks nuuts kan bygevoeg word nie, en geen nuwe ontleding word uitgewerk nie.",
+    "newest": "Die nuutste {n} van elke soort word gelys; die uitvoer bevat hulle almal.",
+    "export": "Laai die besigheid se uitvoer af",
+    "what": "Wat",
+    "fuelDraw": "Diesel getrek",
+    "fuelDelivery": "Aflewering"
   }
 }

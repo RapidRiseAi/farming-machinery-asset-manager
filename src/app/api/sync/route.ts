@@ -4,10 +4,12 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { uploadFaultMedia } from "@/lib/fault-media";
 import { sameOrigin } from "@/lib/security/same-origin";
 import { parseSyncEnvelope } from "@/lib/offline/envelope";
+import { syncRefusal } from "@/lib/offline/sync-refusal";
 import { readBoundedFormData } from "@/lib/security/bounded-form";
 import { FUNCTION_BODY_MAX_BYTES } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
+
 
 export async function POST(request: Request) {
   let form: FormData;
@@ -34,18 +36,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "capture_account_mismatch" }, { status: 409 });
     }
     const svc = createServiceClient();
-    const { data, error } = await svc.rpc("apply_offline_capture", {
+    // apply_offline_capture_once (20261119130000): the online attempt's claim is checked first,
+    // and the plan is asked again for a diesel draw.
+    const { data, error } = await svc.rpc("apply_offline_capture_once", {
       p_client: clientId, p_client_ts: clientTs, p_type: type, p_scope: scope,
       p_actor: profile?.id ?? null, p_fields: fields,
     });
     if (error) {
-      const status = error.code === "42501" ? 403 : error.code === "P0002" ? 404
-        : error.code?.startsWith("22") ? 400 : 503;
-      return NextResponse.json({ error: status === 503 ? "sync_unavailable" : "capture_rejected" }, { status });
+      const refusal = syncRefusal(error);
+      return NextResponse.json({ error: refusal.code }, { status: refusal.status });
     }
     const result = data as { status?: string; error?: string; entity_id?: string; farm_id?: string } | null;
     if (result?.error === "rate_limited") return NextResponse.json({ error: "rate_limited" }, { status: 429 });
     if (result?.status === "needs_review") return NextResponse.json({ error: "capture_needs_review" }, { status: 409 });
+    // The online attempt of the same capture is still running: kept on the phone, tried later.
+    if (result?.status === "retry") return NextResponse.json({ error: "sync_unavailable" }, { status: 503 });
     if (!result || !["applied", "conflict"].includes(result.status ?? "")) {
       return NextResponse.json({ error: "sync_unavailable" }, { status: 503 });
     }

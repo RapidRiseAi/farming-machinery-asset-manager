@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
-import { formFingerprint, newRequestId, REQUEST_FIELD } from "@/lib/request-id";
+import { formFingerprint, newRequestId, REQUEST_FIELD, REQUEST_SETTLED_EVENT } from "@/lib/request-id";
 
 /** Long enough to cover a reload and a retry; short enough that an old entry is not matched. */
 const REMEMBER_MS = 30 * 60 * 1000;
@@ -42,8 +42,17 @@ export function RequestIdInput({ action }: { action: string }) {
       field.value = id;
       sentKey.current = key;
     };
+    // A capture queued on the phone settles the request without React's form status.
+    const onSettled = () => {
+      if (sentKey.current) forget(sentKey.current);
+      sentKey.current = null;
+    };
     form.addEventListener("submit", onSubmit, { capture: true });
-    return () => form.removeEventListener("submit", onSubmit, { capture: true });
+    form.addEventListener(REQUEST_SETTLED_EVENT, onSettled);
+    return () => {
+      form.removeEventListener("submit", onSubmit, { capture: true });
+      form.removeEventListener(REQUEST_SETTLED_EVENT, onSettled);
+    };
   }, [action]);
 
   // Settled on this page (saved, or answered with an error and released on the server):

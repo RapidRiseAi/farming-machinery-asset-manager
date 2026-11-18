@@ -4,15 +4,15 @@ import {
 } from "@/lib/auth";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { createClient } from "@/lib/supabase/server";
-import { readJournal } from "@/lib/accounting-read";
+import { readJournalSummary, type JournalSummary } from "@/lib/accounting-read";
 import { must, soft } from "@/lib/supabase/must";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { shortDate, num } from "@/lib/format";
 import { moneyPeriods } from "@/lib/money-report";
 import {
-  journalTotals, accountSummary, accountName, chartFor,
-  isJournalLayout, type JournalLine, type JournalScope, type JournalLayout,
+  accountName, chartFor,
+  isJournalLayout, type JournalScope, type JournalLayout,
 } from "@/lib/accounting";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
@@ -97,36 +97,39 @@ export default async function AccountingPage({
   const to = chosen?.to ?? periods[1].to;
 
   const supabase = await createClient();
-  let lines: JournalLine[] = [];
+  // The totals and the per-account summary, summed in the database (20261119140000): the
+  // page used to read every line of the period (up to 100,000) to show a dozen numbers.
+  let summary: JournalSummary = {
+    totals: { debit: 0, credit: 0, entries: 0, lines: 0, unbalanced: [], unbalancedCount: 0 },
+    accounts: [],
+  };
   let subjectName: string | null = null;
 
   if (scope === "partner") {
     const { workshop } = await currentWorkshop(profile);
     if (workshop) {
       subjectName = workshop.trading_name ?? workshop.name ?? null;
-      // Every line: the totals and the account summary below are summed from them.
-      const data = must(
-        await readJournal(supabase, { scope: "partner", workshopId: workshop.id, from, to }),
+      summary = must(
+        await readJournalSummary(supabase, { scope: "partner", workshopId: workshop.id, from, to }),
         "accounting:partner-journal",
-      );
-      lines = data ?? [];
+      ) ?? summary;
     }
   } else {
     const farmId = await currentFarmId(profile);
     if (farmId) {
       const [journal, farmResult] = await Promise.all([
-        readJournal(supabase, { scope: "farm", farmId, from, to }),
+        readJournalSummary(supabase, { scope: "farm", farmId, from, to }),
         supabase.from("farms").select("name").eq("id", farmId).maybeSingle(),
       ]);
-      lines = must(journal, "accounting:farm-journal") ?? [];
+      summary = must(journal, "accounting:farm-journal") ?? summary;
       // Soft: only the name in the lead, which falls back to the generic lead.
       const farm = soft(farmResult, "accounting:farm-name");
       subjectName = (farm as { name: string } | null)?.name ?? null;
     }
   }
 
-  const totals = journalTotals(lines);
-  const summary = accountSummary(lines);
+  const totals = summary.totals;
+  const accounts = summary.accounts;
   const q = `scope=${scope}&from=${from}&to=${to}`;
   const chart = chartFor(scope);
 
@@ -162,7 +165,7 @@ export default async function AccountingPage({
         <p className="mt-2 text-sm text-sand-600">{t("accounting.genericHow", locale)}</p>
       </Disclosure>
 
-      {lines.length === 0 ? (
+      {totals.lines === 0 ? (
         <AllClear title={t("accounting.emptyTitle", locale)} hint={t("accounting.emptyHint", locale)} />
       ) : (
         <>
@@ -178,7 +181,7 @@ export default async function AccountingPage({
                 about to email this to an accountant is the person who needs to know. */}
             {totals.unbalanced.length > 0 ? (
               <p className="mt-3 rounded-lg border border-status-overdue/40 bg-status-overdue/10 px-3 py-2 text-sm text-sand-800">
-                {t("accounting.unbalanced", locale).replace("{count}", String(totals.unbalanced.length))}
+                {t("accounting.unbalanced", locale).replace("{count}", String(totals.unbalancedCount))}
               </p>
             ) : (
               <p className="mt-3 rounded-lg bg-sand-50 px-3 py-2 text-sm text-sand-600">
@@ -200,7 +203,7 @@ export default async function AccountingPage({
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {summary.map((a) => (
+                  {accounts.map((a) => (
                     <Tr key={a.key}>
                       <Td label={t("accounting.colAccountCode", locale)} className="tabular-nums text-sand-500">{a.code}</Td>
                       <Td label={t("accounting.colAccount", locale)}>{accountName(a.key, locale)}</Td>
