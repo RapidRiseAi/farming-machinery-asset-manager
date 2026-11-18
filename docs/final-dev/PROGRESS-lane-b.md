@@ -43,9 +43,19 @@ and build on it, never rebuild. Steps, committed one by one:
   tiles need a production source), positions labelled with age/last known (never live),
   positionRecentMs + tripReportWindowDays in limits.ts, tracker feed refused plainly after
   a downgrade. Full SQL suite 88/88 after fixture fixes (82b1a86).
-- Step 3 in progress: SavedRecords frame; fuel and fines history read-only; export paged
-  (cap 50,000) with trips/routes/positions/fuel cards. NEXT: AARTO reminders plan+gate
-  (migration with the digest fix), retained positions on the trip page without a map.
+- Step 3 (mostly done): SavedRecords frame; fuel and fines history read-only; export paged
+  (cap 50,000) with trips/routes/positions/fuel cards; retained positions on a trip without
+  maps (TripSavedTracking + /trips/[id]/positions.csv); migration 20261119100000 (AARTO
+  reminders by plan and open business, digest once a week with catch-up), suite
+  scheduled_work_by_plan.sql. Scheduled reports and API access were already plan-gated.
+- Step 4 done: import refuses repeats of unidentified rows (machineKey), refusal codes in
+  words; csv.test.ts; 3/3 mutations.
+- Step 5 done: work media claim (route test), respondOnce for assistant turn and
+  transcribe (content digest id), migration 20261119110000 (64 KiB outcomes, nightly claim
+  sweep), activation Pay resumes the open checkout, contractor sync verified by test,
+  migration 20261119120000 (template once per machine). All mutations caught.
+- NEXT step 6 offline: request id from fields becomes client_id, SQL wrapper
+  apply_offline_capture_once (claims, fuel plan recheck), route error classes, queue reasons.
 
 ## Task
 
