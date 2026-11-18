@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // AARTO reminders by plan and open business; the weekly digest once a week with catch-up (B3).
+  "20261119100000": "select to_regprocedure('app.sast_week_start(timestamptz)') is not null",
   // Trips and maps by plan after a downgrade; the map readiness flag in the database (B3).
   "20261119090000": "select to_regprocedure('app.trips_history_guard()') is not null and to_regprocedure('app.require_maps_ready()') is not null and to_regprocedure('app.maps_allowed(uuid)') is not null",
   // The customer's assistance budget, WhatsApp on the AI ledger, the event record.

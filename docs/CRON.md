@@ -27,7 +27,8 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
 6. `cron_enqueue_work_request_reminders` → `app.enqueue_work_request_reminders()` -
    chases `quoted` / `invoiced` work requests still outstanding, weekly, deduped from the
    notification queue itself rather than a new column (F13).
-7. `cron_enqueue_aarto_nomination_reminders` → AARTO nomination deadlines (G2).
+7. `cron_enqueue_aarto_nomination_reminders` → AARTO nomination deadlines (G2), only for a
+   business whose plan includes AARTO and that is open (20261119100000, decision 37).
 8. `cron_enqueue_document_reminders` → expire stale quotes, chase overdue invoices (G2).
 9. `cron_generate_recurring_invoices` → standing invoices whose date has come round (G8).
    Idempotent: it keys on the period it last raised, so a double-fired night, a retry and
@@ -43,9 +44,11 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
     or ended, interest and lease costs booked as they fall due. Idempotent.
 12c. `cron_enqueue_asset_finance_reminders` → instalments coming due or overdue, contract
     notice days and end dates, to owners and managers, once per date, no amounts.
-13. `cron_enqueue_weekly_digest` → **Mondays only** (Africa/Johannesburg). One
-    `weekly_digest` per active farm (Scope §4.7 msg 5). The route decides it is Monday; the
-    SQL just enqueues.
+13. `cron_enqueue_weekly_digest` → asked **Monday to Wednesday** (Africa/Johannesburg); one
+    `weekly_digest` per open business per week (Scope §4.7 msg 5), whichever run gets there
+    first (20261119100000: a rerun does not send it twice, a missed Monday catches up on
+    Tuesday). A business that is pending, suspended or closed gets none. Delivery and its
+    retries are the notification drain's (leased claims, five-minute backoff).
 14. **Scheduled report delivery** (`runDueReportSchedules`), renders and emails any report
     schedule now due (0506). A TypeScript step rather than an RPC, because it renders the
     report and sends mail; it runs AFTER the database steps so every attachment reflects the
