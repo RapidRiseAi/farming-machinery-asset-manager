@@ -617,7 +617,9 @@
       "reg_twice": "Registration twice in this file",
       "name_on_farm": "A {{asset}} with this name is already in your fleet",
       "profile_invalid": "Unknown profile (use full or equipment)",
-      "profile_not_eligible": "A vehicle cannot be support equipment"
+      "profile_not_eligible": "A vehicle cannot be support equipment",
+      "same_on_farm": "Already in your fleet: same name, type, make, model and year, with no serial or registration to tell them apart. Add a serial or registration, or change the name if it is another one.",
+      "same_twice": "The same row twice in this file, with no serial or registration to tell them apart."
     },
     "identityCard": "Details",
     "purchaseDate": "Purchase date",
@@ -5613,7 +5615,11 @@
     "signupEquipment": "Choose a whole number of support equipment, zero or more.",
     "signupCapacityQuote": "More than 200 full spaces is arranged with us. Send the form again to ask for a quote.",
     "mapsNotReady": "Maps are not available to this business yet. Trips, loads and the written stops work without them.",
-    "tripDriverNotMember": "Choose a driver who works for this business."
+    "tripDriverNotMember": "Choose a driver who works for this business.",
+    "importEmpty": "Choose a CSV file with your {{assets}} first.",
+    "importHeader": "The file's first row must name the columns, with at least a name column. Download the template to see the layout.",
+    "importNoValid": "No row in the file could be imported. The preview shows what each row needs.",
+    "importTooMany": "That file has more rows than one import takes. Split it into smaller files."
   },
   "billing": {
     "title": "Billing",

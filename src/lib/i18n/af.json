@@ -617,7 +617,9 @@
       "reg_twice": "Registrasie twee keer in hierdie lêer",
       "name_on_farm": "'n {{Asset}} met hierdie naam is reeds in jou vloot",
       "profile_invalid": "Onbekende profiel (gebruik full of equipment)",
-      "profile_not_eligible": "'n Voertuig kan nie ondersteuningstoerusting wees nie"
+      "profile_not_eligible": "'n Voertuig kan nie ondersteuningstoerusting wees nie",
+      "same_on_farm": "Reeds in jou vloot: dieselfde naam, tipe, merk, model en jaar, sonder 'n reeksnommer of registrasie om hulle uitmekaar te ken. Voeg 'n reeksnommer of registrasie by, of verander die naam as dit 'n ander een is.",
+      "same_twice": "Dieselfde ry twee keer in hierdie lêer, sonder 'n reeksnommer of registrasie om hulle uitmekaar te ken."
     },
     "identityCard": "Besonderhede",
     "purchaseDate": "Aankoopdatum",
@@ -5613,7 +5615,11 @@
     "signupEquipment": "Kies 'n heel getal ondersteuningstoerusting, nul of meer.",
     "signupCapacityQuote": "Meer as 200 volle plekke word met ons gereël. Stuur die vorm weer om vir 'n kwotasie te vra.",
     "mapsNotReady": "Kaarte is nog nie vir hierdie besigheid beskikbaar nie. Ritte, vragte en die geskrewe stoppunte werk sonder hulle.",
-    "tripDriverNotMember": "Kies 'n bestuurder wat vir hierdie besigheid werk."
+    "tripDriverNotMember": "Kies 'n bestuurder wat vir hierdie besigheid werk.",
+    "importEmpty": "Kies eers 'n CSV-lêer met jou {{assets}}.",
+    "importHeader": "Die lêer se eerste ry moet die kolomme benoem, met ten minste 'n naamkolom. Laai die sjabloon af om die uitleg te sien.",
+    "importNoValid": "Geen ry in die lêer kon ingevoer word nie. Die voorskou wys wat elke ry nodig het.",
+    "importTooMany": "Daardie lêer het meer rye as wat een invoer neem. Verdeel dit in kleiner lêers."
   },
   "billing": {
     "title": "Rekening",
