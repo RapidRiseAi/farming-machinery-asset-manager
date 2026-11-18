@@ -10,13 +10,11 @@ Next: extend accepted quotes and optional orders; durable session-scoped media e
 extend farm_closures with disabled, dry-run-first operational retention; gates and report.
 No production, live database, provider purchase, push or merge is authorised.
 
-18 Nov checkpoint: commits BLOCKED. Every git add/commit fails creating
-`C:/projects/farming-machinery-asset-manager/.git/worktrees/-fw-lane-a/index.lock`
-with Permission denied despite the declared writable root. Manager must restore the
-session's Git metadata write access, then commit the existing diff before continuing.
-Commit message prepared in ignored `scratchpad/a4-commit-message.txt`.
+18 Nov resumed: manager committed checkpoint as e36b9bd. Git metadata is deliberately
+read-only; this is NOT a blocker. Manager commits automatically every three minutes.
+Worker must never run git writes. Keep this progress file current instead.
 
-Implemented but UNCOMMITTED: shared export lifecycle refusals, requester-session file
+Implemented in e36b9bd: shared export lifecycle refusals, requester-session file
 downloads (old file ZIP used the service client), portable hashed archive paths, exclusion
 of private chat and temporary command audio. New farm-export-policy/files tests plus
 existing export/chat tests pass (12). Mutation run: 15/15 caught and restored; initial
