@@ -334,3 +334,13 @@ Migration 20261119120000_service_template_once.sql adds `service_plan_lines.temp
 `service_plan_lines_template_once` on (machine, template, task folded) for live lines that
 carry a template: two presses of "apply template" cannot double a machine's plan. Lines
 added by hand are not constrained. Suite: `supabase/tests/service_template_once.sql`.
+
+## One capture, one record, online or queued (B3)
+
+Migration 20261119130000_offline_capture_once.sql adds
+`public.apply_offline_capture_once` (service role; `/api/sync` calls it instead of
+`apply_offline_capture`). A queued capture now carries the online attempt's request id; the
+function checks that id's `request_claims` row first (the online save landed: answered as a
+duplicate; still running: `retry`), claims the id for the capture otherwise, and asks the
+plan again for a diesel draw (`plan-feature-fuel`). `claim_request` answers `done` for the
+same person's id a queued capture already used. Suite: `supabase/tests/offline_capture_once.sql`.
