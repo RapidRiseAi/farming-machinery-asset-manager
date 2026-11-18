@@ -303,4 +303,6 @@ echo "==> running scheduled work by plan tests (AARTO reminders, the weekly dige
 pg "$DB" < "$ROOT/supabase/tests/scheduled_work_by_plan.sql"
 echo "==> running request claim answer tests (a replay gets the whole answer, old claims swept)"
 pg "$DB" < "$ROOT/supabase/tests/request_claim_answers.sql"
+echo "==> running service template once per machine tests"
+pg "$DB" < "$ROOT/supabase/tests/service_template_once.sql"
 echo "==> OK"

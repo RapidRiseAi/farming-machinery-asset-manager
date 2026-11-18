@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // A service template applied to a machine once (B3).
+  "20261119120000": "select to_regclass('public.service_plan_lines_template_once') is not null",
   // A replayed answer fits in a claim; claims older than two days swept nightly (B3).
   "20261119110000": "select to_regprocedure('public.cron_sweep_request_claims()') is not null",
   // AARTO reminders by plan and open business; the weekly digest once a week with catch-up (B3).
