@@ -697,6 +697,13 @@ const CODE_KEYS: Record<string, string> = {
   "service-no-subscription": "errors.serviceNoSubscription",
   "service-agreement-term": "errors.serviceAgreementTerm",
   "service-terms-required": "errors.serviceTermsRequired",
+  // Scheduled deletion and the complete export (20261120110000, 20261120120000).
+  "retention-invalid": "errors.retentionInvalid",
+  "retention-phrase": "errors.retentionPhrase",
+  "retention-blocked": "errors.retentionBlocked",
+  "export-invalid": "errors.exportInvalid",
+  "export-limit": "errors.exportLimit",
+  "export-not-allowed": "errors.exportNotAllowed",
 };
 
 /**

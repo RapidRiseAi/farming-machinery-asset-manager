@@ -113,6 +113,15 @@ begin
   if pg_temp.try($s$select public.retention_delete('d4500000-0000-4000-9000-00000000000a')$s$) <> 'retention-blocked' then
     raise exception '[2] a business was deleted the night it was first warned';
   end if;
+  -- Even with the date forced past, a warning sent today is too recent, and says so.
+  update public.farm_retention_schedules set delete_after = app.billing_today() - 1 where farm_id = 'd4500000-0000-4000-9000-00000000000a';
+  if not (app.retention_checks('d4500000-0000-4000-9000-00000000000a', app.billing_today()) -> 'blocked_by' ? 'warning-too-recent') then
+    raise exception '[2] a deletion was not held back by a warning sent today';
+  end if;
+  -- A business still in its reading window says that, whatever else is true.
+  if not (app.retention_checks('d4500000-0000-4000-9000-00000000000b', app.billing_today()) -> 'blocked_by' ? 'reading-window-open') then
+    raise exception '[2] the reading window was not checked';
+  end if;
 end $t$;
 
 -- == [3] Holds, reactivation, exemption and a payment in flight stop it ============================
@@ -128,6 +137,11 @@ begin
   end if;
   if pg_temp.try($s$select public.retention_delete('d4500000-0000-4000-9000-00000000000a')$s$) <> 'retention-blocked' then
     raise exception '[3] a business under a hold was deleted';
+  end if;
+  -- The hold itself blocks, not only the schedule's status.
+  update public.farm_retention_schedules set status = 'scheduled' where farm_id = 'd4500000-0000-4000-9000-00000000000a';
+  if not (app.retention_checks('d4500000-0000-4000-9000-00000000000a', app.billing_today()) -> 'blocked_by' ? 'hold') then
+    raise exception '[3] an active hold is not a reason to wait';
   end if;
   perform public.retention_release_hold('d4510000-0000-4000-9000-000000000005', v_hold);
   perform public.retention_schedule_run();
@@ -186,6 +200,9 @@ begin
   end if;
   if exists (select 1 from public.retention_due(20) d where d.farm_id = 'd4500000-0000-4000-9000-00000000000a') then
     raise exception '[4] a deleted business is still due';
+  end if;
+  if not (app.retention_checks('d4500000-0000-4000-9000-00000000000a', app.billing_today()) -> 'blocked_by' ? 'already-closed') then
+    raise exception '[4] a closed business is not reported as already closed';
   end if;
 end $t$;
 

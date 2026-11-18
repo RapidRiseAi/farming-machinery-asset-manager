@@ -99,7 +99,8 @@
     "adminFeatures": "Funksies in toetsing",
     "trips": "{{Trips}}",
     "adminUsage": "Gebruik",
-    "adminEquipmentReviews": "Toerustinghersienings"
+    "adminEquipmentReviews": "Toerustinghersienings",
+    "adminRetention": "Skrappingskedule"
   },
   "assistant": {
     "title": "Stemassistent",
@@ -1359,7 +1360,8 @@
     "tplBillingGraceStarted": "'n Betaling van {amount} is agterstallig. Betaal dit teen {date}: werk gaan tot dan soos gewoonlik voort, maar niks nuuts wat geld kos, kan bygevoeg word nie. Niks word uitgevee nie.",
     "tplBillingAccessEnded": "Jou betaalde tydperk het geëindig. Jou span kan nie meer FLEETWISE gebruik nie; tot {date} kan jy, die eienaar, steeds alles lees en uitvoer, of weer begin.",
     "tplBillingRetrievalEnding": "Jou toegang om jou rekords te lees en uit te voer, eindig op {date}. Laai alles af wat jy nodig het voor dan.",
-    "tplCapacityQuoteRequested": "'n Besigheid het vir 'n kwotasie gevra: {full} volle plekke en {equipment} ondersteuningstoerusting."
+    "tplCapacityQuoteRequested": "'n Besigheid het vir 'n kwotasie gevra: {full} volle plekke en {equipment} ondersteuningstoerusting.",
+    "tplRetentionDeletionScheduled": "Die rekords en lêers van hierdie besigheid sal op {date} geskrap word, omdat die tyd om dit te lees en uit te voer verby is. Betaal wat geskuld word of begin weer voor dan om dit te behou. Faktureringsrekords word apart bewaar."
   },
   "settings": {
     "notSet": "Nie gestel nie",
@@ -5644,7 +5646,13 @@
     "serviceBillingSite": "Hierdie perseel word deur die hoofperseel gefaktureer. Maak die aanbod aan die hoofperseel.",
     "serviceNoSubscription": "Hierdie besigheid het geen intekening om die ooreenkoms aan te heg nie.",
     "serviceAgreementTerm": "'n Done-For-You-ooreenkoms is van krag, dus word die plan deur Rapid Rise verander. Plekke byvoeg werk steeds hier.",
-    "serviceTermsRequired": "Merk die blokkie om die bepalings te aanvaar."
+    "serviceTermsRequired": "Merk die blokkie om die bepalings te aanvaar.",
+    "retentionInvalid": "Sommige besonderhede vir die skrappingskedule ontbreek of is ongeldig.",
+    "retentionPhrase": "Tik die bevestiging presies soos gewys om skrapping aan te skakel.",
+    "retentionBlocked": "Hierdie besigheid kan nog nie geskrap word nie: 'n kontrole het nie geslaag nie.",
+    "exportInvalid": "Daardie uitvoerversoek is nie geldig nie.",
+    "exportLimit": "Hierdie besigheid het vandag reeds vyf uitvoere begin. Probeer môre weer.",
+    "exportNotAllowed": "U kan nie nou hierdie besigheid se rekords uitvoer nie."
   },
   "billing": {
     "title": "Rekening",
