@@ -290,6 +290,9 @@ pg "$DB" < "$ROOT/supabase/tests/storage_pool.sql"
 echo "==> running storage block billing tests (block quotes, the month's blocks, the usage invoice)"
 pg "$DB" < "$ROOT/supabase/tests/storage_blocks.sql"
 
+echo "==> running assistance spending cap tests (no default, one budget per customer, WhatsApp at R0 when free)"
+pg "$DB" < "$ROOT/supabase/tests/assistance_cap.sql"
+
 echo "==> running private staff chat tests"
 pg "$DB" < "$ROOT/supabase/tests/staff_chat.sql"
 echo "==> running manual driving log tests"

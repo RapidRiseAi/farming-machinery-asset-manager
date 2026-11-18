@@ -208,6 +208,20 @@ block charge or the pro-rata part of an automatic block. `storage_pool_status` (
 access; money for the payer), `storage_set_auto` (owner) and `storage_note_full` (after a
 refused upload) are the person-facing functions.
 
+Assistance spending (20261118120200, task A3). `assistance_budgets` (owner reads, audited) is
+one monthly rand limit per customer (the billing site) for paid AI, voice and WhatsApp: no row
+means no paid assistance (`budget_unset`), zero is a choice, source owner, migrated (existing
+customers' limits, `app.assistance_migrate_existing`) or rapid_rise; it also holds the owner's
+acceptance of paid WhatsApp (who, when, terms version, the cap then) and the 80%/limit warning
+flags. `app.assistance_cap` applies the trial guard; `app.ai_month_spend` and
+`app.assistance_member_limit` read across the customer's sites (`app.customer_site_ids`).
+`ai_reservations`/`ai_usage` take feature `whatsapp_message` (provider `whatsapp_cloud`,
+measured `provider`); `ai_usage` also records `billing_root`, `rate_version`,
+`supplier_currency`, `supplier_tax` and `pricing_category`. `whatsapp_usage_holds`
+(service only) maps Meta's message id to its hold; `whatsapp_usage_reserve`, `_sent`,
+`_release` and `_settle` are the service-role surface. `billing_settings` gained
+`whatsapp_billing_starts_on` and `supplier_tax_treatment`.
+
 `assistant_command_jobs` (20261115100000) is one spoken command longer than the instant
 hearing: its uploaded recording (an intent of purpose `command_audio` in the service-only
 `command-audio` bucket), status, attempts against a limit, a lease so a vanished runner is

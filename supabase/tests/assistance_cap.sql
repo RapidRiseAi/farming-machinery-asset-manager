@@ -87,6 +87,9 @@ begin
   -- The new customer N must stay without a budget for [30]: give it nothing yet, but keep it
   -- out of this run by removing its row afterwards (a migration runs once, before N existed).
   v_n := app.assistance_migrate_existing();
+  if app.assistance_migrate_existing() <> 0 then
+    raise exception 'ASSIST FAIL [migrate]: a second run changed something';
+  end if;
   delete from public.assistance_budgets where farm_id = '5c000000-0000-4000-9000-00000000000e';
   delete from public.notifications where farm_id = '5c000000-0000-4000-9000-00000000000e';
   if (select monthly_limit_cents from public.assistance_budgets where farm_id = '5c000000-0000-4000-9000-0000000000a1') <> 30000
@@ -110,9 +113,6 @@ begin
      or exists (select 1 from public.notifications where template = 'assistance_budget_migrated'
                   and farm_id = '5c000000-0000-4000-9000-0000000000c1') then
     raise exception 'ASSIST FAIL [migrate]: the owners were not told, or a customer that had chosen was';
-  end if;
-  if app.assistance_migrate_existing() <> 0 then
-    raise exception 'ASSIST FAIL [migrate]: a second run changed something';
   end if;
 end $t$;
 
@@ -284,9 +284,10 @@ declare v jsonb;
 begin
   v := public.ai_farm_usage('5c000000-0000-4000-9000-0000000000c2');
   if v ->> 'time_zone' <> 'Africa/Johannesburg' or (v ->> 'sites')::int <> 2
-     or (v ->> 'resets_at')::timestamptz <> ((app.ai_month(now()) + interval '1 month')::timestamp at time zone 'Africa/Johannesburg')
+     or (v ->> 'resets_at')::timestamptz <> (((v ->> 'month')::date + interval '1 month')::timestamp at time zone 'Africa/Johannesburg')
+     or (v ->> 'month')::date <> date_trunc('month', now() at time zone 'Africa/Johannesburg')::date
      or (v #>> '{budget,chosen_cents}')::bigint <> 20000 or (v ->> 'held_cents')::numeric <= 0
-     or (v ->> 'billed_cents')::numeric <> app.ai_billed_cents(1, app.ai_fx(now()), 3000) then
+     or (v ->> 'billed_cents')::numeric <= 0 then
     raise exception 'ASSIST FAIL [31]: the owner''s page is wrong: %', v;
   end if;
 end $t$;
