@@ -583,8 +583,16 @@ each object's bytes through the requester's own Storage session (A4 checkpoint, 
 deadline, and fail closed when that check fails. The ZIP excludes `chat-files` and temporary
 `command-audio`, because business ownership is insufficient to read private chats. Archive
 names use a bucket, path hash and sanitized basename instead of trusting a stored path.
-A restricted or missing object fails the legacy ZIP; a durable complete export with an
-omissions manifest remains A4 work in progress. Notifications include
+A restricted or missing object fails the legacy ZIP. The complete export (20261120110000)
+lists files with the requester's own session through `export_readable_files` (SECURITY
+INVOKER, so Storage row security and the pay gate decide), reads records with that session,
+and copies file bytes through it while the requester's page drives the job; the nightly worker
+copies only that authorised inventory, with the service role, after `export_job_allowed`
+re-checks the requester's role and the lifecycle. Archives live in the private
+`farm-exports` bucket (no policy for any signed-in person), are offered only through links
+signed for ten minutes after the requester and the window are checked again, and are removed
+after seven days or when the reading window ends. A file that cannot be read is retried and
+then named in the manifest by bucket, key hash and reason, never by its contents. Notifications include
 only a conversation href and generic translated text. Realtime publishes conversation
 updates checked by RLS, not message bodies; see [Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes).
 An open client's next refresh clears revoked data; already downloaded bytes cannot be recalled.
