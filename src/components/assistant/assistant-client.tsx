@@ -1,6 +1,6 @@
 "use client";
 
-import { newRequestId } from "@/lib/request-id";
+import { contentRequestId, newRequestId } from "@/lib/request-id";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -1122,7 +1122,8 @@ export function AssistantClient({
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
-        headers: { "Content-Type": "audio/wav" },
+        // The clip's own digest names the request: the same clip again is the same hearing.
+        headers: { "Content-Type": "audio/wav", "x-request-id": await contentRequestId(`transcribe:${speechLanguage}`, clip) },
         body: clip,
         signal,
       });
