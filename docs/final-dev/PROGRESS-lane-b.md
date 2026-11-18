@@ -1,6 +1,36 @@
-# Lane B progress (task B1: limits, upload pipeline, long audio)
+# Lane B progress (task B3 now; B1 below)
 
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
+
+## Task B3 (started 18 Nov 2026 at 45e5efd)
+
+Driving logs, trips and maps by plan; imports, repeat taps, offline gaps; history after a
+downgrade. R-044 (manual driving log, Codex, 20261117110000) is built and reviewed: verify
+and build on it, never rebuild. Steps, committed one by one:
+
+1. Trips by plan (R-045, R-061, R-060): server gate on every trip action and RPC (DB
+   trigger on trip updates too), saved trips readable after a downgrade (history mode),
+   trip money on the phone (income, expenses, result), report honesty (cancelled and
+   incomplete trips, missing readings, zero km, 90-day window said), aggregation moved to
+   src/lib/trips.ts with tests.
+2. Maps (R-046, R-062): readiness flag enforced in the database for positions and routes,
+   POD location only with maps, stale positions labelled (never live), docs/ROUTING.md
+   provider terms rechecked with citations.
+3. Downgrade history (R-051, Sc17): fuel and fines records readable read-only, retained
+   positions listed without a map, export includes trips/routes/positions, scheduled
+   reports and CSV routes refuse lost features.
+4. Imports (R-120): duplicates beyond the name, error codes through t(), create-only said.
+5. Repeat taps (R-122): work media claim, assistant turn and transcribe claims, activation
+   Pay resumes the attempt in flight, contractor sync verified, template once per machine.
+6. Offline (R-123): online request id becomes the offline client id, claims checked in
+   SQL, plan/equipment/access refusals kept and explained (not retried forever).
+7. Export pages streamed, accounting summary in SQL, weekly digest once a week with
+   catch-up and pay gate, empty states, assistant starters never send.
+8. Scenario 18 check, docs, REPORT-B3, register rows.
+
+### B3 done
+
+- (nothing yet)
 
 ## Task
 
