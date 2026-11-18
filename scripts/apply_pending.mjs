@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // A replayed answer fits in a claim; claims older than two days swept nightly (B3).
+  "20261119110000": "select to_regprocedure('public.cron_sweep_request_claims()') is not null",
   // AARTO reminders by plan and open business; the weekly digest once a week with catch-up (B3).
   "20261119100000": "select to_regprocedure('app.sast_week_start(timestamptz)') is not null",
   // Trips and maps by plan after a downgrade; the map readiness flag in the database (B3).

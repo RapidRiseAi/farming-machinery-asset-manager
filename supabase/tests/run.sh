@@ -301,4 +301,6 @@ echo "==> running trips and maps by plan tests (history after a downgrade, map r
 pg "$DB" < "$ROOT/supabase/tests/trips_by_plan.sql"
 echo "==> running scheduled work by plan tests (AARTO reminders, the weekly digest once a week)"
 pg "$DB" < "$ROOT/supabase/tests/scheduled_work_by_plan.sql"
+echo "==> running request claim answer tests (a replay gets the whole answer, old claims swept)"
+pg "$DB" < "$ROOT/supabase/tests/request_claim_answers.sql"
 echo "==> OK"
