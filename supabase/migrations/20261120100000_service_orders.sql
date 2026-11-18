@@ -633,11 +633,11 @@ begin
   end loop;
 
   -- Ended: the subscription has left done_for_you (dfy_end's pending change landed).
-  update public.done_for_you_quotes q
+  update public.done_for_you_quotes dq
      set status = 'ended', closed_at = now(), updated_at = now()
-   where q.status = 'active' and q.ends_on is not null and q.ends_on <= current_date
-     and exists (select 1 from public.billing_subscriptions s
-                  where s.id = app.billing_subscription_for(q.farm_id) and s.plan <> 'done_for_you');
+   where dq.status = 'active' and dq.ends_on is not null and dq.ends_on <= current_date
+     and exists (select 1 from public.billing_subscriptions bs
+                  where bs.id = app.billing_subscription_for(dq.farm_id) and bs.plan <> 'done_for_you');
 
   -- Offers nobody accepted in time.
   update public.done_for_you_quotes
