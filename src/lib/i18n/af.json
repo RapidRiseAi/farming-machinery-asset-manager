@@ -709,7 +709,8 @@
     "problemsOpen": "Met 'n oop probleem",
     "tankLitres": "Brandstoftenkgrootte (liter)",
     "tankLitresHint": "Word gebruik om 'n brandstofkaartvulling te sien wat meer is as wat die tenk hou.",
-    "profile": "Profiel"
+    "profile": "Profiel",
+    "qrSheetEmptyHint": "Voeg eers jou {{assets}} by: elkeen kry sy eie QR-kode om te druk en op te plak, sodat bestuurders foute en lesings daarvandaan kan aanmeld."
   },
   "machineType": {
     "tractor": "Trekker",
@@ -3041,7 +3042,8 @@
     "upgradeRequired": "Hierdie aksie vereis die Volledig-plan.",
     "continueRecording": "Gaan voort met aanteken",
     "sectionMore": "Datums, status en notas",
-    "markAs": "Merk as: {status}"
+    "markAs": "Merk as: {status}",
+    "emptyHint": "Wanneer die kantoor 'n verkeersboete vir een van jou {{assets}} aanteken, wys dit hier met die sperdatum vir benoeming."
   },
   "budget": {
     "title": "Begrotings",

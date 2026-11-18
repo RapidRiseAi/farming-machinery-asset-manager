@@ -592,7 +592,7 @@ export default async function FinesPage({
       ) : null}
 
       {fines.length === 0 && !canManage ? (
-        <EmptyState title={t("fines.empty", locale)} />
+        <EmptyState title={t("fines.empty", locale)} hint={t("fines.emptyHint", locale)} />
       ) : null}
     </PageContainer>
   );

@@ -709,7 +709,8 @@
     "problemsOpen": "With an open problem",
     "tankLitres": "Fuel tank size (litres)",
     "tankLitresHint": "Used to spot a fuel card fill that is more than the tank holds.",
-    "profile": "Profile"
+    "profile": "Profile",
+    "qrSheetEmptyHint": "Add your {{assets}} first: each one gets its own QR code to print and stick on, so drivers can report faults and readings from it."
   },
   "machineType": {
     "tractor": "Tractor",
@@ -3041,7 +3042,8 @@
     "upgradeRequired": "This action requires the Complete plan.",
     "continueRecording": "Continue recording",
     "sectionMore": "Dates, status and notes",
-    "markAs": "Mark as: {status}"
+    "markAs": "Mark as: {status}",
+    "emptyHint": "When the office records a traffic fine for one of your {{assets}}, it shows here with its nomination deadline."
   },
   "budget": {
     "title": "Budgets",
