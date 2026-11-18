@@ -92,13 +92,13 @@ worked out afresh, and no paid provider is called. Where each stands:
 
 | Feature | What stays | What stops | Where enforced |
 |---|---|---|---|
-| Trips (Professional) | trip list and pages, loads, deliveries, income and expense records; in the business export | new trips, loads and money; starting a planned trip; editing; the trip earnings report and a trip's result; a trip already underway can still be finished and a planned one cancelled |  on pages and actions;  and siblings (20261119090000) |
-| Maps and tracking (Complete +  flag) | a trip's saved stops, planned distance and recorded positions, as text and a CSV, without a map | new positions, routes, redrawn routes, a delivery's location; tracker feeds answered  | ;  in the database (20261119090000) |
-| Fuel (Professional) | the newest 200 draws and deliveries read-only on /fuel; all of them in the export | balances, consumption, anomalies, new draws (also a draw queued offline before the downgrade) |  on pages/actions;  (20261119130000) |
-| AARTO fines (Complete) | the newest 200 fines read-only on /fines; all in the export | new fines, nomination, deadline reminders | ; reminders by plan (20261119100000) |
+| Trips (Professional) | trip list and pages, loads, deliveries, income and expense records; in the business export | new trips, loads and money; starting a planned trip; editing; the trip earnings report and a trip's result; a trip already underway can still be finished and a planned one cancelled | `trips` on pages and actions; `app.trips_history_guard` and its siblings (20261119090000) |
+| Maps and tracking (Complete + `map` flag) | a trip's saved stops, planned distance and recorded positions, as text and a CSV, without a map | new positions, routes, redrawn routes, a delivery's location; tracker feeds answered `maps_unavailable` | `mapsAvailable`; `app.require_maps_ready` in the database (20261119090000) |
+| Fuel (Professional) | the newest 200 draws and deliveries read-only on /fuel; all of them in the export | balances, consumption, anomalies, new draws (also a draw queued offline before the downgrade) | `fuel` on pages and actions; `apply_offline_capture_once` (20261119130000) |
+| AARTO fines (Complete) | the newest 200 fines read-only on /fines; all in the export | new fines, nomination, deadline reminders | `aarto`; reminders by plan (20261119100000) |
 | Dashboards, advanced reports, TCO, budgets, depreciation, consolidated sites, accounting exports | the underlying records (machines, costs, budgets) and the business export | the analysis itself and scheduled reports | existing gates; scheduled reports check the plan at claim time (20261013110000) |
 
-The business export () is the exit route for every plan: it holds the raw
+The business export (`/api/farm/export`) is the exit route for every plan: it holds the raw
 records of every feature above and none of the higher plan's analysis.
 
 ## Also fixed in this audit
