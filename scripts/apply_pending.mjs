@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The accounting summary summed in the database (B3).
+  "20261119140000": "select to_regprocedure('public.farm_journal_totals(uuid,date,date)') is not null and to_regprocedure('public.partner_journal_accounts(uuid,date,date)') is not null",
   // One capture, one record, online or queued; the fuel plan asked again on reconnect (B3).
   "20261119130000": "select to_regprocedure('public.apply_offline_capture_once(uuid,timestamptz,text,text,uuid,jsonb)') is not null",
   // A service template applied to a machine once (B3).

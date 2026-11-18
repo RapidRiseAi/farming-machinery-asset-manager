@@ -309,4 +309,6 @@ echo "==> running offline capture once tests (online and queued share one id, th
 pg "$DB" < "$ROOT/supabase/tests/offline_capture_once.sql"
 echo "==> running roles across sites and the consolidated view tests (scenario 18)"
 pg "$DB" < "$ROOT/supabase/tests/sites_roles_consolidated.sql"
+echo "==> running journal summary tests (summed in the database, the journal's own permissions)"
+pg "$DB" < "$ROOT/supabase/tests/journal_summary.sql"
 echo "==> OK"
