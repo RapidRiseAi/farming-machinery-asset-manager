@@ -352,3 +352,21 @@ Migration 20261119140000_journal_summary.sql adds `public.farm_journal_totals`,
 INVOKER over the journal functions, so the journal's own permissions decide). `/accounting`
 reads its totals and per-account summary from them instead of every journal line. Suite:
 `supabase/tests/journal_summary.sql`. Scenario 18 at the database: `sites_roles_consolidated.sql`.
+
+## Done-For-You agreements and service orders (A4)
+
+Migration 20261120100000_service_orders.sql extends `done_for_you_quotes` (every existing row
+is `legacy`, unchanged) with the managed-service terms: scope, work allowance, review schedule,
+staff owner (a role), extras, assumptions, supplier mandate (null: the owner approves every
+supplier cost), explicit period prices (per full space, minimum spaces, equipment included and
+further equipment), the recurring total at the assumed quantities, currency, VAT snapshot, term
+and dates, acceptance, landing and end. `public.dfy_offer` / `dfy_accept` / `dfy_cancel` /
+`dfy_end` (service role, actor checked inside); `public.cron_apply_service_agreements` (billing
+cron, before the invoice run) pins the subscription to a private retired price row at the
+renewal on or after the effective date; a trigger on `billing_change_quotes` refuses a plan
+change while the term runs. `billing_service_catalogue` gains pricing rules (`per_unit`,
+`hourly`, `from`), minimums, the setup work group and supplier readiness (QR kits not ready).
+New tables `service_orders` (offered, accepted by the owner, invoiced once through
+`billing_raise_service_invoice`) and `service_work_entries` (time by activity and asset: Rapid
+Rise only; reviews: the owner too); both forced RLS, audited, pay gate open. Suite:
+`supabase/tests/service_orders.sql`.

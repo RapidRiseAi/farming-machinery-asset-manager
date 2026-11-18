@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Done-For-You agreements and the activation catalogue as orders (A4).
+  "20261120100000": "select to_regclass('public.service_orders') is not null and to_regclass('public.service_work_entries') is not null and to_regprocedure('public.dfy_accept(uuid,uuid,bigint)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'done_for_you_quotes' and column_name = 'recurring_incl_cents')",
   // The accounting summary summed in the database (B3).
   "20261119140000": "select to_regprocedure('public.farm_journal_totals(uuid,date,date)') is not null and to_regprocedure('public.partner_journal_accounts(uuid,date,date)') is not null",
   // One capture, one record, online or queued; the fuel plan asked again on reconnect (B3).

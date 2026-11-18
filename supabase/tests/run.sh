@@ -311,4 +311,6 @@ echo "==> running roles across sites and the consolidated view tests (scenario 1
 pg "$DB" < "$ROOT/supabase/tests/sites_roles_consolidated.sql"
 echo "==> running journal summary tests (summed in the database, the journal's own permissions)"
 pg "$DB" < "$ROOT/supabase/tests/journal_summary.sql"
+echo "==> running service orders tests (activation catalogue, Done-For-You agreements, scenario 43)"
+pg "$DB" < "$ROOT/supabase/tests/service_orders.sql"
 echo "==> OK"

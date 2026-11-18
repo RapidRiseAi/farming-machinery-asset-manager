@@ -505,7 +505,7 @@ begin
   end if;
   -- A business that is stopped or in its grace takes on no new paid work (decision 41).
   if not app.farm_paid_extras_allowed(q.farm_id, v_today) then
-    raise exception 'billing-grace-no-extras' using errcode = '42501';
+    raise exception 'billing-grace-no-extras' using errcode = '22023';
   end if;
   update public.done_for_you_quotes
      set status = 'accepted', accepted_by = p_by, accepted_at = now(), accepted_on = v_today, updated_at = now()
@@ -739,7 +739,7 @@ begin
     raise exception 'service-not-ready' using errcode = '22023';
   end if;
   if not app.farm_paid_extras_allowed(o.farm_id, v_today) then
-    raise exception 'billing-grace-no-extras' using errcode = '42501';
+    raise exception 'billing-grace-no-extras' using errcode = '22023';
   end if;
   update public.service_orders
      set status = 'accepted', accepted_by = p_by, accepted_at = now(), updated_at = now()
