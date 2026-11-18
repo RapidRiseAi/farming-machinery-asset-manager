@@ -44,6 +44,15 @@ service-role Supabase client (trusted server code, bypasses RLS) and calls, in o
     or ended, interest and lease costs booked as they fall due. Idempotent.
 12c. `cron_enqueue_asset_finance_reminders` → instalments coming due or overdue, contract
     notice days and end dates, to owners and managers, once per date, no amounts.
+12d. **Closures, exports and retention (A4, 20261120110000 and 20261120120000)**, after
+    `closure_files` and `purge_expired_closures`: `closure_logins` (logins a closure could not
+    remove yet); `retention` (`runRetention`: the deletion schedule and a dry-run preview every
+    night; warnings and deletion only when the database setting is on AND
+    `RETENTION_DELETION=enabled` is set; it ships off); `export_worker` (45 seconds of complete
+    export steps for jobs nobody is watching) and `export_cleanup` (archives past their keeping
+    time, failed ones, and objects whose job is gone, bounded per run). An optional scheduler on
+    `GET /api/cron/exports` (same `CRON_SECRET` bearer, every few minutes) finishes large exports
+    the same day; without it they finish while the page is open and overnight.
 13. `cron_enqueue_weekly_digest` → asked **Monday to Wednesday** (Africa/Johannesburg); one
     `weekly_digest` per open business per week (Scope §4.7 msg 5), whichever run gets there
     first (20261119100000: a rerun does not send it twice, a missed Monday catches up on
@@ -195,6 +204,10 @@ Steps, in order:
    reference. It never charges again to resolve an unknown.
 2. `cron_capture_billing_snapshots`, one billable-vehicle count per farm per day, so a
    bill saying "37 vehicles" is answerable months later.
+2a. `cron_apply_pending_plan_changes`, then `cron_apply_service_agreements` (20261120100000):
+   an accepted Done-For-You agreement lands at the renewal on or after its effective date (the
+   subscription is pinned to the agreement's private price row) and an ended one is marked
+   ended; offers past their date expire. Before the invoice run, so tonight's invoice bills it.
 3. `cron_generate_billing_invoices`, raises invoices whose period has come round.
    Idempotent twice over: a unique index on (farm, period) and an advancing
    `next_billing_on`. With no ACTIVE price version it raises nothing, which is the state
