@@ -297,3 +297,15 @@ audit plus behavioural tests in manual_driving.sql. The old RPC signature is unc
 The deployment probe is in scripts/apply_pending.mjs; no live migration was applied.
 Deploy the additive migration before the new page, which selects these columns. Rolling
 back application code can leave the additive schema and records intact.
+
+## Trips and maps by plan after a downgrade (B3)
+
+Migration 20261119090000_trips_maps_history.sql adds no table. Below Professional, an
+update to a saved trip, load, trip income or trip expense is refused (`plan-feature-trips`)
+except cancelling a planned trip, finishing a trip already underway (with its deliveries)
+and a soft delete; nothing else may change in the same update (`app.only_changed`).
+`app.maps_ready` (the `map` flag) and `app.maps_allowed` (Complete and the flag) now hold in
+the database: a new or edited `trip_routes` row and a new `asset_positions` row need both
+(`plan-feature-maps`, `maps-not-ready`), and a delivery's `pod_lat`/`pod_lng` is kept only
+where maps are allowed. Reads are unchanged, so every saved trip, route and position stays
+readable on any plan. Suite: `supabase/tests/trips_by_plan.sql`.
