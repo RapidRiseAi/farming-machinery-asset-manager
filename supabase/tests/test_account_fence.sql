@@ -294,6 +294,10 @@ insert into public.billing_payments (farm_id, amount_incl_cents, provider, note)
 insert into public.farm_ai_settings (farm_id, monthly_limit_cents) values
   ('e1000000-0000-4000-9000-000000000001', 100000),
   ('e1000000-0000-4000-9000-000000000002', 100000);
+-- The limit is the customer's chosen budget since 20261118120200.
+insert into public.assistance_budgets (farm_id, monthly_limit_cents, source) values
+  ('e1000000-0000-4000-9000-000000000001', 100000, 'owner'),
+  ('e1000000-0000-4000-9000-000000000002', 100000, 'owner');
 set local session_replication_role = origin;
 do $$
 declare v_trial bigint := coalesce((select ai_trial_limit_cents from public.billing_settings where singleton), 5000);

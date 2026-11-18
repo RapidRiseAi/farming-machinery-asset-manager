@@ -16,7 +16,9 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
+  acceptWhatsappCharges,
   linkOpenAiKey,
   recheckOpenAiKey,
   removeOpenAiKey,
@@ -49,6 +51,12 @@ type Person = {
 
 type Usage = {
   month: string;
+  /** The customer's chosen limit (20261118120200); null when nobody has chosen one. */
+  budget: { chosen_cents: number; source: "owner" | "migrated" | "rapid_rise"; chosen_at: string } | null;
+  time_zone: string;
+  resets_at: string;
+  sites: number;
+  whatsapp: { billing_on: boolean; accepted_at: string | null; terms_version: string | null; messages: number; billed_cents: number };
   limit_cents: number;
   max_limit_cents: number;
   has_paid: boolean;
@@ -103,6 +111,8 @@ export default async function AiSettingsPage({ searchParams }: { searchParams: P
   const paused = committed >= usage.limit_cents;
   const status = !settings.ai_enabled && !settings.voice_enabled
     ? { tone: "neutral" as const, key: "aiUsage.statusOff" }
+    : !usage.budget
+      ? { tone: "warning" as const, key: "aiUsage.statusNotChosen" }
     : paused
       ? { tone: "warning" as const, key: "aiUsage.statusPaused" }
       : { tone: "ok" as const, key: "aiUsage.statusOn" };
@@ -112,6 +122,13 @@ export default async function AiSettingsPage({ searchParams }: { searchParams: P
       {header}
       {flash}
 
+      {!usage.budget ? (
+        <Card className="border-callout-info-edge bg-callout-info-bg">
+          <CardTitle>{t("aiUsage.setupTitle", locale)}</CardTitle>
+          <p className="mt-2 text-sm leading-relaxed text-sand-800">{t("aiUsage.setupBody", locale)}</p>
+        </Card>
+      ) : null}
+
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <CardTitle>{t("aiUsage.thisMonth", locale)}</CardTitle>
@@ -119,7 +136,7 @@ export default async function AiSettingsPage({ searchParams }: { searchParams: P
         </div>
         <StatGrid className="mt-4">
           <Stat label={t("aiUsage.spent", locale)} value={cents(committed)} valueKind="text" />
-          <Stat label={t("aiUsage.limit", locale)} value={cents(usage.limit_cents)} valueKind="text" />
+          <Stat label={t("aiUsage.limit", locale)} value={usage.budget ? cents(usage.limit_cents) : t("aiUsage.notChosen", locale)} valueKind="text" />
         </StatGrid>
         <div
           className="mt-4 h-2 w-full overflow-hidden rounded-full bg-sand-100"
@@ -134,9 +151,20 @@ export default async function AiSettingsPage({ searchParams }: { searchParams: P
             : t("aiUsage.exVatNote", locale)}
         </p>
         {!usage.has_paid ? <p className="mt-1 text-xs leading-5 text-ink-muted">{t("aiUsage.trialNote", locale)}</p> : null}
+        <p className="mt-1 text-xs leading-5 text-ink-muted">
+          {t("aiUsage.resetNote", locale).replace("{date}", shortDate(usage.resets_at.slice(0, 10), locale))}
+        </p>
+        {usage.sites > 1 ? (
+          <p className="mt-1 text-xs leading-5 text-ink-muted">{t("aiUsage.sitesNote", locale).replace("{n}", String(usage.sites))}</p>
+        ) : null}
+        {usage.budget?.source === "migrated" ? (
+          <p className="mt-1 text-xs leading-5 text-ink-muted">
+            {t("aiUsage.migratedNote", locale).replace("{date}", shortDate(usage.budget.chosen_at.slice(0, 10), locale))}
+          </p>
+        ) : null}
         <div className="mt-4">
           <DialogForm
-            trigger={t("aiUsage.changeLimit", locale)}
+            trigger={t(usage.budget ? "aiUsage.changeLimit" : "aiUsage.chooseLimit", locale)}
             title={t("aiUsage.changeLimitTitle", locale)}
             description={t("aiUsage.changeLimitHelp", locale).replace("{max}", cents(usage.max_limit_cents))}
             closeLabel={t("ui.close", locale)}
@@ -146,7 +174,7 @@ export default async function AiSettingsPage({ searchParams }: { searchParams: P
               <input type="hidden" name="farm_id" value={farmId} />
               <DialogFields>
                 <Field label={t("aiUsage.limitField", locale)} htmlFor="ai-limit">
-                  <Input id="ai-limit" name="limit" inputMode="decimal" required defaultValue={String(Math.round(usage.limit_cents / 100))} />
+                  <Input id="ai-limit" name="limit" inputMode="decimal" required defaultValue={usage.budget ? String(Math.round(usage.limit_cents / 100)) : ""} />
                 </Field>
               </DialogFields>
               <DialogActions cancelLabel={t("common.cancel", locale)}>
@@ -154,6 +182,51 @@ export default async function AiSettingsPage({ searchParams }: { searchParams: P
               </DialogActions>
             </form>
           </DialogForm>
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>{t("aiUsage.whatsappTitle", locale)}</CardTitle>
+        <p className="mt-2 text-sm leading-relaxed text-sand-700">
+          {!usage.whatsapp.billing_on
+            ? t("aiUsage.whatsappNotBilled", locale)
+            : usage.whatsapp.accepted_at
+              ? t("aiUsage.whatsappAccepted", locale).replace("{date}", shortDate(usage.whatsapp.accepted_at.slice(0, 10), locale))
+              : t("aiUsage.whatsappNeedsAcceptance", locale)}
+        </p>
+        {usage.whatsapp.messages > 0 ? (
+          <p className="mt-1 text-xs leading-5 text-ink-muted">
+            {t("aiUsage.whatsappMessages", locale)
+              .replace("{n}", num(usage.whatsapp.messages))
+              .replace("{amount}", cents(usage.whatsapp.billed_cents))}
+          </p>
+        ) : null}
+        <div className="mt-4">
+          {usage.whatsapp.accepted_at ? (
+            <form action={acceptWhatsappCharges}>
+              <input type="hidden" name="farm_id" value={farmId} />
+              <input type="hidden" name="accept" value="0" />
+              <SubmitButton variant="secondary">{t("aiUsage.whatsappWithdraw", locale)}</SubmitButton>
+            </form>
+          ) : usage.budget ? (
+            <DialogForm
+              trigger={t("aiUsage.whatsappAccept", locale)}
+              title={t("aiUsage.whatsappAcceptTitle", locale)}
+              description={t("aiUsage.whatsappAcceptBody", locale).replace("{limit}", cents(usage.limit_cents))}
+              closeLabel={t("ui.close", locale)}
+              triggerVariant="secondary"
+            >
+              <form action={acceptWhatsappCharges}>
+                <input type="hidden" name="farm_id" value={farmId} />
+                <DialogFields>
+                  <Checkbox name="accept" value="1" required label={t("aiUsage.whatsappAcceptField", locale)} />
+                </DialogFields>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton>{t("aiUsage.whatsappAccept", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : null}
         </div>
       </Card>
 

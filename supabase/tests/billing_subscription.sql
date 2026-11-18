@@ -1406,7 +1406,19 @@ declare
     -- where a business stands, and the nightly notices.
     'farm_billing_gate_on','farm_read_allowed','billing_retrieval_ends_on','farm_paid_extras_allowed',
     'billing_lift_farm_pause','billing_notify_owners','farm_outstanding_cents','farm_lifecycle',
-    'billing_enqueue_lifecycle_notices'];
+    'billing_enqueue_lifecycle_notices',
+    -- Pooled storage (20261118120000): the allowance reads the subscription, its price and the
+    -- block price; the storage month reads the period; an automatic block locks the subscription
+    -- and raises its blocks. Granted to nobody, reached only through the upload reservation, the
+    -- nightly measure and the storage status, which strips the money for anyone but the payer.
+    'storage_allowance','storage_month','storage_auto_block',
+    -- Storage blocks on the bill (20261118120100): pricing and quoting a change of blocks (A2's
+    -- quote flow, actor checked inside) and putting the month's blocks on a draft invoice.
+    'storage_change_state','billing_quote_storage','billing_attach_storage',
+    -- The customer's assistance budget (20261118120200): the cap with the trial guard (reads the
+    -- trial amount), and whether WhatsApp use is billed yet (reads its start date). Granted to
+    -- nobody; reached through the AI ledger and the service-role WhatsApp functions.
+    'assistance_cap','whatsapp_billing_on','assistance_migrate_existing'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',
@@ -1454,7 +1466,9 @@ declare
     -- Where a business stands (20261115120000), read by the stopped screens; see v_pub_auth_ok.
     'farm_lifecycle',
     -- A larger customer's quote request from sign-up (20261115130000), service role only.
-    'billing_request_capacity_quote'];
+    'billing_request_capacity_quote',
+    -- Storage blocks (20261118120100): service role only, the actor passed and checked inside.
+    'storage_change_preview','billing_quote_storage'];
   -- Deliberately executable by a browser session: pure arithmetic, the read-only price
   -- lookup, the date helper, and the predicate the UI needs to decide whether to render
   -- a billing screen at all. None of them can move money or read a credential.

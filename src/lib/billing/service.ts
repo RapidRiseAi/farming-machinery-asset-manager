@@ -142,6 +142,11 @@ export const BILLING_RPC = {
   lifecycleNotices: "cron_enqueue_billing_lifecycle_notices",
   // More than 200 full spaces at sign-up (decision 39, 20261115130000): a quote request.
   requestCapacityQuote: "billing_request_capacity_quote",
+  // Storage blocks (20261118120100): priced and kept as an A2 quote (change 'storage'), then
+  // accepted, paid and cancelled through the same three wrappers as every change. Service role
+  // only; the owner is checked in the action and again in the engine (p_by).
+  quoteStorage: "billing_quote_storage",
+  storagePreview: "storage_change_preview",
 } as const;
 
 /** `billing_attempt_kind`. */
@@ -1689,7 +1694,7 @@ export type ChangeSide = {
 export type ChangeState = {
   kind: "now" | "renewal" | "no_change" | "unavailable";
   reason: string | null;
-  change: "capacity" | "plan";
+  change: "capacity" | "plan" | "storage";
   subscription_id?: string;
   status?: string;
   exempt?: boolean;

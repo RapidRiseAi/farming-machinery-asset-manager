@@ -30,7 +30,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-007 | Purchased full capacity distinct from active full-asset count; retiring frees a space, does not reduce the purchase | S4, D27 | `asset_quota` vs `app.billable_asset_count` (20260910230000) | E (A1) | A1 | Sc5: asset_capacity.sql [5] |
 | R-008 | Equipment counted as a quantity (no per-item free/paid label) | S4, D-pricing | none | E (A1) | A1 | asset_capacity.sql [5], calculator.test.ts |
 | R-009 | Self-service 5 to 200 full spaces; 201+ routed to capacity check and quote; not a combined equipment cap | S4, D39 | signup picker clamps 5..200 (`src/app/(public)/signup/plan-picker.tsx`); server has no ceiling | E (A2; website part A5) | A1 (rule), A2 (signup route) | Sc2: calculator.test.ts signupRoute, asset_capacity.sql [2], billing_signup_capacity.sql, billing_change_quotes.sql [39] |
-| R-010 | One plan across a customer's sites; capacity, allowance, storage and budget pooled once; no grouping inferred from email | S4, D2, D22 | `farms.billed_through` main-site grouping (20261107150000) | C (A1 equipment and full pooled; A3 storage, budget) | A1 (equipment), A3 (storage, budget) | Sc3: asset_capacity.sql [3] |
+| R-010 | One plan across a customer's sites; capacity, allowance, storage and budget pooled once; no grouping inferred from email | S4, D2, D22 | `farms.billed_through` main-site grouping (20261107150000) | E (A1 equipment and full; A3 storage pool, assistance budget, usage invoice) | A1 (equipment), A3 (storage, budget) | Sc3: asset_capacity.sql [3], storage_pool.sql, assistance_cap.sql [31], storage_blocks.sql [usage] |
 | R-011 | Lowest-total plan that supplies the needed features is recommended; never auto-switch | S4 | none | E (A1) | A1 | calculator.test.ts comparePlans; previews list every plan |
 | R-012 | Money in integer cents; snapshot currency, tax, prices, contract version; issued invoices immutable; old prices pinned | S4 | `billing_freeze_invoice`, `billing_freeze_price_version`, `billing_price_for_subscription` | E (A1) | A1 (new version), A2 | billing_subscription.sql (0), asset_capacity.sql [5] |
 | R-013 | Check seller VAT status before touching tax; not VAT registered today | S4 | `billing_settings.vat_registered` false, `app.billing_force_vat_rate` | E | A1 | billing_subscription.sql (h3) |
@@ -95,22 +95,22 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-072 | Upload intent, quota reservation, direct resumable upload, server validation, finalisation | S10 | uploads pass through server actions and `/api/documents/upload` | M | B1 | Sc23 |
 | R-073 | Photo compression with keep-original; PDFs unchanged | S10, D13 | client-side compression on machine photos only | C | B1 | Sc27 |
 | R-074 | Completed command audio removed; unfinished recoverable; attached evidence retained | S10, D13 | `offline-voice-retention` | C | B1 | Sc28 |
-| R-075 | Pooled storage max(2 GB, 100 MB x F + 25 MB x equipment spaces) + 10 GB blocks | S11, D14 | `usage_for_month` bills all bytes at cost plus markup | C | A3 | Sc24 |
-| R-076 | Warn 80/95%, block only new attachments at full; drafts kept | S11, D15 | none | M | A3 | Sc25 |
-| R-077 | Auto storage blocks OFF by default, owner monthly rand ceiling, transactional | S11, D34 | none | M | A3 | Sc26 |
-| R-078 | No automatic transfer overage bills; old R3/GB retired | S11, D36 | `usage_rates` has no transfer rate | E | A3 | Sc26 |
+| R-075 | Pooled storage max(2 GB, 100 MB x F + 25 MB x equipment spaces) + 10 GB blocks | S11, D14 | `usage_for_month` bills all bytes at cost plus markup | E (A3) | A3 | Sc24: storage_pool.sql [24], storage-allowance.test.ts |
+| R-076 | Warn 80/95%, block only new attachments at full; drafts kept | S11, D15 | none | E (A3; no browser walk) | A3 | Sc25: storage_pool.sql [25], upload/server.test.ts |
+| R-077 | Auto storage blocks OFF by default, owner monthly rand ceiling, transactional | S11, D34 | none | E (A3) | A3 | Sc26: storage_pool.sql [26], storage_blocks.sql [26] |
+| R-078 | No automatic transfer overage bills; old R3/GB retired | S11, D36 | `usage_rates` has no transfer rate | E (A3: cost-plus storage invoices removed too) | A3 | Sc26: storage_blocks.sql [meter], usage-billing.test.ts |
 
 ### AI, voice, WhatsApp, chat (S12, S13, S14)
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-080 | One customer-wide monthly rand cap for AI, voice, paid WhatsApp; owner sets it; no R200 default; blank is not unlimited | S12, D23 | per-farm `ai_default_limit_cents` 20000 (20261004100000) | C | A3 | Sc30 |
-| R-081 | Reservation before paid work incl. 30% markup and in-flight work; settle; staff sublimits | S12 | AI ledger holds (`ai_reservations`) | C | A3 | Sc31 |
-| R-082 | Free WhatsApp message R0; AI billed once; BYOK not rebilled | S12, D24 | `farm_ai_keys`, `usage_rates` | C | A3 | Sc32 |
-| R-083 | Invoice uniqueness per customer + period + category | S12, S15 | `billing_invoices_farm_period_uq`; usage invoices by `runOnce` | E (A2 for subscription kinds; A3 for usage) | A2, A3 | Sc10 |
+| R-080 | One customer-wide monthly rand cap for AI, voice, paid WhatsApp; owner sets it; no R200 default; blank is not unlimited | S12, D23 | per-farm `ai_default_limit_cents` 20000 (20261004100000) | E (A3) | A3 | Sc30: assistance_cap.sql [30], [migrate] |
+| R-081 | Reservation before paid work incl. 30% markup and in-flight work; settle; staff sublimits | S12 | AI ledger holds (`ai_reservations`) | E (A3) | A3 | Sc31: assistance_cap.sql [31] |
+| R-082 | Free WhatsApp message R0; AI billed once; BYOK not rebilled | S12, D24 | `farm_ai_keys`, `usage_rates` | X (A3 built and tested; real Meta statuses unverified, B4) | A3 | Sc32: assistance_cap.sql [32], whatsapp/paid.test.ts, delivery.test.ts |
+| R-083 | Invoice uniqueness per customer + period + category | S12, S15 | `billing_invoices_farm_period_uq`; usage invoices by `runOnce` | E (A2 subscription kinds; A3 usage: one usage invoice per customer per day, one storage charge per subscription and month, ledger rows stamped once; corrections as credit NOT built) | A2, A3 | Sc10: billing_payment_integrity.sql, storage_blocks.sql [12] |
 | R-084 | Equipment assistance on Complete limited to permitted tasks; confirmation before writes | S12, D19 | `apply_assistant_proposal` (no profile check) | C | A1 (DB rule), B4 (assistant) | Sc36 |
 | R-085 | WhatsApp text, reminders, photos, voice notes; sender verification, site context, replay protection, app upload link for oversized media; real-phone tests | S13, D21 | `src/lib/whatsapp/*`, 20261015175415, 20261104210000 | X | B4 | Sc33 |
-| R-086 | Paid WhatsApp needs owner acceptance of charges and cap with timestamp/version | S13, D24 | none | M | B4, A3 | Sc33 |
+| R-086 | Paid WhatsApp needs owner acceptance of charges and cap with timestamp/version | S13, D24 | none | X (A3 acceptance, gate and settlement built; B4 real-phone journeys) | B4, A3 | Sc33: assistance_cap.sql [32] |
 | R-087 | General staff chat: direct and group, membership, pagination, retry, unread, attachments, partner isolation | S14, D20 | `chat_*`, `/api/chat`, B1 uploads; shared-job discussions retained | X (B2 isolated; Claude review and live checks pending) | B2 | Sc19, Sc34; staff_chat.sql, protocol/privacy tests, chat_ui_check.mjs; REPORT-B2.md |
 
 ### Billing lifecycle (S15)
@@ -266,9 +266,9 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 
 | ID | Item | Resolution |
 |---|---|---|
-| I-030 | "Attachment storage not metered or enforced" | A3 (R-075 to R-077) |
+| I-030 | "Attachment storage not metered or enforced" | Closed by A3 (R-075 to R-077, 20261118120000/120100) |
 | I-031 | "Slots pooled across a customer's sites: not built" | Stale: built in 20261107150000 (`farms.billed_through`); A1 updates the doc and extends pooling to equipment |
-| I-032 | "WhatsApp provider cost not metered" | Partly stale: `usage_rates` and `usage_for_month` measure sent messages at cost plus markup (20261107150000); paid-flow acceptance and cap open: A3, B4 |
+| I-032 | "WhatsApp provider cost not metered" | A3: on the AI ledger under the spending limit with owner acceptance (20261118120200); off until Rapid Rise sets the start date and rates; real phones B4 |
 | I-033 | "WhatsApp voice notes and photos built, not yet released" | B4 (R-085), X until real-phone tests |
 | I-034 | "accepted-quote recording is open" | Stale: `done_for_you_quotes` built; service orders open: A4 |
 | I-035 | Fleet compliance pack placement (website Complete vs app Professional) | Professional, as S7 lists "fleet evidence packs" under Professional and Complete; A5 aligns the website |
@@ -282,7 +282,7 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-038 | BACKUP restore drill and readiness checklists (§5 to §7) | A6 (R-133) |
 | I-039 | WHATSAPP real-phone linking and messages unverified | B4 (R-085), blocked by I-013 |
 | I-040 | Scattered media caps: `src/app/(app)/finance/actions.ts` 8 MiB, `src/app/(app)/trips/actions.ts` 8 MiB, `src/app/api/assistant/transcribe/route.ts` 2,000,000 bytes, `src/lib/whatsapp/media.ts` 6 MiB/4 MiB, `src/app/(app)/fuel/cards/actions.ts` 2 MiB (keep), admin proof 4 MiB | B1 (R-070, R-071) |
-| I-041 | AI_USAGE "Not built yet": margin change with notice; monthly reconciliation | A3 (R-081, R-083) |
+| I-041 | AI_USAGE "Not built yet": margin change with notice; monthly reconciliation | Still open after A3 (see REPORT-A3.md "Not done"): the ledger now records what a reconciliation needs |
 | I-042 | AI_USAGE "Not built yet": daily canary call | A6 (health checks) |
 | I-043 | AI_USAGE "Not built yet": Azure synthesis and recognition on the server | Classified: engineering improvement, not required by the BRIEF; B1 evaluates it for ten-minute commands |
 | I-044 | BILLING §15b: a real Paystack decline never happened | A2 tests the path; a real decline needs live/test card behaviour (external) |

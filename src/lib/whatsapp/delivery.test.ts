@@ -16,10 +16,16 @@ test("delivery sends only to the live consenting assignee and never blindly retr
   const originalFetch = globalThis.fetch;
   Object.assign(process.env, values);
   try {
-    for (const scenario of ["allowed", "revoked", "opted_out", "different_user", "different_farm", "reassigned", "provider_failure"]) {
+    // paid_*: WhatsApp billing is on (20261118120200). Held: sent and tied to its hold by Meta's
+    // id. Refused (no owner acceptance): never sent, cancelled with the reason, in-app only.
+    // paid_failure: held, the provider fails, the hold is released at R0.
+    for (const scenario of ["allowed", "revoked", "opted_out", "different_user", "different_farm", "reassigned", "provider_failure",
+                            "paid_held", "paid_refused", "paid_failure"]) {
       let state = "queued";
       let sends = 0;
       const patches: Record<string, unknown>[] = [];
+      const holdsSent: Record<string, unknown>[] = [];
+      const holdsReleased: Record<string, unknown>[] = [];
       globalThis.fetch = async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input));
         const method = init?.method ?? "GET";
@@ -31,11 +37,19 @@ test("delivery sends only to the live consenting assignee and never blindly retr
           assert.equal(body.template.name, "fleetwise_assignment");
           assert.equal(body.type, "template");
           assert.equal(body.template.components, undefined, "no private record details in lock-screen notification");
-          return scenario === "provider_failure" ? respond({ error: "provider" }, 503) : respond({ messages: [{ id: "wamid.test" }] });
+          return scenario === "provider_failure" || scenario === "paid_failure"
+            ? respond({ error: "provider" }, 503) : respond({ messages: [{ id: "wamid.test" }] });
         }
         assert.equal(url.hostname, "database.example.test", "no unexpected network request");
         const route = url.pathname.replace("/rest/v1/", "");
         if (route === "rpc/whatsapp_enqueue_notifications") return respond(null);
+        if (route === "rpc/whatsapp_usage_reserve") {
+          assert.deepEqual(body, { p_farm: "farm", p_user: "employee", p_category: "utility" });
+          return respond(scenario === "paid_refused" ? { ok: false, reason: "whatsapp_not_accepted" }
+            : scenario.startsWith("paid_") ? { ok: true, metered: true, id: "hold-1" } : { ok: true, metered: false });
+        }
+        if (route === "rpc/whatsapp_usage_sent") { holdsSent.push(body); return respond(true); }
+        if (route === "rpc/whatsapp_usage_release") { holdsReleased.push(body); return respond({ ok: true }); }
         if (route === "rpc/whatsapp_delivery_target") return respond(scenario === "revoked" ? null : {
           id: "link", user_id: "employee", farm_id: "farm", phone: "27820000001", notifications_enabled: scenario !== "opted_out",
         });
@@ -54,9 +68,15 @@ test("delivery sends only to the live consenting assignee and never blindly retr
         throw new Error(`Unexpected mock route ${method} ${route}`);
       };
       const result = await deliverWhatsAppNotifications();
-      assert.equal(sends, ["allowed", "provider_failure"].includes(scenario) ? 1 : 0, scenario);
-      assert.equal(result.sent, scenario === "allowed" ? 1 : 0, scenario);
-      assert.equal(state, scenario === "allowed" ? "sent" : scenario === "provider_failure" ? "failed" : "cancelled", scenario);
+      assert.equal(sends, ["allowed", "provider_failure", "paid_held", "paid_failure"].includes(scenario) ? 1 : 0, scenario);
+      assert.equal(result.sent, scenario === "allowed" || scenario === "paid_held" ? 1 : 0, scenario);
+      assert.equal(state, scenario === "allowed" || scenario === "paid_held" ? "sent"
+        : scenario === "provider_failure" || scenario === "paid_failure" ? "failed" : "cancelled", scenario);
+      assert.deepEqual(holdsSent, scenario === "paid_held" ? [{ p_reservation: "hold-1", p_provider_message_id: "wamid.test" }] : [], scenario);
+      assert.deepEqual(holdsReleased, scenario === "paid_failure" ? [{ p_reservation: "hold-1", p_error_code: "send_failed" }] : [], scenario);
+      if (scenario === "paid_refused") {
+        assert.ok(patches.some((p) => p.state === "cancelled" && p.error_code === "paid_whatsapp_not_accepted"), "refused with its reason");
+      }
       if (scenario === "provider_failure") {
         await deliverWhatsAppNotifications();
         assert.equal(sends, 1, "unknown delivery must not automatically post again");
@@ -101,6 +121,8 @@ test("cached assistant details require unchanged permissions, including recovery
         }
         assert.equal(url.hostname, "database.example.test");
         const route = url.pathname.replace("/rest/v1/", "");
+        // WhatsApp billing off (the default until Rapid Rise sets it): replies are not held.
+        if (route === "rpc/whatsapp_usage_reserve") return respond({ ok: true, metered: false });
         if (route === "rpc/whatsapp_claim") return respond([{ id: "message", link_id: "link", message_text: "repeat",
           message_at: new Date().toISOString(), reply: scenario === "recovered_reply" ? "PRIVATE COST" : null }]);
         if (route === "rpc/whatsapp_delivery_target") {

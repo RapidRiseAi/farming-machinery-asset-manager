@@ -113,6 +113,10 @@ function aiPaused(reason: Exclude<HoldRefusal, "not_member" | "unavailable" | "v
     billing_paused: af
       ? "AI en stem is gepouseer omdat 'n betaling agterstallig is. Jou rekords werk steeds; die eienaar kan op die faktureringsbladsy betaal."
       : "AI and voice are paused because a payment is overdue. Your records still work; the owner can pay on the billing page.",
+    // No monthly limit chosen yet (20261118120200): no paid help until the owner picks one.
+    budget_unset: af
+      ? "Betaalde AI-hulp is nog nie aan nie: die eienaar het nog nie 'n maandelikse limiet gekies nie (Instellings, AI en stem). Tik en die gewone vorms werk steeds."
+      : "Paid AI help is not on yet: the owner has not chosen a monthly limit (Settings, AI and voice). Typing and the normal forms still work.",
   }[reason];
   return { kind: "error", code: "ai_paused", reason, message };
 }

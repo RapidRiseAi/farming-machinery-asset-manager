@@ -108,6 +108,23 @@ test("begin passes on what the database says: finished, already uploaded, refusa
   assert.deepEqual(refusalFromDb({ code: "42501", message: "forbidden" }), { state: "refused", code: "forbidden", status: 403 });
 });
 
+test("scenario 25: a full pool tells the owners (the refusal rolled its own work back), and the answer stays the refusal", async () => {
+  const { svc } = fakeSvc(null);
+  const fake = fakeDb({
+    upload_begin: { error: { code: "P0001", message: "upload:storage_full" } },
+    storage_note_full: { error: { code: "XX000", message: "boom" } },
+  });
+  const full = await beginUpload(fake.db, svc, input(1000), "https://p");
+  assert.deepEqual(full, { state: "refused", code: "upload-storage-full", status: 507 });
+  assert.deepEqual(fake.calls.map((c) => c.fn), ["upload_begin", "storage_note_full"]);
+  assert.deepEqual(fake.calls[1].args, { p_farm: FARM });
+  // Any other refusal tells nobody.
+  const big = fakeDb({ upload_begin: { error: { code: "P0001", message: "upload:too_large" } } });
+  await beginUpload(big.db, svc, input(1000), "https://p");
+  assert.deepEqual(big.calls.map((c) => c.fn), ["upload_begin"]);
+  assert.deepEqual(refusalFromDb({ code: "42501", message: "forbidden" }), { state: "refused", code: "forbidden", status: 403 });
+});
+
 const intentRow = (over: Partial<IntentRow> = {}): IntentRow => ({
   id: INTENT, user_id: USER, farm_id: FARM, workshop_id: null, target_kind: "machine", target_id: MACHINE,
   bucket: "machine-photos", object_path: reserved.object_path, media_class: "photo", declared_mime: "image/jpeg",

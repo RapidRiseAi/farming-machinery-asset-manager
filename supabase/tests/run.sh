@@ -285,6 +285,14 @@ pg "$DB" < "$ROOT/supabase/tests/billing_payment_integrity.sql"
 echo "==> running sign-up capacity tests (equipment at sign-up, the 200 line, quote requests)"
 pg "$DB" < "$ROOT/supabase/tests/billing_signup_capacity.sql"
 
+echo "==> running pooled storage tests (the allowance, full storage, warnings, automatic blocks)"
+pg "$DB" < "$ROOT/supabase/tests/storage_pool.sql"
+echo "==> running storage block billing tests (block quotes, the month's blocks, the usage invoice)"
+pg "$DB" < "$ROOT/supabase/tests/storage_blocks.sql"
+
+echo "==> running assistance spending cap tests (no default, one budget per customer, WhatsApp at R0 when free)"
+pg "$DB" < "$ROOT/supabase/tests/assistance_cap.sql"
+
 echo "==> running private staff chat tests"
 pg "$DB" < "$ROOT/supabase/tests/staff_chat.sql"
 echo "==> running manual driving log tests"

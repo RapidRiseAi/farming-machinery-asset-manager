@@ -758,3 +758,37 @@ policy (decision 40, task A4): nothing here deletes anything.
 
 Tests: `supabase/tests/billing_lifecycle.sql` (scenarios 11 and 40), `pay_gate.sql`,
 `src/lib/billing/lifecycle.test.ts`.
+
+## 18. Storage blocks and the usage invoice (20261118120000, 20261118120100)
+
+- **Price.** R49 per 10 GB block per month (`billing_settings.storage_block_monthly_incl_cents`,
+  snapshotted on every charge), monthly whatever the software term: no annual storage discount.
+- **Storage month.** The period for a monthly subscription; for an annual one, months stepped
+  from the period start on the anchor day (`app.storage_month`).
+- **Buying by hand** is an A2 quote with change `storage`: priced for the days left in the
+  storage month, accepted with the amounts shown, and the block exists only once its change
+  invoice is paid (the same trigger, credit first, under R1 waived, voided at expiry). Refused
+  in the grace (`app.farm_paid_extras_allowed`).
+- **Fewer blocks** are scheduled (`pending_storage_blocks`) for the next storage month and
+  refused while the files would not fit the smaller allowance (`storage-reduction-over-usage`).
+  Buying more cancels a scheduled reduction. Nothing is ever deleted.
+- **Automatic blocks** (decision 34) are off by default. The owner switches them on with a
+  monthly rand ceiling that counts the blocks held (R98 = two blocks in total) and accepts the
+  terms (`storage-auto-2026-11`). Under the pool lock and the subscription lock the block is
+  added at once; its pro-rata part is a `storage_charges` row for the next invoice.
+- **The monthly charge** is one `storage_charges` row per subscription and month (unique).
+  A monthly subscription's period invoice carries the month it opens; an annual one's period
+  invoice carries its first month and the usage invoice (kind `ai_usage`, now "usage") the
+  later months on the day each starts. `billing_invoices.storage_incl_cents` is never
+  discounted and is frozen once issued.
+- **The usage invoice** is raised for the billing site with the AI, voice and WhatsApp use of
+  every site billed through it (a pooled site's use used to wait forever), at most one per
+  customer per South African day (`billing_invoices_usage_day_uq`). Every ledger row and
+  storage charge is stamped onto one invoice once.
+- **Retired:** `usage_for_month` priced all measured gigabytes at cost plus the markup and
+  /admin/usage could raise it as an invoice. It now reports the month's measured storage for
+  Rapid Rise's own cost view; no invoice is raised from it, and there are no transfer charges.
+
+Tests: `supabase/tests/storage_pool.sql` (scenarios 24, 25, 26), `storage_blocks.sql`
+(scenarios 12, 26), `billing_payment_integrity.sql` (the day index),
+`src/lib/storage-allowance.test.ts`, `src/lib/upload/server.test.ts`.

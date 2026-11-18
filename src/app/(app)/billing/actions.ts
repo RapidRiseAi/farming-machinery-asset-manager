@@ -27,6 +27,9 @@ import {
 import { runOnce } from "@/lib/request-claim";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import { retryInvoiceCharge } from "@/lib/billing/worker";
+import { quoteStorage, setStorageAuto } from "@/lib/billing/storage";
+import { randsToCents } from "@/lib/trips";
+import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /**
@@ -142,13 +145,20 @@ function changeTarget(formData: FormData): {
 
 export async function requestChange(formData: FormData): Promise<void> {
   const { profile, farmId } = await requireBillingAdmin();
-  const target = changeTarget(formData);
+  const storage = String(formData.get("change") ?? "") === "storage";
+  // Storage blocks (20261118120100): the number of 10 GB blocks to hold from today, priced and
+  // kept as a quote by the same engine as every other change.
+  const blocks = storage ? Number.parseInt(String(formData.get("blocks") ?? "").trim(), 10) : Number.NaN;
+  if (storage && (!Number.isSafeInteger(blocks) || blocks < 0 || blocks > 1000)) bounce("billing-quantity-invalid");
+  const target = storage ? null : changeTarget(formData);
 
   const supabase = createServiceClient();
   const sub = await farmSubscription(supabase, farmId);
   if (!sub) bounce("billing-no-subscription");
 
-  const { state, error } = await quoteChange(supabase, { subscriptionId: sub.id, by: profile.id, ...target });
+  const { state, error } = target
+    ? await quoteChange(supabase, { subscriptionId: sub.id, by: profile.id, ...target })
+    : await quoteStorage(supabase, { subscriptionId: sub.id, blocks, by: profile.id });
   if (error) bounce(changeRefusal(error) ?? "billing-change-failed");
   if (!state) bounce("billing-change-failed");
   if (state.kind === "no_change") redirect("/billing?saved=no-change");
@@ -274,6 +284,27 @@ export async function cancelChange(formData: FormData): Promise<void> {
   revalidatePath("/billing");
   redirect("/billing?saved=change-cancelled");
 }
+/**
+ * Automatic 10 GB blocks (decision 34): off by default; on only with a monthly rand ceiling that
+ * counts the blocks already held, and the owner's acceptance of how they are charged. Through
+ * the owner's own session: public.storage_set_auto checks the payer and the pay gate itself.
+ */
+export async function saveStorageAuto(formData: FormData): Promise<void> {
+  const { farmId } = await requireBillingAdmin();
+  const enabled = formData.get("auto") === "1";
+  let ceiling: number | null = null;
+  if (enabled) {
+    if (formData.get("accept") !== "1") bounce("storage-terms-required");
+    ceiling = randsToCents(String(formData.get("ceiling") ?? "").trim());
+    if (ceiling == null || !Number.isSafeInteger(ceiling) || ceiling < 0) bounce("storage-ceiling-invalid");
+  }
+  const supabase = await createClient();
+  const refused = await setStorageAuto(supabase, { farmId, enabled, ceilingCents: ceiling });
+  if (refused) bounce(refused);
+  revalidatePath("/billing");
+  redirect(enabled ? "/billing?saved=storage-auto-on#storage" : "/billing?saved=storage-auto-off#storage");
+}
+
 export async function startCheckout(): Promise<void> {
   const { profile, farmId } = await requireBillingAdmin();
   const supabase = createServiceClient();

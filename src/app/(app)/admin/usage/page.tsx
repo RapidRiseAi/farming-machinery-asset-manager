@@ -7,22 +7,23 @@ import { must } from "@/lib/supabase/must";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { routingConfig } from "@/lib/routing/providers";
-import { monthStart, usageCharge, type UsageRates } from "@/lib/usage-billing";
+import { monthStart, usageCost, type UsageRates } from "@/lib/usage-billing";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Flash } from "@/components/ui/flash";
 import { Input } from "@/components/ui/input";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
-import { RequestIdInput } from "@/components/ui/request-id-input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
-import { raiseUsageInvoice, saveUsageRates } from "./actions";
+import { saveUsageRates } from "./actions";
 
 /**
- * WhatsApp messages and storage per business, at cost plus the markup. Internal, English-only
- * like the rest of the RR console. Messages are counted for the month chosen; storage is what
- * each business holds now.
+ * WhatsApp messages and storage per business, at what they cost Rapid Rise. Internal,
+ * English-only like the rest of the RR console. Messages are counted for the month chosen;
+ * storage is the nightly measure's last day in that month. Nothing is invoiced from here
+ * (20261118120100): customers pay for storage through the allowance and R49 blocks and for paid
+ * WhatsApp through the usage ledger, under their spending limit.
  */
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,6 @@ export default async function AdminUsagePage({
   const usage = (must(await svc.rpc("usage_for_month", { p_month: month }), "admin-usage:usage") ?? []) as Usage[];
   const farms = (must(await supabase.from("farms").select("id, name").limit(2000), "admin-usage:farms") ?? []) as { id: string; name: string }[];
   const nameOf = new Map(farms.map((f) => [f.id, f.name]));
-  const priced = rates?.whatsapp_message_cents != null || rates?.storage_gb_month_cents != null;
 
   // Route planning (20261111090000): requests per business, and trips planned, this month.
   // The founder's rule: Mapbox until trips pass about a thousand a month, then the own server.
@@ -69,14 +69,14 @@ export default async function AdminUsagePage({
 
   return (
     <PageContainer size="wide">
-      <PageHeader title="Usage" lead="Messages and storage per business, passed on at cost plus the markup." />
+      <PageHeader title="Usage" lead="What messages and storage cost Rapid Rise, per business. Customers are billed through storage blocks and the usage ledger, never from this page." />
       <Flash tone="error" message={errorMessage(sp.error, profile.lang)} />
-      <Flash tone="success" message={sp.saved === "invoice" ? "Usage invoice raised." : sp.saved ? t("ui.saved", profile.lang) : undefined} />
+      <Flash tone="success" message={sp.saved ? t("ui.saved", profile.lang) : undefined} />
 
       <Card>
         <CardHeader><CardTitle as="h3">What each costs Rapid Rise</CardTitle></CardHeader>
         <p className="mb-3 text-sm text-sand-600">
-          Read these from the provider&apos;s own account. Until a cost is set, nothing is charged for it.
+          Read these from the provider&apos;s own account. They are Rapid Rise&apos;s costs for this view only. WhatsApp prices that customers pay are set per category in the AI prices (model whatsapp/utility and so on).
         </p>
         <form action={saveUsageRates} className="grid gap-3 sm:grid-cols-3">
           <Field label="One WhatsApp message (R)" htmlFor="u_wa">
@@ -109,30 +109,19 @@ export default async function AdminUsagePage({
                 <Tr>
                   <Th>Business</Th>
                   <Th>Messages sent</Th>
-                  <Th>Stored now</Th>
-                  <Th>To charge</Th>
-                  <Th><span className="sr-only">Invoice</span></Th>
+                  <Th>Stored (measured)</Th>
+                  <Th>Cost to Rapid Rise</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {usage.map((u) => {
-                  const charge = rates ? usageCharge(u, rates) : null;
+                  const cost = rates ? usageCost(u, rates) : null;
                   return (
                     <Tr key={u.farm_id}>
                       <Td>{nameOf.get(u.farm_id) ?? u.farm_id}</Td>
                       <Td className="tnum">{num(Number(u.whatsapp_sent))}</Td>
-                      <Td className="tnum">{charge ? `${num(charge.gigabytes)} GB` : "-"}</Td>
-                      <Td className="tnum">{charge && priced ? rands(charge.totalCents) : "Set the costs first"}</Td>
-                      <Td className="text-right">
-                        {charge && charge.totalCents > 0 ? (
-                          <form action={raiseUsageInvoice}>
-                            <RequestIdInput action="admin-usage:invoice" />
-                            <input type="hidden" name="farm_id" value={u.farm_id} />
-                            <input type="hidden" name="month" value={month} />
-                            <SubmitButton variant="secondary" size="sm">Raise invoice</SubmitButton>
-                          </form>
-                        ) : null}
-                      </Td>
+                      <Td className="tnum">{cost ? `${num(cost.gigabytes)} GB` : "-"}</Td>
+                      <Td className="tnum">{cost ? rands(cost.totalCents) : "-"}</Td>
                     </Tr>
                   );
                 })}

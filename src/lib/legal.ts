@@ -28,9 +28,11 @@
  *   · the 99.5% availability target is the one stated in `docs/BACKUP.md`
  *   · the sub-processor list is the one in `docs/POPIA.md` §5.3, checked against the code
  *     that calls each service (13 November 2026)
- *   · the usage charges come from `docs/AI_USAGE.md` (AI and voice, cost plus a margin, owner
- *     limits on /settings/ai) and `usage_rates` / `usage_for_month` (20261107150000:
- *     WhatsApp messages and storage, invoiced from /admin/usage)
+ *   · the usage charges come from `docs/AI_USAGE.md` (AI and voice, cost plus a margin) and,
+ *     since 2026-11-18, the customer's one spending limit chosen by the owner, with paid
+ *     WhatsApp on it after the owner accepts (20261118120200), the pooled storage allowance
+ *     and R49 blocks (20261118120000, 20261118120100); the old cost-plus storage and message
+ *     invoices from /admin/usage are gone
  *   · the cookies are the ones the code sets (`fw_*` by name, Supabase's sign-in cookies by
  *     @supabase/ssr), and the browser storage the ones it reads and writes
  *   · location and its 180 days come from `asset_positions` (20261107120000) and the three
@@ -40,7 +42,7 @@
  */
 
 /** The wording currently live. Recorded against every sign-up that accepts it. */
-export const TERMS_VERSION = "2026-11-15";
+export const TERMS_VERSION = "2026-11-18";
 
 export const COMPANY = {
   legalName: "Rapid Rise AI (Pty) Ltd",
@@ -84,8 +86,9 @@ export const TERMS: Clause[] = [
       "Paying yearly costs ten months instead of twelve.",
       "Done-For-You is remote fleet management that we quote for your fleet in writing. Nothing is charged for it until you accept the quote.",
       "On top of the price per vehicle, the AI help and the voice assistant are charged for as they are used, at what they cost us plus a markup. Your owners can see that use, by person, under Settings, AI, and it is billed on your billing date, on your plan's invoice or on one of its own, which lists who used it. Use through your business's own OpenAI key, if you link one, is paid to OpenAI by you and is not charged by us.",
-      "Every business has a monthly limit for AI and voice use. Once you have paid us for the first time, your owners can change it under Settings, AI, and can set a limit for each person as well. Owners are told when 80% of the limit is used and when it is reached; at the limit, voice and AI help pause until the next month or until the limit is raised, and everything else keeps working.",
-      "WhatsApp messages we send for your business, and the files you store in FLEETWISE, can also be charged at what they cost us plus a markup. Such a charge comes on an invoice of its own that says how many messages and how much storage it covers.",
+      "Paid AI help, voice and paid WhatsApp messages share one monthly limit for your whole business, across all its sites, and your owner chooses it under Settings, AI and voice. Until a limit is chosen nothing paid runs, and a limit of R0 means no paid help. Owners can also set a lower limit for each person. Owners are told when 80% of the limit is used and when it is reached; at the limit paid help pauses until the next month or until the limit is raised, and everything else keeps working. The month starts at midnight South African time on the 1st, for monthly and yearly plans alike. Until you have paid us for the first time a lower starting cap applies.",
+      "Once your owner has accepted it, WhatsApp messages that Meta charges us for are charged at what they cost us plus a markup, within the same monthly limit. Messages Meta does not charge for cost nothing.",
+      "The files you attach share one storage allowance for your whole business: at least 2 GB, plus 100 MB for each full space and 25 MB for each equipment space. Extra storage is R49 a month for each 10 GB, charged monthly also with yearly plans, and only after your owner accepts it or switches on automatic extra storage with a monthly limit. When storage is full, new attachments pause and everything else keeps working; nothing is deleted. Viewing and downloading your files is not charged.",
       "You pay by card through Paystack. Your card details go to Paystack and never reach our servers; we keep only the last four digits and the card’s expiry, so you can tell which card is on file.",
       "The subscription renews automatically at the end of each period, for the same plan and the same number of vehicle slots, until you cancel. We email a receipt for every payment.",
     ],

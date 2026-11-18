@@ -51,6 +51,12 @@ insert into users (id, farm_id, workshop_id, role, name, email, active) values
   ('a1a00000-0000-4000-9000-000000000006', 'a1000000-0000-4000-9000-000000000002', null, 'owner',    'AI Partner',      'ai.partner@example.invalid',   true);
 insert into user_farm_memberships (user_id, farm_id, role) values
   ('a1a00000-0000-4000-9000-000000000006', 'a1000000-0000-4000-9000-000000000001', 'owner');
+-- Since 20261118120200 a customer has paid assistance only once its owner has chosen a monthly
+-- limit (no default). These two chose R200, the amount this suite was written against; the
+-- unchosen case is assistance_cap.sql's.
+insert into public.assistance_budgets (farm_id, monthly_limit_cents, source) values
+  ('a1000000-0000-4000-9000-000000000001', 20000, 'owner'),
+  ('a1000000-0000-4000-9000-000000000002', 20000, 'owner');
 
 -- [1] Arithmetic: the margin is applied, and the month is Johannesburg's.
 do $$
@@ -387,7 +393,7 @@ declare
   v_spent numeric;
 begin
   delete from public.farm_member_ai_limits where farm_id = v_farm;
-  update public.farm_ai_settings set monthly_limit_cents = null where farm_id = v_farm;
+  update public.assistance_budgets set monthly_limit_cents = 20000 where farm_id = v_farm;
   update public.ai_reservations set settled_at = now() where farm_id = v_farm and settled_at is null;
   v := app.ai_open_voice_session(v_farm, v_user, 30000, 500, 'test-1');
   v_session := (v->>'session_id')::uuid;
@@ -427,7 +433,7 @@ begin
   -- A session the month cannot take whole is shrunk to what is left, not refused; below
   -- ten seconds it is refused. A token's session says so.
   v_spent := app.ai_month_spend(v_farm, app.ai_month(now()));
-  update public.farm_ai_settings set monthly_limit_cents = ceil(v_spent)::bigint + 50 where farm_id = v_farm;
+  update public.assistance_budgets set monthly_limit_cents = ceil(v_spent)::bigint + 50 where farm_id = v_farm;
   v := app.ai_open_voice_session(v_farm, v_user, 120000, 1500, 'test-1', 'token');
   if not coalesce((v->>'ok')::boolean, false) or (v->>'max_audio_ms')::integer >= 120000
      or (v->>'max_audio_ms')::integer < 10000 or (v->>'estimate_cents')::numeric > 50 then
@@ -437,12 +443,12 @@ begin
     raise exception 'AI USAGE FAIL [7]: a token''s session was not recorded as one';
   end if;
   v_spent := app.ai_month_spend(v_farm, app.ai_month(now()));
-  update public.farm_ai_settings set monthly_limit_cents = ceil(v_spent)::bigint + 1 where farm_id = v_farm;
+  update public.assistance_budgets set monthly_limit_cents = ceil(v_spent)::bigint + 1 where farm_id = v_farm;
   v := app.ai_open_voice_session(v_farm, v_user, 120000, 1500, 'test-1', 'meter');
   if v->>'reason' is distinct from 'farm_limit' then
     raise exception 'AI USAGE FAIL [7]: a session below the ten-second floor was not refused: %', v;
   end if;
-  update public.farm_ai_settings set monthly_limit_cents = null where farm_id = v_farm;
+  update public.assistance_budgets set monthly_limit_cents = 20000 where farm_id = v_farm;
 end $$;
 
 -- [8] A hold the server never settled is closed by the sweep as unknown, billed nothing.
@@ -542,14 +548,15 @@ begin
   if app.ai_open_voice_session(v_farm, v_manager, 120000, 1500, 'legacy', 'token')->>'reason' is distinct from 'voice_off' then
     raise exception 'AI USAGE FAIL [11]: voice switched off still opened a token''s session';
   end if;
-  update public.farm_ai_settings set voice_enabled = true, monthly_limit_cents = 0 where farm_id = v_farm;
+  update public.farm_ai_settings set voice_enabled = true where farm_id = v_farm;
+  update public.assistance_budgets set monthly_limit_cents = 0 where farm_id = v_farm;
   if app.ai_open_voice_session(v_farm, v_manager, 120000, 1500, 'legacy', 'token')->>'reason' is distinct from 'farm_limit' then
     raise exception 'AI USAGE FAIL [11]: a farm with no budget left still opened a token''s session';
   end if;
   if not coalesce((app.ai_open_voice_session(v_farm, 'a1a00000-0000-4000-9000-000000000005', 120000, 1500, 'x', 'token')->>'ok')::boolean, false) then
     raise exception 'AI USAGE FAIL [11]: Rapid Rise support was stopped by a customer limit';
   end if;
-  update public.farm_ai_settings set monthly_limit_cents = null where farm_id = v_farm;
+  update public.assistance_budgets set monthly_limit_cents = 20000 where farm_id = v_farm;
 end $$;
 
 -- [11b] Tokens are capped per person (each works on the whole Speech resource for about

@@ -16,7 +16,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
-import { acceptHeldPrice, resolveAiHealthEvent, setAiInvoicing, setAiMargin, setManualFxRate } from "./actions";
+import { Select } from "@/components/ui/select";
+import { acceptHeldPrice, resolveAiHealthEvent, setAiInvoicing, setAiMargin, setManualFxRate, setWhatsappBilling } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
   const [settingsRes, fxRes, summaryRes, healthRes, pricesRes] = await Promise.all([
     // The platform's own AI pricing is not readable by signed-in users (20261013130000):
     // read with the service client, behind this page's rr_admin check above.
-    createServiceClient().from("billing_settings").select("ai_margin_bps, ai_default_limit_cents, ai_trial_limit_cents, ai_billing_starts_on, ai_min_invoice_cents").eq("singleton", true).maybeSingle(),
+    createServiceClient().from("billing_settings").select("ai_margin_bps, ai_default_limit_cents, ai_trial_limit_cents, ai_billing_starts_on, ai_min_invoice_cents, whatsapp_billing_starts_on, supplier_tax_treatment").eq("singleton", true).maybeSingle(),
     supabase.from("fx_rates").select("day, usd_zar, source").order("day", { ascending: false }).limit(1).maybeSingle(),
     supabase.rpc("ai_admin_month", { p_month: month }),
     readAll(() => supabase.from("ai_health_events").select("id, kind, subject, detail, created_at").is("resolved_at", null).order("created_at", { ascending: false })),
@@ -55,6 +56,8 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
   const marginBps = Number(settingsRes.data?.ai_margin_bps ?? 3000);
   const billingStarts = (settingsRes.data?.ai_billing_starts_on as string | null | undefined) ?? null;
   const minInvoiceCents = Number(settingsRes.data?.ai_min_invoice_cents ?? 5000);
+  const whatsappStarts = (settingsRes.data?.whatsapp_billing_starts_on as string | null | undefined) ?? null;
+  const supplierTax = String(settingsRes.data?.supplier_tax_treatment ?? "unconfirmed");
   const fx = fxRes.data ? Number(fxRes.data.usd_zar) : null;
   const summary = (summaryRes.data ?? { platform_cost_usd: 0, billed_cents: 0, farms: [] }) as MonthSummary;
   const farms = summary.farms ?? [];
@@ -156,6 +159,57 @@ export default async function AdminAiPage({ searchParams }: { searchParams: Prom
                 </Field>
                 <Field label={t("aiUsage.admin.invoicingMinimumField", locale)} htmlFor="ai-invoicing-minimum">
                   <Input id="ai-invoicing-minimum" name="minimum" inputMode="decimal" required defaultValue={String(minInvoiceCents / 100)} />
+                </Field>
+              </DialogFields>
+              <DialogActions cancelLabel={t("common.cancel", locale)}>
+                <SubmitButton>{t("common.save", locale)}</SubmitButton>
+              </DialogActions>
+            </form>
+          </DialogForm>
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>{t("aiUsage.admin.whatsappTitle", locale)}</CardTitle>
+        <dl className="mt-3 divide-y divide-edge-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <dt className="text-sm text-sand-800">{t("aiUsage.admin.whatsappStarts", locale)}</dt>
+            <dd className="text-sm font-medium">{whatsappStarts ? shortDate(whatsappStarts, locale) : t("aiUsage.admin.invoicingOff", locale)}</dd>
+          </div>
+          {(["utility", "service", "marketing", "authentication"] as const).map((category) => {
+            const price = prices.get(`whatsapp/${category} message`);
+            return (
+              <div key={category} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <dt className="text-sm text-sand-800">{t(`aiUsage.admin.whatsappRate_${category}`, locale)}</dt>
+                <dd className="text-sm font-medium tabular-nums">{price ? `$${num(Number(price.usd_per_unit), 4)}` : "-"}</dd>
+              </div>
+            );
+          })}
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <dt className="text-sm text-sand-800">{t("aiUsage.admin.supplierTax", locale)}</dt>
+            <dd className="text-sm font-medium">{t(`aiUsage.admin.supplierTax_${supplierTax}`, locale)}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-xs leading-5 text-ink-muted">{t("aiUsage.admin.whatsappNote", locale)}</p>
+        <div className="mt-3">
+          <DialogForm trigger={t("aiUsage.admin.whatsappChange", locale)} title={t("aiUsage.admin.whatsappTitle", locale)}
+            description={t("aiUsage.admin.whatsappHelp", locale)} closeLabel={t("ui.close", locale)} triggerVariant="secondary">
+            <form action={setWhatsappBilling}>
+              <DialogFields>
+                <Field label={t("aiUsage.admin.whatsappStartsField", locale)} htmlFor="wa-starts">
+                  <Input id="wa-starts" name="starts" type="date" defaultValue={whatsappStarts ?? ""} />
+                </Field>
+                {(["utility", "service", "marketing", "authentication"] as const).map((category) => (
+                  <Field key={category} label={t(`aiUsage.admin.whatsappRate_${category}`, locale)} htmlFor={`wa-rate-${category}`}>
+                    <Input id={`wa-rate-${category}`} name={`rate_${category}`} inputMode="decimal" />
+                  </Field>
+                ))}
+                <Field label={t("aiUsage.admin.supplierTax", locale)} htmlFor="wa-tax">
+                  <Select id="wa-tax" name="tax" defaultValue={supplierTax}>
+                    {(["unconfirmed", "no_vat_charged", "vat_charged_claimable", "vat_charged_not_claimable"] as const).map((v) => (
+                      <option key={v} value={v}>{t(`aiUsage.admin.supplierTax_${v}`, locale)}</option>
+                    ))}
+                  </Select>
                 </Field>
               </DialogFields>
               <DialogActions cancelLabel={t("common.cancel", locale)}>

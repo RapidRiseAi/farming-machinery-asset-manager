@@ -180,9 +180,11 @@ export async function POST(request: Request) {
     source: "token",
   });
   if (!session.ok) {
-    if (session.reason === "farm_limit" || session.reason === "member_limit") {
+    // No limit chosen (20261118120200) reads to the app as the business's limit: nothing paid runs.
+    if (session.reason === "farm_limit" || session.reason === "member_limit" || session.reason === "budget_unset") {
       return NextResponse.json(
-        { error: "ai_limit_reached", scope: session.reason === "farm_limit" ? "farm" : "member" },
+        { error: "ai_limit_reached", scope: session.reason === "member_limit" ? "member" : "farm",
+          ...(session.reason === "budget_unset" ? { budget: "unset" } : {}) },
         { status: 402, headers: PRIVATE_NO_STORE_HEADERS },
       );
     }
