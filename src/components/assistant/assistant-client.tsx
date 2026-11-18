@@ -1,5 +1,6 @@
 "use client";
 
+import { contentRequestId, newRequestId } from "@/lib/request-id";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -292,6 +293,8 @@ export function AssistantClient({
   const confidenceWeightRef = useRef(0);
   const captureIdRef = useRef<string | null>(null);
   const lastRequestRef = useRef<AssistantTurnRequest | null>(null);
+  // The request id of the request in flight, kept until it is answered (see submitRequest).
+  const turnIdRef = useRef<{ key: string; id: string } | null>(null);
   const spokenClarificationRef = useRef<{
     turn: ClarifyTurn;
     field: ClarifyTurn["fields"][number];
@@ -639,6 +642,14 @@ export function AssistantClient({
         confirmedActionRef.current = null;
       }
       lastRequestRef.current = requestBody;
+      // One request id per request until it is answered (the server claims it): the same
+      // request sent again after a lost answer gets the first answer back instead of a second
+      // paid turn. A different request (a clarification, an edited retry) is a new id.
+      const asked: AssistantTurnRequest = { ...requestBody };
+      delete asked.requestId;
+      const askedKey = JSON.stringify(asked);
+      if (turnIdRef.current?.key !== askedKey) turnIdRef.current = { key: askedKey, id: newRequestId() };
+      const sentBody: AssistantTurnRequest = { ...asked, requestId: turnIdRef.current.id };
       setPhase("interpreting");
       setError(null);
       setPausedNotice(null);
@@ -650,10 +661,12 @@ export function AssistantClient({
           credentials: "same-origin",
           cache: "no-store",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify(sentBody),
           signal: controller.signal,
         });
         const next = responseError(await response.json().catch(() => null), locale);
+        // Answered (even with a refusal the server did not keep): the next request is new.
+        if (response.status !== 409) turnIdRef.current = null;
         if (!mountedRef.current || operation !== operationRef.current) return null;
         if (response.ok && next.kind === "error" && next.code === "ai_paused") {
           setTurn(null);
@@ -1109,7 +1122,8 @@ export function AssistantClient({
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
-        headers: { "Content-Type": "audio/wav" },
+        // The clip's own digest names the request: the same clip again is the same hearing.
+        headers: { "Content-Type": "audio/wav", "x-request-id": await contentRequestId(`transcribe:${speechLanguage}`, clip) },
         body: clip,
         signal,
       });

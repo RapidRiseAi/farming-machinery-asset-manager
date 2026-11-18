@@ -20,6 +20,8 @@ insert into public.users (id, farm_id, role, name, email, active) values
 insert into public.machines (id, farm_id, name, type) values
   ('e7200000-0000-4000-9000-000000000001', 'e7000000-0000-4000-9000-000000000001', 'Truck 1', 'truck'),
   ('e7200000-0000-4000-9000-000000000002', 'e7000000-0000-4000-9000-000000000001', 'Truck 2', 'truck');
+-- Routes need the map released to the business as well as Complete (20261119090000).
+insert into public.farm_feature_access (farm_id, key) values ('e7000000-0000-4000-9000-000000000001', 'map');
 
 create or replace function pg_temp.as_user(p uuid) returns void language sql as $$
   select pg_catalog.set_config('request.jwt.claims', json_build_object('sub', p, 'role', 'authenticated')::text, true);
@@ -139,6 +141,7 @@ declare v_points jsonb := jsonb_build_array(
   jsonb_build_object('at', now() - interval '30 days', 'lat', -25.7, 'lng', 30.5));
 begin
   -- The map is off for this business: nothing kept.
+  delete from public.farm_feature_access where farm_id = 'e7000000-0000-4000-9000-000000000001' and key = 'map';
   if public.ingest_tracker_positions('e7400000-0000-4000-9000-000000000001', 'UNIT-7', v_points) <> 0 then
     raise exception 'positions were kept while the map was off';
   end if;

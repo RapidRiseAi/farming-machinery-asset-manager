@@ -8,6 +8,7 @@ import type { MutationScope, MutationType } from "@/lib/offline/types";
 import { CheckIcon } from "@/components/ui/icons";
 import { reportClientError } from "@/lib/client-report";
 import { asError } from "@/lib/single-flight";
+import { REQUEST_SETTLED_EVENT } from "@/lib/request-id";
 
 /**
  * Wraps a server-action form so that, when offline, the submit is intercepted and queued
@@ -64,6 +65,9 @@ export function OfflineForm({
     } finally {
       queueing.current = false;
     }
+    // Settled: the request id the form carried now belongs to the queued capture, and the
+    // next capture, even an identical one made on purpose, is a new request.
+    form.dispatchEvent(new Event(REQUEST_SETTLED_EVENT));
     form.reset();
     setQueued(true);
     onQueued?.();

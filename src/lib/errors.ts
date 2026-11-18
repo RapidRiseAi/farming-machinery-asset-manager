@@ -632,6 +632,14 @@ const CODE_KEYS: Record<string, string> = {
   "equipment-review-closed": "errors.equipmentReviewClosed",
   "plan-feature-trips": "errors.planFeatureTrips",
   "plan-feature-maps": "errors.planFeatureMaps",
+  // Trips and maps after a downgrade, map readiness in the database (20261119090000).
+  "maps-not-ready": "errors.mapsNotReady",
+  "trip-driver-not-member": "errors.tripDriverNotMember",
+  // The machine import (B3): refusals said in words, not English in the address bar.
+  "import-empty": "errors.importEmpty",
+  "import-header": "errors.importHeader",
+  "import-no-valid": "errors.importNoValid",
+  "import-too-many": "errors.importTooMany",
   // Capacity and conversion (20261114090300).
   "equipment-limit-reached": "errors.equipmentLimitReached",
   "equipment-not-in-agreement": "errors.equipmentNotInAgreement",

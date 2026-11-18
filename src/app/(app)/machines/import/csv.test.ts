@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  IMPORT_COLUMNS, applyMapping, defaultMeterFor, guessMapping, idKey, parseReadingDate, templateCsv, validateCsv,
+  IMPORT_COLUMNS, applyMapping, defaultMeterFor, guessMapping, idKey, machineKey, parseReadingDate, templateCsv, validateCsv,
 } from "./csv";
 
 const TODAY = "2026-11-05";
@@ -125,4 +125,48 @@ test("the profile column: blank is a fleet asset, equipment only for a type that
   assert.equal(old.rows[0].machine?.profile, "full");
   // The guess maps an Afrikaans heading onto it.
   assert.equal(guessMapping(["Naam", "Tipe", "Profiel"])[2], "profile");
+});
+// == Repeat imports beyond the name (B3, BRIEF section 19) ==============================
+test("running the same sheet again adds nothing, even for rows with no serial or registration", () => {
+  const first = sheet(
+    row({ name: "Waterpomp Noord", type: "pump_generator", make: "Honda", model: "WB30", year: "2021", meter_type: "none", profile: "equipment" }),
+    row({ name: "Bakkie", type: "bakkie", make: "Toyota", model: "Hilux", year: "2019", reg_no: "CA 1" }),
+  );
+  const imported = validateCsv(first, none, TODAY);
+  assert.equal(imported.validCount, 2);
+  // What is on the farm after the first import, as the server reads it back.
+  const onFarm = {
+    names: ["Waterpomp Noord", "Bakkie"],
+    serials: [],
+    regs: ["CA 1"],
+    keys: [
+      machineKey({ name: "Waterpomp Noord", type: "pump_generator", make: "Honda", model: "WB30", year: 2021 }),
+      machineKey({ name: "Bakkie", type: "bakkie", make: "Toyota", model: "Hilux", year: 2019 }),
+    ],
+  };
+  const again = validateCsv(first, onFarm, TODAY);
+  assert.equal(again.validCount, 0, "a repeat import must add nothing");
+  assert.deepEqual(again.rows[0].errors, ["same_on_farm"]);
+  assert.deepEqual(again.rows[1].errors, ["reg_on_farm"]);
+});
+
+test("a second machine with the same name but a different make, or its own serial, still imports", () => {
+  const onFarm = { names: ["Bakkie"], serials: [], regs: [], keys: [machineKey({ name: "Bakkie", type: "bakkie", make: "Toyota", model: "Hilux", year: 2019 })] };
+  const r = validateCsv(sheet(
+    row({ name: "Bakkie", type: "bakkie", make: "Nissan", model: "Navara", year: "2019" }),
+    row({ name: "Bakkie", type: "bakkie", make: "Toyota", model: "Hilux", year: "2019", serial_no: "VIN-2" }),
+  ), onFarm, TODAY);
+  assert.equal(r.validCount, 2);
+  assert.ok(r.rows.every((x) => x.warnings.includes("name_on_farm")), "a shared name still warns");
+});
+
+test("the same unidentified row twice in one sheet is refused once; counts agree with the rows", () => {
+  const r = validateCsv(sheet(
+    row({ name: "Kompressor", type: "compressor", make: "Atlas", year: "2018" }),
+    row({ name: "kompressor ", type: "compressor", make: "atlas", year: "2018" }),
+    row({ name: "", type: "tractor" }),
+  ), none, TODAY);
+  assert.deepEqual(r.rows[1].errors, ["same_twice"]);
+  assert.equal(r.validCount + r.invalidCount, r.rows.length, "valid plus refused is every row");
+  assert.equal(r.validCount, 1);
 });

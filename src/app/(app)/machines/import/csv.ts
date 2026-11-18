@@ -112,7 +112,25 @@ const norm = (h: string) => h.trim().toLowerCase().replace(/\s+/g, "_");
  * Serial and registration identify a machine; a name does not (two "Bakkie"s are normal),
  * so a matching name only warns.
  */
-export type ExistingMachines = { names: string[]; serials: string[]; regs: string[] };
+export type ExistingMachines = {
+  names: string[];
+  serials: string[];
+  regs: string[];
+  /**
+   * `machineKey` of each machine already here (name, type, make, model, year). A row with
+   * NO serial and NO registration that matches one exactly is refused: re-running the same
+   * sheet would otherwise add every unidentified row again (BRIEF section 19, "duplicate
+   * handling beyond display name"). Two different machines can share a name, so a name alone
+   * still only warns. Optional so an older caller keeps working.
+   */
+  keys?: string[];
+};
+
+/** Name, type, make, model and year, as one comparable string. */
+export function machineKey(m: { name: string; type: string | null; make: string | null; model: string | null; year: number | string | null }): string {
+  const part = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return [m.name, m.type, m.make, m.model, m.year].map(part).join("|");
+}
 
 /** Case, spaces and dashes do not make a different serial or registration. */
 export const idKey = (v: string) => v.toUpperCase().replace(/[\s-]/g, "");
@@ -161,6 +179,8 @@ export function validateCsv(
   };
   const seenSerials = new Set<string>();
   const seenRegs = new Set<string>();
+  const onFarmKeys = new Set(existing.keys ?? []);
+  const seenKeys = new Set<string>();
   const grid = parseCsv(text);
   if (grid.length === 0) {
     return { headerError: "empty", headerFound: [], rows: [], validCount: 0, invalidCount: 0 };
@@ -272,7 +292,15 @@ export function validateCsv(
       else if (seenRegs.has(k)) errors.push("reg_twice");
       seenRegs.add(k);
     }
-    if (name && onFarm.names.has(name.toLowerCase())) warnings.push("name_on_farm");
+    // No serial and no registration: the whole description is all there is to go on. The
+    // same machine already here, or the same row twice, is refused rather than added again.
+    if (name && !serial && !reg) {
+      const k = machineKey({ name, type, make: get("make"), model: get("model"), year: yearStr });
+      if (onFarmKeys.has(k)) errors.push("same_on_farm");
+      else if (seenKeys.has(k)) errors.push("same_twice");
+      seenKeys.add(k);
+    }
+    if (name && onFarm.names.has(name.toLowerCase()) && !errors.includes("same_on_farm")) warnings.push("name_on_farm");
 
     if (name) {
       const key = name.toLowerCase();

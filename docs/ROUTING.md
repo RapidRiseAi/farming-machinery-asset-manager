@@ -22,6 +22,31 @@ All of it sits behind the map switch (Admin, Features in testing).
   beyond the business's allowed percentage (10% unless changed on the trip report), and show how
   far the driven route was from the planned one.
 
+## Provider terms rechecked, 18 November 2026 (task B3)
+
+Read again from the providers' own pages before release; the historic free allowances above
+were not reused blindly. Nothing here sets or changes a customer price: there is no map
+overage fee, provider cost is FLEETWISE's and is metered per business in `routing_usage`.
+
+| Provider and use | What its own page says (18 Nov 2026) | What FLEETWISE does |
+|---|---|---|
+| Mapbox Directions (routes) | mapbox.com/pricing: "Up to 100,000 monthly requests" free, then "$2.00 per 1,000" (100,001 to 500,000). docs.mapbox.com/api/navigation/directions: driving profiles "accept up to 25 coordinates"; "Up to two alternatives may be returned". | `ROUTING_MONTHLY_CAP` 95,000 by default, counted for the whole application before any request is sent; `MAX_STOPS` 25. |
+| Mapbox: keeping a route | The current Product Terms are a PDF dated 20 October 2026 (linked from mapbox.com/legal/product-terms) that our tools could not read as text. Mapbox's archived Directions SDK reference (docs.mapbox.com/archive/ios/directions/api/0.10.1/Classes/Directions.html) said: "Routes may be displayed atop a Mapbox map." "They may be cached but may not be stored permanently." "To use the results in other contexts or store them permanently, upgrade to a Mapbox enterprise plan." The Terms of Service (mapbox.com/legal/tos, updated 31 March 2024) also require disclosing the Directions disclaimer to users. | **Release blocker for Complete maps on Mapbox.** A trip keeps its planned route (`trip_routes`) and FLEETWISE draws it on OpenFreeMap tiles, not a Mapbox map. If the current Product Terms still say what the archived reference said, that is not allowed on a standard plan. Human action below. |
+| Map tiles (OpenFreeMap) | openfreemap.org: "there are no limits on the number of map views or requests"; "no registration, no user database, no API keys, and no cookies"; commercial use "Yes"; "Attribution is required"; "I don't offer SLA guarantees or personalized support." | Used while the map is in testing (`src/components/map/map-style.ts`); MapLibre shows the style's attribution. No uptime promise, so tiles must move to a server we run (or a paid provider) before maps are offered to customers. |
+| OpenStreetMap's own tiles | operations.osmfoundation.org/policies/tiles: attribution "clearly on the map"; "Commercial services ... should be especially aware that access may be withdrawn at any point"; points heavy users to "an alternative OSM-derived service ... or run your own". | Not used. |
+| Place search (Nominatim) | operations.osmfoundation.org/policies/nominatim (no date on the page; it "may change without notice"): "an absolute maximum of 1 request per second"; "the sum of traffic by all your users should not exceed the limits"; autocomplete: "you must not implement such a service on the client side using the API"; a "valid HTTP Referer or User-Agent identifying the application". | One shared slot for every server instance (`book_place_search_slot`, 1.1 s apart), a month's shared cache, search on a button press only, a named User-Agent. Unchanged and still within the policy. |
+| Own route server (OSRM) | OpenStreetMap data under the ODbL: attribution required; no per-request fee. | The switch (`ROUTING_PROVIDER=osrm`) needs no code change. |
+
+**Human action (founder, before the `map` flag is released to anyone paying):** read the
+"Directions" and "Navigation" sections of Mapbox's current Product Terms (the 20 October 2026
+PDF) and answer one question: may a route from the Directions API be stored with a trip and
+drawn on a non-Mapbox map on our plan? If not, either start Complete maps on the own route
+server (section "Later: the own route server", any volume) or agree terms with Mapbox. Until
+then the routes saved in testing stay as they are; trips, loads and the written stop list work
+without any route service. Separately: choose where tiles come from in production
+(self-hosted OpenFreeMap or OpenMapTiles on the route server, or a paid tile provider) and
+change `MAP_STYLE`.
+
 ## Settings (Vercel environment variables)
 
 | Variable | What it is |

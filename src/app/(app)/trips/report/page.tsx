@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-import { requireRole } from "@/lib/auth";
+import { farmAllows, getFarmPlan, requireRole } from "@/lib/auth";
+import { requiredPlan as minPlanFor } from "@/lib/entitlements";
+import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { mapsAvailable } from "@/lib/features";
 import { kmCheck, type KmCheck } from "@/lib/routing/geometry";
 import { OWNED_FIELD, SETTING_NUMBERS } from "@/lib/settings";
@@ -8,8 +10,10 @@ import { num } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
-import { mustAll } from "@/lib/supabase/must";
-import { marginPerKmCents, tripDistance } from "@/lib/trips";
+import { must, mustAll } from "@/lib/supabase/must";
+import { readAll, readByIds } from "@/lib/supabase/read-all";
+import { tripDistance, tripReport, type ReportTrip } from "@/lib/trips";
+import { TRIP_REPORT_WINDOW_DAYS } from "@/lib/limits";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -20,46 +24,76 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { updateSettings } from "../../settings/actions";
 
-/** What each vehicle earned over its last 90 days of finished work. Owners and managers only. */
+/** The window this report covers, said on the page: it is not an all-time total. */
+const WINDOW_DAYS = TRIP_REPORT_WINDOW_DAYS;
+
+/**
+ * What each vehicle earned over its last 90 days of finished work. Owners and managers only,
+ * on Professional and Complete (decision 16). Below that the report is not computed: saved
+ * trips stay readable on their own pages and in the export (decision 37), but a fresh trip
+ * profit report is the higher plan's analysis.
+ */
 export const dynamic = "force-dynamic";
 
 export default async function TripReportPage() {
   const profile = await requireRole(["owner", "manager"]);
   const locale = profile.lang;
   const farmId = profile.farm_id ?? "";
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
+  if (!(await farmAllows(farmId, "trips", profile))) {
+    return (
+      <PageContainer>
+        <p><Link href="/trips" className="text-sm underline">{t("trips.back", locale)}</Link></p>
+        <PageHeader title={t("tripReport.title", locale)} />
+        <UpgradeNotice
+          feature="trips"
+          requiredPlan={minPlanFor("trips")}
+          currentPlan={await getFarmPlan(farmId)}
+          locale={locale}
+          canUpgrade={profile.role === "owner"}
+        />
+      </PageContainer>
+    );
+  }
+
+  const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const supabase = await createClient();
+  // Finished trips by when they ended; cancelled and unfinished ones by when they were made,
+  // so the page can say how many it left out. Every page of them, not the first thousand.
+  const tripsRead = await readAll<ReportTrip & { number: number }>(() =>
+    supabase
+      .from("trips")
+      .select("id, number, machine_id, status, opening_reading, closing_reading")
+      .eq("farm_id", farmId)
+      .is("deleted_at", null)
+      .or(`and(status.eq.completed,ended_at.gte.${since}),and(status.neq.completed,created_at.gte.${since})`),
+  );
+  const tripRows = must(tripsRead, "trips:report-trips") ?? [];
+  const finishedIds = tripRows.filter((r) => r.status === "completed").map((r) => r.id);
   const results = await Promise.all([
-    supabase.from("trips").select("id, number, machine_id, opening_reading, closing_reading").eq("farm_id", farmId).eq("status", "completed").gte("ended_at", since).limit(5000),
-    supabase.from("trip_income").select("trip_id, amount_cents").eq("farm_id", farmId).limit(5000),
-    supabase.from("trip_expenses").select("trip_id, amount_cents").eq("farm_id", farmId).limit(10000),
+    // Only the money of the trips counted: never the business's whole ledger in memory.
+    readByIds<{ trip_id: string; amount_cents: number }>(finishedIds, (chunk) =>
+      supabase.from("trip_income").select("trip_id, amount_cents").in("trip_id", chunk), { key: "trip_id" }),
+    readByIds<{ id: string; trip_id: string; amount_cents: number }>(finishedIds, (chunk) =>
+      supabase.from("trip_expenses").select("id, trip_id, amount_cents").in("trip_id", chunk)),
+    readByIds<{ trip_id: string; distance_m: number }>(finishedIds, (chunk) =>
+      supabase.from("trip_routes").select("trip_id, distance_m").in("trip_id", chunk), { key: "trip_id" }),
     supabase.from("machines").select("id, name, meter_type").eq("farm_id", farmId).limit(2000),
-    supabase.from("trip_routes").select("trip_id, distance_m").eq("farm_id", farmId).limit(5000),
     supabase.from("farms").select("settings").eq("id", farmId).maybeSingle(),
   ]);
   mustAll(results, "trips:report");
-  const [{ data: tripData }, { data: incomeData }, { data: expenseData }, { data: machineData }, { data: routeData }, { data: farmData }] = results;
+  const [{ data: incomeData }, { data: expenseData }, { data: routeData }, { data: machineData }, { data: farmData }] = results;
   const mapOn = await mapsAvailable(farmId, profile);
 
-  type Trip = { id: string; number: number; machine_id: string; opening_reading: number | null; closing_reading: number | null };
-  const income = new Map(((incomeData ?? []) as { trip_id: string; amount_cents: number }[]).map((r) => [r.trip_id, Number(r.amount_cents)]));
+  type Trip = ReportTrip & { number: number };
+  const income = new Map((incomeData ?? []).map((r) => [r.trip_id, Number(r.amount_cents)]));
   const spent = new Map<string, number>();
-  for (const e of (expenseData ?? []) as { trip_id: string; amount_cents: number }[]) {
+  for (const e of expenseData ?? []) {
     spent.set(e.trip_id, (spent.get(e.trip_id) ?? 0) + Number(e.amount_cents));
   }
   const names = new Map(((machineData ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name]));
-
-  const byVehicle = new Map<string, { trips: number; km: number; incomeCents: number; expenseCents: number }>();
-  for (const trip of (tripData ?? []) as Trip[]) {
-    const row = byVehicle.get(trip.machine_id) ?? { trips: 0, km: 0, incomeCents: 0, expenseCents: 0 };
-    row.trips += 1;
-    row.km += tripDistance(trip) ?? 0;
-    row.incomeCents += income.get(trip.id) ?? 0;
-    row.expenseCents += spent.get(trip.id) ?? 0;
-    byVehicle.set(trip.machine_id, row);
-  }
-  const rows = [...byVehicle.entries()].sort((a, b) => b[1].incomeCents - a[1].incomeCents);
+  const report = tripReport(tripRows, income, spent);
+  const tripData = tripRows.filter((r) => r.status === "completed");
 
   // Finished trips against their planned routes, by the odometer. Only a km meter counts.
   const settings = ((farmData as { settings?: Record<string, unknown> } | null)?.settings ?? {}) as Record<string, unknown>;
@@ -78,8 +112,22 @@ export default async function TripReportPage() {
   return (
     <PageContainer>
       <p><Link href="/trips" className="text-sm underline">{t("trips.back", locale)}</Link></p>
-      <PageHeader title={t("tripReport.title", locale)} lead={t("tripReport.lead", locale)} />
-      {rows.length === 0 ? (
+      <PageHeader title={t("tripReport.title", locale)} lead={t("tripReport.lead", locale).replace("{days}", String(WINDOW_DAYS))} />
+      {report.withoutReadings + report.zeroKm + report.cancelled + report.unfinished > 0 ? (
+        <ul className="flex flex-col gap-1 text-sm text-sand-600">
+          {report.withoutReadings > 0 ? <li>{t("tripReport.withoutReadings", locale).replace("{n}", String(report.withoutReadings))}</li> : null}
+          {report.zeroKm > 0 ? <li>{t("tripReport.zeroKm", locale).replace("{n}", String(report.zeroKm))}</li> : null}
+          {report.cancelled + report.unfinished > 0 ? (
+            <li>
+              {t("tripReport.notCounted", locale)
+                .replace("{cancelled}", String(report.cancelled))
+                .replace("{unfinished}", String(report.unfinished))
+                .replace("{days}", String(WINDOW_DAYS))}
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+      {report.vehicles.length === 0 ? (
         <EmptyState title={t("tripReport.emptyTitle", locale)} hint={t("tripReport.emptyHint", locale)} />
       ) : (
         <Card flush>
@@ -92,23 +140,29 @@ export default async function TripReportPage() {
                   <Th>{t("trips.distance", locale)}</Th>
                   <Th>{t("trips.income", locale)}</Th>
                   <Th>{t("trips.expenses", locale)}</Th>
+                  <Th>{t("tripReport.result", locale)}</Th>
                   <Th>{t("tripReport.perKm", locale)}</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {rows.map(([id, r]) => {
-                  const perKm = marginPerKmCents(r);
-                  return (
-                    <Tr key={id}>
-                      <Td>{names.get(id) ?? "-"}</Td>
-                      <Td className="tnum">{num(r.trips)}</Td>
-                      <Td className="tnum">{num(r.km)}</Td>
-                      <Td className="tnum">{rands(r.incomeCents)}</Td>
-                      <Td className="tnum">{rands(r.expenseCents)}</Td>
-                      <Td className="tnum">{perKm == null ? "-" : rands(perKm)}</Td>
-                    </Tr>
-                  );
-                })}
+                {report.vehicles.map((r) => (
+                  <Tr key={r.machineId}>
+                    <Td>{names.get(r.machineId) ?? "-"}</Td>
+                    <Td className="tnum">
+                      {num(r.trips)}
+                      {r.tripsWithoutIncome > 0 ? (
+                        <span className="block text-xs text-sand-500">
+                          {t("tripReport.withoutIncome", locale).replace("{n}", String(r.tripsWithoutIncome))}
+                        </span>
+                      ) : null}
+                    </Td>
+                    <Td className="tnum">{r.tripsWithKm === 0 ? "-" : num(r.km)}</Td>
+                    <Td className="tnum">{rands(r.incomeCents)}</Td>
+                    <Td className="tnum">{rands(r.expenseCents)}</Td>
+                    <Td className="tnum">{rands(r.incomeCents - r.expenseCents)}</Td>
+                    <Td className="tnum">{r.perKmCents == null ? "-" : rands(r.perKmCents)}</Td>
+                  </Tr>
+                ))}
               </Tbody>
             </Table>
           </div>

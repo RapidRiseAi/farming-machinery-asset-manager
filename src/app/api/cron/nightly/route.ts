@@ -37,7 +37,7 @@ import {
  *  12b. cron_asset_finance_nightly       , debit orders paid, contracts rolled on or ended,
  *                                         interest and lease costs booked (idempotent)
  *  12c. cron_enqueue_asset_finance_reminders, instalments and contract dates coming up
- *  13. cron_enqueue_weekly_digest        , Mondays only (Africa/Johannesburg)
+ *  13. cron_enqueue_weekly_digest        , Monday to Wednesday, once a week per business (Africa/Johannesburg)
  *  14. scheduled report delivery         , emailed report schedules now due (0506)
  *  15. push delivery                     , Web Push for the freshly-queued rows (F6)
  *  16. email delivery                    , the same alerts by email, for whoever asked
@@ -59,6 +59,8 @@ export const dynamic = "force-dynamic";
 
 /** Notification delivery's share of the nightly run, after the reports' 40 seconds. */
 const NOTIFY_BUDGET_MS = 40_000;
+/** The nights the weekly digest is asked for: Monday, and two catch-up nights after it. */
+const DIGEST_DAYS: readonly string[] = ["Mon", "Tue", "Wed"];
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -158,6 +160,8 @@ export async function GET(request: Request) {
   await step("upload_sweep", () => sweepUploads(supabase));
   // Temporary spoken-command audio: done, cancelled, or past its recovery window (20261115100000).
   await step("command_audio_sweep", () => sweepCommandAudio(supabase));
+  // Request claims older than the two-day retry window, with any answer a replay kept (20261119110000).
+  await run("request_claims_sweep", "cron_sweep_request_claims");
   // What each customer stores, for the day (20261118120000): files with no upload intent count
   // against the pool from here, the 80% and 95% warnings go out, and the day's row is the
   // record of storage for the billing period. After the sweeps, so removed files are gone.
@@ -169,15 +173,17 @@ export async function GET(request: Request) {
   await step("ai_failures", () => detectModelFailures(supabase));
   await step("ai_voice_underreporting", () => detectVoiceUnderReporting(supabase));
 
-  // Weekly digest fires only on Mondays in SAST (the caller decides, the SQL just enqueues).
+  // The weekly digest: asked on Monday to Wednesday in SAST. The SQL sends it once per
+  // business per week (20261119100000), so a rerun does not send it twice and a Monday whose
+  // run failed catches up the next night instead of skipping a week.
   const sastWeekday = new Intl.DateTimeFormat("en-US", {
     timeZone: "Africa/Johannesburg",
     weekday: "short",
   }).format(new Date());
-  if (sastWeekday === "Mon") {
+  if (DIGEST_DAYS.includes(sastWeekday)) {
     await run("weekly_digest", "cron_enqueue_weekly_digest");
   } else {
-    steps["weekly_digest"] = "skipped (not Monday SAST)";
+    steps["weekly_digest"] = "skipped (not Monday to Wednesday SAST)";
   }
 
   // Claim, build and email report periods after the night's recalculations and recurring

@@ -1,6 +1,76 @@
-# Lane B progress (task B1: limits, upload pipeline, long audio)
+# Lane B progress (task B3 now; B1 below)
 
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
+
+## Task B3 (started 18 Nov 2026 at 45e5efd)
+
+## TASK B3 COMPLETE
+
+Final gates at the last commit: tsc clean; 1209 unit tests pass (1 skipped); dashes, i18n
+parity and keys, design lint, errors clean; node scripts/migrate_check.mjs --suite 94/94
+PASS (PGlite). The harness refused docs/final-dev/REPORT-B3.md: the full report is the
+worker's final message. Six migrations 20261119090000 to 20261119140000, all probed.
+Blocker: founder reads Mapbox's current Product Terms on storing routes before the map
+flag is released (docs/ROUTING.md).
+
+Driving logs, trips and maps by plan; imports, repeat taps, offline gaps; history after a
+downgrade. R-044 (manual driving log, Codex, 20261117110000) is built and reviewed: verify
+and build on it, never rebuild. Steps, committed one by one:
+
+1. Trips by plan (R-045, R-061, R-060): server gate on every trip action and RPC (DB
+   trigger on trip updates too), saved trips readable after a downgrade (history mode),
+   trip money on the phone (income, expenses, result), report honesty (cancelled and
+   incomplete trips, missing readings, zero km, 90-day window said), aggregation moved to
+   src/lib/trips.ts with tests.
+2. Maps (R-046, R-062): readiness flag enforced in the database for positions and routes,
+   POD location only with maps, stale positions labelled (never live), docs/ROUTING.md
+   provider terms rechecked with citations.
+3. Downgrade history (R-051, Sc17): fuel and fines records readable read-only, retained
+   positions listed without a map, export includes trips/routes/positions, scheduled
+   reports and CSV routes refuse lost features.
+4. Imports (R-120): duplicates beyond the name, error codes through t(), create-only said.
+5. Repeat taps (R-122): work media claim, assistant turn and transcribe claims, activation
+   Pay resumes the attempt in flight, contractor sync verified, template once per machine.
+6. Offline (R-123): online request id becomes the offline client id, claims checked in
+   SQL, plan/equipment/access refusals kept and explained (not retried forever).
+7. Export pages streamed, accounting summary in SQL, weekly digest once a week with
+   catch-up and pay gate, empty states, assistant starters never send.
+8. Scenario 18 check, docs, REPORT-B3, register rows.
+
+### B3 done
+
+- Step 1 DB (72f7085..a694d6d): migration 20261119090000_trips_maps_history.sql (plan gate
+  on updates of saved trips/loads/money with cancel and finish-underway exceptions; map
+  readiness in the database for routes and positions; POD location only with maps; a
+  trip's driver must be a member of the business). Suite trips_by_plan.sql PASSES, in
+  run.sh; probe; DATABASE.md; history guard mutation caught.
+- Step 1 TS (4b0e67b): tripReport/tripResultCents in src/lib/trips.ts with tests.
+- Step 1 done (e77f6f3): report page (window said, cancelled/unfinished/missing readings,
+  per-km from trips with readings, Professional only), trip page history mode + result,
+  plan checks in actions, error words.
+- Step 2 done: ROUTING.md provider recheck (Mapbox route storage = maps release blocker,
+  tiles need a production source), positions labelled with age/last known (never live),
+  positionRecentMs + tripReportWindowDays in limits.ts, tracker feed refused plainly after
+  a downgrade. Full SQL suite 88/88 after fixture fixes (82b1a86).
+- Step 3 (mostly done): SavedRecords frame; fuel and fines history read-only; export paged
+  (cap 50,000) with trips/routes/positions/fuel cards; retained positions on a trip without
+  maps (TripSavedTracking + /trips/[id]/positions.csv); migration 20261119100000 (AARTO
+  reminders by plan and open business, digest once a week with catch-up), suite
+  scheduled_work_by_plan.sql. Scheduled reports and API access were already plan-gated.
+- Step 4 done: import refuses repeats of unidentified rows (machineKey), refusal codes in
+  words; csv.test.ts; 3/3 mutations.
+- Step 5 done: work media claim (route test), respondOnce for assistant turn and
+  transcribe (content digest id), migration 20261119110000 (64 KiB outcomes, nightly claim
+  sweep), activation Pay resumes the open checkout, contractor sync verified by test,
+  migration 20261119120000 (template once per machine). All mutations caught.
+- Step 6 done: queued capture keeps the online request id; migration 20261119130000
+  (apply_offline_capture_once, claim_request answers a capture id, fuel plan asked again);
+  sync refusals classified; queue reasons EN/AF. 7/7 mutations.
+- Step 7 done: export paged (step 3), migration 20261119140000 (journal summary in SQL),
+  digest once a week (step 3 migration), empty states, starters guard test.
+- Step 8: sites_roles_consolidated.sql (scenario 18), PLAN_FEATURES.md downgrade table,
+  register rows, LAUNCH_CHECKLIST. Report: the harness refused REPORT-B3.md, so the full
+  report is the final message.
 
 ## Task
 

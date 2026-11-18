@@ -576,6 +576,51 @@ test("a checkout younger than the stale window is somebody at Paystack now: in p
   assert.equal(inits.length, 0);
 });
 
+// == Pay pressed again while the first checkout is open (B3, repeat-tap follow-up) ==========
+const PAGE = "https://checkout.paystack.com/abc123resume";
+
+test("Pay pressed again while the first checkout is open resumes that checkout: same page, same reference, no second attempt", async () => {
+  const inits: CheckoutInit[] = [];
+  let asked = 0;
+  const { client, rpcCalls } = fakeSupabase({
+    table: staleTables({ ...pendingCheckout(STALE_PENDING_MINUTES - 5), authorization_url: PAGE }),
+    rpc: claimLosesOnce,
+  });
+  const started = await beginCheckout(client, {
+    farmId: FARM,
+    email: "owner@example.test",
+    provider: providerVerifying(inits, async () => {
+      asked += 1;
+      throw new Error("must not be asked");
+    }),
+  });
+  assert.deepEqual(started, { ok: true, url: PAGE, reference: STALE_REF, invoiceId: INVOICE });
+  assert.equal(claims(rpcCalls).length, 1, "no second attempt is claimed");
+  assert.equal(inits.length, 0, "Paystack makes no second page");
+  assert.equal(asked, 0);
+});
+
+test("an open checkout for a different amount, or with no Paystack page kept, is not resumed: in progress", async () => {
+  for (const attempt of [
+    { ...pendingCheckout(STALE_PENDING_MINUTES - 5), authorization_url: PAGE, amount_incl_cents: 90000 },
+    { ...pendingCheckout(STALE_PENDING_MINUTES - 5), authorization_url: "https://evil.example/pay" },
+    { ...pendingCheckout(STALE_PENDING_MINUTES - 5), authorization_url: null },
+  ]) {
+    const inits: CheckoutInit[] = [];
+    const { client, rpcCalls } = fakeSupabase({ table: staleTables(attempt), rpc: claimLosesOnce });
+    const started = await beginCheckout(client, {
+      farmId: FARM,
+      email: "owner@example.test",
+      provider: providerVerifying(inits, async () => {
+        throw new Error("must not be asked");
+      }),
+    });
+    assert.deepEqual(started, { ok: false, code: "billing-in-flight" });
+    assert.equal(claims(rpcCalls).length, 1);
+    assert.equal(inits.length, 0);
+  }
+});
+
 test("when Paystack cannot be reached the old checkout stays blocking: in progress, never a second charge", async () => {
   const inits: CheckoutInit[] = [];
   const { client, rpcCalls } = fakeSupabase({

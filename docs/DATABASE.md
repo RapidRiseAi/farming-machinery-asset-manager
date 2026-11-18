@@ -297,3 +297,58 @@ audit plus behavioural tests in manual_driving.sql. The old RPC signature is unc
 The deployment probe is in scripts/apply_pending.mjs; no live migration was applied.
 Deploy the additive migration before the new page, which selects these columns. Rolling
 back application code can leave the additive schema and records intact.
+
+## Trips and maps by plan after a downgrade (B3)
+
+Migration 20261119090000_trips_maps_history.sql adds no table. Below Professional, an
+update to a saved trip, load, trip income or trip expense is refused (`plan-feature-trips`)
+except cancelling a planned trip, finishing a trip already underway (with its deliveries)
+and a soft delete; nothing else may change in the same update (`app.only_changed`).
+`app.maps_ready` (the `map` flag) and `app.maps_allowed` (Complete and the flag) now hold in
+the database: a new or edited `trip_routes` row and a new `asset_positions` row need both
+(`plan-feature-maps`, `maps-not-ready`), and a delivery's `pod_lat`/`pod_lng` is kept only
+where maps are allowed. Reads are unchanged, so every saved trip, route and position stays
+readable on any plan. Suite: `supabase/tests/trips_by_plan.sql`.
+
+## Scheduled work by plan, and the weekly digest once a week (B3)
+
+Migration 20261119100000_scheduled_work_by_plan.sql adds no table. AARTO nomination
+reminders go only to a business whose plan includes AARTO and whose `app.farm_billing_gate`
+is `ok`. `app.enqueue_weekly_digest` sends one `weekly_digest` per open business per South
+African week (`app.sast_week_start`, Monday 00:00 SAST), whichever run gets there first,
+under a per-business advisory lock; the nightly route asks Monday to Wednesday so a missed
+Monday catches up. Suite: `supabase/tests/scheduled_work_by_plan.sql`.
+
+## Request claims keep a whole answer; swept nightly (B3)
+
+Migration 20261119110000_request_claim_answers.sql lets `request_claims.outcome` hold up to
+64 KiB (NOT VALID check, then validated) so an assistant turn or an AI transcription can be
+answered again from its claim instead of paid for twice, and adds
+`public.cron_sweep_request_claims()` (service role), which the nightly job runs to remove
+every claim older than two days. Suite: `supabase/tests/request_claim_answers.sql`.
+
+## A service template once per machine (B3)
+
+Migration 20261119120000_service_template_once.sql adds `service_plan_lines.template_id`
+(nullable, existing lines keep null) and the partial unique index
+`service_plan_lines_template_once` on (machine, template, task folded) for live lines that
+carry a template: two presses of "apply template" cannot double a machine's plan. Lines
+added by hand are not constrained. Suite: `supabase/tests/service_template_once.sql`.
+
+## One capture, one record, online or queued (B3)
+
+Migration 20261119130000_offline_capture_once.sql adds
+`public.apply_offline_capture_once` (service role; `/api/sync` calls it instead of
+`apply_offline_capture`). A queued capture now carries the online attempt's request id; the
+function checks that id's `request_claims` row first (the online save landed: answered as a
+duplicate; still running: `retry`), claims the id for the capture otherwise, and asks the
+plan again for a diesel draw (`plan-feature-fuel`). `claim_request` answers `done` for the
+same person's id a queued capture already used. Suite: `supabase/tests/offline_capture_once.sql`.
+
+## The accounting summary summed in the database (B3)
+
+Migration 20261119140000_journal_summary.sql adds `public.farm_journal_totals`,
+`farm_journal_accounts`, `partner_journal_totals` and `partner_journal_accounts` (SECURITY
+INVOKER over the journal functions, so the journal's own permissions decide). `/accounting`
+reads its totals and per-account summary from them instead of every journal line. Suite:
+`supabase/tests/journal_summary.sql`. Scenario 18 at the database: `sites_roles_consolidated.sql`.

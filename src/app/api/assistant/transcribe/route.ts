@@ -21,6 +21,9 @@ import { classifyAiFailure } from "@/lib/ai-usage/outcome";
 import { aiErrorForLog } from "@/lib/ai-usage/safe-log";
 import { strictPcmDurationMs } from "@/lib/ai-usage/wav";
 import { HEARING_CLIP_MAX_BYTES } from "@/lib/limits";
+import { respondOnce } from "@/lib/request-claim";
+import { readRequestId } from "@/lib/request-id";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -76,7 +79,22 @@ type AttemptResult = { heard: Heard | null; refused: HoldRefusal | null; keyFail
 const isEmptyTranscript = (error: unknown) =>
   Boolean(error && typeof error === "object" && "name" in error && String(error.name).includes("NoTranscriptGenerated"));
 
+/**
+ * Once per request id (repeat-tap follow-up, BRIEF section 19). The browser names a clip by a
+ * digest of its bytes and language (x-request-id), so the same clip sent again after a lost
+ * answer gets the first hearing back instead of a second paid transcription; a different
+ * clip is a different request. Only a hearing is kept: a refusal or a failure releases the
+ * id, and the hold, the budget_unset and billing_paused refusals inside (A3) are unchanged.
+ */
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return fail("forbidden", 403);
+  return respondOnce(await createClient(), readRequestId(request.headers.get("x-request-id")), "assistant:transcribe", () => hear(request), {
+    whileRunning: () => fail("still_working", 409),
+    headers: HEADERS,
+  });
+}
+
+async function hear(request: Request) {
   // Every deadline counts from arrival, as the browser's does from posting: upload and
   // setup come out of the same wait, so a paid hearing is not finished after nobody waits.
   const started = Date.now();

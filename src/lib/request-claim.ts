@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { captureError } from "@/lib/observability";
 import { readRequestId, REQUEST_FIELD } from "@/lib/request-id";
+import { REQUEST_CLAIM_OUTCOME_CHARS } from "@/lib/limits";
 
 /**
  * One request, one effect, on the server (20261018090000).
@@ -100,4 +101,42 @@ export function emailKey(requestId: string | null, parts: Array<string | null | 
   if (!requestId) return null;
   const digest = createHash("sha256").update(parts.map((part) => part ?? "").join("\u0000")).digest("hex");
   return `${requestId}:${digest.slice(0, 16)}`;
+}
+
+/**
+ * `runOnce` for a JSON API route: `work` answers, and an answer worth giving again (ok, small
+ * enough to keep, and `keep` says so) is kept on the claim; anything else releases it, so a
+ * retry runs. A replay of a kept answer gets it back with a 200; a request that arrives
+ * while the first is still running gets `whileRunning()`. Paid work (an assistant turn, an
+ * AI transcription) uses this so a lost answer is not paid for twice (20261119110000).
+ */
+export async function respondOnce(
+  supabase: SupabaseClient,
+  requestId: string | null,
+  action: string,
+  work: () => Promise<Response>,
+  options: { whileRunning: () => Response; keep?: (text: string) => boolean; headers?: Record<string, string> },
+): Promise<Response> {
+  const claim = await claimRequest(supabase, requestId, action);
+  if (claim.state === "running") return options.whileRunning();
+  if (claim.state === "done") {
+    return new Response(claim.outcome, {
+      status: 200,
+      headers: { "content-type": "application/json", ...(options.headers ?? {}) },
+    });
+  }
+  let answer: Response;
+  try {
+    answer = await work();
+  } catch (failure) {
+    await claim.release();
+    throw failure;
+  }
+  const text = answer.ok ? await answer.clone().text() : "";
+  if (answer.ok && text.length > 0 && text.length <= REQUEST_CLAIM_OUTCOME_CHARS && (options.keep?.(text) ?? true)) {
+    await claim.finish(text);
+  } else {
+    await claim.release();
+  }
+  return answer;
 }

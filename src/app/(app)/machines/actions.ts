@@ -20,7 +20,7 @@ const isUuidLike = (value: string | null): value is string =>
   !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 import { todayLocal } from "@/lib/format";
 import { readTab, withTab } from "@/components/ui/tabs-url";
-import { validateCsv, MAX_IMPORT_ROWS, type ExistingMachines } from "./import/csv";
+import { validateCsv, machineKey, MAX_IMPORT_ROWS, type ExistingMachines } from "./import/csv";
 import { readAll } from "@/lib/supabase/read-all";
 import { must } from "@/lib/supabase/must";
 import { runOnce } from "@/lib/request-claim";
@@ -387,13 +387,14 @@ async function existingMachines(
   supabase: Awaited<ReturnType<typeof createClient>>,
   farmId: string,
 ): Promise<ExistingMachines> {
-  const rows = must(await readAll(() => supabase.from("machines").select("id, name, serial_no, reg_no")
+  const rows = must(await readAll(() => supabase.from("machines").select("id, name, type, make, model, year, serial_no, reg_no")
     .eq("farm_id", farmId).is("deleted_at", null)), "machines:existing-for-import") as
-    { name: string; serial_no: string | null; reg_no: string | null }[] | null;
+    { name: string; type: string; make: string | null; model: string | null; year: number | null; serial_no: string | null; reg_no: string | null }[] | null;
   return {
     names: (rows ?? []).map((r) => r.name),
     serials: (rows ?? []).map((r) => r.serial_no).filter((v): v is string => !!v),
     regs: (rows ?? []).map((r) => r.reg_no).filter((v): v is string => !!v),
+    keys: (rows ?? []).map(machineKey),
   };
 }
 
@@ -411,17 +412,17 @@ export async function importMachines(formData: FormData) {
       );
 
       const csv = String(formData.get("csv") ?? "");
-      if (!csv.trim()) redirect("/machines/import?error=No+CSV+provided");
+      if (!csv.trim()) redirect("/machines/import?error=import-empty");
 
       // The farm's own machines, so a re-run of the same sheet adds nothing: rows whose
       // serial or registration is already here are refused, exactly as the preview showed.
       const importClient = await createClient();
       const parsed = validateCsv(csv, await existingMachines(importClient, farmId));
-      if (parsed.headerError) redirect("/machines/import?error=Invalid+CSV+header");
+      if (parsed.headerError) redirect("/machines/import?error=import-header");
 
       const valid = parsed.rows.filter((r) => r.valid && r.machine).map((r) => r.machine!);
-      if (valid.length === 0) redirect("/machines/import?error=No+valid+rows");
-      if (valid.length > MAX_IMPORT_ROWS) redirect(`/machines/import?error=Too+many+rows`);
+      if (valid.length === 0) redirect("/machines/import?error=import-no-valid");
+      if (valid.length > MAX_IMPORT_ROWS) redirect("/machines/import?error=import-too-many");
 
       // Refused BEFORE a single row is written, naming the shortfall. The trigger would abort
       // the whole insert anyway, which is what makes an import all-or-nothing rather than a
