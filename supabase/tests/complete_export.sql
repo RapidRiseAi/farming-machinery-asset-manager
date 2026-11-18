@@ -206,6 +206,36 @@ begin
   if public.export_job_claim(v_job, 60) is null then raise exception '[4] a released lease could not be taken again'; end if;
 end $t$;
 
+-- == [4b] Finished: kept seven days, never past the owner's last reading day ========================
+do $t$
+declare
+  v_job uuid := (select id from public.farm_export_jobs where request_id = 'e4520000-0000-4000-9000-000000000001');
+  v_stopped uuid := (select id from public.farm_export_jobs where request_id = 'e4520000-0000-4000-9000-000000000003');
+  v_token uuid;
+  v_until timestamptz;
+begin
+  update public.farm_export_jobs set lease_token = null, lease_until = null where id = v_job;
+  v_token := public.export_job_claim(v_job, 60);
+  if pg_temp.try(format($s$select public.export_job_finish(%L, gen_random_uuid(), repeat('e', 64))$s$, v_job)) <> 'export-lease-lost' then
+    raise exception '[4b] a job was finished without its lease';
+  end if;
+  v_until := public.export_job_finish(v_job, v_token, repeat('e', 64));
+  if (select status from public.farm_export_jobs where id = v_job) <> 'ready'
+     or v_until < now() + interval '7 days' - interval '1 minute' or v_until > now() + interval '7 days' then
+    raise exception '[4b] an open business''s archive is not kept seven days';
+  end if;
+  -- Two reading days left: the archive goes with them.
+  update public.billing_subscriptions set retrieval_ends_on = app.billing_today() + 2 where farm_id = 'e4500000-0000-4000-9000-00000000000b';
+  update public.farm_export_jobs set status = 'finishing' where id = v_stopped;
+  v_token := public.export_job_claim(v_stopped, 60);
+  v_until := public.export_job_finish(v_stopped, v_token, repeat('f', 64));
+  if v_until <> app.billing_day_ends_at(app.billing_today() + 2) then
+    raise exception '[4b] an archive outlives the owner''s last reading day (%)', v_until;
+  end if;
+  update public.billing_subscriptions set retrieval_ends_on = app.billing_today() + 80 where farm_id = 'e4500000-0000-4000-9000-00000000000b';
+  update public.farm_export_jobs set status = 'finishing', lease_token = null, lease_until = null where id = v_job;
+end $t$;
+
 -- == [5] A worker checks the requester's rights again ==============================================
 do $t$
 declare v_job uuid := (select id from public.farm_export_jobs where request_id = 'e4520000-0000-4000-9000-000000000001');
@@ -293,7 +323,7 @@ end $t$;
 do $t$
 declare f text;
 begin
-  foreach f in array array['export_job_allowed', 'export_job_create', 'export_job_claim', 'export_job_release',
+  foreach f in array array['export_job_allowed', 'export_job_create', 'export_job_claim', 'export_job_release', 'export_job_finish',
                            'export_job_record_files', 'export_job_retry_missing', 'export_jobs_to_clean',
                            'export_job_mark_removed', 'export_orphan_objects'] loop
     if exists (select 1 from pg_proc p where p.proname = f and p.pronamespace = 'public'::regnamespace

@@ -278,6 +278,28 @@ begin
    where j.id = p_job;
 end $$;
 
+-- The manifest is stored: ready, and kept seven days at most, never past the end of the owner's
+-- last reading day (South African midnight) when the business is in its 90 days.
+create or replace function public.export_job_finish(p_job uuid, p_token uuid, p_manifest_sha256 text)
+returns timestamptz
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  j public.farm_export_jobs%rowtype;
+  v_end date;
+  v_expires timestamptz := now() + interval '7 days';
+begin
+  select * into j from public.farm_export_jobs where id = p_job and lease_token = p_token and lease_until > now() for update;
+  if not found then raise exception 'export-lease-lost' using errcode = '22023'; end if;
+  if j.status <> 'finishing' or p_manifest_sha256 !~ '^[0-9a-f]{64}$' then raise exception 'export-invalid' using errcode = '22023'; end if;
+  v_end := nullif(app.farm_lifecycle(j.farm_id, app.billing_today()) ->> 'retrieval_ends_on', '')::date;
+  if v_end is not null then v_expires := least(v_expires, app.billing_day_ends_at(v_end)); end if;
+  update public.farm_export_jobs
+     set status = 'ready', ready_at = now(), expires_at = v_expires, manifest_sha256 = p_manifest_sha256,
+         last_error = null, updated_at = now()
+   where id = p_job;
+  return v_expires;
+end $$;
+
 -- The owner asks again for the files that were missing: back to pending, a new attempt count.
 create or replace function public.export_job_retry_missing(p_by uuid, p_job uuid)
 returns integer
@@ -359,6 +381,7 @@ begin
     'public.export_job_release(uuid,uuid)'::regprocedure,
     'public.export_job_record_files(uuid,uuid,jsonb,jsonb)'::regprocedure,
     'public.export_job_retry_missing(uuid,uuid)'::regprocedure,
+    'public.export_job_finish(uuid,uuid,text)'::regprocedure,
     'public.export_jobs_to_clean(integer)'::regprocedure,
     'public.export_job_mark_removed(uuid)'::regprocedure,
     'public.export_orphan_objects(integer)'::regprocedure]

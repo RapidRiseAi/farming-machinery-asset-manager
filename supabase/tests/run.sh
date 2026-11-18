@@ -313,4 +313,6 @@ echo "==> running journal summary tests (summed in the database, the journal's o
 pg "$DB" < "$ROOT/supabase/tests/journal_summary.sql"
 echo "==> running service orders tests (activation catalogue, Done-For-You agreements, scenario 43)"
 pg "$DB" < "$ROOT/supabase/tests/service_orders.sql"
+echo "==> running complete export tests (the requester's own file list, one job at a time, lease, retry, cleanup; scenarios 20 and 29)"
+pg "$DB" < "$ROOT/supabase/tests/complete_export.sql"
 echo "==> OK"

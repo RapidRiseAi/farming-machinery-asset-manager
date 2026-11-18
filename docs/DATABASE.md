@@ -370,3 +370,19 @@ New tables `service_orders` (offered, accepted by the owner, invoiced once throu
 `billing_raise_service_invoice`) and `service_work_entries` (time by activity and asset: Rapid
 Rise only; reviews: the owner too); both forced RLS, audited, pay gate open. Suite:
 `supabase/tests/service_orders.sql`.
+
+## The complete export with files (A4)
+
+Migration 20261120110000_complete_export.sql adds the private bucket `farm-exports` (no policy
+for signed-in people; paths `exports/<farm>/<job>/...`, outside the business's folder, so never
+in its storage pool), `farm_export_jobs` (one per business in progress; cutoff, records cursor,
+table counts, parts with SHA-256, file counters, lease, expiry; the requester reads their own)
+and `farm_export_job_files` (the file inventory at the cutoff, service only). The inventory is
+listed with the requester's session through `public.export_readable_files` (SECURITY INVOKER,
+so Storage's row security and the pay gate decide; never chat files, command audio or archives).
+Service-role functions: `export_job_create` (idempotent, one at a time, five a day),
+`export_job_claim`/`release` (lease), `export_job_record_files`, `export_job_finish` (kept seven
+days, never past the owner's last reading day), `export_job_retry_missing`, `export_job_allowed`
+(the worker's re-check of role and lifecycle), `export_jobs_to_clean`, `export_job_mark_removed`
+and `export_orphan_objects`. Both tables forced RLS, pay gate open. Suite:
+`supabase/tests/complete_export.sql`.

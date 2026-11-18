@@ -10,10 +10,11 @@ import { zipStream } from "@/lib/zip";
  * == Parts ======================================================================================
  * A large business is delivered as numbered ZIP parts of about PART_TARGET_BYTES each, plus a
  * manifest, rather than one file: no single request has to build or carry the whole export, and
- * each part stays under the storage service's default per-object upload limit (Supabase,
- * "Storage file limits": 50 MB on the Free plan unless the project sets another limit; a file
- * larger than a part is stored alone in its own part). Photos and PDFs are already compressed,
- * so entries are stored as they are.
+ * each part stays under the project's per-object upload limit (Supabase, "Storage file limits",
+ * read 18 November 2026: a Free project's limit cannot exceed 50 MB, Pro may set up to 500 GB, and
+ * no bucket may exceed the project's global limit; the live value is a dashboard fact to confirm).
+ * A file larger than a part is stored alone in its own part. Photos and PDFs are already
+ * compressed, so entries are stored as they are.
  *
  * == Names ======================================================================================
  * Nothing from a storage key or a table name reaches an archive path unchecked: files go through
@@ -23,7 +24,7 @@ import { zipStream } from "@/lib/zip";
 
 /** About 40 MB a part: under a 50 MB per-object upload limit with room for the ZIP headers. */
 export const PART_TARGET_BYTES = 40_000_000;
-/** How long a finished archive is kept for download, at most (and never past the reading window). */
+/** How long a finished archive is kept, at most: public.export_job_finish decides it (never past the reading window). */
 export const ARCHIVE_KEEP_DAYS = 7;
 /** A download link's life. A new one is made on every press while the archive is kept. */
 export const LINK_SECONDS = 600;
@@ -72,15 +73,6 @@ export function missingReason(error: { message?: string; status?: number; status
   if (status === 404 || /not.?found|does not exist/.test(text)) return "not_found";
   if (status === 401 || status === 403 || /not allowed|unauthori[sz]ed|forbidden|denied/.test(text)) return "refused";
   return "error";
-}
-
-/** The last moment a finished archive is kept: seven days, never past the owner's last reading day. */
-export function archiveExpiresAt(readyAt: Date, retrievalEndsOn: string | null): Date {
-  const week = new Date(readyAt.getTime() + ARCHIVE_KEEP_DAYS * 86_400_000);
-  if (!retrievalEndsOn || !/^\d{4}-\d{2}-\d{2}$/.test(retrievalEndsOn)) return week;
-  // The end of that day in South Africa (UTC+2, no daylight saving).
-  const end = new Date(`${retrievalEndsOn}T22:00:00.000Z`);
-  return end < week ? end : week;
 }
 
 /** One ZIP part in memory: the files of one step, never more than about a part's worth. */
