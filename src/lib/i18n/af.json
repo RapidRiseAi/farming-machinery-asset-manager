@@ -8200,7 +8200,10 @@
       "receivedBy": "Tik in wie dit ontvang het.",
       "photo": "Daardie foto kon nie gestoor word nie. Gebruik 'n foto kleiner as 8 MB.",
       "amount": "Tik 'n bedrag in, soos 1250.50."
-    }
+    },
+    "historyNotice": "Bewaar as 'n rekord. Jou plan sluit nie meer ritwerk in nie, so hierdie {{trip}} bly leesbaar en in jou uitvoer, maar kan nie verander word nie. 'n {{Trip}} wat reeds aan die gang is, kan steeds voltooi word, en 'n beplande een gekanselleer.",
+    "result": "Na uitgawes",
+    "resultUnknown": "Onbekend: geen inkomste ingevoer nie"
   },
   "hours": {
     "title": "Bestuurdersure",

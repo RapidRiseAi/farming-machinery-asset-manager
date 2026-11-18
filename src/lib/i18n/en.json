@@ -8200,7 +8200,10 @@
       "receivedBy": "Enter who received it.",
       "photo": "That photo could not be saved. Use a photo smaller than 8 MB.",
       "amount": "Enter an amount, like 1250.50."
-    }
+    },
+    "historyNotice": "Kept as a record. Your plan no longer includes trip work, so this {{trip}} stays readable and in your export, but cannot be changed. A {{trip}} already underway can still be finished, and a planned one cancelled.",
+    "result": "After expenses",
+    "resultUnknown": "Not known: no income entered"
   },
   "hours": {
     "title": "Driver hours",
