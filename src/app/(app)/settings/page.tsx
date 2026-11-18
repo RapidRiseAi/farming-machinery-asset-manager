@@ -27,6 +27,8 @@ import { PrefRow } from "@/components/preferences/pref-row";
 import { buttonVariants } from "@/components/ui/button";
 import { OWNED_FIELD } from "@/lib/settings";
 import { MODULE_KEYS, moduleOn, moduleSettingKey, simpleDriverMode } from "@/lib/modules";
+import { CompleteExport } from "@/components/export/complete-export";
+import { downloadLabels } from "@/lib/interaction-labels";
 
 type Settings = Record<string, unknown>;
 
@@ -535,6 +537,14 @@ export default async function SettingsPage({
           ),
         })}
       </section>
+
+      {/* The complete export with files (20261120110000), for the owner and managers. */}
+      {profile.farm_id ? (
+        <Card id="export">
+          <CardHeader><CardTitle as="h3">{t("exportJob.title", locale)}</CardTitle></CardHeader>
+          <CompleteExport farmId={profile.farm_id} locale={locale} labels={downloadLabels(locale)} />
+        </Card>
+      ) : null}
 
       {profile.role === "owner" ? (
         <p className="text-sm text-sand-600">

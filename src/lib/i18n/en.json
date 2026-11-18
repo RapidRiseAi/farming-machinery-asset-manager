@@ -8663,5 +8663,29 @@
     "askToOrder": "To order, ask us. We agree the scope and the price with you before anything is invoiced.",
     "askLink": "Ask us",
     "supportTitle": "Support hours"
+  },
+  "exportJob": {
+    "title": "Your records and files",
+    "lead": "A complete copy of this business's records and its photos, documents and kept voice notes. It is prepared in the background and offered as numbered ZIP files with a list of their contents.",
+    "scope": "It holds only what you may read in the app. Staff chat conversations, temporary spoken-command audio, sign-in details and card details are never included. The contents list names anything that could not be included.",
+    "start": "Prepare the complete export",
+    "again": "Prepare a new copy",
+    "progressRecords": "Reading your records: {rows} so far.",
+    "progressFiles": "Copying files: {done} of {total} ({mb} of {totalMb} MB).",
+    "progressFinishing": "Writing the list of contents.",
+    "keepOpen": "Keeping this page open makes it faster. If you close it, the files are finished in the background and waiting here when you come back.",
+    "ready": "Ready: {rows} records and {files} files ({mb} MB).",
+    "keptUntil": "Kept for download until {date}. Each download link works for ten minutes; press again for a new one.",
+    "part": "Part {n} ({mb} MB)",
+    "download": "Download",
+    "manifest": "Download the list of contents (with checksums)",
+    "missing": "{n} file(s) could not be copied. The list of contents says why.",
+    "retry": "Try the missing files again",
+    "failed": "This export stopped before it finished. Prepare a new copy.",
+    "paused": "The export paused after several failed tries. It carries on in the background tonight, or press the button again later.",
+    "errLimit": "This business has started five exports today. Try again tomorrow.",
+    "errNotAllowed": "You cannot export this business's records now.",
+    "errGone": "This copy is no longer kept. Prepare a new copy.",
+    "errFailed": "That did not work. Try again."
   }
 }

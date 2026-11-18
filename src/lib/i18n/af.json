@@ -8663,5 +8663,29 @@
     "askToOrder": "Vra ons om te bestel. Ons kom die omvang en die prys met u ooreen voordat enigiets gefaktureer word.",
     "askLink": "Vra ons",
     "supportTitle": "Ondersteuningsure"
+  },
+  "exportJob": {
+    "title": "U rekords en lêers",
+    "lead": "'n Volledige afskrif van hierdie besigheid se rekords en sy foto's, dokumente en bewaarde stemnotas. Dit word in die agtergrond voorberei en as genommerde ZIP-lêers met 'n lys van hul inhoud aangebied.",
+    "scope": "Dit bevat slegs wat u in die toepassing mag lees. Personeelkletsgesprekke, tydelike klank van gesproke opdragte, aanmeldbesonderhede en kaartbesonderhede word nooit ingesluit nie. Die inhoudslys noem enigiets wat nie ingesluit kon word nie.",
+    "start": "Berei die volledige uitvoer voor",
+    "again": "Berei 'n nuwe afskrif voor",
+    "progressRecords": "Lees u rekords: {rows} tot dusver.",
+    "progressFiles": "Kopieer lêers: {done} van {total} ({mb} van {totalMb} MB).",
+    "progressFinishing": "Skryf die lys van inhoud.",
+    "keepOpen": "As u hierdie bladsy oop hou, gaan dit vinniger. As u dit toemaak, word die lêers in die agtergrond klaargemaak en wag dit hier wanneer u terugkom.",
+    "ready": "Gereed: {rows} rekords en {files} lêers ({mb} MB).",
+    "keptUntil": "Beskikbaar vir aflaai tot {date}. Elke aflaaiskakel werk vir tien minute; druk weer vir 'n nuwe een.",
+    "part": "Deel {n} ({mb} MB)",
+    "download": "Laai af",
+    "manifest": "Laai die lys van inhoud af (met kontrolesomme)",
+    "missing": "{n} lêer(s) kon nie gekopieer word nie. Die lys van inhoud sê hoekom.",
+    "retry": "Probeer die ontbrekende lêers weer",
+    "failed": "Hierdie uitvoer het gestop voordat dit klaar was. Berei 'n nuwe afskrif voor.",
+    "paused": "Die uitvoer het na verskeie mislukte pogings gestop. Dit gaan vanaand in die agtergrond voort, of druk later weer die knoppie.",
+    "errLimit": "Hierdie besigheid het vandag reeds vyf uitvoere begin. Probeer môre weer.",
+    "errNotAllowed": "U kan nie nou hierdie besigheid se rekords uitvoer nie.",
+    "errGone": "Hierdie afskrif word nie meer bewaar nie. Berei 'n nuwe afskrif voor.",
+    "errFailed": "Dit het nie gewerk nie. Probeer weer."
   }
 }

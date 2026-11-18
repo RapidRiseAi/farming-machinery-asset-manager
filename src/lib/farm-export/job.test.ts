@@ -175,10 +175,11 @@ test("files: copied once with a checksum, retried, then missing with a reason; c
     { job_id: JOB, seq: 4, bucket: "machine-docs", name: `${FARM}/flaky.pdf`, size: 7, attempts: 0, status: "pending" },
     { job_id: JOB, seq: 5, bucket: "machine-photos", name: `${FARM}/b.jpg`, size: 11, attempts: 0, status: "pending" },
   ];
-  let recorded: { p_part: { n: number; entries: number; sha256: string } | null; p_rows: Row[] } | null = null;
+  type Recorded = { p_part: { n: number; entries: number; sha256: string } | null; p_rows: Row[] };
+  const seen: { value: Recorded | null } = { value: null };
   const svc = fakeClient({
     tables: { farm_export_job_files: inventory },
-    rpc: { export_job_record_files: (args) => ((recorded = args as never), null) },
+    rpc: { export_job_record_files: (args) => ((seen.value = args as unknown as Recorded), null) },
   });
   const session = fakeClient({
     files: {
@@ -193,8 +194,9 @@ test("files: copied once with a checksum, retried, then missing with a reason; c
   };
   // A part of 20 bytes: a.jpg (11) fits, b.jpg (11) would pass it and waits for the next part.
   await filesStep(svc.client, reader, job({ status: "files" }), "t", Date.now() + 60_000, 20);
+  const recorded = seen.value;
   assert.ok(recorded);
-  const rows = new Map((recorded!.p_rows as Row[]).map((r) => [r.seq, r]));
+  const rows = new Map((recorded.p_rows as Row[]).map((r) => [r.seq, r]));
   assert.equal(rows.get(1)?.status, "copied");
   assert.match(String(rows.get(1)?.sha256), /^[0-9a-f]{64}$/);
   assert.equal(rows.get(1)?.archive_path, fileEntryName("machine-photos", `${FARM}/a.jpg`, FARM));
@@ -204,8 +206,8 @@ test("files: copied once with a checksum, retried, then missing with a reason; c
   assert.equal(rows.get(4)?.status, undefined, "a failure with attempts left stays pending");
   assert.equal(rows.get(4)?.attempted, 1);
   assert.ok(!rows.has(5), "the file that would pass the part size waits for the next part");
-  assert.equal(recorded!.p_part?.n, 1);
-  assert.equal(recorded!.p_part?.entries, 1);
+  assert.equal(recorded.p_part?.n, 1);
+  assert.equal(recorded.p_part?.entries, 1);
   assert.ok(svc.stored.has(`farm-exports/${exportObjectPath(FARM, JOB, "part-0001.zip")}`));
 });
 
