@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // One capture, one record, online or queued; the fuel plan asked again on reconnect (B3).
+  "20261119130000": "select to_regprocedure('public.apply_offline_capture_once(uuid,timestamptz,text,text,uuid,jsonb)') is not null",
   // A service template applied to a machine once (B3).
   "20261119120000": "select to_regclass('public.service_plan_lines_template_once') is not null",
   // A replayed answer fits in a claim; claims older than two days swept nightly (B3).

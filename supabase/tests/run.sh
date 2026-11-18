@@ -305,4 +305,6 @@ echo "==> running request claim answer tests (a replay gets the whole answer, ol
 pg "$DB" < "$ROOT/supabase/tests/request_claim_answers.sql"
 echo "==> running service template once per machine tests"
 pg "$DB" < "$ROOT/supabase/tests/service_template_once.sql"
+echo "==> running offline capture once tests (online and queued share one id, the plan asked again)"
+pg "$DB" < "$ROOT/supabase/tests/offline_capture_once.sql"
 echo "==> OK"
