@@ -38,8 +38,11 @@ select pg_temp.assert((select char_length(outcome) <= 65536 from public.request_
 insert into public.request_claims(request_id,user_id,action,claimed_at,finished_at,outcome) values
  ('cd300000-0000-4000-9000-000000000002','cd100000-0000-4000-9000-000000000002','work:media',now() - interval '3 days',now() - interval '3 days','{"ok":true}'),
  ('cd300000-0000-4000-9000-000000000003','cd100000-0000-4000-9000-000000000001','assistant:transcribe',now() - interval '1 day',now() - interval '1 day','{"hearings":[]}');
-select pg_temp.assert(public.cron_sweep_request_claims() = 1, 'one old claim swept');
-select pg_temp.assert((select count(*) = 2 from public.request_claims), 'recent claims kept');
+-- Judged on this suite's own claims: CI runs every suite on one database, so others may exist.
+select pg_temp.assert(public.cron_sweep_request_claims() >= 1, 'the sweep removed something');
+select pg_temp.assert(not exists (select 1 from public.request_claims where request_id = 'cd300000-0000-4000-9000-000000000002'), 'the old claim swept');
+select pg_temp.assert((select count(*) = 2 from public.request_claims
+  where request_id in ('cd300000-0000-4000-9000-000000000001', 'cd300000-0000-4000-9000-000000000003')), 'recent claims kept');
 select pg_temp.assert(not has_function_privilege('authenticated','public.cron_sweep_request_claims()','execute')
   and not has_function_privilege('anon','public.cron_sweep_request_claims()','execute'), 'the sweep is the service''s');
 rollback;
