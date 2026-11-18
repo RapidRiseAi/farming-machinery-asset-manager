@@ -1439,12 +1439,16 @@ export const QUOTE_COLUMNS =
   "id, subscription_id, change, mode, status, from_plan, from_period, from_full, from_equipment_extra, " +
   "full_in_use, equipment_in_use, period_end, to_plan, to_period, to_full, to_equipment_extra, " +
   "days_remaining, days_in_period, charge_now_cents, credit_now_cents, current_renewal_cents, " +
-  "next_renewal_cents, effective_on, expires_at, payment_due_by, invoice_id, detail, created_at, accepted_at";
+  "next_renewal_cents, effective_on, expires_at, payment_due_by, invoice_id, detail, created_at, accepted_at, " +
+  "from_storage_blocks, to_storage_blocks";
 
 export type QuoteRow = {
   id: string;
   subscription_id: string;
-  change: "capacity" | "plan";
+  change: "capacity" | "plan" | "storage";
+  /** A change of storage blocks (20261118120100): the blocks held and asked for. */
+  from_storage_blocks?: number | null;
+  to_storage_blocks?: number | null;
   mode: "now" | "renewal";
   status: "quoted" | "awaiting_payment" | "scheduled" | "applied" | "credited" | "cancelled" | "expired" | "superseded";
   from_plan: string;
