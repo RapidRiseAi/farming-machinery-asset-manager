@@ -179,14 +179,17 @@ async function readPage(session: SupabaseClient, spec: ExportTable, farmId: stri
 }
 
 /** One records step: tables from the cursor until a part's worth or the time is up. */
-export async function recordsStep(session: SupabaseClient, svc: SupabaseClient, job: ExportJob, token: string, deadline: number): Promise<void> {
+export async function recordsStep(
+  session: SupabaseClient, svc: SupabaseClient, job: ExportJob, token: string, deadline: number,
+  partBytes: number = PART_TARGET_BYTES,
+): Promise<void> {
   const cursor: Cursor = { t: 0, after: null, offset: 0, chunk: 1, filter: null, ...(job.records_cursor ?? {}) };
   const tables: TableMeta[] = [...(job.tables ?? [])];
   const costsVisible = await canViewFarmCosts(session, job.farm_id);
   const chunks = new Map<string, { table: string; chunk: number; text: string[] }>();
   let size = 0;
   let t = cursor.t ?? 0;
-  while (t < EXPORT_TABLES.length && Date.now() < deadline && size < PART_TARGET_BYTES) {
+  while (t < EXPORT_TABLES.length && Date.now() < deadline && size < partBytes) {
     const spec = EXPORT_TABLES[t];
     const meta = tables[t] ?? (tables[t] = { name: spec.name, rows: 0, status: "ok", cutoff: "none" });
     const page = await readPage(session, spec, job.farm_id, cursor, job.cutoff_at);
@@ -256,7 +259,10 @@ export async function recordsStep(session: SupabaseClient, svc: SupabaseClient, 
 }
 
 /** One files step: pending files in order until a part's worth or the time is up. */
-export async function filesStep(svc: SupabaseClient, reader: FileReader, job: ExportJob, token: string, deadline: number): Promise<void> {
+export async function filesStep(
+  svc: SupabaseClient, reader: FileReader, job: ExportJob, token: string, deadline: number,
+  partBytes: number = PART_TARGET_BYTES,
+): Promise<void> {
   const { data, error } = await svc
     .from("farm_export_job_files")
     .select("seq, bucket, name, size, attempts")
@@ -272,7 +278,7 @@ export async function filesStep(svc: SupabaseClient, reader: FileReader, job: Ex
   let size = 0;
   for (const f of pending) {
     if (Date.now() > deadline) break;
-    if (entries.length > 0 && size + Number(f.size) > PART_TARGET_BYTES) break;
+    if (entries.length > 0 && size + Number(f.size) > partBytes) break;
     let name: string;
     try {
       name = fileEntryName(f.bucket, f.name, job.farm_id);
