@@ -273,6 +273,12 @@ export function formatNotification(
       return fill("notifications.tplBillingRetrievalEnding", locale, {
         date: p.retrieval_ends_on ? shortDate(String(p.retrieval_ends_on), locale) : "",
       });
+    // Scheduled deletion after the reading window (20261120120000): only ever sent while deletion
+    // is switched on, at least 30 days ahead, then 7 and 1 days before.
+    case "retention_deletion_scheduled":
+      return fill("notifications.tplRetentionDeletionScheduled", locale, {
+        date: p.delete_after ? shortDate(String(p.delete_after), locale) : "",
+      });
     case "billing_resumed":
       return t("notifications.tplBillingResumed", locale);
     case "billing_card_expiring":
@@ -512,6 +518,7 @@ export function notificationUrl(template: string, payload: NotePayload): string 
   // The owner's reading after an unpaid renewal is on /suspended, after a cancellation on /closed.
   if (template === "billing_access_ended") return "/closed";
   if (template === "billing_retrieval_ending") return p.reason === "unpaid" ? "/suspended" : "/closed";
+  if (template === "retention_deletion_scheduled") return "/closed";
   if (template.startsWith("billing_")) return "/billing";
   // The limit, the usage by person and the linked key all live on one owner page.
   if (template.startsWith("ai_")) return "/settings/ai";

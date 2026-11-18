@@ -1,5 +1,6 @@
 import { finishClosureFiles } from "@/lib/farm-closure";
 import { cleanExportArchives, runExportWorker } from "@/lib/farm-export/job";
+import { finishClosureLogins, runRetention } from "@/lib/retention";
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { captureError } from "@/lib/observability";
@@ -154,6 +155,11 @@ export async function GET(request: Request) {
   // Files a permanent closure could not remove, then what five years have released.
   await step("closure_files", () => finishClosureFiles(supabase));
   await run("closure_purge", "purge_expired_closures");
+  // Logins a closure could not remove, then the deletion schedule after the reading window
+  // (20261120120000): a dry run with nothing deleted and nobody warned until the founder switches
+  // it on in the database AND RETENTION_DELETION=enabled is set on the deployment.
+  await step("closure_logins", () => finishClosureLogins(supabase));
+  await step("retention", () => runRetention(supabase));
   // Route trails older than six months (20261107120000).
   await run("positions_purge", "cron_purge_positions");
   // Place search answers older than a month (20261111130000).
