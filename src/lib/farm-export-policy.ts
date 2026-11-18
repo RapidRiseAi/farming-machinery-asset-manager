@@ -27,7 +27,7 @@ export function exportRefusal(
 /** Never put a storage key directly in an archive header. The hash preserves
  * uniqueness when different names sanitise to the same portable filename. */
 export function exportArchivePath(bucket: string, path: string, farmId: string): string {
-  if (!/^[a-z][a-z0-9-]*$/.test(bucket) || ["chat-files", "command-audio"].includes(bucket)) {
+  if (!/^[a-z][a-z0-9-]*$/.test(bucket) || ["chat-files", "command-audio", "farm-exports"].includes(bucket)) {
     throw new Error("export: excluded bucket");
   }
   if (!path.startsWith(`${farmId}/`) || path.length <= farmId.length + 1) {

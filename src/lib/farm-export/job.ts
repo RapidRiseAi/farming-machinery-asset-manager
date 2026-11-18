@@ -31,6 +31,11 @@ export const JOB_COLUMNS =
   "parts, files_total, files_done, files_missing, bytes_total, bytes_done, manifest_sha256, last_error, ready_at, expires_at, " +
   "removed_at, created_at, updated_at";
 
+/** What the requester's page reads: never the cursor or the lease. */
+export const PUBLIC_JOB_COLUMNS =
+  "id, farm_id, status, cutoff_at, inventory_done, files_capped, tables, parts, files_total, files_done, files_missing, " +
+  "bytes_total, bytes_done, last_error, ready_at, expires_at, removed_at, created_at";
+
 export type ExportJob = {
   id: string;
   farm_id: string;
@@ -114,17 +119,18 @@ export async function takeInventory(session: SupabaseClient, svc: SupabaseClient
   let bytes = 0;
   let capped = false;
   for (;;) {
-    const { data, error } = await session.rpc("export_readable_files", {
+    const listed: { data: unknown; error: unknown } = await session.rpc("export_readable_files", {
       p_farm: job.farm_id, p_after_bucket: afterBucket, p_after_name: afterName, p_limit: PAGE_ROWS,
     });
-    if (error) throw error;
-    let rows = ((data as { bucket_id: string; name: string; size: number }[] | null) ?? []);
+    if (listed.error) throw listed.error;
+    type Listed = { bucket_id: string; name: string; size: number };
+    let rows: Listed[] = (listed.data as Listed[] | null) ?? [];
     if (rows.length === 0) break;
     if (seq + rows.length > MAX_FILES) {
       rows = rows.slice(0, MAX_FILES - seq);
       capped = true;
     }
-    const insert = rows.map((r) => {
+    const insert = rows.map((r: Listed) => {
       seq += 1;
       bytes += Number(r.size) || 0;
       return { job_id: job.id, farm_id: job.farm_id, seq, bucket: r.bucket_id, name: r.name, size: Number(r.size) || 0 };
@@ -133,7 +139,7 @@ export async function takeInventory(session: SupabaseClient, svc: SupabaseClient
       const { error: insertError } = await svc.from("farm_export_job_files").insert(insert);
       if (insertError) throw insertError;
     }
-    const last = rows[rows.length - 1];
+    const last: Listed | undefined = rows[rows.length - 1];
     afterBucket = last?.bucket_id ?? afterBucket;
     afterName = last?.name ?? afterName;
     if (capped || rows.length < PAGE_ROWS) break;
