@@ -113,7 +113,7 @@ export function ChangeReview({
       ) : null}
       {quote.change === "storage" ? (
         <p className="mt-3 text-sm leading-relaxed text-sand-800">
-          {t(atRenewal ? "billing.storageReduceNote" : "billing.storageMonthlyNote", locale)}
+          {t(atRenewal ? "billing.storageReduceNote" : "billing.storageBuyNote", locale)}
         </p>
       ) : null}
       <p className="mt-3 text-sm leading-relaxed text-sand-800">

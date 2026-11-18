@@ -7,6 +7,7 @@ import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import { rands } from "@/lib/money";
 import { enumLabel, num, shortDate } from "@/lib/format";
+import { gigabytes } from "@/lib/storage-allowance";
 
 export type NotePayload = Record<string, unknown>;
 
@@ -22,6 +23,11 @@ function day(value: unknown, locale: Lang): string {
 function amount(value: unknown): string {
   const n = Number(value);
   return value == null || value === "" || !Number.isFinite(n) ? String(value ?? "") : num(n);
+}
+
+/** Decimal gigabytes, as the storage allowance counts (decision 14). */
+function storageGb(raw: unknown): string {
+  return `${gigabytes(Number(raw ?? 0))} GB`;
 }
 
 function fill(key: string, locale: Lang, vars: Record<string, string>): string {
@@ -338,6 +344,25 @@ export function formatNotification(
       });
     case "ai_limit_reached":
       return fill("notifications.tplAiLimitReached", locale, { limit: rands(Math.round(Number(p.limit_cents ?? 0))) });
+    // Pooled storage (20261118120000), to the owners: 80% and 95%, full, an automatic block.
+    case "storage_warning":
+      return fill("notifications.tplStorageWarning", locale, {
+        percent: String(Number(p.percent ?? 80)),
+        used: storageGb(p.used_bytes),
+        total: storageGb(p.total_bytes),
+      });
+    case "storage_full":
+      return fill("notifications.tplStorageFull", locale, { used: storageGb(p.used_bytes), total: storageGb(p.total_bytes) });
+    case "storage_block_added":
+      return fill("notifications.tplStorageBlockAdded", locale, {
+        blocks: String(Number(p.blocks ?? 1)),
+        monthly: rands(Number(p.monthly_cents ?? 0)),
+        ceiling: rands(Number(p.ceiling_cents ?? 0)),
+        today: rands(Number(p.today_cents ?? 0)),
+      });
+    // The customer-wide assistance limit replaced the per-site one (20261118120200).
+    case "assistance_budget_migrated":
+      return fill("notifications.tplAssistanceBudgetMigrated", locale, { limit: rands(Number(p.limit_cents ?? 0)) });
     case "ai_key_failed":
       return fill(p.fallback === "platform" ? "notifications.tplAiKeyFailedPlatform" : "notifications.tplAiKeyFailedPause", locale, {
         reason: t(
