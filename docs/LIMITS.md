@@ -213,6 +213,8 @@ their file size is bounded only by Vercel's 4.5 MB request limit; that is far ab
 | `src/lib/accounting-read.ts:9` | 100,000 journal lines; choose a shorter period |
 | `src/lib/usage-billing.ts:15` | storage measured in binary GB for cost-plus usage; task A3 replaces it with the decimal pooled allowance |
 | `src/app/(auth)/close-account/page.tsx:57` | shows megabytes; now decimal |
+| `positionRecentMs` (B3, new) | 10 minutes: a reported position older than this is shown as the last known position with its age, never as current or live (`/map`) |
+| `tripReportWindowDays` (B3, new) | 90 days: the trip earnings report says it covers only the last 90 days; older trips stay on their pages and in the export |
 
 ## Photo reduction
 
