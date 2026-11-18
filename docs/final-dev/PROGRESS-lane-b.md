@@ -54,8 +54,14 @@ and build on it, never rebuild. Steps, committed one by one:
   transcribe (content digest id), migration 20261119110000 (64 KiB outcomes, nightly claim
   sweep), activation Pay resumes the open checkout, contractor sync verified by test,
   migration 20261119120000 (template once per machine). All mutations caught.
-- NEXT step 6 offline: request id from fields becomes client_id, SQL wrapper
-  apply_offline_capture_once (claims, fuel plan recheck), route error classes, queue reasons.
+- Step 6 done: queued capture keeps the online request id; migration 20261119130000
+  (apply_offline_capture_once, claim_request answers a capture id, fuel plan asked again);
+  sync refusals classified; queue reasons EN/AF. 7/7 mutations.
+- Step 7 done: export paged (step 3), migration 20261119140000 (journal summary in SQL),
+  digest once a week (step 3 migration), empty states, starters guard test.
+- Step 8: sites_roles_consolidated.sql (scenario 18), PLAN_FEATURES.md downgrade table,
+  register rows, LAUNCH_CHECKLIST. Report: the harness refused REPORT-B3.md, so the full
+  report is the final message.
 
 ## Task
 
