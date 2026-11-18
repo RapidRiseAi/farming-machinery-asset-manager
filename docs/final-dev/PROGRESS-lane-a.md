@@ -4,6 +4,13 @@ Read this and `git log` first when resuming. Never restart a step that is marked
 
 ## Current task: A3 (pooled storage, paid blocks, shared assistance spending cap)
 
+**TASK A3 COMPLETE** (18 Nov 2026). Final gates: tsc clean, 1181 unit tests (0 fail), dashes,
+parity, keys, design and errors clean; all 87 PGlite suites pass (298 migrations) after the last
+code and doc change. Mutations: 40 SQL + 7 TS, all caught. The harness refused to write
+`docs/final-dev/REPORT-A3.md` (as for A1, A2 and B1): the full report is the worker's final
+message; the runner saves it as the report. Next checks: CI on real Postgres, a browser walk of
+/billing and /settings/ai, then the external actions listed in the report.
+
 BRIEF 11 and 12; decisions 14, 15, 22, 23, 24, 34, 36; scenarios 24, 25, 26, 30, 31, 32 (and the
 storage/assistance half of 12). Started 17 Nov 2026 on 48b7987 (A1, B1, A2, Codex B2 and B3 merged).
 
@@ -14,7 +21,7 @@ storage/assistance half of 12). Started 17 Nov 2026 on 48b7987 (A1, B1, A2, Code
 | 3 | Assistance cap (20261118120200): customer-wide budget table, existing limits migrated as chosen (owners told), blank refuses (budget_unset), customer-wide lock and spend, staff sublimits across sites, WhatsApp on the same ledger (owner acceptance, hold before send, settle on the delivery webhook's pricing, free = R0, stale = R0), event fields, AI use of every pooled site invoiced, usage corrections as credit; suite assistance_cap.sql | SQL done (16/16 mutations); usage corrections as credit NOT built (see report) |
 | 4 | TS storage: mirror + tests, /billing storage section (status, warnings, blocks, auto setting), upload refusal offers expansion, admin usage page | done (gates passed at the step 4 commit; no browser run) |
 | 5 | TS assistance: /settings/ai setup (required, zero allowed, migrated notice, reset boundary), refusals, WhatsApp hooks and acceptance, admin rates | done (gates passed; TS mutations 7/7) |
-| 6 | Docs, register rows, REPORT-A3.md | todo |
+| 6 | Docs, register rows, REPORT-A3.md | done (report in the final message: write refused) |
 
 Design (decided at the start, keep to it):
 - Pool = the billing root (`app.billing_root`) and every site billed through it. Allowance per
