@@ -318,3 +318,11 @@ is `ok`. `app.enqueue_weekly_digest` sends one `weekly_digest` per open business
 African week (`app.sast_week_start`, Monday 00:00 SAST), whichever run gets there first,
 under a per-business advisory lock; the nightly route asks Monday to Wednesday so a missed
 Monday catches up. Suite: `supabase/tests/scheduled_work_by_plan.sql`.
+
+## Request claims keep a whole answer; swept nightly (B3)
+
+Migration 20261119110000_request_claim_answers.sql lets `request_claims.outcome` hold up to
+64 KiB (NOT VALID check, then validated) so an assistant turn or an AI transcription can be
+answered again from its claim instead of paid for twice, and adds
+`public.cron_sweep_request_claims()` (service role), which the nightly job runs to remove
+every claim older than two days. Suite: `supabase/tests/request_claim_answers.sql`.

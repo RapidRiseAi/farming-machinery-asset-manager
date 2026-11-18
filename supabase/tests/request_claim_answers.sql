@@ -20,11 +20,11 @@ $$;
 select pg_temp.login(1); set local role authenticated;
 select pg_temp.assert((public.claim_request('cd300000-0000-4000-9000-000000000001','assistant:turn')->>'state') = 'new', 'a first claim is new');
 select public.finish_request('cd300000-0000-4000-9000-000000000001', '{"kind":"answer","text":"' || repeat('a', 30000) || '"}');
-select pg_temp.assert(length(public.claim_request('cd300000-0000-4000-9000-000000000001','assistant:turn')->>'outcome') = 30000 + 29,
+select pg_temp.assert(length(public.claim_request('cd300000-0000-4000-9000-000000000001','assistant:turn')->>'outcome') = 30000 + 27,
   'a replay gets the whole answer back, not the first 2,000 characters');
 -- Another person cannot read it through the same id.
 select pg_temp.login(2);
-select pg_temp.assert((select count(*) = 0 from public.request_claims), 'claims are not readable by a signed-in person');
+select pg_temp.assert(not has_table_privilege('authenticated','public.request_claims','SELECT'), 'claims are not readable by a signed-in person');
 do $t$ begin
   perform public.claim_request('cd300000-0000-4000-9000-000000000001','assistant:turn');
   raise exception 'CLAIM: another person replayed somebody else''s answer';

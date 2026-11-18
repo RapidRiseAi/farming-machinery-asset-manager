@@ -181,6 +181,7 @@ export const LIMITS = {
   routingBodyMaxBytes: entry(16 * KIB, "bytes", "abuse", false, "A route request: at most 25 stops."),
   trackerBatchMaxBytes: entry(128 * KIB, "bytes", "abuse", false, "One tracker position batch."),
   offlinePayloadMaxChars: entry(20_000, "chars", "abuse", false, "One queued offline capture's fields."),
+  requestClaimOutcomeChars: entry(65_536, "chars", "abuse", false, "An answer a request claim keeps for a replay (20261119110000); a longer one is not kept."),
 
   // == Display and query windows (never contractual history limits) ====================
   readAllMaxRows: entry(100_000, "rows", "window", false, "Paged reads stop and report beyond this."),
@@ -198,6 +199,7 @@ export const PHOTO_MAX_BYTES = LIMITS.photoMaxBytes.value;
 export const PDF_MAX_BYTES = LIMITS.pdfMaxBytes.value;
 export const VOICE_NOTE_MAX_BYTES = LIMITS.voiceNoteMaxBytes.value;
 export const POSITION_RECENT_MS = LIMITS.positionRecentMs.value;
+export const REQUEST_CLAIM_OUTCOME_CHARS = LIMITS.requestClaimOutcomeChars.value;
 export const TRIP_REPORT_WINDOW_DAYS = LIMITS.tripReportWindowDays.value;
 export const VOICE_NOTE_MAX_MS = LIMITS.voiceNoteMaxMs.value;
 export const COMMAND_AUDIO_MAX_MS = LIMITS.commandAudioMaxMs.value;
