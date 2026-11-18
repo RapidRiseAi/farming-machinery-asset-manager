@@ -60,7 +60,7 @@ export default async function RetentionPage({ searchParams }: { searchParams: Pr
     <PageContainer>
       <PageHeader title="Deletion after the reading window" lead="Businesses whose subscription ended unpaid or cancelled, after the owner's 90 days. A dry run until both switches are on." />
       {sp.error ? <Flash tone="error" message={errorMessage(sp.error, locale)} /> : null}
-      {sp.saved ? <Flash tone="success" message={t("common.saved", locale)} /> : null}
+      {sp.saved ? <Flash tone="success" message={t("ui.saved", locale)} /> : null}
 
       <Card>
         <CardHeader><CardTitle as="h3">The switch</CardTitle></CardHeader>
