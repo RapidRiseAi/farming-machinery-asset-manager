@@ -255,6 +255,11 @@ begin
   if v ->> 'reason' is distinct from 'member_limit' then
     raise exception 'ASSIST FAIL [31]: a sublimit did not hold at another site: %', v;
   end if;
+  -- And at the North depot itself, where it was set (it is kept on the billing site).
+  v := pg_temp.hold('5c000000-0000-4000-9000-0000000000c2', '5c100000-0000-4000-9000-000000000003', 0.01);
+  if v ->> 'reason' is distinct from 'member_limit' then
+    raise exception 'ASSIST FAIL [31]: a sublimit kept on the billing site did not hold at the North depot: %', v;
+  end if;
   v := pg_temp.hold('5c000000-0000-4000-9000-0000000000c1', '5c100000-0000-4000-9000-000000000002', 0.01);
   if not (v ->> 'ok')::boolean then
     raise exception 'ASSIST FAIL [31]: one person''s sublimit stopped another: %', v;
@@ -403,14 +408,14 @@ begin
     raise exception 'ASSIST FAIL [32]: a sent status settled the message';
   end if;
   r := public.whatsapp_usage_settle('wamid.quiet-1', 'failed', null, null, null);
-  if (select billed_cents from public.ai_usage where reservation_id = (quiet ->> 'id')::uuid) <> 0
-     or (select outcome from public.ai_usage where reservation_id = (quiet ->> 'id')::uuid) <> 'failed' then
+  if coalesce((select billed_cents from public.ai_usage where reservation_id = (quiet ->> 'id')::uuid), -1) <> 0
+     or (select outcome from public.ai_usage where reservation_id = (quiet ->> 'id')::uuid) is distinct from 'failed' then
     raise exception 'ASSIST FAIL [32]: a failed delivery was billed';
   end if;
   -- Refused by Meta before it was taken: released at R0.
   refused := public.whatsapp_usage_reserve('5c000000-0000-4000-9000-0000000000c1', '5c100000-0000-4000-9000-000000000002', 'utility');
   perform public.whatsapp_usage_release((refused ->> 'id')::uuid, 'send_failed');
-  if (select billed_cents from public.ai_usage where reservation_id = (refused ->> 'id')::uuid) <> 0 then
+  if coalesce((select billed_cents from public.ai_usage where reservation_id = (refused ->> 'id')::uuid), -1) <> 0 then
     raise exception 'ASSIST FAIL [32]: a message Meta never took was billed';
   end if;
   -- Never answered: still held after two hours (Meta reports on delivery), R0 after 72.
