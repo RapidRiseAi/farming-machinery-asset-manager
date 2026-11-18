@@ -2045,7 +2045,7 @@
     "namesAndMore": "{names} and {n} more."
   },
   "offline": {
-    "mediaTooLarge": "Use a JPEG, PNG or WebP photo under 6 MB and a voice note under 8 MB. Remove or replace the attachment, then try again.",
+    "mediaTooLarge": "Use a JPEG, PNG or WebP photo up to 20 MB and a voice note up to 20 MB (ten minutes). Remove or replace the attachment, then try again.",
     "review": "Review saved captures",
     "reviewHelp": "These captures are stored on this device. Retry when connected. A rejected capture or conflict stays here: check the {{asset}} or job card, export a backup if needed, then record any correction before removing the saved copy. Exports include media and may contain private information.",
     "storageFailed": "Could not save or read this device's drafts. Your form has not been cleared. Keep it open and try again when connected.",
@@ -8200,7 +8200,7 @@
       "reading": "The reading at the end cannot be below the reading at the start.",
       "customer": "Enter the customer's name.",
       "receivedBy": "Enter who received it.",
-      "photo": "That photo could not be saved. Use a photo smaller than 8 MB.",
+      "photo": "That photo could not be saved. Use a JPEG, PNG or WebP photo up to 20 MB.",
       "amount": "Enter an amount, like 1250.50."
     },
     "historyNotice": "Kept as a record. Your plan no longer includes trip work, so this {{trip}} stays readable and in your export, but cannot be changed. A {{trip}} already underway can still be finished, and a planned one cancelled.",

@@ -2045,7 +2045,7 @@
     "namesAndMore": "{names} en nog {n}."
   },
   "offline": {
-    "mediaTooLarge": "Gebruik ’n JPEG-, PNG- of WebP-foto kleiner as 6 MB en ’n stemnota kleiner as 8 MB. Verwyder of vervang die aanhegsel en probeer weer.",
+    "mediaTooLarge": "Gebruik 'n JPEG-, PNG- of WebP-foto van tot 20 MB en 'n stemnota van tot 20 MB (tien minute). Verwyder of vervang die aanhegsel en probeer weer.",
     "review": "Hersien gestoorde inskrywings",
     "reviewHelp": "Dié inskrywings is op hierdie toestel gestoor. Probeer weer wanneer jy verbind is. ’n Geweierde inskrywing of konflik bly hier: kontroleer die {{asset}} of werkkaart, laai ’n rugsteun af indien nodig, en teken enige regstelling aan voordat jy die gestoorde kopie verwyder. Rugsteune bevat media en kan privaat inligting bevat.",
     "storageFailed": "Kon nie hierdie toestel se konsepte stoor of lees nie. Jou vorm is nie skoongemaak nie. Hou dit oop en probeer weer wanneer jy verbind is.",
@@ -8200,7 +8200,7 @@
       "reading": "Die lesing aan die einde kan nie laer as die lesing aan die begin wees nie.",
       "customer": "Tik die kliënt se naam in.",
       "receivedBy": "Tik in wie dit ontvang het.",
-      "photo": "Daardie foto kon nie gestoor word nie. Gebruik 'n foto kleiner as 8 MB.",
+      "photo": "Daardie foto kon nie gestoor word nie. Gebruik 'n JPEG-, PNG- of WebP-foto van tot 20 MB.",
       "amount": "Tik 'n bedrag in, soos 1250.50."
     },
     "historyNotice": "Bewaar as 'n rekord. Jou plan sluit nie meer ritwerk in nie, so hierdie {{trip}} bly leesbaar en in jou uitvoer, maar kan nie verander word nie. 'n {{Trip}} wat reeds aan die gang is, kan steeds voltooi word, en 'n beplande een gekanselleer.",
