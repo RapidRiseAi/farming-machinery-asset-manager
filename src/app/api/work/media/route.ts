@@ -11,6 +11,8 @@ import { captureError } from "@/lib/observability";
 import { classifyFailure } from "@/lib/action-errors";
 import { maxBytesForMime } from "@/lib/limits";
 import { commitUpload, verifiedIntentFor } from "@/lib/upload/server";
+import { claimRequest } from "@/lib/request-claim";
+import { readRequestId, REQUEST_FIELD } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,34 @@ export async function POST(request: Request) {
   if (!workRequestId) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
 
   const supabase = await createClient();
+
+  // Once per capture (repeat-tap follow-up, BRIEF section 19). A save whose answer was lost
+  // on farm signal was sent again with the same file and amount: the file was finalised once
+  // (its upload id), but the amount and its note were recorded twice, a second
+  // work_request_events row and a second status move. The form keeps one request id until a
+  // save succeeds; a replay gets the first answer, one still running is told so, and a
+  // refusal releases the id so the retry runs.
+  const claim = await claimRequest(supabase, readRequestId(form.get(REQUEST_FIELD)), "work:media");
+  if (claim.state === "done") {
+    try {
+      return NextResponse.json(JSON.parse(claim.outcome));
+    } catch {
+      return NextResponse.json({ ok: true, stored: true, amountRecorded: false });
+    }
+  }
+  if (claim.state === "running") return NextResponse.json({ error: "still-saving" }, { status: 409 });
+  let answer: NextResponse;
+  try {
+    answer = await save();
+  } catch (failure) {
+    await claim.release();
+    throw failure;
+  }
+  if (answer.ok) await claim.finish(await answer.clone().text());
+  else await claim.release();
+  return answer;
+
+  async function save(): Promise<NextResponse> {
   const { data: wrData, error: wrError } = await supabase
     .from("work_requests")
     .select("id, farm_id, machine_id, workshop_id, status, vat_rate_bps")
@@ -151,4 +181,5 @@ export async function POST(request: Request) {
 
   if (!stored && !amountRecorded) return NextResponse.json({ error: "nothing_to_do" }, { status: 400 });
   return NextResponse.json({ ok: true, stored, amountRecorded });
+  }
 }
