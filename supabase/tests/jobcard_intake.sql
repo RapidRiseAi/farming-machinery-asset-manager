@@ -23,10 +23,10 @@ do $$ declare saved uuid; repeated uuid; rejected boolean; job jsonb; request js
  job:='{"farm_id":"e8000000-0000-4000-9000-000000000001","machine_id":"e8300000-0000-4000-9000-000000000001","type":"repair","work_mode":"internal","reported_problem":"Repair leak","created_from_fault_id":"e8400000-0000-4000-9000-000000000001"}';
  saved:=public.create_job_card_intake('e8500000-0000-4000-9000-000000000001',job);
  update public.job_cards set status='in_progress',reported_problem='Inspected leak' where id=saved;
- repeated:=public.create_job_card_intake('e8500000-0000-4000-9000-000000000001',job||jsonb_build_object('date_in',current_date+1,'vat_rate_bps',1400));
+ repeated:=public.create_job_card_intake('e8500000-0000-4000-9000-000000000001',job||jsonb_build_object('date_in',(now() at time zone 'Africa/Johannesburg')::date+1,'vat_rate_bps',1400));
  if repeated<>saved or (select count(*) from public.job_cards where intake_capture='e8500000-0000-4000-9000-000000000001')<>1 then
    raise exception 'INTAKE FAIL: retry duplicated a card'; end if;
- if not exists(select 1 from public.job_cards where id=saved and reported_problem='Inspected leak' and date_in=current_date) then
+ if not exists(select 1 from public.job_cards where id=saved and reported_problem='Inspected leak' and date_in=(now() at time zone 'Africa/Johannesburg')::date) then
    raise exception 'INTAKE FAIL: retry overwrote saved work'; end if;
  if (select job_card_id from public.faults where id='e8400000-0000-4000-9000-000000000001')<>saved then
    raise exception 'INTAKE FAIL: fault not linked'; end if;
