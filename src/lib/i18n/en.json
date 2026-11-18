@@ -8546,5 +8546,14 @@
     "endKm": "Finishing km",
     "distance": "Recorded distance (km)",
     "notRecorded": "Not recorded"
+  },
+  "savedRecords": {
+    "title": "Saved records",
+    "hint": "Your plan no longer includes {feature}. What was saved stays readable here and in the business export. Nothing new can be added, and no new analysis is worked out.",
+    "newest": "The newest {n} of each kind are listed; the export holds them all.",
+    "export": "Download the business export",
+    "what": "What",
+    "fuelDraw": "Diesel drawn",
+    "fuelDelivery": "Delivery"
   }
 }

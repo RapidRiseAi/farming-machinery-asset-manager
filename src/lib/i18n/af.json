@@ -8546,5 +8546,14 @@
     "endKm": "Eindkilometers",
     "distance": "Aangetekende afstand (km)",
     "notRecorded": "Nie aangeteken nie"
+  },
+  "savedRecords": {
+    "title": "Gestoorde rekords",
+    "hint": "Jou plan sluit nie meer {feature} in nie. Wat gestoor is, bly hier en in die besigheid se uitvoer leesbaar. Niks nuuts kan bygevoeg word nie, en geen nuwe ontleding word uitgewerk nie.",
+    "newest": "Die nuutste {n} van elke soort word gelys; die uitvoer bevat hulle almal.",
+    "export": "Laai die besigheid se uitvoer af",
+    "what": "Wat",
+    "fuelDraw": "Diesel getrek",
+    "fuelDelivery": "Aflewering"
   }
 }
