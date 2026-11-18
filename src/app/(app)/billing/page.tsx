@@ -89,8 +89,11 @@ import {
   requestChange,
   resumeBilling,
   retryPayment,
+  saveStorageAuto,
   startCheckout,
 } from "./actions";
+import { StorageCard } from "@/components/billing/storage-card";
+import { storageStatus } from "@/lib/billing/storage";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import { createServiceClient } from "@/lib/supabase/service";
 import { creditBalance, farmLifecycle } from "@/lib/billing/service";
@@ -330,6 +333,9 @@ export default async function BillingPage({
   }
   // A payment late (20261115120000): the seven days of grace, said with the amount and the date.
   const life = sub ? await farmLifecycle(supabase, farmId) : null;
+  // The customer's pooled storage (20261118120000), through the owner's own session: how full,
+  // the blocks and what they cost. Null when it cannot be read; the card is then left out.
+  const storage = await storageStatus(supabase, farmId);
 
   // The change section is closed unless somebody was sent here to change something, or a
   // change they asked for was refused (the reason is in ?error=).
@@ -573,6 +579,10 @@ export default async function BillingPage({
           delta={cardWhen}
         />
       </section>
+
+      {storage ? (
+        <StorageCard status={storage} locale={locale} canChange={canChange} request={requestChange} saveAuto={saveStorageAuto} />
+      ) : null}
 
       {/* What has gone wrong, in the order a worried person needs it: what happened,
           what to do, and that nothing has been deleted. */}
