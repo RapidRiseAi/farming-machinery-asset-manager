@@ -926,6 +926,10 @@ async function resolveStaleCheckout(
     // checkout is resumed instead: the page Paystack made for this attempt, its reference,
     // no second attempt and no second page. Only for the same invoice at the same amount
     // owed, and only with a Paystack address recorded; anything else is still in progress.
+    // Paystack's documentation does not say how long a checkout page stays open (searched 18
+    // November 2026). If it has closed, Paystack says so on its page; past the stale window the
+    // path below asks Paystack about the attempt and frees the invoice, as before. The worst
+    // case is the old answer, "in progress", for the same half hour.
     const url = attempt.authorization_url ?? null;
     if (url && isPaystackCheckoutUrl(url) && Number(attempt.amount_incl_cents) === amountCents) {
       return { resume: url, reference: attempt.attempt_ref };
