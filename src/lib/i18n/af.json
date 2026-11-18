@@ -8223,11 +8223,16 @@
   },
   "tripReport": {
     "title": "Wat elke {{asset}} verdien het",
-    "lead": "Voltooide {{trips}} van die laaste 90 dae. Uitgawes is dié wat by 'n {{trip}} gevoeg is, nie brandstof of diens nie.",
+    "lead": "Voltooide {{trips}} van slegs die laaste {days} dae, nie alle tyd nie. Uitgawes is net dié wat by 'n {{trip}} gevoeg is: brandstof, werkkaarte en dienste bly in die {{asset}} se koste en word nie hier weer bygetel nie.",
     "emptyTitle": "Nog niks voltooi nie",
     "emptyHint": "Dit vul in sodra {{trips}} voltooi is met hul inkomste bygevoeg.",
     "count": "{{Trips}}",
-    "perKm": "Per km na uitgawes"
+    "perKm": "Per km na uitgawes",
+    "withoutReadings": "{n} voltooi sonder 'n lesing aan die begin of die einde: hul geld word getel, maar hulle is uit die afstand en die per-km-syfer gelaat.",
+    "zeroKm": "{n} voltooi met dieselfde lesing aan albei kante, so hulle wys geen afstand nie.",
+    "notCounted": "{cancelled} gekanselleer en {unfinished} nog nie voltooi nie in dieselfde {days} dae word nie getel nie.",
+    "withoutIncome": "{n} sonder inkomste ingevoer",
+    "result": "Na uitgawes"
   },
   "fuelCards": {
     "title": "Brandstofkaarte",

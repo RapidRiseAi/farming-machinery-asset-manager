@@ -8223,11 +8223,16 @@
   },
   "tripReport": {
     "title": "What each {{asset}} earned",
-    "lead": "Finished {{trips}} from the last 90 days. Expenses are those added to a {{trip}}, not fuel or servicing.",
+    "lead": "Finished {{trips}} from the last {days} days only, not all time. Expenses are only those added to a {{trip}}: fuel, job cards and services stay in the {{asset}}'s costs and are not added again here.",
     "emptyTitle": "Nothing finished yet",
     "emptyHint": "This fills in once {{trips}} are finished with their income added.",
     "count": "{{Trips}}",
-    "perKm": "Per km after expenses"
+    "perKm": "Per km after expenses",
+    "withoutReadings": "{n} finished without a reading at the start or the end: their money is counted, but they are left out of the distance and the per-km figure.",
+    "zeroKm": "{n} finished with the same reading at both ends, so they show no distance.",
+    "notCounted": "{cancelled} cancelled and {unfinished} not yet finished in the same {days} days are not counted.",
+    "withoutIncome": "{n} without income entered",
+    "result": "After expenses"
   },
   "fuelCards": {
     "title": "Fuel cards",
