@@ -344,3 +344,11 @@ function checks that id's `request_claims` row first (the online save landed: an
 duplicate; still running: `retry`), claims the id for the capture otherwise, and asks the
 plan again for a diesel draw (`plan-feature-fuel`). `claim_request` answers `done` for the
 same person's id a queued capture already used. Suite: `supabase/tests/offline_capture_once.sql`.
+
+## The accounting summary summed in the database (B3)
+
+Migration 20261119140000_journal_summary.sql adds `public.farm_journal_totals`,
+`farm_journal_accounts`, `partner_journal_totals` and `partner_journal_accounts` (SECURITY
+INVOKER over the journal functions, so the journal's own permissions decide). `/accounting`
+reads its totals and per-account summary from them instead of every journal line. Suite:
+`supabase/tests/journal_summary.sql`. Scenario 18 at the database: `sites_roles_consolidated.sql`.
