@@ -87,6 +87,14 @@ end $t$;
 select pg_temp.assert(not exists (select 1 from public.request_claims where request_id = 'ca300000-0000-4000-9000-000000000004'),
   'a refused capture keeps no claim');
 
+-- A capture answered for review (here: its claim swept after two days, then sent with other
+-- fields under the same id) leaves no claim either.
+delete from public.request_claims where request_id = 'ca300000-0000-4000-9000-000000000003';
+select pg_temp.assert((pg_temp.sync('ca300000-0000-4000-9000-000000000003','ca100000-0000-4000-9000-000000000001','log_reading',
+  '{"machine_id":"ca200000-0000-4000-9000-000000000001","reading":"125"}')->>'status') = 'needs_review', 'a changed capture under a used id goes to review');
+select pg_temp.assert(not exists (select 1 from public.request_claims where request_id = 'ca300000-0000-4000-9000-000000000003'),
+  'a capture sent to review keeps no claim');
+
 -- == The plan, asked again on reconnect ====================================================
 do $t$ begin
   perform pg_temp.sync('ca300000-0000-4000-9000-000000000005','ca100000-0000-4000-9000-000000000003','log_fuel',
