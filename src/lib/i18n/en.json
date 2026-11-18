@@ -8141,7 +8141,7 @@
     "ended": "Ended",
     "distance": "Distance",
     "status": "Status",
-    "notes": "Notes",
+    "notes": "Notes and instructions for the driver",
     "statusName": {
       "planned": "Planned",
       "underway": "Underway",
