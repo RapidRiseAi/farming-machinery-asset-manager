@@ -1233,7 +1233,7 @@ begin
            sum(case when s.feature = 'voice'
                     then coalesce(s.audio_ms, 0) + coalesce(s.audio_fixed_ms, 0) else 0 end) / 1000
              as voice_seconds,
-           count(*) filter (where s.feature <> 'voice' and s.outcome in ('ok', 'fallback'))
+           count(*) filter (where s.feature in ('ai_hearing', 'ai_answer') and s.outcome in ('ok', 'fallback'))
              as ai_requests
       from stamped s
      group by s.user_id
@@ -1271,7 +1271,7 @@ begin
     unit_price_incl_cents, line_total_incl_cents, line_ex_vat_cents, line_vat_cents
   )
   select i.id, i.farm_id, 10,
-         'AI and voice use, ' || to_char(i.ai_usage_from, 'YYYY-MM-DD')
+         'AI, voice and WhatsApp use, ' || to_char(i.ai_usage_from, 'YYYY-MM-DD')
            || ' to ' || to_char(i.ai_usage_to, 'YYYY-MM-DD'),
          1, 1,
          i.ai_usage_incl_cents, i.ai_usage_incl_cents, i.ai_usage_ex_vat_cents,

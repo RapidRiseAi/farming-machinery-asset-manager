@@ -1414,7 +1414,11 @@ declare
     'storage_allowance','storage_month','storage_auto_block',
     -- Storage blocks on the bill (20261118120100): pricing and quoting a change of blocks (A2's
     -- quote flow, actor checked inside) and putting the month's blocks on a draft invoice.
-    'storage_change_state','billing_quote_storage','billing_attach_storage'];
+    'storage_change_state','billing_quote_storage','billing_attach_storage',
+    -- The customer's assistance budget (20261118120200): the cap with the trial guard (reads the
+    -- trial amount), and whether WhatsApp use is billed yet (reads its start date). Granted to
+    -- nobody; reached through the AI ledger and the service-role WhatsApp functions.
+    'assistance_cap','whatsapp_billing_on','assistance_migrate_existing'];
   v_cron_fns text[] := array[
     'cron_capture_billing_snapshots','cron_generate_billing_invoices',
     'cron_apply_billing_downgrades','cron_enqueue_billing_reminders',

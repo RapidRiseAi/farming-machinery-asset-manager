@@ -137,21 +137,37 @@ insert into app.pay_gate_rules (table_name, rule, reason) values
 on conflict (table_name) do update set rule = excluded.rule, reason = excluded.reason;
 select app.pay_gate_apply('assistance_budgets');
 
--- Existing customers keep their current limit as their choice (BEFORE the limit function below
--- starts reading this table), and their owners are told.
-insert into public.assistance_budgets (farm_id, monthly_limit_cents, source, chosen_at)
-select f.id, app.ai_effective_limit(f.id), 'migrated', now()
-  from public.farms f
- where f.deleted_at is null and f.billed_through is null
-on conflict (farm_id) do nothing;
-do $migrated$
-declare r record;
+-- Existing customers keep their current limit as their choice, and their owners are told. The
+-- limit they had: their own setting on the billing site, or the platform default they were on
+-- (R200). The trial guard in app.assistance_cap still holds a customer that has never paid at
+-- R50, exactly as before, so nobody's spending room changes on the day. Billing sites that
+-- already have a budget are left alone. A function so the suite can run it on fixtures.
+create or replace function app.assistance_migrate_existing() returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  r record;
+  v_n integer := 0;
 begin
-  for r in select b.farm_id, b.monthly_limit_cents from public.assistance_budgets b where b.source = 'migrated' loop
+  for r in
+    insert into public.assistance_budgets (farm_id, monthly_limit_cents, source, chosen_at)
+    select f.id,
+           coalesce((select s.monthly_limit_cents from public.farm_ai_settings s where s.farm_id = f.id),
+                    (select b.ai_default_limit_cents from public.billing_settings b where b.singleton limit 1),
+                    20000),
+           'migrated', now()
+      from public.farms f
+     where f.deleted_at is null and f.billed_through is null
+    on conflict (farm_id) do nothing
+    returning farm_id, monthly_limit_cents
+  loop
     perform app.billing_notify_owners(r.farm_id, 'assistance_budget_migrated',
       jsonb_build_object('limit_cents', r.monthly_limit_cents));
+    v_n := v_n + 1;
   end loop;
-end $migrated$;
+  return v_n;
+end $$;
+revoke all on function app.assistance_migrate_existing() from public, anon, authenticated, service_role;
+select app.assistance_migrate_existing();
 
 -- A message's hold, found again by Meta's message id when its delivery status arrives.
 create table if not exists public.whatsapp_usage_holds (
