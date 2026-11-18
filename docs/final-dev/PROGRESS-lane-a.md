@@ -24,6 +24,13 @@ unknown-gate survivor fixed by a distinct test. tsc and all lint gates pass. Ful
 passed again; dashes and git diff --check clean. No browser or provider test run.
 Logs and mutation runner are in ignored scratchpad/a4-* (no data, secrets or archives).
 
+18 Nov (Claude Opus worker, resumed after Codex): read PROGRESS, git log, register rows, BRIEF
+16/18/23, decisions, A2/A3/B3 handovers, export routes, closure flow, DFY quote path, invoice run.
+Plan: step 1 service orders migration (rewrite of 607b3e5) + suite + probe; step 2 service TS/UI;
+step 3 complete export jobs (records under the requester's session, files listed under the session
+at the cutoff and copied by a worker); step 4 retention schedules on farm_closures (disabled, dry
+run); step 5 docs, register, report. Git writes work for this worker (commits are mine from here).
+
 A4 remains INCOMPLETE. No requirement row closed, no migration written. Remaining: service
 orders and quote acceptance, durable complete export/manifest/media jobs, retention on
 farm_closures, readiness flags, UI/i18n, BACKUP/legal checklist, full tests and REPORT-A4.
