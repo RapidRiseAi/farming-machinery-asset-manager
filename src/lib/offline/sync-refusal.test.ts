@@ -17,3 +17,15 @@ test("only our own failures are transient", () => {
   assert.deepEqual(syncRefusal({ code: "XX000", message: "boom" }), { status: 503, code: "sync_unavailable" });
   assert.deepEqual(syncRefusal({}), { status: 503, code: "sync_unavailable" });
 });
+
+test("every kept draft says why in words; an unknown reason falls back to the general review sentence", async () => {
+  const { syncReasonKey } = await import("./sync-refusal");
+  const { t } = await import("@/lib/i18n");
+  for (const code of ["plan-feature-fuel", "equipment-refused-fuel", "capture_forbidden", "capture_not_found", "capture_rejected", "capture_account_mismatch", "capture_needs_review", "conflict"]) {
+    const key = syncReasonKey(code);
+    assert.notEqual(key, "offline.needsReview", `${code} has its own sentence`);
+    for (const lang of ["en", "af"] as const) assert.notEqual(t(key, lang), key, `${key} exists in ${lang}`);
+  }
+  assert.equal(syncReasonKey("something-new"), "offline.needsReview");
+  assert.equal(syncReasonKey(undefined), "offline.needsReview");
+});

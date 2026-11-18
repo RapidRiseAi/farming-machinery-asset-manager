@@ -2079,7 +2079,17 @@
     "savedOnPhone": "Saved on this phone",
     "toSync": "{count} to sync",
     "savedHere": "Saved on this phone",
-    "syncNow": "Sync now"
+    "syncNow": "Sync now",
+    "reason": {
+      "plan": "Not saved: your business's plan no longer includes this. It is kept here; download a backup if you need it, then remove it.",
+      "equipment": "Not saved: this {{asset}} is support equipment, which does not take this kind of record. It is kept here for you to check.",
+      "access": "Not saved: your access changed since this was captured (your role, or you were removed from the business). It is kept here; ask the owner, then record it again if it is still needed.",
+      "gone": "Not saved: the {{asset}} or job card is no longer there, or the business is paused. It is kept here for you to check.",
+      "invalid": "Not saved: a value was refused (for example a reading below the last one, or a date in the future). It is kept here; record a corrected one, then remove this copy.",
+      "account": "Not saved: this was captured by another account on this phone. Sign in as that account to send it.",
+      "review": "Not saved yet: it needs a person to look at it (it was changed after it was first sent). It is kept here.",
+      "conflict": "Saved, but it disagrees with a newer record (for example a later reading). Check the {{asset}} and correct it there if needed."
+    }
   },
   "meterSource": {
     "app": "In-app",

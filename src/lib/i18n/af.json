@@ -2079,7 +2079,17 @@
     "savedOnPhone": "Op hierdie foon gestoor",
     "toSync": "{count} wag",
     "savedHere": "Gestoor op hierdie foon",
-    "syncNow": "Sinkroniseer nou"
+    "syncNow": "Sinkroniseer nou",
+    "reason": {
+      "plan": "Nie gestoor nie: jou besigheid se plan sluit dit nie meer in nie. Dit word hier bewaar; laai 'n rugsteun af as jy dit nodig het, en verwyder dit dan.",
+      "equipment": "Nie gestoor nie: hierdie {{asset}} is ondersteuningstoerusting, wat nie hierdie soort rekord neem nie. Dit word hier bewaar sodat jy dit kan nagaan.",
+      "access": "Nie gestoor nie: jou toegang het verander sedert dit opgeneem is (jou rol, of jy is van die besigheid verwyder). Dit word hier bewaar; vra die eienaar, en neem dit weer op as dit steeds nodig is.",
+      "gone": "Nie gestoor nie: die {{asset}} of werkkaart is nie meer daar nie, of die besigheid is gepouseer. Dit word hier bewaar sodat jy dit kan nagaan.",
+      "invalid": "Nie gestoor nie: 'n waarde is geweier (byvoorbeeld 'n lesing laer as die vorige een, of 'n datum in die toekoms). Dit word hier bewaar; neem 'n reggestelde een op en verwyder dan hierdie kopie.",
+      "account": "Nie gestoor nie: dit is deur 'n ander rekening op hierdie foon opgeneem. Teken as daardie rekening in om dit te stuur.",
+      "review": "Nog nie gestoor nie: iemand moet daarna kyk (dit is verander nadat dit eers gestuur is). Dit word hier bewaar.",
+      "conflict": "Gestoor, maar dit verskil van 'n nuwer rekord (byvoorbeeld 'n latere lesing). Gaan die {{asset}} na en stel dit daar reg indien nodig."
+    }
   },
   "meterSource": {
     "app": "In-toep",
