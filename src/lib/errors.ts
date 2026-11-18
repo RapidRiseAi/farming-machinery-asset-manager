@@ -683,6 +683,20 @@ const CODE_KEYS: Record<string, string> = {
   // Sign-up with support equipment and the 200 line (20261115130000).
   "signup-equipment": "errors.signupEquipment",
   "signup-capacity-quote": "errors.signupCapacityQuote",
+  // Done-For-You agreements and service orders (20261120100000).
+  "service-invalid": "errors.serviceInvalid",
+  "service-changed": "errors.serviceChanged",
+  "service-expired": "errors.serviceExpired",
+  "service-not-open": "errors.serviceNotOpen",
+  "service-not-ready": "errors.serviceNotReady",
+  "service-not-orderable": "errors.serviceNotOrderable",
+  "service-below-minimum": "errors.serviceBelowMinimum",
+  "service-overlap": "errors.serviceOverlap",
+  "service-not-accepted": "errors.serviceNotAccepted",
+  "service-billing-site": "errors.serviceBillingSite",
+  "service-no-subscription": "errors.serviceNoSubscription",
+  "service-agreement-term": "errors.serviceAgreementTerm",
+  "service-terms-required": "errors.serviceTermsRequired",
 };
 
 /**

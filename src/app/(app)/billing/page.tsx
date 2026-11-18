@@ -93,6 +93,8 @@ import {
   startCheckout,
 } from "./actions";
 import { StorageCard } from "@/components/billing/storage-card";
+import { ServicesCard } from "@/components/billing/services-card";
+import { acceptAgreement, acceptServiceOrder } from "./service-actions";
 import { storageStatus } from "@/lib/billing/storage";
 import { PLANS, BILLING_PERIODS } from "@/lib/entitlements";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -583,6 +585,15 @@ export default async function BillingPage({
       {storage ? (
         <StorageCard status={storage} locale={locale} canChange={canChange} request={requestChange} saveAuto={saveStorageAuto} />
       ) : null}
+
+      {/* Done-For-You agreements, optional setup and training, and the support hours (20261120100000). */}
+      <ServicesCard
+        farmId={farmId}
+        locale={locale}
+        canAccept={profile.role === "owner"}
+        acceptAgreement={acceptAgreement}
+        acceptOrder={acceptServiceOrder}
+      />
 
       {/* What has gone wrong, in the order a worried person needs it: what happened,
           what to do, and that nothing has been deleted. */}

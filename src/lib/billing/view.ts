@@ -1349,6 +1349,11 @@ export function savedNotice(code: string | null | undefined): SavedNotice | null
       return { key: "billing.savedChangeCredited", tone: "info" };
     case "change-cancelled":
       return { key: "billing.savedChangeCancelled", tone: "info" };
+    // Services from Rapid Rise (20261120100000): accepted, and the page shows what happens next.
+    case "agreement-accepted":
+      return { key: "billing.savedAgreementAccepted", tone: "success" };
+    case "order-accepted":
+      return { key: "billing.savedOrderAccepted", tone: "success" };
 
     // == Rapid Rise's own screen. Same resolver on purpose: two screens describing one
     //    outcome in two ways is how a support call and a customer stop agreeing. ==
