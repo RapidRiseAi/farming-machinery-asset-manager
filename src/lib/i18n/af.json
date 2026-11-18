@@ -348,7 +348,9 @@
       "farm-changed": "Jy het in 'n ander oortjie na 'n ander {{org}} oorgeskakel. Laai hierdie bladsy weer en probeer weer.",
       "whatsapp-accepted": "Betaalde WhatsApp is aanvaar, binne jou maandelikse limiet.",
       "whatsapp-withdrawn": "Betaalde WhatsApp is teruggetrek. Niks wat geld kos, word nou op WhatsApp gestuur nie.",
-      "whatsapp-needs-limit": "Kies eers 'n maandelikse limiet; betaalde WhatsApp tel daarby."
+      "whatsapp-needs-limit": "Kies eers 'n maandelikse limiet; betaalde WhatsApp tel daarby.",
+      "whatsapp-billing-saved": "WhatsApp-fakturering is gestoor.",
+      "whatsapp-billing-unpriced": "Tik 'n nuts- en 'n dienskoers voordat fakturering begin."
     },
     "settingsLink": "Stem- en AI-gebruik, die koste per persoon en die maandelikse limiet:",
     "admin": {
@@ -404,7 +406,22 @@
         "holds_clamped": "Rekeninge onder koste afgekap",
         "voice_underreported": "Stem gebruik maar nie gerapporteer nie"
       },
-      "testFarm": "Toets"
+      "testFarm": "Toets",
+      "whatsappTitle": "Betaalde WhatsApp",
+      "whatsappStarts": "Gefaktureer vanaf",
+      "whatsappStartsField": "Faktureer WhatsApp-boodskappe vanaf (leeg: nie gefaktureer nie)",
+      "whatsappRate_utility": "Nutsjabloon (USD per boodskap)",
+      "whatsappRate_service": "Diensboodskap (USD per boodskap)",
+      "whatsappRate_marketing": "Bemarkingsjabloon (USD per boodskap)",
+      "whatsappRate_authentication": "Verifikasiejabloon (USD per boodskap)",
+      "supplierTax": "Verskaffers se belastinghantering",
+      "supplierTax_unconfirmed": "Nie bevestig nie",
+      "supplierTax_no_vat_charged": "Geen BTW gehef nie",
+      "supplierTax_vat_charged_claimable": "BTW gehef, eisbaar",
+      "supplierTax_vat_charged_not_claimable": "BTW gehef, nie eisbaar nie",
+      "whatsappNote": "Meta hef per afgelewerde boodskap en sê by elke aflewering of dit gratis was. Gratis boodskappe is R0 vir die kliënt; hefbare boodskappe is die koers hier plus die marge, binne die kliënt se maandelikse limiet en eers nadat die eienaar aanvaar het.",
+      "whatsappChange": "Verander WhatsApp-fakturering",
+      "whatsappHelp": "Lees die koerse van hierdie WhatsApp-rekening se eie koerskaart af, in die geldeenheid waarin Meta dit hef (USD hier). Fakturering het 'n nuts- en 'n dienskoers nodig. 'n Nuwe koers geld vir boodskappe van nou af."
     },
     "setupTitle": "Kies 'n maandelikse limiet vir betaalde hulp",
     "setupBody": "Betaalde AI, stem en WhatsApp deel een maandelikse limiet vir jou hele besigheid, oor elke perseel. Niks betaald loop voordat jy een kies nie. R0 is toegelaat en beteken geen betaalde hulp nie. Tik, die vorms en kennisgewings in die toep werk altyd.",

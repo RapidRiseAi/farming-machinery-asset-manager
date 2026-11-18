@@ -348,7 +348,9 @@
       "farm-changed": "You switched to another {{org}} in a different tab. Reload this page and try again.",
       "whatsapp-accepted": "Paid WhatsApp is accepted, within your monthly limit.",
       "whatsapp-withdrawn": "Paid WhatsApp is withdrawn. Nothing that costs money is sent on WhatsApp now.",
-      "whatsapp-needs-limit": "Choose a monthly limit first; paid WhatsApp counts towards it."
+      "whatsapp-needs-limit": "Choose a monthly limit first; paid WhatsApp counts towards it.",
+      "whatsapp-billing-saved": "WhatsApp billing is saved.",
+      "whatsapp-billing-unpriced": "Enter a utility and a service rate before billing starts."
     },
     "settingsLink": "Voice and AI use, its cost by person and the monthly limit:",
     "admin": {
@@ -404,7 +406,22 @@
         "holds_clamped": "Bills clamped below cost",
         "voice_underreported": "Voice taken but not reported"
       },
-      "testFarm": "Test"
+      "testFarm": "Test",
+      "whatsappTitle": "Paid WhatsApp",
+      "whatsappStarts": "Billed from",
+      "whatsappStartsField": "Bill WhatsApp messages from (empty: not billed)",
+      "whatsappRate_utility": "Utility template (USD per message)",
+      "whatsappRate_service": "Service message (USD per message)",
+      "whatsappRate_marketing": "Marketing template (USD per message)",
+      "whatsappRate_authentication": "Authentication template (USD per message)",
+      "supplierTax": "Suppliers' tax treatment",
+      "supplierTax_unconfirmed": "Not confirmed",
+      "supplierTax_no_vat_charged": "No VAT charged",
+      "supplierTax_vat_charged_claimable": "VAT charged, claimable",
+      "supplierTax_vat_charged_not_claimable": "VAT charged, not claimable",
+      "whatsappNote": "Meta charges per delivered message and says on each delivery whether it was free. Free messages are R0 to the customer; billable ones are the rate here plus the margin, under the customer's monthly limit and only after its owner accepted.",
+      "whatsappChange": "Change WhatsApp billing",
+      "whatsappHelp": "Read the rates from this WhatsApp account's own rate card, in the currency Meta bills it in (USD here). Billing needs a utility and a service rate. A new rate applies to messages from now on."
     },
     "setupTitle": "Choose a monthly limit for paid help",
     "setupBody": "Paid AI, voice and WhatsApp share one monthly limit for your whole business, across every site. Nothing paid runs until you choose one. R0 is allowed and means no paid help. Typing, the forms and in-app alerts always work.",

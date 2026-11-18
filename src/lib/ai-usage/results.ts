@@ -31,6 +31,8 @@ export const AI_RESULTS = {
   "fx-saved": "success",
   "invoicing-saved": "success",
   "invoicing-past": "error",
+  "whatsapp-billing-saved": "success",
+  "whatsapp-billing-unpriced": "error",
   "event-resolved": "success",
   "price-accepted": "success",
   "admin-invalid": "error",
