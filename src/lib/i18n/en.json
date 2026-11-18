@@ -8113,7 +8113,10 @@
     "reportedAgo": "Reported {when}",
     "lastKnownAgo": "Last known position, {when}: no report since",
     "lastSeenTitle": "Where each {{asset}} was last seen",
-    "lastSeenHint": "These are the last positions a phone or tracker sent, with their age. A phone stops sending when its screen locks, so an old position is not where the {{asset}} is now."
+    "lastSeenHint": "These are the last positions a phone or tracker sent, with their age. A phone stops sending when its screen locks, so an old position is not where the {{asset}} is now.",
+    "justNow": "just now",
+    "minutesAgo": "{n} min ago",
+    "hoursAgo": "{n} h ago"
   },
   "trips": {
     "title": "{{Trips}}",

@@ -145,9 +145,18 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
   // signal. Each vehicle's newest point says how old it is, and an old one says it is only
   // the last known position (BRIEF section 8, POSITION_RECENT_MS).
   const now = new Date();
-  const seenLabel = (at: string) =>
-    t(positionFreshness(at, now, POSITION_RECENT_MS).recent ? "map.reportedAgo" : "map.lastKnownAgo", locale)
-      .replace("{when}", relativeDate(at, locale));
+  const seenLabel = (at: string) => {
+    const { recent, ageMs } = positionFreshness(at, now, POSITION_RECENT_MS);
+    const minutes = Math.floor(ageMs / 60_000);
+    const when = minutes < 1
+      ? t("map.justNow", locale)
+      : minutes < 60
+        ? t("map.minutesAgo", locale).replace("{n}", String(minutes))
+        : minutes < 24 * 60
+          ? t("map.hoursAgo", locale).replace("{n}", String(Math.floor(minutes / 60)))
+          : relativeDate(at, locale);
+    return t(recent ? "map.reportedAgo" : "map.lastKnownAgo", locale).replace("{when}", when);
+  };
   const markers: MapMarker[] = trip
     ? (planned?.waypoints ?? []).map((w, i) => ({
         id: `stop-${i}`,
