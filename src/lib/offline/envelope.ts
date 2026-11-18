@@ -1,5 +1,6 @@
 import { parseRandsToCents } from "@/lib/money";
 import { OFFLINE_PAYLOAD_MAX_CHARS } from "@/lib/limits";
+import { readRequestId, REQUEST_FIELD } from "@/lib/request-id";
 import type { MutationScope, MutationType } from "./types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -7,6 +8,17 @@ const TYPES = ["log_reading", "report_fault", "add_job_line", "complete_job", "l
 /** A checklist carries every answer in one field, so it cannot live under the 2 000-character
  *  cap the other fields use. The whole payload is still capped, here and in the database. */
 const LONG_FIELDS = new Set(["values"]);
+
+/**
+ * The id a queued capture goes by: the online attempt's own request id when the form carries
+ * one (RequestIdInput writes it as the form submits), so an online save whose answer was lost
+ * and the queued copy of it are one capture to the server (20261119130000). A form without
+ * one gets a fresh id, as before.
+ */
+export function queuedCaptureId(fields: Record<string, string>, fresh: () => string): string {
+  const id = readRequestId(fields[REQUEST_FIELD]);
+  return id ?? fresh();
+}
 
 export function parseSyncEnvelope(form: FormData, now = Date.now()) {
   const clientId = String(form.get("client_id") ?? "");

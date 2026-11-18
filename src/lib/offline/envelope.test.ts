@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseSyncEnvelope } from "./envelope";
+import { parseSyncEnvelope, queuedCaptureId } from "./envelope";
 
 function form(fields: unknown = { reading: "10" }) {
   const fd = new FormData();
@@ -29,4 +29,12 @@ test("offline money ignores forged normalized cents and rejects invalid or negat
   for (const unit_cost of ["nope", "-1", "99999999999999999"]) {
     fd.set("payload", JSON.stringify({ unit_cost })); assert.equal(parseSyncEnvelope(fd), null);
   }
+});
+
+test("a queued capture goes by the online attempt's request id, so a lost online save and its queued copy are one capture", () => {
+  const online = "8b400000-0000-4000-8000-0000000000aa";
+  assert.equal(queuedCaptureId({ reading: "10", request_id: online }, () => "fresh"), online);
+  // No id on the form (an older page), or a malformed one: a fresh id, as before.
+  assert.equal(queuedCaptureId({ reading: "10" }, () => "fresh"), "fresh");
+  assert.equal(queuedCaptureId({ reading: "10", request_id: "not-an-id" }, () => "fresh"), "fresh");
 });

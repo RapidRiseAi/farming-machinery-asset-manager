@@ -7,7 +7,7 @@ import { enqueue, newMutationId } from "./queue";
 import { flush, isOnline } from "./sync";
 import type { MutationScope, MutationType, QueuedMutation } from "./types";
 import { createClient } from "@/lib/supabase/client";
-import { readRequestId, REQUEST_FIELD } from "@/lib/request-id";
+import { queuedCaptureId } from "./envelope";
 
 export { isOnline } from "./sync";
 export { subscribe, pendingCount } from "./queue";
@@ -34,7 +34,7 @@ export async function prepareMutation(input: {
     // The online attempt's own request id when the form carries one (RequestIdInput): a save
     // whose answer was lost online and that is then queued is the same capture, and the server
     // recognises it by this id (apply_offline_capture_once, 20261119130000).
-    client_id: readRequestId(input.fields[REQUEST_FIELD]) ?? newMutationId(),
+    client_id: queuedCaptureId(input.fields, newMutationId),
     actor_id: actorId,
     client_ts: new Date().toISOString(),
     type: input.type,
