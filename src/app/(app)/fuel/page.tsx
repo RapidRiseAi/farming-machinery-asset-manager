@@ -8,6 +8,7 @@ import { rands } from "@/lib/money";
 import { t } from "@/lib/i18n";
 import { UpgradeNotice } from "@/components/entitlement/upgrade-notice";
 import { SavedRecords } from "@/components/entitlement/saved-records";
+import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { meterLabel } from "@/lib/machine-options";
 import {
   fuelActivitiesFor,
