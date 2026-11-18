@@ -39,7 +39,7 @@ pending change; catalogue rules as data (QR kits not ready); service_orders acce
 once; service_work_entries. Suite service_orders.sql 18/18 SQL mutations caught; TS mirror
 service-orders.ts 5/5 mutations. Step 2 (UI) committed through e5a3a59: /billing ServicesCard,
 owner accept actions, admin AdminServices card, cron step, EN/AF keys, error codes. Gates: tsc,
-1225 unit tests (0 fail), dashes, parity, keys, design, errors clean. Full SQL suite running.
+1225 unit tests (0 fail), dashes, parity, keys, design, errors clean. Full SQL suite 95/95 (PGlite).
 Next: step 3 complete export jobs (migration 20261120110000).
 
 A4 remains INCOMPLETE. No requirement row closed, no migration written. Remaining: service
