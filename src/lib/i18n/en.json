@@ -345,7 +345,10 @@
       "price-accepted": "The price is accepted and in force.",
       "admin-invalid": "That value cannot be used.",
       "limit-trial": "Until the {{org}}'s first bill is paid, the limit cannot go above the trial amount.",
-      "farm-changed": "You switched to another {{org}} in a different tab. Reload this page and try again."
+      "farm-changed": "You switched to another {{org}} in a different tab. Reload this page and try again.",
+      "whatsapp-accepted": "Paid WhatsApp is accepted, within your monthly limit.",
+      "whatsapp-withdrawn": "Paid WhatsApp is withdrawn. Nothing that costs money is sent on WhatsApp now.",
+      "whatsapp-needs-limit": "Choose a monthly limit first; paid WhatsApp counts towards it."
     },
     "settingsLink": "Voice and AI use, its cost by person and the monthly limit:",
     "admin": {
@@ -402,7 +405,25 @@
         "voice_underreported": "Voice taken but not reported"
       },
       "testFarm": "Test"
-    }
+    },
+    "setupTitle": "Choose a monthly limit for paid help",
+    "setupBody": "Paid AI, voice and WhatsApp share one monthly limit for your whole business, across every site. Nothing paid runs until you choose one. R0 is allowed and means no paid help. Typing, the forms and in-app alerts always work.",
+    "chooseLimit": "Choose a limit",
+    "notChosen": "Not chosen",
+    "statusNotChosen": "Paid help off: no limit chosen",
+    "migratedNote": "This is the limit you had before it became one limit for the whole business; we kept it as your choice on {date}. Change it any time.",
+    "resetNote": "The month runs in South African time and starts again at midnight on the 1st (next: {date}), the same for monthly and yearly plans.",
+    "sitesNote": "One limit for all {n} sites of this business.",
+    "whatsappTitle": "Paid WhatsApp",
+    "whatsappNotBilled": "WhatsApp messages are not charged at the moment.",
+    "whatsappAccepted": "You accepted paid WhatsApp on {date}. Messages Meta charges for cost Meta's charge plus 30%; free messages are R0. They count towards your monthly limit.",
+    "whatsappNeedsAcceptance": "WhatsApp messages can be charged only after you accept how. Until then nothing that costs money is sent on WhatsApp; alerts still appear in the app.",
+    "whatsappAccept": "Accept paid WhatsApp",
+    "whatsappAcceptTitle": "Accept paid WhatsApp",
+    "whatsappAcceptBody": "Messages Meta charges for are billed at Meta's charge plus 30%, in rand at the day's rate. Free messages stay R0. AI work on a message is billed once, as AI. All of it counts towards your monthly limit of {limit}; at the limit paid messages stop and alerts stay in the app.",
+    "whatsappAcceptField": "I accept these charges and my monthly limit.",
+    "whatsappWithdraw": "Withdraw acceptance",
+    "whatsappMessages": "WhatsApp this month: {n} messages, {amount}"
   },
   "auth": {
     "signIn": "Sign in",

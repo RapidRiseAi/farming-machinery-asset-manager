@@ -70,7 +70,31 @@ export async function setFarmAiLimit(formData: FormData): Promise<void> {
   if (error) done("failed");
   const reply = data as LimitReply;
   if (reply?.ok) done("limit-saved");
+  // Blank is never unlimited (20261118120200): the database refuses it too.
+  if (reply?.reason === "limit_required") done("limit-invalid");
   done(reply?.reason === "trial_limit" ? "limit-trial" : "limit-out-of-range");
+}
+
+/** The terms version an owner accepts for paid WhatsApp (decision 24); bump it when the wording changes. */
+const WHATSAPP_TERMS_VERSION = "whatsapp-charges-2026-11";
+
+/**
+ * The owner accepts paid WhatsApp (the charge method and the customer's monthly limit, kept with
+ * the time and the terms version), or withdraws it. A limit must be chosen first.
+ */
+export async function acceptWhatsappCharges(formData: FormData): Promise<void> {
+  const { farmId } = await requireAiAdmin(formData);
+  const accept = formData.get("accept") === "1";
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("assistance_accept_whatsapp", {
+    p_farm: farmId,
+    p_accept: accept,
+    p_terms_version: accept ? WHATSAPP_TERMS_VERSION : null,
+  });
+  if (error) done("failed");
+  const reply = data as LimitReply;
+  if (!reply?.ok) done(reply?.reason === "budget_unset" ? "whatsapp-needs-limit" : "failed");
+  done(accept ? "whatsapp-accepted" : "whatsapp-withdrawn");
 }
 
 export async function setMemberAiLimit(formData: FormData): Promise<void> {

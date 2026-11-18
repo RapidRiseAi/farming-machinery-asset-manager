@@ -345,7 +345,10 @@
       "price-accepted": "Die prys is aanvaar en van krag.",
       "admin-invalid": "Daardie waarde kan nie gebruik word nie.",
       "limit-trial": "Totdat die {{org}} se eerste rekening betaal is, kan die limiet nie bo die proefbedrag gaan nie.",
-      "farm-changed": "Jy het in 'n ander oortjie na 'n ander {{org}} oorgeskakel. Laai hierdie bladsy weer en probeer weer."
+      "farm-changed": "Jy het in 'n ander oortjie na 'n ander {{org}} oorgeskakel. Laai hierdie bladsy weer en probeer weer.",
+      "whatsapp-accepted": "Betaalde WhatsApp is aanvaar, binne jou maandelikse limiet.",
+      "whatsapp-withdrawn": "Betaalde WhatsApp is teruggetrek. Niks wat geld kos, word nou op WhatsApp gestuur nie.",
+      "whatsapp-needs-limit": "Kies eers 'n maandelikse limiet; betaalde WhatsApp tel daarby."
     },
     "settingsLink": "Stem- en AI-gebruik, die koste per persoon en die maandelikse limiet:",
     "admin": {
@@ -402,7 +405,25 @@
         "voice_underreported": "Stem gebruik maar nie gerapporteer nie"
       },
       "testFarm": "Toets"
-    }
+    },
+    "setupTitle": "Kies 'n maandelikse limiet vir betaalde hulp",
+    "setupBody": "Betaalde AI, stem en WhatsApp deel een maandelikse limiet vir jou hele besigheid, oor elke perseel. Niks betaald loop voordat jy een kies nie. R0 is toegelaat en beteken geen betaalde hulp nie. Tik, die vorms en kennisgewings in die toep werk altyd.",
+    "chooseLimit": "Kies 'n limiet",
+    "notChosen": "Nie gekies nie",
+    "statusNotChosen": "Betaalde hulp af: geen limiet gekies nie",
+    "migratedNote": "Dit is die limiet wat jy gehad het voordat dit een limiet vir die hele besigheid geword het; ons het dit op {date} as jou keuse behou. Verander dit enige tyd.",
+    "resetNote": "Die maand loop in Suid-Afrikaanse tyd en begin weer om middernag op die 1ste (volgende: {date}), dieselfde vir maandelikse en jaarlikse planne.",
+    "sitesNote": "Een limiet vir al {n} persele van hierdie besigheid.",
+    "whatsappTitle": "Betaalde WhatsApp",
+    "whatsappNotBilled": "WhatsApp-boodskappe word tans nie gehef nie.",
+    "whatsappAccepted": "Jy het betaalde WhatsApp op {date} aanvaar. Boodskappe waarvoor Meta hef, kos Meta se heffing plus 30%; gratis boodskappe is R0. Hulle tel by jou maandelikse limiet.",
+    "whatsappNeedsAcceptance": "WhatsApp-boodskappe kan eers gehef word nadat jy aanvaar hoe. Tot dan word niks wat geld kos op WhatsApp gestuur nie; kennisgewings verskyn steeds in die toep.",
+    "whatsappAccept": "Aanvaar betaalde WhatsApp",
+    "whatsappAcceptTitle": "Aanvaar betaalde WhatsApp",
+    "whatsappAcceptBody": "Boodskappe waarvoor Meta hef, word teen Meta se heffing plus 30% gefaktureer, in rand teen die dag se koers. Gratis boodskappe bly R0. AI-werk op 'n boodskap word een keer gefaktureer, as AI. Alles tel by jou maandelikse limiet van {limit}; by die limiet stop betaalde boodskappe en kennisgewings bly in die toep.",
+    "whatsappAcceptField": "Ek aanvaar hierdie heffings en my maandelikse limiet.",
+    "whatsappWithdraw": "Trek aanvaarding terug",
+    "whatsappMessages": "WhatsApp hierdie maand: {n} boodskappe, {amount}"
   },
   "auth": {
     "signIn": "Teken in",
