@@ -393,6 +393,11 @@ select pg_temp.as_user('a4510000-0000-4000-9000-000000000001');
 set local role authenticated;
 do $t$ begin
   if (select count(*) from public.done_for_you_quotes) <> 1 then raise exception '[7] the owner does not read exactly their agreement'; end if;
+  -- The optional services are a public price list; the per-case codes are not.
+  if (select count(*) from public.billing_service_catalogue) <> 6
+     or exists (select 1 from public.billing_service_catalogue where code = 'installation') then
+    raise exception '[7] the owner does not read exactly the six optional services';
+  end if;
   if (select count(*) from public.service_orders) <> 3 then raise exception '[7] the owner does not read their orders'; end if;
   if (select count(*) from public.service_work_entries) <> 1
      or exists (select 1 from public.service_work_entries where kind = 'work') then

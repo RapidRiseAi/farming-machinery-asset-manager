@@ -124,6 +124,12 @@ values
    true, false, 100)
 on conflict (code) do nothing;
 
+-- The optional services and their rules are a public price list: any signed-in person may read
+-- the active, priced rows (the per-case codes stay Rapid Rise's).
+drop policy if exists billing_service_catalogue_offer_sel on public.billing_service_catalogue;
+create policy billing_service_catalogue_offer_sel on public.billing_service_catalogue
+  for select to authenticated using (active and pricing <> 'quoted');
+
 -- Superseded by the approved activation catalogue (29 October 2026): per-case setup, training
 -- and QR sheets are no longer offered on new service invoices. Installation stays.
 update public.billing_service_catalogue set active = false, updated_at = now()
