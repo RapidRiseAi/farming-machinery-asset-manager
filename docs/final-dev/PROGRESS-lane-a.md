@@ -12,7 +12,7 @@ storage/assistance half of 12). Started 17 Nov 2026 on 48b7987 (A1, B1, A2, Code
 | 1 | Storage allowance and pool (migration 20261118120000): pooled customer allowance, quota hooks replaced, files from before the pipeline counted (nightly snapshot of untracked objects), 80/95% warnings, status function, auto blocks setting with ceiling, transactional auto block; suite storage_pool.sql | SQL done (12/12 mutations); TS in step 4 |
 | 2 | Storage blocks billing (20261118120100): buy through A2's quotes (change 'storage'), reductions scheduled at the next storage month and never below what is stored, storage charge ledger, recurring monthly charge on the period invoice (monthly) and on the usage invoice (annual), generic cost-plus storage retired; suite storage_blocks.sql | SQL done (12/12 mutations); TS in step 4 |
 | 3 | Assistance cap (20261118120200): customer-wide budget table, existing limits migrated as chosen (owners told), blank refuses (budget_unset), customer-wide lock and spend, staff sublimits across sites, WhatsApp on the same ledger (owner acceptance, hold before send, settle on the delivery webhook's pricing, free = R0, stale = R0), event fields, AI use of every pooled site invoiced, usage corrections as credit; suite assistance_cap.sql | SQL done (16/16 mutations); usage corrections as credit NOT built (see report) |
-| 4 | TS storage: mirror + tests, /billing storage section (status, warnings, blocks, auto setting), upload refusal offers expansion, admin usage page | todo |
+| 4 | TS storage: mirror + tests, /billing storage section (status, warnings, blocks, auto setting), upload refusal offers expansion, admin usage page | done (gates passed at the step 4 commit; no browser run) |
 | 5 | TS assistance: /settings/ai setup (required, zero allowed, migrated notice, reset boundary), refusals, WhatsApp hooks and acceptance, admin rates | todo |
 | 6 | Docs, register rows, REPORT-A3.md | todo |
 
@@ -63,6 +63,12 @@ Log:
   trial guard reproduces every current effective limit exactly. ai_usage.sql and
   test_account_fence.sql now choose a budget in their fixtures. Next: step 4 (TS storage), then
   step 5 (TS assistance and the WhatsApp hooks).
+- 18 Nov: step 4 done. Full SQL suite 87/87 at 6fbd349. Storage catalogue entries in
+  limits.ts, src/lib/storage-allowance.ts (+ test pinned to the migration), StorageCard on
+  /billing (blocks through requestChange change=storage, saveStorageAuto), upload refusal
+  calls storage_note_full, nightly cron_storage_measure, /admin/usage is a cost view only
+  (raiseUsageInvoice removed). Gates: tsc, 1177 unit tests (0 fail), dashes, parity, keys,
+  design, errors. Next: step 5.
 
 ## A2 (complete)
 
