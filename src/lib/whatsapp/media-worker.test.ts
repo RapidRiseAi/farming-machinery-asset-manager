@@ -28,6 +28,10 @@ type World = {
   media?: Uint8Array;
   faults?: { id: string; machine_id: string; description: string }[];
   staged?: Record<string, unknown> | null;
+  /** Paths switched off for this business (20261121090000); every path is open unless named. */
+  off?: string[];
+  /** An earlier attempt already started this message's answer. */
+  answerStarted?: boolean;
 };
 type Seen = {
   sent: string; conversation: unknown; requests: string[];
@@ -65,6 +69,8 @@ async function run(world: World): Promise<Seen> {
     const route = url.pathname.replace("/rest/v1/", "");
     // WhatsApp billing off (the default until Rapid Rise sets it): replies are not held.
     if (route === "rpc/whatsapp_usage_reserve") return json({ ok: true, metered: false });
+    if (route === "rpc/whatsapp_capability") return json(!(world.off ?? []).includes(body.p_key));
+    if (route === "rpc/whatsapp_start_answer") return json(!world.answerStarted);
     if (route === "rpc/whatsapp_claim") return json([{ id: "inbox-1", link_id: "link", message_at: new Date().toISOString(),
       reply: null, media_kind: null, media_id: null, media_mime: null, ...world.inbox }]);
     if (route === "rpc/whatsapp_delivery_target") return json({ id: "link", user_id: "employee", farm_id: "farm",
@@ -179,8 +185,10 @@ test("a voice note is not sent to a speech model when AI help is off, too long, 
     const off = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null, media: voiceNote(5) });
     assert.match(off.sent, /AI help, which is switched off/);
     const long = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null,
-      media: voiceNote(200), profile: AI_ON });
-    assert.match(long.sent, /up to 3 minutes/);
+      media: voiceNote(601), profile: AI_ON });
+    // Ten minutes, as in the app (decision 11); past it, the app's own recorder is offered.
+    assert.match(long.sent, /up to 10 minutes/);
+    assert.match(long.sent, /https:\/\/fleetwise\.example\.test\/assistant/);
     const mp3 = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null,
       media: new TextEncoder().encode("ID3........................................................"), profile: AI_ON });
     assert.match(mp3.sent, /could not be played/);

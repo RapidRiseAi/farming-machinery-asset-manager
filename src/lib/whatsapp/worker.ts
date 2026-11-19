@@ -90,13 +90,13 @@ async function hearVoiceNote(context: AssistantContext, item: Inbox, origin: str
   try {
     audio = await downloadWhatsAppMedia(item.media_id ?? "", MAX_VOICE_BYTES);
   } catch (error) {
-    if (error instanceof MediaError && error.code === "media_too_large") return { reply: t("whatsapp.voiceTooLong", lang) };
+    if (error instanceof MediaError && error.code === "media_too_large") return { reply: t("whatsapp.voiceTooLong", lang).replace("{url}", `${origin}/assistant`) };
     reportFailure("whatsapp:voice-download", error);
     return { reply: t("whatsapp.voiceUnavailable", lang) };
   }
   const durationMs = oggOpusDurationMs(audio);
   if (durationMs === null || durationMs < MIN_VOICE_MS) return { reply: t("whatsapp.voiceUnreadable", lang) };
-  if (durationMs > MAX_VOICE_MS) return { reply: t("whatsapp.voiceTooLong", lang) };
+  if (durationMs > MAX_VOICE_MS) return { reply: t("whatsapp.voiceTooLong", lang).replace("{url}", `${origin}/assistant`) };
   let terms: string[] = [];
   try {
     terms = transcriptionVocabulary(await loadAssistantMachines(context.supabase, context.farmId, {

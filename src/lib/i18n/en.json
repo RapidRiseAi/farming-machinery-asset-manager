@@ -6856,7 +6856,7 @@
     "saved": "Your WhatsApp settings were saved.",
     "voiceHeard": "Heard: \"{text}\"",
     "voiceAiOff": "Voice notes need AI help, which is switched off for you. You can turn it on in FLEETWISE: {url}",
-    "voiceTooLong": "Voice notes can be up to 3 minutes. Please send a shorter one, or type your message.",
+    "voiceTooLong": "Voice notes on WhatsApp can be up to 10 minutes. Send a shorter one, type your message, or record it in the app: {url}",
     "voiceUnreadable": "That voice note could not be played. Please record it again in WhatsApp, or type your message.",
     "voiceNotHeard": "I could not make out any words in that voice note. Please try again, or type your message.",
     "voiceLimit": "The AI spending limit for this month has been reached, so voice notes are paused. Typed messages still work.",

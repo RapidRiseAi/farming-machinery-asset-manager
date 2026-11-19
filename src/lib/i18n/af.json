@@ -6856,7 +6856,7 @@
     "saved": "Jou WhatsApp-instellings is gestoor.",
     "voiceHeard": "Gehoor: \"{text}\"",
     "voiceAiOff": "Stemnotas het KI-hulp nodig, wat vir jou afgeskakel is. Jy kan dit in FLEETWISE aanskakel: {url}",
-    "voiceTooLong": "Stemnotas kan tot 3 minute lank wees. Stuur asseblief 'n korter een, of tik jou boodskap.",
+    "voiceTooLong": "Stemnotas op WhatsApp kan tot 10 minute lank wees. Stuur 'n korter een, tik jou boodskap, of neem dit in die app op: {url}",
     "voiceUnreadable": "Daardie stemnota kon nie gespeel word nie. Neem dit asseblief weer in WhatsApp op, of tik jou boodskap.",
     "voiceNotHeard": "Ek kon geen woorde in daardie stemnota uitmaak nie. Probeer asseblief weer, of tik jou boodskap.",
     "voiceLimit": "Die KI-bestedingslimiet vir hierdie maand is bereik, so stemnotas is onderbreek. Getikte boodskappe werk steeds.",
