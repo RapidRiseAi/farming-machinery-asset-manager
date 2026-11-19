@@ -1,4 +1,23 @@
-# Lane B progress (task B4 now; B3 and B1 below)
+# Lane B progress (task B5 now; B4, B3 and B1 below)
+
+## Task B5 (started 19 Nov 2026 at 3b552e8, by the main Claude session)
+
+Inventory: no custom fields, staging, OCR or manuals code exists; only pdf-lib is installed (it splits
+PDFs, it cannot read text). Plan:
+1. Custom asset fields (Professional and Complete): definitions, typed values, validation, visibility,
+   groups, rename and retire without losing values, audit, CSV import and export mapping, isolation;
+   no billing or engine effect; equipment may use them.
+2. Structured import staging: import_batches / import_rows, mapping, type, date and unit validation,
+   duplicates, preview, explicit confirmation; uncertain values stay uncertain.
+3. OCR adapter interface behind the readiness flag document_extraction (off). Live provider use on
+   Professional waits for the founder's cost decision; on Complete only through the approved AI path
+   under the A3 spending limit. Manual capture never depends on it.
+4. Manuals questions on Complete behind the flag manual_questions (off): private ingestion, pages read
+   through the approved AI path under the spending limit (bounded), Postgres full-text index, a
+   read-only agent tool with document and page citations, permission filtering, reindex and delete,
+   "no supporting evidence" when nothing matches, no second storage charge.
+5. Old roadmap entries classified in the register with evidence.
+6. Tests (scenario 44), docs, report.
 
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
 
