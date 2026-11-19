@@ -24,7 +24,16 @@ DATABASE.md); custom_fields on Professional in app.feature_min_rank and CAPABILI
 reads the latest definitions); /settings/fields, the asset card and dialog, Settings link, EN/AF, error codes; the
 business export lists both tables (asset_field_values got a paging id); the machine import carries field:<key>
 columns and applies them through asset_field_set, reporting skipped values. Mutations 10/10 SQL. Unit 1256 pass.
-Next: step 2 (staging tables and confirm flow), then 3 (OCR adapter), 4 (manuals).
+Step 2 DONE (4c5bde4 to the commit after 1f2dc3d): migration 20261121110000 (import_batches, import_rows,
+import_batch_open / import_rows_stage / import_row_decide / import_rows_bulk / import_batch_confirm / import_batch_cancel;
+flag document_extraction off; documents need the tco rank = Professional and Complete per the brief). Every doubt is
+a named issue; a doubtful asset, date or reading is accepted only with the person's own value for that field (the
+dialog leaves it empty); bulk accepts only rows with no issue; confirm re-checks and writes once; same file reopens
+its batch. Provider fields are untrusted (bad confidence = uncertain, bad row = invalid, 4000-char row cap). Suite
+import_staging.sql registered, probe, DATABASE.md, 10 error codes EN/AF. Mutations 31/31 (two first-run survivors were
+faulty mutations: to_date also refuses 30/02; "false and A or B" left B active). /imports list + /imports/[id] review,
+template CSV, Machines menu entry. Unit 1264 pass; pay-gate, fence and deploy-compatibility suites pass.
+Next: step 3 (OCR adapter behind document_extraction), then 4 (manuals).
 
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
 
