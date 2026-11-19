@@ -137,9 +137,9 @@ Postgres confirms it on merge. A state in brackets names what another task still
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-110 | Structured import staging with OCR adapter (Professional/Complete) behind readiness | S17 | `src/app/(app)/documents` text extraction for partner documents only | M | B5 | Sc44 |
-| R-111 | Custom asset fields (Professional/Complete), never changing billing class | S17 | none | M | B5 | Sc44 |
-| R-112 | Manuals Q&A on Complete with citations, isolation, shared budget | S17 | none | M | B5 | Sc44 |
+| R-110 | Structured import staging with OCR adapter (Professional/Complete) behind readiness | S17 | B5: 20261121110000 (`import_batches`, `import_rows`, decide, bulk, confirm, cancel), `/imports` review, `src/lib/import-staging.ts`; OCR adapter `src/lib/extraction` (provider `none`, hold before any call, flag `document_extraction` off) | E (B5) staging; X adapter: provider and its Professional price are the founder's decision | B5 | Sc44: `import_staging.sql`, `extraction.test.ts`, `import-staging.test.ts` |
+| R-111 | Custom asset fields (Professional/Complete), never changing billing class | S17 | B5: 20261121100000 (`asset_field_definitions`, `asset_field_values`), `/settings/fields`, asset card, machine import and business export | E (B5) | B5 | Sc44: `custom_asset_fields.sql`, `custom-fields.test.ts` |
+| R-112 | Manuals Q&A on Complete with citations, isolation, shared budget | S17 | B5: 20261121120000 (`manual_index`, `manual_pages`, invoker `manual_search`, delete propagation), `src/lib/manuals.ts`, assistant `search_manuals`, asset Manuals card; reader `none`, flag `manual_questions` off | X: reader and its cost are the founder's decision; built and tested behind the flag | B5 | Sc44: `manual_questions.sql`, `manuals.test.ts` |
 | R-113 | Old roadmap entries classified with evidence | S17 | `docs/CORPORATE_FLEET_ROADMAP.md` | E | A1 | this file, section 3 |
 | R-114 | Exclusions kept: video, equipment-only subscriptions, self-hosting, full white label, paid SLA, paid workshop subscriptions | S17 | none built | EX | all | n/a |
 | R-115 | Done-For-You quoted from R170, R2,500 minimum; accepted-quote and service-order flows with scope, allowance, schedule | S18, D28, D29 | `done_for_you_quotes` extended (20261120100000): explicit period prices and total, terms, owner acceptance, landing at the renewal on a private price row, plan guard, end through A2's pending change, work and review log; legacy rows untouched | E (A4; no browser run) | A4 | Sc43: service_orders.sql [4] to [7], service-orders.test.ts |
@@ -306,6 +306,11 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-059 | 10 Emissions reports, BI connectors | EX (S17); utilisation/downtime reports exist under `advanced_reports` |
 | I-060 | 11 Extra driver languages | EX: two languages (S17 lists extra languages as classify-only) |
 | I-061 | Trucking add-on price idea (R40 to R60) | EX: not an approved price |
+
+Checked again in B5 (19 Nov 2026): nothing B5 built changes I-050 to I-061. Custom asset fields (R-111) are a
+Professional feature in the reviewed offer, not a new tier; document extraction and manual questions (R-110, R-112)
+add no price: they run only inside the existing assistance limit, behind flags, until the founder approves a
+provider and its cost.
 
 ### Flags, placeholders and disabled flows in the code
 

@@ -75,6 +75,8 @@ export const CAPABILITY_MIN_PLAN = {
   tyre_detail: "essential",
   sale_warranty_packs: "essential",
   general_chat: "essential",
+  // Customer-defined asset fields (B5, 20261121100000): the feature map's default placement, no new fee.
+  custom_fields: "professional",
 } as const satisfies Record<string, Plan>;
 
 export type Capability = keyof typeof CAPABILITY_MIN_PLAN;

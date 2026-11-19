@@ -27,8 +27,9 @@ export const IMPORT_COLUMNS = [
 export const MAX_IMPORT_ROWS = MACHINE_IMPORT_MAX_ROWS;
 
 /** Parse CSV text into rows of string cells. Handles quotes, escaped quotes,
- *  commas/newlines inside quotes, CRLF, and a leading BOM. */
-export function parseCsv(text: string): string[][] {
+ *  commas/newlines inside quotes, CRLF, and a leading BOM. Blank lines are dropped unless
+ *  keepBlank is set (the readings import numbers rows as the spreadsheet does). */
+export function parseCsv(text: string, { keepBlank = false }: { keepBlank?: boolean } = {}): string[][] {
   const s = text.replace(/^﻿/, "");
   const rows: string[][] = [];
   let row: string[] = [];
@@ -67,7 +68,7 @@ export function parseCsv(text: string): string[][] {
     row.push(cell);
     rows.push(row);
   }
-  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+  return keepBlank ? rows : rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
 
 type MachineInsert = {
@@ -85,6 +86,8 @@ type MachineInsert = {
   status: string;
   notes: string | null;
   profile: "full" | "equipment";
+  /** The business's own fields (B5), by key, from columns headed "field:<key>"; checked by the database. */
+  customFields?: Record<string, string>;
 };
 
 type RowResult = {
@@ -106,6 +109,15 @@ export type ParseResult = {
 };
 
 const norm = (h: string) => h.trim().toLowerCase().replace(/\s+/g, "_");
+
+/**
+ * A column for one of the business's own fields (B5): headed "field:<key>" (the key shown on
+ * /settings/fields). Returns the canonical heading, or null for any other column.
+ */
+export function fieldColumn(header: string): string | null {
+  const h = norm(header);
+  return /^field:[a-z][a-z0-9_]{0,39}$/.test(h) ? h : null;
+}
 
 /**
  * What is already on the farm, so a re-run of the same sheet does not add the fleet twice.
@@ -198,6 +210,7 @@ export function validateCsv(
     };
   }
   const idx = (col: string) => header.indexOf(col);
+  const customColumns = [...new Set(header.filter((h) => fieldColumn(h) !== null))];
 
   const seen = new Map<string, number>();
   const rows: RowResult[] = [];
@@ -330,6 +343,8 @@ export function validateCsv(
             status,
             notes: get("notes") || null,
             profile: profile ?? "full",
+            ...(customColumns.length ? { customFields: Object.fromEntries(customColumns
+              .map((c) => [c.slice("field:".length), get(c)] as const).filter(([, v]) => v !== "")) } : {}),
           }
         : undefined,
     });
@@ -402,8 +417,15 @@ export function guessMapping(headers: string[]): string[] {
   const taken = new Set<string>();
   const exact: string[] = headers.map(() => SKIP_COLUMN);
 
+  // A column for one of the business's own fields keeps its heading (B5).
+  headers.forEach((h, i) => {
+    const f = fieldColumn(h);
+    if (f && !taken.has(f)) { exact[i] = f; taken.add(f); }
+  });
+
   // Pass 1: exact alias hits, which are the confident ones.
   headers.forEach((h, i) => {
+    if (exact[i] !== SKIP_COLUMN) return;
     const k = key(h);
     for (const col of IMPORT_COLUMNS) {
       if (taken.has(col)) continue;
@@ -448,11 +470,14 @@ export function applyMapping(text: string, mapping: string[]): string {
   });
 
   const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const out: string[] = [IMPORT_COLUMNS.join(",")];
+  // The business's own fields follow our columns, in the sheet's order (B5).
+  const fields = [...sourceFor.keys()].filter((c) => fieldColumn(c) === c);
+  const columns = [...IMPORT_COLUMNS, ...fields];
+  const out: string[] = [columns.join(",")];
   for (let r = 1; r < grid.length; r++) {
     const row = grid[r];
     out.push(
-      IMPORT_COLUMNS.map((col) => {
+      columns.map((col) => {
         const i = sourceFor.get(col);
         return i == null ? "" : esc((row[i] ?? "").trim());
       }).join(","),

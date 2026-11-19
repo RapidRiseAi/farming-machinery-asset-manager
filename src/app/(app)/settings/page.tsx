@@ -66,6 +66,8 @@ export default async function SettingsPage({
   // exactly when the nav row does.
   const { plan } = await currentPlan(profile);
   const apiAllowed = plan != null && planAllows(plan, "api_access");
+  const customFieldsAllowed = plan != null && planAllows(plan, "custom_fields")
+    && (profile.role === "owner" || profile.role === "manager");
 
   const supabase = await createClient();
   // must: a failed read stated every default (VAT rate, quiet hours) as the farm's own, and
@@ -209,6 +211,18 @@ export default async function SettingsPage({
               value={t("settings.apiLink", locale)}
               action={
                 <Link href="/settings/api" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                  {t("settings.openScreen", locale)}
+                </Link>
+              }
+            />
+          ) : null}
+          {/* The business's own asset fields (B5): owners and managers, Professional and up. */}
+          {customFieldsAllowed ? (
+            <PrefRow
+              label={t("customFields.title", locale)}
+              value={t("customFields.settingsLink", locale)}
+              action={
+                <Link href="/settings/fields" className={buttonVariants({ variant: "secondary", size: "sm" })}>
                   {t("settings.openScreen", locale)}
                 </Link>
               }

@@ -1,4 +1,24 @@
 import assert from "node:assert/strict";
+import { test as fieldTest } from "node:test";
+import { applyMapping as mapForFields, fieldColumn, guessMapping as guessForFields, validateCsv as validateForFields } from "./csv";
+
+// B5: a column headed "field:<key>" carries one of the business's own fields through the
+// mapping step, the rewrite and validation, by key; the database checks the value later.
+fieldTest("custom field columns survive mapping, the rewrite and validation", () => {
+  assert.equal(fieldColumn(" Field:Paint_Colour "), "field:paint_colour");
+  assert.equal(fieldColumn("field:9bad"), null, "a key starts with a letter");
+  assert.equal(fieldColumn("colour"), null);
+  const sheet = "Name,Type,field:colour,field:tank_size\nBakkie 1,bakkie,Green,80\nBakkie 2,bakkie,,\n";
+  const mapping = guessForFields(["Name", "Type", "field:colour", "field:tank_size"]);
+  assert.deepEqual(mapping.slice(2), ["field:colour", "field:tank_size"]);
+  const canonical = mapForFields(sheet, mapping);
+  assert.match(canonical.split("\n")[0], /,field:colour,field:tank_size$/);
+  const rows = validateForFields(canonical).rows;
+  assert.deepEqual(rows[0].machine?.customFields, { colour: "Green", tank_size: "80" });
+  assert.deepEqual(rows[1].machine?.customFields, {}, "an empty cell changes nothing");
+  const plain = validateForFields("Name,Type\nBakkie 3,bakkie\n").rows[0].machine;
+  assert.equal(plain?.customFields, undefined, "a sheet without field columns is exactly as before");
+});
 import test from "node:test";
 import {
   IMPORT_COLUMNS, applyMapping, defaultMeterFor, guessMapping, idKey, machineKey, parseReadingDate, templateCsv, validateCsv,

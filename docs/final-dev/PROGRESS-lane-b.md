@@ -1,4 +1,58 @@
-# Lane B progress (task B4 now; B3 and B1 below)
+# Lane B progress (B5 complete; B4, B3 and B1 below)
+
+## Task B5 (started 19 Nov 2026 at 3b552e8, by the main Claude session)
+
+Inventory: no custom fields, staging, OCR or manuals code exists; only pdf-lib is installed (it splits
+PDFs, it cannot read text). Plan:
+1. Custom asset fields (Professional and Complete): definitions, typed values, validation, visibility,
+   groups, rename and retire without losing values, audit, CSV import and export mapping, isolation;
+   no billing or engine effect; equipment may use them.
+2. Structured import staging: import_batches / import_rows, mapping, type, date and unit validation,
+   duplicates, preview, explicit confirmation; uncertain values stay uncertain.
+3. OCR adapter interface behind the readiness flag document_extraction (off). Live provider use on
+   Professional waits for the founder's cost decision; on Complete only through the approved AI path
+   under the A3 spending limit. Manual capture never depends on it.
+4. Manuals questions on Complete behind the flag manual_questions (off): private ingestion, pages read
+   through the approved AI path under the spending limit (bounded), Postgres full-text index, a
+   read-only agent tool with document and page citations, permission filtering, reindex and delete,
+   "no supporting evidence" when nothing matches, no second storage charge.
+5. Old roadmap entries classified in the register with evidence.
+6. Tests (scenario 44), docs, report.
+
+Step 1 DONE (ac11f87 to the commit after d06989a): migration 20261121100000 (probe, suite custom_asset_fields.sql,
+DATABASE.md); custom_fields on Professional in app.feature_min_rank and CAPABILITY_MIN_PLAN (entitlements.test now
+reads the latest definitions); /settings/fields, the asset card and dialog, Settings link, EN/AF, error codes; the
+business export lists both tables (asset_field_values got a paging id); the machine import carries field:<key>
+columns and applies them through asset_field_set, reporting skipped values. Mutations 10/10 SQL. Unit 1256 pass.
+Step 2 DONE (4c5bde4 to the commit after 1f2dc3d): migration 20261121110000 (import_batches, import_rows,
+import_batch_open / import_rows_stage / import_row_decide / import_rows_bulk / import_batch_confirm / import_batch_cancel;
+flag document_extraction off; documents need the tco rank = Professional and Complete per the brief). Every doubt is
+a named issue; a doubtful asset, date or reading is accepted only with the person's own value for that field (the
+dialog leaves it empty); bulk accepts only rows with no issue; confirm re-checks and writes once; same file reopens
+its batch. Provider fields are untrusted (bad confidence = uncertain, bad row = invalid, 4000-char row cap). Suite
+import_staging.sql registered, probe, DATABASE.md, 10 error codes EN/AF. Mutations 31/31 (two first-run survivors were
+faulty mutations: to_date also refuses 30/02; "false and A or B" left B active). /imports list + /imports/[id] review,
+template CSV, Machines menu entry. Unit 1264 pass; pay-gate, fence and deploy-compatibility suites pass.
+Step 3 DONE: import_batch_open takes p_provider (a document names its reader, a sheet none); src/lib/extraction
+(provider interface, rowsFromExtraction: missing or bad confidence = 0, pages outside dropped, text cleaned and
+bounded; runExtraction: Essential refused, Professional cost_undecided, Complete inside a hold); shared runHeld
+(src/lib/extraction/held.ts: hold first, no call without it, settle always, unusable = charged/not billed);
+startDocumentImport (bytes decide the type) and a dialog shown only when provider + flag + plan. Adapter mutations 9/9.
+Step 4 DONE: migration 20261121120000 (manual_index, manual_pages with simple tsvector, invoker manual_search with
+filler-word filter and cap 8, manual_index_put service-only, manual_index_remove, soft-delete trigger, flag
+manual_questions off, Complete via voice_ai rank); src/lib/manuals.ts (reader none, pagesForIndex, runManualRead,
+searchManuals with cite and no-evidence note); assistant search_manuals only when manual_questions_available, prompt
+rule; asset Manuals card (upload PDF, make searchable, read again, remove) gated; export lists import_batches,
+import_rows, manual_index. SQL mutations 16/18 (2 equivalent: attachments RLS already confines the farm; EXECUTE is
+revoked from people), TS 11/11.
+Step 5 DONE: register R-110 (E staging, X adapter), R-111 E, R-112 X; I-050..I-061 re-checked unchanged.
+Step 6: full SQL run found audit_redaction (no app.audit_table_rules for five new tables, since step 1): rules
+added, farm scope. FOUNDER-DECISIONS-PENDING 12 (provider and Professional price) and 13 (assumptions) added.
+Full gates at 43a384f: tsc clean, unit 1281 pass, statics clean, SQL suites 101/101. REPORT-B5.md written.
+
+## TASK B5 COMPLETE
+
+19 Nov 2026. Report: docs/final-dev/REPORT-B5.md. Next on lane B: B6 (Android app).
 
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
 
