@@ -6876,7 +6876,11 @@
     "photoNotKept": "The photo was not kept.",
     "photoDiscarded": "Photo discarded. Nothing was saved.",
     "photoUnreadable": "That photo could not be read. Please send it again as a photo (JPEG or PNG, under 6 MB).",
-    "unsupported": "I can read text messages, voice notes and photos. Documents, videos and stickers still need FLEETWISE: {url}"
+    "unsupported": "I can read text messages, voice notes and photos. Documents, videos and stickers still need FLEETWISE: {url}",
+    "textNotYet": "Questions over WhatsApp are not available for your business yet. Ask in the app instead: {url}",
+    "photosNotYet": "Photos over WhatsApp are not available for your business yet. Add the photo in the app instead: {url}",
+    "voiceNotYet": "Voice notes over WhatsApp are not available for your business yet. Type your request here, or record it in the app: {url}",
+    "sendAgain": "Something interrupted your last message before it was answered. Please send it again."
   },
   "interaction": {
     "working": "Working on it",

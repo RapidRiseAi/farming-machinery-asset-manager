@@ -6876,7 +6876,11 @@
     "photoNotKept": "Die foto is nie gehou nie.",
     "photoDiscarded": "Foto weggegooi. Niks is gestoor nie.",
     "photoUnreadable": "Daardie foto kon nie gelees word nie. Stuur dit asseblief weer as 'n foto (JPEG of PNG, kleiner as 6 MB).",
-    "unsupported": "Ek kan teksboodskappe, stemnotas en foto's lees. Dokumente, video's en plakkers het nog FLEETWISE nodig: {url}"
+    "unsupported": "Ek kan teksboodskappe, stemnotas en foto's lees. Dokumente, video's en plakkers het nog FLEETWISE nodig: {url}",
+    "textNotYet": "Vrae oor WhatsApp is nog nie vir jou besigheid beskikbaar nie. Vra eerder in die app: {url}",
+    "photosNotYet": "Foto's oor WhatsApp is nog nie vir jou besigheid beskikbaar nie. Voeg die foto eerder in die app by: {url}",
+    "voiceNotYet": "Stemnotas oor WhatsApp is nog nie vir jou besigheid beskikbaar nie. Tik jou versoek hier, of neem dit in die app op: {url}",
+    "sendAgain": "Iets het jou vorige boodskap onderbreek voordat dit beantwoord is. Stuur dit asseblief weer."
   },
   "interaction": {
     "working": "Besig",

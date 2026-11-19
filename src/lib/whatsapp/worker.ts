@@ -9,7 +9,7 @@ import type { AssistantTurnResponse, AssistantConfirmResponse, AssistantClarific
 import type { AssistantContext } from "@/lib/assistant/context";
 import { loadAssistantMachines } from "@/lib/assistant/data";
 import { aiHelpOn, transcriptionVocabulary } from "@/lib/assistant/transcription";
-import { t, type Lang } from "@/lib/i18n";
+import { langOf, t, type Lang } from "@/lib/i18n";
 import { whatsappAssistantContext, type WhatsAppLink } from "./identity";
 import { whatsappEnabled } from "./config";
 import { sendWhatsApp } from "./client";
@@ -43,6 +43,33 @@ type Inbox = {
 type Reply = { text: string; pending: unknown };
 /** A proposal prepared from a photo conversation carries the staged photo to attach on confirm. */
 type WithPhoto = { attachMediaId?: string };
+
+/** The four WhatsApp paths, each released on its own once its real-phone journey passes (20261121090000). */
+export type WhatsAppCapability = "whatsapp_text" | "whatsapp_alerts" | "whatsapp_photos" | "whatsapp_voice";
+
+/** Whether a path is open for this business; anything unreadable answers "off". */
+export async function capabilityOn(farmId: string, key: WhatsAppCapability): Promise<boolean> {
+  const { data, error } = await createServiceClient().rpc("whatsapp_capability", { p_farm: farmId, p_key: key });
+  return !error && data === true;
+}
+
+/** The path an inbound message needs. */
+export function capabilityFor(item: { media_kind?: "audio" | "image" | null }): WhatsAppCapability {
+  return item.media_kind === "image" ? "whatsapp_photos" : item.media_kind === "audio" ? "whatsapp_voice" : "whatsapp_text";
+}
+
+/** What a person is told when the path their message needs is not open yet; never a model call. */
+export function capabilityOffReply(key: WhatsAppCapability, lang: Lang, origin: string): string {
+  const message = key === "whatsapp_photos" ? "whatsapp.photosNotYet" : key === "whatsapp_voice" ? "whatsapp.voiceNotYet" : "whatsapp.textNotYet";
+  return t(message, lang).replace("{url}", `${origin}/assistant`);
+}
+
+/** The person's own language for a reply the model does not write. */
+async function personLang(userId: string): Promise<Lang> {
+  const { data } = await createServiceClient().from("users").select("language,tone").eq("id", userId).maybeSingle();
+  const row = data as { language: Parameters<typeof langOf>[0]; tone: Parameters<typeof langOf>[1] } | null;
+  return langOf(row?.language ?? "en", row?.tone ?? "friendly");
+}
 
 async function deliveryTarget(id: string): Promise<WhatsAppLink | null> {
   const { data, error } = await createServiceClient().rpc("whatsapp_delivery_target", { p_link: id });
@@ -309,7 +336,21 @@ export async function processWhatsAppInbox(limit = 1) {
       let reply = item.reply;
       const authorityBefore = link.authority_tag;
       if (!reply) {
-        const result = await answer(link, item, origin);
+        let result: Reply;
+        const needs = capabilityFor(item);
+        const lang = await personLang(link.user_id);
+        if (!(await capabilityOn(link.farm_id, needs))) {
+          // The path is not released for this business: say so, and keep whatever was waiting
+          // only while it was built under the access held now.
+          const kept = link.conversation && link.conversation_authority_tag === link.authority_tag ? link.conversation : null;
+          result = { text: capabilityOffReply(needs, lang, origin), pending: kept };
+        } else if (!(await db.rpc("whatsapp_start_answer", { p_id: item.id, p_lease: lease })).data) {
+          // An earlier attempt started this answer and never saved it: it may already have
+          // been paid for, so the model is not asked again (20261121090000).
+          result = { text: t("whatsapp.sendAgain", lang), pending: null };
+        } else {
+          result = await answer(link, item, origin);
+        }
         reply = result.text.slice(0, 4000);
         const saved = await db.rpc("whatsapp_save_reply", {
           p_id: item.id, p_lease: lease, p_reply: reply, p_conversation: result.pending, p_authority_tag: authorityBefore,
@@ -411,6 +452,12 @@ export async function deliverWhatsAppNotifications() {
     }
     if (!valid || !link || !note) {
       await db.from("whatsapp_notification_delivery").update({ state: "cancelled" }).eq("notification_id", row.notification_id).eq("state", "queued");
+      continue;
+    }
+    // Alerts are their own released path (20261121090000); off: the alert stays in the app only.
+    if (!(await capabilityOn(link.farm_id, "whatsapp_alerts"))) {
+      await db.from("whatsapp_notification_delivery").update({ state: "cancelled", error_code: "capability_off" })
+        .eq("notification_id", row.notification_id).eq("state", "queued");
       continue;
     }
     // Paid WhatsApp (20261118120200): an alert is a utility template, held on the customer's
