@@ -2395,7 +2395,24 @@
     "settingsLinkHint": "Vra ons iets sonder om FLEETWISE te verlaat.",
     "backWhereYouWere": "Terug na waar jy was",
     "leadAnswers": "Die meeste antwoorde is hieronder. As joune nie daar is nie, vra ons en ons kom terug na jou.",
-    "quickTitle": "Vinnige antwoorde"
+    "quickTitle": "Vinnige antwoorde",
+    "guideTitle": "Hoe FLEETWISE werk",
+    "guide": {
+      "equipmentTitle": "Ondersteuningstoerusting",
+      "equipmentBody": "Pompe, kragopwekkers, kompressors, werkswinkelgereedskap, aanbouwerktuie en sleepwaens is ondersteuningstoerusting. Hulle hou foto's, 'n ligging, uurlesings, diensherinneringe, foute, kontrolelyste, herstelwerk met onderdele en arbeid, dokumente en QR-kodes. Hulle het geen ritte, brandstof, nasporing, lisensieskywe, begrotings, waardevermindering, lenings of huurkontrakte nie; 'n sleepwa kan steeds op 'n voertuig se rit genoem word. Elke plan sluit toerusting in (Essensieel 2, Professioneel 5, Volledig 15) en meer kos elk R15 per maand of R150 per jaar. As 'n item die volle gereedskap nodig het, skakel dit om na 'n volle vlootplek in sy kieslys.",
+      "spacesTitle": "Plekke en berging",
+      "spacesBody": "Jou plan faktureer die volle plekke wat jy kies, minstens vyf, en enige toerusting bo die ingeslote getal. Om meer by te voeg word gehef vir die dae tot jou hernuwing, gewys voordat jy betaal, en die hernuwingsdatum skuif nooit nie. Minder plekke of 'n goedkoper plan geld vanaf die hernuwing. Berging vir aanhegsels word oor jou persele gedeel: minstens 2 GB, of 100 MB per volle plek plus 25 MB per toerustingplek. Die eienaar word by 80% en 95% gewaarsku. Wanneer dit vol is, stop net nuwe aanhegsels; alles anders werk steeds. Ekstra blokke van 10 GB kos R49 per maand.",
+      "spendingTitle": "Die bestedingsgrens vir betaalde hulp",
+      "spendingBody": "Betaalde KI-hulp, stem en betaalde WhatsApp deel een maandelikse grens wat die eienaar onder Instellings, KI kies. Niks betaalds loop voordat 'n grens gekies is nie, en nul beteken geen. Koste is die verskaffer se koste plus 30%. 'n Besigheid se eie OpenAI-sleutel word nooit deur FLEETWISE gefaktureer nie. Werk stop voordat die grens oorskry word, en jy kan altyd dieselfde met die hand doen.",
+      "chatTitle": "Personeelklets",
+      "chatBody": "Personeelklets is nog nie beskikbaar nie. Wanneer dit oopmaak, is gesprekke privaat vir die mense daarin: 'n eienaar kan nie ander mense se privaat kletse lees omdat hy of sy die rekening betaal nie, buite-werktuigkundiges sien net gesprekke oor werk wat met hulle gedeel is, en Rapid Rise-ondersteuning sien dit net tydens 'n aangetekende ondersteuningsbesoek. Privaat kletse is nooit deel van die besigheid se uitvoer nie.",
+      "exportsTitle": "Jou rekords aflaai",
+      "exportsBody": "Eienaars en bestuurders kan 'n volledige kopie van die rekords wat hulle mag lees, met die foto's, PDF's en gehoue stemnotas, onder Instellings aflaai. Dit word in die agtergrond in dele voorberei, met 'n lys van wat daarin is en 'n kontrolesom vir elke lêer, en sewe dae lank gehou. Privaat kletse is nooit ingesluit nie. Nadat 'n intekening onbetaald of gekanselleer eindig, kan net die eienaar 90 dae lank lees en aflaai.",
+      "paymentsTitle": "Betalings, grasietyd en kansellering",
+      "paymentsBody": "Jy betaal per kaart deur Paystack. As 'n hernuwingsbetaling misluk, is daar sewe dae grasietyd: rekords werk steeds, maar niks nuuts wat geld kos, begin nie. Daarna stop hernuwings en kan net die eienaar 90 dae lank lees en aflaai. Kansellering stop die volgende hernuwing; jy behou toegang tot die einde van die betaalde tydperk, en daar is geen outomatiese terugbetaling nie. As jy weer betaal, kom die rekening terug.",
+      "devicesTitle": "Fone en werk sonder sein",
+      "devicesBody": "FLEETWISE werk in jou foon se blaaier en kan by die tuisskerm gevoeg word. Gekose lesings, foute en werkkaarte kan sonder sein gestoor word en word gestuur wanneer die verbinding terugkom; jou toegang word dan weer nagegaan, en enigiets wat geweier word, word met die rede gehou. Nie elke skerm werk sonder sein nie. Foto's word outomaties kleiner gemaak tensy jy kies om die oorspronklike te hou."
+    }
   },
   "tyreAxle": {
     "steer": "Stuur",

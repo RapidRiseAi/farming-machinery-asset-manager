@@ -2,6 +2,27 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
+## Current task: A5 (website, signup, wording, revised plan PDF) by the main Claude session
+
+Started 19 Nov 2026 on 7f08d1f. Website work is in C:\projects\fleetwise-launch-polish on branch
+claude/launch-polish, committed locally only (never pushed, published or deployed).
+Plan:
+1. Website pricing (done in the website repo a0f820d, 55e7864, c283c3c): equipment allowances,
+   extra equipment, pooled storage, dated source, compareMix with the lowest total for the mix,
+   equipment carried to sign-up and enquiries, readiness-flagged features "not yet available".
+2. App: docs/commercial-source.json (dated) + src/lib/commercial-source.test.ts against the code.
+3. App sign-up reads plan / period / vehicles / equipment from the address as a prefill only
+   (validated; the server action still prices and validates what is submitted).
+4. Website check script verifies its pricing against a copy of the source JSON.
+5. App wording and EN/AF guidance (equipment, quotas, spending, chat, exports, payments, devices).
+6. Revised plan review PDF as a new versioned file, every page rendered and inspected.
+7. Legal text changes listed for the lawyer; report.
+
+## TASK A5 COMPLETE
+
+Report: docs/final-dev/REPORT-A5.md. Gates: tsc, 1251 unit tests, five lint checks, 98/98 SQL. Website (local branch
+claude/launch-polish, f8ffc92, not published): build, npm test and the eight browser scripts pass. Revised review PDF:
+C:\projects\output\pdf\review-2026-11-19 (9 pages inspected).
 ## Current task: A4 (service orders, complete export, retention and deletion)
 
 **TASK A4 COMPLETE** (19 Nov 2026). Final gates at 7d231ea (docs only since): tsc clean, 1236 unit

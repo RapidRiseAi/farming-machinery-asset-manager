@@ -2395,7 +2395,24 @@
     "settingsLinkHint": "Ask us something without leaving FLEETWISE.",
     "backWhereYouWere": "Back to where you were",
     "leadAnswers": "Most answers are below. If yours is not, ask us and we will come back to you.",
-    "quickTitle": "Quick answers"
+    "quickTitle": "Quick answers",
+    "guideTitle": "How FLEETWISE works",
+    "guide": {
+      "equipmentTitle": "Support equipment",
+      "equipmentBody": "Pumps, generators, compressors, workshop tools, attachments and trailers are support equipment. They keep photos, a location, hour readings, service reminders, faults, checklists, repair jobs with parts and labour, documents and QR codes. They have no trips, fuel, tracking, licence discs, budgets, depreciation, loans or leases; a trailer can still be named on a vehicle's trip. Each plan includes some equipment (Essential 2, Professional 5, Complete 15) and more cost R15 a month or R150 a year each. If an item needs the full tools, convert it to a full fleet space from its menu.",
+      "spacesTitle": "Spaces and storage",
+      "spacesBody": "Your plan bills the full spaces you choose, at least five, and any equipment beyond the included number. Adding more is charged for the days left to your renewal, shown before you pay, and the renewal date never moves. Fewer spaces or a cheaper plan take effect at the renewal. Storage for attachments is shared across your sites: at least 2 GB, or 100 MB per full space plus 25 MB per equipment space. The owner is warned at 80% and 95%. When it is full only new attachments stop; everything else keeps working. Extra 10 GB blocks cost R49 a month.",
+      "spendingTitle": "The spending limit for paid help",
+      "spendingBody": "Paid AI help, voice and paid WhatsApp share one monthly limit the owner chooses under Settings, AI. Nothing paid runs until a limit is chosen, and zero means none. Charges are the provider's cost plus 30%. A business's own OpenAI key is never billed by FLEETWISE. Work stops before the limit is passed, and you can always do the same thing by hand.",
+      "chatTitle": "Staff chat",
+      "chatBody": "Staff chat is not yet available. When it opens, conversations are private to the people in them: an owner cannot read other people's private chats because they pay the bill, outside mechanics only see conversations on jobs shared with them, and Rapid Rise support sees them only during a recorded support visit. Private chats are never part of the business export.",
+      "exportsTitle": "Downloading your records",
+      "exportsBody": "Owners and managers can download a complete copy of the records they may read, with the photos, PDFs and kept voice notes, from Settings. It is prepared in the background in parts, with a list of what is inside and a checksum for every file, and kept for seven days. Private chats are never included. After a subscription ends unpaid or is cancelled, only the owner can read and download for 90 days.",
+      "paymentsTitle": "Payments, grace and cancelling",
+      "paymentsBody": "You pay by card through Paystack. If a renewal payment fails there are seven days of grace: records keep working, but nothing new that costs money starts. After that, renewals stop and only the owner can read and download for 90 days. Cancelling stops the next renewal; you keep access to the end of the paid period, and there is no automatic refund. Paying again brings the account back.",
+      "devicesTitle": "Phones and working without signal",
+      "devicesBody": "FLEETWISE works in your phone's browser and can be added to the home screen. Selected readings, faults and job cards can be saved without signal and are sent when the connection returns; your access is checked again then, and anything refused is kept with the reason. Not every screen works offline. Photos are made smaller automatically unless you choose to keep the original."
+    }
   },
   "tyreAxle": {
     "steer": "Steering",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { SignupPrefill } from "./prefill";
 
 import { rands } from "@/lib/money";
 import { FEATURE_MIN_PLAN, MIN_BILLED_SLOTS, NOT_YET_ADVERTISED, isPlan, planAllows, type Feature } from "@/lib/entitlements";
@@ -43,8 +44,11 @@ export function PlanPicker({
   featureLabels,
   coreFeatures,
   labels,
+  initial = {},
 }: {
   options: PlanOption[];
+  /** The website's choice, already checked (prefill.ts): a starting point, never a decision. */
+  initial?: SignupPrefill;
   /** `FEATURE_MIN_PLAN` key → the sentence a farmer would recognise it by. */
   featureLabels: Record<string, string>;
   /** What every plan includes. Ungated core capability, so it is a list, not a map. */
@@ -90,11 +94,13 @@ export function PlanPicker({
   };
 }) {
   const firstSellable = options.find((o) => o.monthlyCents != null) ?? options[0];
-  const [plan, setPlan] = useState(firstSellable.plan);
-  const [period, setPeriod] = useState<"monthly" | "annual">("monthly");
-  // Starts at the plan minimum (five slots), which is also the least anybody is billed for.
-  const [vehicles, setVehicles] = useState(MIN_BILLED_SLOTS);
-  const [equipment, setEquipment] = useState(0);
+  const startPlan = options.find((o) => o.plan === initial.plan && o.monthlyCents != null) ?? firstSellable;
+  const [plan, setPlan] = useState(startPlan.plan);
+  const [period, setPeriod] = useState<"monthly" | "annual">(initial.period ?? "monthly");
+  // Starts at the plan minimum (five slots), which is also the least anybody is billed for, or at
+  // the website's count when it is more.
+  const [vehicles, setVehicles] = useState(Math.max(MIN_BILLED_SLOTS, initial.vehicles ?? MIN_BILLED_SLOTS));
+  const [equipment, setEquipment] = useState(initial.equipment ?? 0);
   const [comparing, setComparing] = useState(false);
 
   const chosen = options.find((o) => o.plan === plan) ?? firstSellable;
