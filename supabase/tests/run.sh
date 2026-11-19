@@ -219,6 +219,8 @@ echo "==> running custom asset field tests (plan, roles, typed values, visibilit
 pg "$DB" < "$ROOT/supabase/tests/custom_asset_fields.sql"
 echo "==> running import staging tests (named issues, no silent accept, confirm once, documents gated, isolation)"
 pg "$DB" < "$ROOT/supabase/tests/import_staging.sql"
+echo "==> running manual question tests (flag and plan, server-only writes, cited pages, isolation, finance rule, reindex and delete)"
+pg "$DB" < "$ROOT/supabase/tests/manual_questions.sql"
 pg "$DB" < "$ROOT/supabase/tests/plan_boundaries.sql"
 pg "$DB" < "$ROOT/supabase/tests/erasure_voice_notes.sql"
 pg "$DB" < "$ROOT/supabase/tests/staff_onboarding.sql"

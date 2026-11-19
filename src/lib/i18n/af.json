@@ -5688,7 +5688,11 @@
     "importExtractionOff": "Die lees van foto's en PDF's is nog nie aangeskakel nie. Laai eerder 'n sigblad op.",
     "importExtractionSpend": "Om hierdie dokument te lees, is ruimte in die maandelikse limiet vir betaalde hulp nodig. 'n Eienaar kan dit in Instellings, KI, stel of verhoog.",
     "importExtractionFailed": "Die dokument kon nie gelees word nie. Niks is geskryf nie. Probeer 'n duideliker foto, of tik die lesings in.",
-    "planFeatureDocumentExtraction": "Die lees van foto's en PDF's is op Professioneel en Volledig."
+    "planFeatureDocumentExtraction": "Die lees van foto's en PDF's is op Professioneel en Volledig.",
+    "manualNotAManual": "Net 'n dokument op 'n bate kan deursoekbaar gemaak word.",
+    "manualQuestionsOff": "Vrae oor handleidings is nie vir hierdie besigheid aangeskakel nie.",
+    "manualInvalid": "Daardie handleiding kon nie gelees word nie. Kyk na die lêer en sy titel.",
+    "manualEmpty": "Geen teks is in daardie dokument gevind nie, dus is daar niks om te deursoek nie."
   },
   "billing": {
     "title": "Rekening",

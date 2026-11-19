@@ -9,7 +9,8 @@
 // inside a spending hold (runExtraction takes the hold and settle steps; the app passes the AI
 // usage ledger's holdBudget/settleHold, the one owner-chosen limit from task A3).
 
-import type { Attempt, Hold, Units } from "@/lib/ai-usage/ledger";
+import type { Units } from "@/lib/ai-usage/ledger";
+import { runHeld, type HoldStep, type SettleStep } from "./held";
 import { planAllows, type Plan } from "@/lib/entitlements";
 import { normaliseDate } from "@/lib/import-staging";
 import { READINGS_IMPORT_MAX_ROWS } from "@/lib/limits";
@@ -149,8 +150,8 @@ export async function runExtraction(args: {
   provider: ExtractionProvider;
   input: ExtractionInput;
   plan: Plan | null;
-  hold: (units: Units, model: string) => Promise<Hold>;
-  settle: (holdId: string, attempts: Attempt[]) => Promise<unknown>;
+  hold: HoldStep;
+  settle: SettleStep;
 }): Promise<
   | { ok: true; rows: DocumentRow[]; pages: number }
   | { ok: false; reason: ExtractionRefusal; error?: string }
@@ -160,26 +161,20 @@ export async function runExtraction(args: {
   // AI assistance (voice_ai) have an approved way to pay for a provider today.
   if (!plan || !planAllows(plan, "tco")) return { ok: false, reason: "plan" };
   if (!planAllows(plan, "voice_ai")) return { ok: false, reason: "cost_undecided" };
-  const hold = await args.hold(provider.estimate(input), provider.model);
-  if (!hold.ok) return { ok: false, reason: "spend_refused", error: hold.reason };
-  const started = Date.now();
-  try {
-    const out = await provider.extract(input);
-    const mapped = rowsFromExtraction(out);
-    await args.settle(hold.id, [{
-      model: provider.model,
-      outcome: mapped.ok ? "ok" : "failed",
-      units: out.units,
-      costUsd: out.costUsd ?? null,
-      measured: "server",
-      // The provider did the work even when its answer was unusable: its cost is recorded, nothing billed.
-      charged: !mapped.ok,
-      latencyMs: Date.now() - started,
-    }]);
-    if (!mapped.ok) return { ok: false, reason: "provider_failed", error: mapped.error };
-    return mapped;
-  } catch {
-    await args.settle(hold.id, [{ model: provider.model, outcome: "failed", latencyMs: Date.now() - started }]);
-    return { ok: false, reason: "provider_failed" };
-  }
+  const result = await runHeld({
+    model: provider.model,
+    estimate: provider.estimate(input),
+    hold: args.hold,
+    settle: args.settle,
+    call: async () => {
+      const out = await provider.extract(input);
+      const mapped = rowsFromExtraction(out);
+      return { value: mapped, units: out.units, costUsd: out.costUsd, usable: mapped.ok };
+    },
+  });
+  if (result.ok) return result.value.ok ? result.value : { ok: false, reason: "provider_failed" };
+  if (result.reason === "spend_refused") return { ok: false, reason: "spend_refused", error: result.error };
+  return result.value && !result.value.ok
+    ? { ok: false, reason: "provider_failed", error: result.value.error }
+    : { ok: false, reason: "provider_failed" };
 }

@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Manual questions: page text index, invoker search, delete propagation; flag off.
+  "20261121120000": "select to_regclass('public.manual_pages') is not null and to_regclass('public.manual_index') is not null and to_regprocedure('public.manual_search(uuid,text,uuid,integer)') is not null and exists (select 1 from public.feature_flags where key = 'manual_questions')",
   // Import staging: batches and rows reviewed before anything is written; documents behind a flag.
   "20261121110000": "select to_regclass('public.import_batches') is not null and to_regclass('public.import_rows') is not null and to_regprocedure('public.import_batch_confirm(uuid)') is not null and exists (select 1 from public.feature_flags where key = 'document_extraction')",
   // Custom asset fields: definitions, typed values and the checked write functions.

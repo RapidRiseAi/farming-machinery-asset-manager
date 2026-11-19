@@ -5688,7 +5688,11 @@
     "importExtractionOff": "Reading photos and PDFs is not switched on yet. Upload a spreadsheet instead.",
     "importExtractionSpend": "Reading this document needs room in the monthly limit for paid assistance. An owner can set or raise it in Settings, AI.",
     "importExtractionFailed": "The document could not be read. Nothing was written. Try a clearer photo, or enter the readings.",
-    "planFeatureDocumentExtraction": "Reading photos and PDFs is on Professional and Complete."
+    "planFeatureDocumentExtraction": "Reading photos and PDFs is on Professional and Complete.",
+    "manualNotAManual": "Only a document on an asset can be made searchable.",
+    "manualQuestionsOff": "Questions over manuals are not switched on for this business.",
+    "manualInvalid": "That manual could not be read. Check the file and its title.",
+    "manualEmpty": "No text was found in that document, so there is nothing to search."
   },
   "billing": {
     "title": "Billing",

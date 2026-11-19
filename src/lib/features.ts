@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
  * releases it to everyone once it has been tested, from /admin/features. Reading one that
  * cannot be read answers "off": a feature in testing should fail closed.
  */
-export const FEATURES = ["map", "general_chat", "document_extraction"] as const;
+export const FEATURES = ["map", "general_chat", "document_extraction", "manual_questions"] as const;
 export type Feature = (typeof FEATURES)[number];
 
 export const featureOn = cache(async (key: Feature, farmId: string | null): Promise<boolean> => {

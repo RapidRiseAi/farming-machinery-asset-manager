@@ -687,6 +687,11 @@ const CODE_KEYS: Record<string, string> = {
   "import-extraction-spend": "errors.importExtractionSpend",
   "import-extraction-failed": "errors.importExtractionFailed",
   "plan-feature-document_extraction": "errors.planFeatureDocumentExtraction",
+  // Manual questions (20261121120000).
+  "manual-not-a-manual": "errors.manualNotAManual",
+  "manual-questions-off": "errors.manualQuestionsOff",
+  "manual-invalid": "errors.manualInvalid",
+  "manual-empty": "errors.manualEmpty",
   // Storage blocks and automatic storage (20261118120000, 20261118120100).
   "storage-reduction-over-usage": "errors.storageReductionOverUsage",
   "storage-ceiling-invalid": "errors.storageCeilingInvalid",
