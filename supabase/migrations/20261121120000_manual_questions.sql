@@ -226,3 +226,8 @@ begin
 end $$;
 revoke all on function public.manual_search(uuid, text, uuid, integer) from public, anon;
 grant execute on function public.manual_search(uuid, text, uuid, integer) to authenticated;
+
+-- Which manuals were made searchable, by whom: the business's own history (page text is not audited).
+insert into app.audit_table_rules (table_name, scope, reason) values
+  ('manual_index', 'farm', 'a business''s searchable manuals and who made them searchable')
+on conflict (table_name) do nothing;

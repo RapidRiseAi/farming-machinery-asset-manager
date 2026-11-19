@@ -404,3 +404,9 @@ grant execute on function public.import_rows_stage(uuid, jsonb) to authenticated
 grant execute on function public.import_row_decide(uuid, text, uuid, date, numeric) to authenticated;
 grant execute on function public.import_batch_confirm(uuid) to authenticated;
 grant execute on function public.import_batch_cancel(uuid) to authenticated;
+
+-- Who imported what and what each row became: the business's own history.
+insert into app.audit_table_rules (table_name, scope, reason) values
+  ('import_batches', 'farm', 'a business''s own imports and who confirmed them'),
+  ('import_rows', 'farm', 'each imported row, its decision and the reading it wrote')
+on conflict (table_name) do nothing;

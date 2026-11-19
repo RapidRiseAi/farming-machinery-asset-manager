@@ -307,3 +307,9 @@ grant execute on function public.asset_field_define(uuid, text, text, text, text
 grant execute on function public.asset_field_update(uuid, text, text, text[], boolean, text, text, integer) to authenticated;
 grant execute on function public.asset_field_retire(uuid, boolean) to authenticated;
 grant execute on function public.asset_field_set(uuid, jsonb) to authenticated;
+
+-- Audit history of a business's fields and values is the business's own (owners, managers, mechanics read it).
+insert into app.audit_table_rules (table_name, scope, reason) values
+  ('asset_field_definitions', 'farm', 'a business''s own asset field definitions'),
+  ('asset_field_values', 'farm', 'a business''s own asset field values')
+on conflict (table_name) do nothing;
