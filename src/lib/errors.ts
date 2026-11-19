@@ -684,6 +684,8 @@ const CODE_KEYS: Record<string, string> = {
   "import-incomplete": "errors.importIncomplete",
   "import-date-future": "errors.importDateFuture",
   "import-extraction-off": "errors.importExtractionOff",
+  "import-extraction-spend": "errors.importExtractionSpend",
+  "import-extraction-failed": "errors.importExtractionFailed",
   "plan-feature-document_extraction": "errors.planFeatureDocumentExtraction",
   // Storage blocks and automatic storage (20261118120000, 20261118120100).
   "storage-reduction-over-usage": "errors.storageReductionOverUsage",

@@ -5686,6 +5686,8 @@
     "importIncomplete": "'n Aanvaarde ry het 'n bate, 'n datum en 'n lesing nodig.",
     "importDateFuture": "'n Lesing kan nie in die toekoms gedateer word nie.",
     "importExtractionOff": "Die lees van foto's en PDF's is nog nie aangeskakel nie. Laai eerder 'n sigblad op.",
+    "importExtractionSpend": "Om hierdie dokument te lees, is ruimte in die maandelikse limiet vir betaalde hulp nodig. 'n Eienaar kan dit in Instellings, KI, stel of verhoog.",
+    "importExtractionFailed": "Die dokument kon nie gelees word nie. Niks is geskryf nie. Probeer 'n duideliker foto, of tik die lesings in.",
     "planFeatureDocumentExtraction": "Die lees van foto's en PDF's is op Professioneel en Volledig."
   },
   "billing": {
@@ -8760,6 +8762,12 @@
     "fileHint": "Tot 2 000 rye en 2 MiB.",
     "template": "Laai 'n sjabloon af",
     "upload": "Lees die sigblad",
+    "newDocument": "Lees 'n foto of PDF",
+    "newDocumentTitle": "Lees lesings vanaf 'n foto of PDF",
+    "newDocumentLead": "Die dokument word gelees en elke lesing kom hier terug sodat jy dit kan nagaan. Waardes waaroor die leser onseker was, word vir jou gelaat om in te vul. Lees gebruik die maandelikse limiet vir betaalde hulp.",
+    "documentFile": "Foto of PDF",
+    "documentHint": "'n Duidelike foto van 'n logboekbladsy, of 'n PDF.",
+    "documentRead": "Lees die dokument",
     "empty": "Nog geen invoere nie.",
     "cancelled": "Invoer gekanselleer. Niks is geskryf nie.",
     "writtenSkipped": "{written} geskryf, {skipped} oorgeslaan",

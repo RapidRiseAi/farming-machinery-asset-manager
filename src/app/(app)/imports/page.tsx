@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentFarmId, effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
+import { currentFarmId, effectiveFarmRole, getFarmPlan, homePathFor, requireProfile } from "@/lib/auth";
+import { planAllows } from "@/lib/entitlements";
+import { featureOn } from "@/lib/features";
+import { configuredProvider } from "@/lib/extraction";
 import { createClient } from "@/lib/supabase/server";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n";
@@ -16,7 +19,7 @@ import { DownloadLink } from "@/components/ui/download-link";
 import { DateText } from "@/components/ui/date-text";
 import { PlusIcon } from "@/components/ui/icons";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
-import { startReadingsImport } from "./actions";
+import { startDocumentImport, startReadingsImport } from "./actions";
 import { BatchStatus, type BatchStatusValue } from "./batch-status";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +53,11 @@ export default async function ImportsPage({ searchParams }: { searchParams: Prom
     .select("id,source,file_name,status,created_at,written,skipped")
     .eq("farm_id", farmId).order("created_at", { ascending: false }).limit(50);
   const batches = (data ?? []) as Batch[];
+  // Reading documents shows only when everything it needs is in place: a configured reader, the
+  // readiness flag for this business, and a plan with the paid-assistance path (the database and
+  // the action check each again).
+  const plan = await getFarmPlan(farmId);
+  const documentsReady = !!configuredProvider() && !!plan && planAllows(plan, "voice_ai") && (await featureOn("document_extraction", farmId));
 
   return (
     <PageContainer size="narrow">
@@ -59,6 +67,23 @@ export default async function ImportsPage({ searchParams }: { searchParams: Prom
         locale={locale}
         back={{ href: "/machines", label: t("nav.machines", locale) }}
         actions={
+          <>
+          {documentsReady ? (
+            <DialogForm trigger={t("imports.newDocument", locale)} triggerVariant="secondary" title={t("imports.newDocumentTitle", locale)}
+              description={t("imports.newDocumentLead", locale)} closeLabel={t("ui.close", locale)} size="md">
+              <form action={startDocumentImport}>
+                <RequestIdInput action="imports:document" />
+                <DialogFields columns={1}>
+                  <Field label={t("imports.documentFile", locale)} hint={t("imports.documentHint", locale)} htmlFor="import_document">
+                    <Input id="import_document" name="file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required />
+                  </Field>
+                </DialogFields>
+                <DialogActions cancelLabel={t("common.cancel", locale)}>
+                  <SubmitButton>{t("imports.documentRead", locale)}</SubmitButton>
+                </DialogActions>
+              </form>
+            </DialogForm>
+          ) : null}
           <DialogForm trigger={t("imports.new", locale)} triggerIcon={<PlusIcon />} title={t("imports.newTitle", locale)}
             description={t("imports.newLead", locale)} closeLabel={t("ui.close", locale)} size="md">
             <form action={startReadingsImport}>
@@ -76,6 +101,7 @@ export default async function ImportsPage({ searchParams }: { searchParams: Prom
               </DialogActions>
             </form>
           </DialogForm>
+          </>
         }
       />
       <Flash tone="error" message={error ? errorMessage("load_failed", locale) : errorMessage(sp.error, locale)} />

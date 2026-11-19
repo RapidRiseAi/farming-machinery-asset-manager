@@ -5686,6 +5686,8 @@
     "importIncomplete": "An accepted row needs an asset, a date and a reading.",
     "importDateFuture": "A reading cannot be dated in the future.",
     "importExtractionOff": "Reading photos and PDFs is not switched on yet. Upload a spreadsheet instead.",
+    "importExtractionSpend": "Reading this document needs room in the monthly limit for paid assistance. An owner can set or raise it in Settings, AI.",
+    "importExtractionFailed": "The document could not be read. Nothing was written. Try a clearer photo, or enter the readings.",
     "planFeatureDocumentExtraction": "Reading photos and PDFs is on Professional and Complete."
   },
   "billing": {
@@ -8760,6 +8762,12 @@
     "fileHint": "Up to 2,000 rows and 2 MiB.",
     "template": "Download a template",
     "upload": "Read the sheet",
+    "newDocument": "Read a photo or PDF",
+    "newDocumentTitle": "Read readings from a photo or PDF",
+    "newDocumentLead": "The document is read and every reading comes back here for you to check. Values the reader was unsure of are left for you to fill in. Reading uses the monthly limit for paid assistance.",
+    "documentFile": "Photo or PDF",
+    "documentHint": "A clear photo of a logbook page, or a PDF.",
+    "documentRead": "Read the document",
     "empty": "No imports yet.",
     "cancelled": "Import cancelled. Nothing was written.",
     "writtenSkipped": "{written} written, {skipped} skipped",

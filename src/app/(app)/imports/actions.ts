@@ -3,13 +3,16 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { currentFarmId, effectiveFarmRole, homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
+import { currentFarmId, effectiveFarmRole, getFarmPlan, homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errorCode } from "@/lib/action-errors";
 import { runOnce } from "@/lib/request-claim";
 import { isUuid } from "@/lib/ids";
-import { READINGS_IMPORT_MAX_BYTES } from "@/lib/limits";
+import { PDF_MAX_BYTES, PHOTO_MAX_BYTES, READINGS_IMPORT_MAX_BYTES } from "@/lib/limits";
 import { readingsSheet } from "@/lib/import-staging";
+import { configuredProvider, EXTRACTION_TYPES, runExtraction, type ExtractionRefusal } from "@/lib/extraction";
+import { holdBudget, settleHold } from "@/lib/ai-usage/ledger";
+import { sniffContainer } from "@/lib/upload/sniff";
 
 const HERE = "/imports";
 
@@ -26,7 +29,7 @@ async function gate() {
   if (!role || !["owner", "manager", "rr_admin"].includes(role)) redirect(`${homePathFor(profile.role)}?denied=1`);
   // The stop gate: a business that is not open writes nothing (the database refuses again).
   await requireUsableFarm(farmId, profile);
-  return { farmId, supabase: await createClient() };
+  return { farmId, profile, supabase: await createClient() };
 }
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
@@ -58,6 +61,63 @@ export async function startReadingsImport(form: FormData) {
       // Nothing half-staged is left looking like a review: the empty batch is cancelled.
       await supabase.rpc("import_batch_cancel", { p_batch: batch.id });
       redirect(`${HERE}?error=${errorCode(stageError, "imports:stage")}`);
+    }
+    revalidatePath(HERE);
+    return `${HERE}/${batch.id}`;
+  }, { whileRunning: `${HERE}?error=still-saving` });
+}
+
+const REFUSAL_CODES: Record<ExtractionRefusal, string> = {
+  plan: "plan-feature-document_extraction",
+  cost_undecided: "import-extraction-off",
+  spend_refused: "import-extraction-spend",
+  provider_failed: "import-extraction-failed",
+};
+
+/**
+ * A photo or PDF read by the configured provider into a new review (task B5 step 3). Off unless a
+ * provider is configured AND the database lets this business open a document batch (plan and the
+ * document_extraction flag); the read runs inside a hold on the owner's spending limit. What comes
+ * back is staged for a person to check, exactly like a sheet.
+ */
+export async function startDocumentImport(form: FormData) {
+  return runOnce(form, "imports:document", async () => {
+    const { farmId, profile, supabase } = await gate();
+    const provider = configuredProvider();
+    if (!provider) redirect(`${HERE}?error=import-extraction-off`);
+    const file = form.get("file");
+    if (!(file instanceof File) || file.size === 0) redirect(`${HERE}?error=import-empty`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // The file's own first bytes decide its type, never the name or what the browser claims.
+    const type = sniffContainer(bytes.subarray(0, 64));
+    if (!type || !(EXTRACTION_TYPES as readonly string[]).includes(type)) redirect(`${HERE}?error=import-invalid`);
+    if (bytes.length > (type === "application/pdf" ? PDF_MAX_BYTES : PHOTO_MAX_BYTES)) redirect(`${HERE}?error=upload-too-large`);
+
+    const { data: opened, error } = await supabase.rpc("import_batch_open", {
+      p_farm: farmId,
+      p_source: "document",
+      p_file_name: file.name.slice(0, 200),
+      p_sha256: createHash("sha256").update(bytes).digest("hex"),
+      p_provider: provider.name,
+    });
+    if (error) redirect(`${HERE}?error=${errorCode(error, "imports:document-open")}`);
+    const batch = opened as { id: string; reused: boolean };
+    if (batch.reused) return `${HERE}/${batch.id}?reused=1`;
+
+    const result = await runExtraction({
+      provider,
+      input: { bytes, contentType: type, fileName: file.name },
+      plan: await getFarmPlan(farmId),
+      hold: (units, model) => holdBudget({ farmId, userId: profile.id, feature: "ai_answer", model, units }),
+      settle: settleHold,
+    });
+    const staged = result.ok
+      ? await supabase.rpc("import_rows_stage", { p_batch: batch.id, p_rows: result.rows })
+      : null;
+    if (!result.ok || staged?.error) {
+      // Nothing half-read is left looking like a review.
+      await supabase.rpc("import_batch_cancel", { p_batch: batch.id });
+      redirect(`${HERE}?error=${result.ok ? errorCode(staged!.error, "imports:document-stage") : REFUSAL_CODES[result.reason]}`);
     }
     revalidatePath(HERE);
     return `${HERE}/${batch.id}`;
