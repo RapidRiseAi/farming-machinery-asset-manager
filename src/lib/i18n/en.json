@@ -8188,7 +8188,8 @@
     "seeNow": "See it now",
     "cameFrom": "This {{asset}} came from another site.",
     "seeEarlier": "See its earlier history",
-    "failed": "That could not be moved. Check that you run both sites and that the other site has a free slot."
+    "failed": "That could not be moved. Check that you run both sites and that the other site has a free slot.",
+    "otherCustomer": "That site belongs to another business. Hand the {{asset}} over to them instead, so both sides agree to it."
   },
   "map": {
     "title": "Map",

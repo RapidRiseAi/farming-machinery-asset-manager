@@ -249,8 +249,8 @@ begin
 end $t$;
 
 -- == A move between the customer's own sites keeps the profile (20261114090400) ===========
-insert into public.farms (id, name, plan, status, billing_period) values
-  ('eb100000-0000-4000-9000-000000000004', 'Complete second site', 'complete', 'active', 'monthly');
+insert into public.farms (id, name, plan, status, billing_period, billed_through) values
+  ('eb100000-0000-4000-9000-000000000004', 'Complete second site', 'complete', 'active', 'monthly', 'eb100000-0000-4000-9000-000000000003');
 insert into public.user_farm_memberships (user_id, farm_id, role, active) values
   ('eb110000-0000-4000-9000-000000000003', 'eb100000-0000-4000-9000-000000000004', 'owner', true)
 on conflict (user_id, farm_id) do update set role = excluded.role, active = true;

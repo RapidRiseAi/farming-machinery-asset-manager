@@ -8188,7 +8188,8 @@
     "seeNow": "Sien dit nou",
     "cameFrom": "Hierdie {{asset}} kom van 'n ander perseel.",
     "seeEarlier": "Sien sy vroeëre geskiedenis",
-    "failed": "Dit kon nie geskuif word nie. Kyk of jy albei persele bestuur en of die ander perseel 'n vrye gleuf het."
+    "failed": "Dit kon nie geskuif word nie. Kyk of jy albei persele bestuur en of die ander perseel 'n vrye gleuf het.",
+    "otherCustomer": "Daardie perseel behoort aan 'n ander besigheid. Gee die {{asset}} eerder aan hulle oor, sodat albei kante daartoe instem."
   },
   "map": {
     "title": "Kaart",

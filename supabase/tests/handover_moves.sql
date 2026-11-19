@@ -7,6 +7,8 @@ insert into public.farms (id, name, plan, status, billing_period, billing_email)
   ('e7000000-0000-4000-9000-000000000001', 'Site A', 'complete', 'active', 'monthly', 'old@handover.test'),
   ('e7000000-0000-4000-9000-000000000002', 'Site B', 'complete', 'active', 'monthly', 'old@handover.test'),
   ('e7000000-0000-4000-9000-000000000003', 'Stranger', 'complete', 'active', 'monthly', 'x@handover.test');
+-- Site B is the same customer's second site (billed through Site A); Stranger is another customer.
+update public.farms set billed_through = 'e7000000-0000-4000-9000-000000000001' where id = 'e7000000-0000-4000-9000-000000000002';
 insert into auth.users (id, email) values
   ('e7100000-0000-4000-9000-000000000001', 'old@handover.test'),
   ('e7100000-0000-4000-9000-000000000002', 'new@handover.test'),
@@ -155,6 +157,26 @@ begin
   if has_function_privilege('authenticated', 'public.accept_ownership(uuid,uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.move_machine_to_site(uuid,uuid,uuid)', 'EXECUTE') then
     raise exception 'these are for the server alone';
+  end if;
+end $t$;
+
+-- == A6: running a site of another customer as well is still not a move ======================
+insert into public.machines (id, farm_id, name, type, meter_type) values
+  ('e7200000-0000-4000-9000-000000000009', 'e7000000-0000-4000-9000-000000000001', 'Spare bakkie', 'bakkie', 'km');
+insert into public.user_farm_memberships (user_id, farm_id, role, active) values
+  ('e7100000-0000-4000-9000-000000000002', 'e7000000-0000-4000-9000-000000000003', 'manager', true)
+on conflict (user_id, farm_id) do update set role = excluded.role, active = true;
+do $t$
+begin
+  begin
+    perform public.move_machine_to_site('e7200000-0000-4000-9000-000000000009', 'e7000000-0000-4000-9000-000000000003', 'e7100000-0000-4000-9000-000000000002');
+    raise exception 'a vehicle moved to another customer without a handover';
+  exception when others then
+    if sqlerrm <> 'machine-move-other-customer' then raise; end if;
+  end;
+  if (select farm_id from public.machines where id = 'e7200000-0000-4000-9000-000000000009') <> 'e7000000-0000-4000-9000-000000000001'
+     or exists (select 1 from public.machines where previous_machine_id = 'e7200000-0000-4000-9000-000000000009') then
+    raise exception 'a refused move left a trace';
   end if;
 end $t$;
 

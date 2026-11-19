@@ -292,6 +292,7 @@ const CODE_KEYS: Record<string, string> = {
   "route-stops": "routes.errors.invalid",
   "route-closed": "routes.errors.closed",
   "machine-move-failed": "machineMove.failed",
+  "machine-move-other-customer": "machineMove.otherCustomer",
   "closure-owner-only": "closure.errors.ownerOnly",
   "closure-understood": "closure.errors.understood",
   "closure-export-first": "closure.errors.exportFirst",
