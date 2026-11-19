@@ -83,7 +83,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-060 | Manual driving workflows survive routing or geocoding failure; no map required for written stops | S8 | written stops save with no coordinates; trips and loads need no route service; planner errors are its own | E (B3) | B3 | Sc13: manual_driving.sql, trips_by_plan.sql [13]; Sc35 web part |
 | R-061 | Trip finance: provenance, units, no duplicated job/fuel costs, honest zero/missing handling | S8 | `tripReport` (src/lib/trips.ts): finished trips only, per-km from trips with both readings, unknown income said, window said; trip result on the phone | E (B3) | B3 | Sc13: trips.test.ts |
 | R-062 | Provider terms, quotas, attribution, global geocoding throttle rechecked | S8 | `docs/ROUTING.md` "Provider terms rechecked, 18 November 2026"; `place_search_slot` unchanged | X (B3; Mapbox route storage question is a founder/legal read before maps release) | B3 | Sc35: place_search.sql; ROUTING.md citations |
-| R-063 | Android wrapper with background location, permissions, foreground service, queue, deep links | S8 | none (no Capacitor) | M | B6 | Sc35 |
+| R-063 | Android wrapper with background location, permissions, foreground service, queue, deep links | S8 | B6: Capacitor 8 project `android/`, `capacitor.config.ts`; `src/lib/native` (foreground-service recorder tied to the drive, per-drive queue with native HTTP and backoff, App Links, sign-out clearing); routes split at data gaps (`routeSegments`); push marked unavailable; `docs/ANDROID.md`; debug APK built in CI (`.github/workflows/android.yml`) | X (B6): built and unit-tested; real-device tests and Play signing need the founder's phone and Play account (D-U-N-S 588248857 received) | B6 | Sc35: `native.test.ts`, `map-data.test.ts` (gaps); device tests listed in docs/ANDROID.md |
 | R-064 | External tracker ingestion stays Done-For-You and quoted | S8 | `ingest_tracker_positions`, `configure_driver_connection` plan check; a feed after a downgrade is refused (`maps_unavailable`) | E (B3) | B3 | Sc35: trip_routes.sql, trips_by_plan.sql |
 
 ### Limits, uploads, storage (S9, S10, S11)
@@ -246,7 +246,7 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-010 | L62 Azure budget, L90 Azure S0, L94 AI Gateway credit | Founder (purchases); A3 provider-budget alerts |
 | I-011 | L64 POPIA Information Officer, L67 lawyer read | Founder/legal; A5 prepares the legal-review checklist |
 | I-012 | L70 media backup secrets | Founder; A6 (R-133) |
-| I-013 | L76 D-U-N-S, L78 test phones | Founder; block B6 device tests and B4 real-phone tests |
+| I-013 | L76 D-U-N-S, L78 test phones | Founder; D-U-N-S 588248857 received 19 Nov 2026 (Play account in the business name still to open); test phones still block B6 device tests and B4 real-phone tests |
 | I-014 | L84 Vercel Pro, L87 Supabase Pro, L97 Resend Pro, L130 compute, L132 PITR | Founder purchases; A6 lists them in the provider checklist |
 | I-015 | L106 to L113 final domain check, launch day | A6 release sequence |
 | I-016 | L120 support phone, L122 election-day holiday | Founder; A5 copy uses the configured contact settings |

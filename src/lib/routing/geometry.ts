@@ -93,6 +93,24 @@ function sample(line: LngLat[], max: number): LngLat[] {
   return out;
 }
 
+/**
+ * offRoute over a route recorded in pieces (map-data's routeSegments): each piece is measured on
+ * its own, so the straight line across a gap is never counted as driven, on or off the plan.
+ */
+export function offRouteSegments(planned: LngLat[], segments: LngLat[][], thresholdM = 1000): OffRoute | null {
+  let off = 0;
+  let total = 0;
+  for (const segment of segments) {
+    const piece = offRoute(planned, segment, thresholdM);
+    if (!piece) continue;
+    const km = lineKm(segment);
+    off += piece.offKm;
+    total += km;
+  }
+  if (total === 0) return null;
+  return { offKm: off, share: Math.min(1, off / total) };
+}
+
 export type OffRoute = {
   /** Kilometres driven more than `thresholdM` from the planned line. */
   offKm: number;

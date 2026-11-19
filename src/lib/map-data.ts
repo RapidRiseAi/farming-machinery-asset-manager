@@ -3,6 +3,8 @@
  * tested without a browser.
  */
 
+import { ROUTE_GAP_MS, ROUTE_JUMP_KM } from "@/lib/limits";
+
 export type Point = { lat: number; lng: number; at: string };
 export type TrackedPoint = Point & { machineId: string };
 
@@ -22,6 +24,44 @@ export function routeLine(points: Point[]): [number, number][] {
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && !(p.lat === 0 && p.lng === 0))
     .sort((a, b) => a.at.localeCompare(b.at))
     .map((p) => [p.lng, p.lat]);
+}
+
+/**
+ * A route as separate pieces, split wherever the recording has a gap: two positions further apart
+ * in time than ROUTE_GAP_MS, or a step longer than ROUTE_JUMP_KM that would need more than 250 km/h
+ * (a bad fix). Nothing is drawn or counted across a gap: where the vehicle went there is unknown.
+ * Pieces of a single position are left out (a dot is not a route).
+ */
+export function routeSegments(
+  points: Point[],
+  { gapMs = ROUTE_GAP_MS, jumpKm = ROUTE_JUMP_KM, maxKmh = 250 }: { gapMs?: number; jumpKm?: number; maxKmh?: number } = {},
+): [number, number][][] {
+  const ordered = [...points]
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && !(p.lat === 0 && p.lng === 0) && Number.isFinite(Date.parse(p.at)))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  const segments: [number, number][][] = [];
+  let current: [number, number][] = [];
+  let previous: Point | null = null;
+  for (const p of ordered) {
+    if (previous) {
+      const ms = Date.parse(p.at) - Date.parse(previous.at);
+      const km = routeKm([[previous.lng, previous.lat], [p.lng, p.lat]]);
+      const tooFast = km > jumpKm && km / Math.max(ms / 3_600_000, 1 / 3600) > maxKmh;
+      if (ms > gapMs || tooFast) {
+        if (current.length > 1) segments.push(current);
+        current = [];
+      }
+    }
+    current.push([p.lng, p.lat]);
+    previous = p;
+  }
+  if (current.length > 1) segments.push(current);
+  return segments;
+}
+
+/** The distance recorded along the pieces, never across the gaps between them. */
+export function segmentsKm(segments: [number, number][][]): number {
+  return segments.reduce((sum, s) => sum + routeKm(s), 0);
 }
 
 /** The box around some points, for fitting the map to them. Null with nothing to show. */

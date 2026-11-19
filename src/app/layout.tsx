@@ -3,6 +3,7 @@ import { DM_Sans } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
+import { NativeLinks } from "@/components/native/native-shell";
 import { BOOT_GUARD } from "@/components/ui/boot-guard";
 import { BootReady } from "@/components/ui/boot-ready";
 import { RouteProgress } from "@/components/ui/route-progress";
@@ -96,6 +97,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <RouteProgress />
         {children}
         <ServiceWorkerRegister />
+        <NativeLinks />
         <BootReady />
         {/* What a failed download or button says (showNotice), on every screen, and a
             report of every uncaught browser error, not only the ones that crash a page. */}

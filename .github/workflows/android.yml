@@ -1,0 +1,54 @@
+name: Android
+
+# The Android app's debug build (task B6, docs/ANDROID.md): proves the Capacitor project builds on a
+# clean machine and keeps the APK as an artifact for installing on a test phone. Release bundles are
+# signed with the founder's upload key on the founder's machine, never here.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "android/**"
+      - "native/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+jobs:
+  debug-build:
+    name: Android debug build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      # Copies the two local pages, the generated config and the plugin list into the project.
+      - run: pnpm exec cap sync android
+      - name: Build the debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Check what the merged manifest declares
+        working-directory: android
+        run: |
+          merged=app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml
+          test -f "$merged" || merged=$(find app/build/intermediates -name AndroidManifest.xml -path "*merged_manifest*debug*" | head -1)
+          echo "merged manifest: $merged"
+          grep -q 'FOREGROUND_SERVICE_LOCATION' "$merged"
+          ! grep -q 'ACCESS_BACKGROUND_LOCATION' "$merged"
+          grep -q 'android:foregroundServiceType="location"' "$merged"
+          grep -A3 'BackgroundGeolocationService' "$merged" | grep -q 'android:exported="false"'
+          grep -q 'android:allowBackup="false"' "$merged"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fleetwise-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
