@@ -2,7 +2,7 @@
 
 Lane B, branch `final/lane-b`, 19 November 2026, from `ca29985`. Built by the main Claude session (the founder ended subagents on 19 Nov). BRIEF section 8 "Android and device gaps" and the last paragraph of section 21; scenario 35 (device parts). Nothing was pushed to `main`, published, signed for release or applied to a live database by this work.
 
-Gates at the final code commit: see section 8.
+Gates at the final code commit (`5f6ccfa`): tsc clean; 1295 unit tests pass (1 skipped); dashes, i18n parity and keys, design lint and errors clean; eslint clean on every new and changed file (the [id] pages through lintText); `pnpm build` passes; production audit clean. No migration, so the SQL suites are unchanged from B5 (101/101). Mutations 13/13 TypeScript (queue ownership, age, cap, backoff, outcomes, App Links, assetlinks, gap splitting, off-route per piece). The Android debug build runs in CI at integration.
 
 ## 1. Done
 

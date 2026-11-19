@@ -1,4 +1,4 @@
-# Lane B progress (task B6 now; B5, B4, B3 and B1 below)
+# Lane B progress (all lane B tasks complete: B6, B5, B4, B3, B1 below)
 
 ## Task B6 (started 19 Nov 2026 at ca29985, by the main Claude session)
 
@@ -18,6 +18,22 @@ Plan:
    the session ending (409); push marked unavailable in the app unless native push is configured.
 5. Debug build artifact (Android SDK install), docs/ANDROID.md (build, signing, Play listing, declarations, real-
    device test steps, iPhone limits), tests, report.
+
+Step 1 DONE (1681265): routeSegments/segmentsKm, offRouteSegments, trip card and /map draw and count piece by piece.
+Step 2 DONE: docs read (Capacitor 8 guide and config, plugin README/manifest/source, Android FGS and notification
+permission, Play FGS declaration, App Links verification, Capacitor Android source for cookies and bridge injection).
+Steps 3-4 DONE: Capacitor 8.6.2, plugin 1.3.1, @capacitor/app 8.1.2 (pinned); capacitor.config.ts; android/ with
+manifest hardening, icons, splash, notification resources, release signing from an untracked keystore; src/lib/native
+(platform, links, position-queue, recorder, asset-links); NativeLinks, NativeSession; recorder native branch with
+disclosure; sign-out clears; push marked unavailable; /.well-known/assetlinks.json from env.
+Step 5: local SDK download measured at ~22 KB/s from dl.google.com (npm 675 KB/s): stopped, empty folders removed;
+debug APK built by .github/workflows/android.yml instead. docs/ANDROID.md, REPORT-B6.md. Mutations 13/13 TS.
+Gates at 5f6ccfa: tsc, unit 1295, statics, eslint on changed files, pnpm build, audit.
+
+## TASK B6 COMPLETE
+
+19 Nov 2026. Report: docs/final-dev/REPORT-B6.md. Android build verified in CI at integration. Lane B is done; next
+is A6 on lane A.
 
 ## Task B5 (started 19 Nov 2026 at 3b552e8, by the main Claude session)
 
