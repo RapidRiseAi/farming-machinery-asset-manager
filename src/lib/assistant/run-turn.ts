@@ -52,7 +52,7 @@ import {
 } from "@/lib/assistant/store";
 import type { AssistantAnswerPage, AssistantDraft, AssistantLocale, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
 import { captureError } from "@/lib/observability";
-import { profileRefuses } from "@/lib/entitlements";
+import { equipmentRefusal } from "@/lib/assistant/equipment";
 
 
 function json(body: AssistantTurnResponse, status = 200) {
@@ -913,7 +913,7 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
     // diesel booked to a pump or a trailer, on any plan, from any channel. Refused before a
     // proposal exists, with A1's own rule; the database refuses it again at the table.
     const matched = draft.machineId ? machines.find((m) => m.id === draft.machineId) : null;
-    if (draft.intent === "log_fuel" && matched && profileRefuses(matched.profile ?? "full", "fuel")) {
+    if (matched && equipmentRefusal(draft.intent, matched)) {
       if (interactionId) {
         await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
           result_status: "failed",
