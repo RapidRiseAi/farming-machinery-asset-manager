@@ -8854,6 +8854,23 @@
       "duplicate_in_batch": "Twice in this sheet"
     }
   },
+  "manuals": {
+    "title": "Manuals",
+    "lead": "Operator and service manuals for this asset. A manual made searchable can be asked about in the assistant, which answers with the document and page.",
+    "upload": "Add a manual (PDF)",
+    "empty": "No manuals on this asset yet.",
+    "untitled": "Document",
+    "searchable": "Searchable",
+    "notSearchable": "Not searchable",
+    "size": "{pages} pages read, {kb} KB of text added. The file itself is not stored twice.",
+    "makeSearchable": "Make searchable",
+    "readAgain": "Read again",
+    "makeSearchableLead": "Its pages are read and their text kept so the assistant can quote them. Reading uses the monthly limit for paid assistance.",
+    "docTitle": "What is this document?",
+    "docTitleHint": "For example: Operator's manual. The assistant names it when it quotes a page.",
+    "read": "Read the manual",
+    "remove": "Remove from search"
+  },
   "customFields": {
     "title": "Custom asset fields",
     "lead": "Record your own details on every asset, such as a colour, a tank size or a purchase reference. Renaming or retiring a field keeps every value.",

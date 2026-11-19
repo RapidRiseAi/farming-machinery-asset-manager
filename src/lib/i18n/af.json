@@ -8854,6 +8854,23 @@
       "duplicate_in_batch": "Twee keer in hierdie sigblad"
     }
   },
+  "manuals": {
+    "title": "Handleidings",
+    "lead": "Bedienings- en dienshandleidings vir hierdie bate. Oor 'n handleiding wat deursoekbaar gemaak is, kan die assistent gevra word, en dit antwoord met die dokument en bladsy.",
+    "upload": "Voeg 'n handleiding by (PDF)",
+    "empty": "Nog geen handleidings op hierdie bate nie.",
+    "untitled": "Dokument",
+    "searchable": "Deursoekbaar",
+    "notSearchable": "Nie deursoekbaar nie",
+    "size": "{pages} bladsye gelees, {kb} KB teks bygevoeg. Die lêer self word nie twee keer gestoor nie.",
+    "makeSearchable": "Maak deursoekbaar",
+    "readAgain": "Lees weer",
+    "makeSearchableLead": "Die bladsye word gelees en hul teks gehou sodat die assistent dit kan aanhaal. Lees gebruik die maandelikse limiet vir betaalde hulp.",
+    "docTitle": "Wat is hierdie dokument?",
+    "docTitleHint": "Byvoorbeeld: Bedieningshandleiding. Die assistent noem dit wanneer dit 'n bladsy aanhaal.",
+    "read": "Lees die handleiding",
+    "remove": "Haal uit soektog"
+  },
   "customFields": {
     "title": "Eie batevelde",
     "lead": "Teken jou eie besonderhede op elke bate aan, soos 'n kleur, 'n tenkgrootte of 'n aankoopverwysing. As jy 'n veld hernoem of uittree, bly elke waarde.",
