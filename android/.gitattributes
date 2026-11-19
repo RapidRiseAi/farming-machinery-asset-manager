@@ -1,0 +1,3 @@
+# Windows batch files keep CRLF; the Unix wrapper keeps LF.
+*.bat text eol=crlf
+gradlew text eol=lf

@@ -4,4 +4,8 @@
     <string name="title_activity_main">FLEETWISE</string>
     <string name="package_name">za.co.fleetwise.app</string>
     <string name="custom_url_scheme">za.co.fleetwise.app</string>
+    <!-- The background-geolocation plugin's notification while a drive records. -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Drive recording</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_drive</string>
+    <string name="capacitor_background_geolocation_notification_color">#0B6B3A</string>
 </resources>
