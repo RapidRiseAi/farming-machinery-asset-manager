@@ -54,6 +54,9 @@ const QUICK_ANSWERS: Record<"operator" | "other", readonly string[]> = {
   other: ["dashboard", "faults", "machines", "calendar", "fuel"],
 };
 
+/** Customer guidance for every role (task A5): keys help.guide.<topic>Title / Body. */
+const GUIDE_TOPICS = ["equipment", "spaces", "spending", "chat", "exports", "payments", "devices"] as const;
+
 /**
  * Asking Rapid Rise for help without leaving the product, and reading the answer here.
  *
@@ -210,6 +213,17 @@ export default async function HelpPage({
               <p>{t(`pageInfo.${key}What`, locale)}</p>
               <p>{t(`pageInfo.${key}Does`, locale)}</p>
             </div>
+          </Disclosure>
+        ))}
+      </section>
+
+      {/* How the plan, storage, spending, chat, exports, payments and phones behave (task A5),
+          in the customer's language; the figures are docs/commercial-source.json's. */}
+      <section data-span="half" className="flex flex-col gap-2" aria-labelledby="help-guide">
+        <h2 id="help-guide" className="text-base font-bold text-sand-900">{t("help.guideTitle", locale)}</h2>
+        {GUIDE_TOPICS.map((topic) => (
+          <Disclosure key={topic} summary={t(`help.guide.${topic}Title`, locale)}>
+            <p className="text-sm leading-relaxed text-sand-700">{t(`help.guide.${topic}Body`, locale)}</p>
           </Disclosure>
         ))}
       </section>
