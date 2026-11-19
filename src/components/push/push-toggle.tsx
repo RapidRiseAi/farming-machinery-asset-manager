@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { reportClientError } from "@/lib/client-report";
 import { asError } from "@/lib/single-flight";
+import { isNativeApp } from "@/lib/native/platform";
 
 /** VAPID public key → bytes for PushManager.subscribe(applicationServerKey). */
 function urlBase64ToBytes(base64String: string): Uint8Array<ArrayBuffer> {
@@ -18,7 +19,7 @@ function urlBase64ToBytes(base64String: string): Uint8Array<ArrayBuffer> {
   return output;
 }
 
-type State = "loading" | "unsupported" | "unconfigured" | "denied" | "off" | "on" | "busy";
+type State = "loading" | "unsupported" | "native" | "unconfigured" | "denied" | "off" | "on" | "busy";
 
 /**
  * Enable/disable Web Push on THIS device (FR-14.1). Permission-gated: only prompts on an
@@ -50,6 +51,11 @@ export function PushToggle({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Web push does not reach an app's WebView, and native push is not set up (docs/ANDROID.md).
+      if (isNativeApp()) {
+        if (!cancelled) setState("native");
+        return;
+      }
       if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
         if (!cancelled) setState("unsupported");
         return;
@@ -140,6 +146,7 @@ export function PushToggle({
   const box = bare ? "text-sm" : "rounded-lg border border-sand-200 bg-sand-50 p-3 text-sm";
   if (state === "loading") return <div className={box}><span className="text-sand-400">{t("common.loading", locale)}</span></div>;
   if (state === "unsupported") return <div className={box}><span className="text-sand-500">{t("push.unsupported", locale)}</span></div>;
+  if (state === "native") return <div className={box}><span className="text-sand-500">{t("push.nativeApp", locale)}</span></div>;
   if (state === "unconfigured") return <div className={box}><span className="text-sand-500">{t("push.unconfigured", locale)}</span></div>;
   if (state === "denied") return <div className={box}><span className="text-sand-500">{t("push.denied", locale)}</span></div>;
 

@@ -6,7 +6,7 @@ import { mapsAvailable } from "@/lib/features";
 import { dateTime, num, relativeDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { isUuid } from "@/lib/ids";
-import { lastSeen, positionFreshness, routeKm, routeLine, type TrackedPoint } from "@/lib/map-data";
+import { lastSeen, positionFreshness, routeSegments, segmentsKm, type TrackedPoint } from "@/lib/map-data";
 import { POSITION_RECENT_MS } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/server";
 import { mustAll } from "@/lib/supabase/must";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FleetMap, type MapLine, type MapMarker } from "@/components/map/fleet-map";
-import { lineKm, type LngLat } from "@/lib/routing/geometry";
+import type { LngLat } from "@/lib/routing/geometry";
 import { PageContainer, PageHeader } from "@/components/ui/page-header";
 
 /**
@@ -104,7 +104,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
     trip = (older.data as TripRow | null) ?? null;
   }
   let planned: PlannedRoute | null = null;
-  let tripDriven: LngLat[] = [];
+  let tripDriven: LngLat[][] = [];
   if (trip) {
     const [routeRes, trailRes] = await Promise.all([
       supabase.from("trip_routes").select("trip_id, waypoints, geometry, distance_m").eq("trip_id", trip.id).maybeSingle(),
@@ -121,7 +121,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
     ]);
     mustAll([routeRes, trailRes], "map:trip");
     planned = (routeRes.data as PlannedRoute | null) ?? null;
-    tripDriven = routeLine(((trailRes.data ?? []) as { lat: number; lng: number; recorded_at: string }[]).map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })));
+    tripDriven = routeSegments(((trailRes.data ?? []) as { lat: number; lng: number; recorded_at: string }[]).map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })));
   }
 
   const positions = (positionData ?? []) as Position[];
@@ -199,12 +199,14 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
   const lines: MapLine[] = trip
     ? [
         ...(planned ? [{ id: "planned", kind: "planned" as const, coords: planned.geometry }] : []),
-        ...(tripDriven.length > 1 ? [{ id: "driven", kind: "driven" as const, coords: tripDriven }] : []),
+        ...tripDriven.map((coords, i) => ({ id: `driven-${i}`, kind: "driven" as const, coords })),
       ]
     : [];
+  // One drive's route in pieces: a gap in the recording is left blank, never joined (B6).
   const route = chosen && !trip
-    ? routeLine(positions.filter((p) => p.session_id === chosen).map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })))
+    ? routeSegments(positions.filter((p) => p.session_id === chosen).map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })))
     : [];
+  const allLines = [...lines, ...route.map((coords, i) => ({ id: `route-${i}`, kind: "driven" as const, coords }))];
 
   return (
     <PageContainer size="wide">
@@ -214,14 +216,15 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
         <EmptyState title={t("map.emptyTitle", locale)} hint={t("map.emptyHint", locale)} />
       ) : null}
 
-      <FleetMap markers={markers} route={route} lines={lines} />
+      <FleetMap markers={markers} lines={allLines} />
 
       {trip ? (
         <p className="text-sm text-sand-600">
           {t("map.tripSummary", locale)
             .replace("{n}", String(trip.number))
             .replace("{planned}", planned ? num(planned.distance_m / 1000) : "-")
-            .replace("{driven}", tripDriven.length > 1 ? num(lineKm(tripDriven)) : "-")}{" "}
+            .replace("{driven}", tripDriven.length > 0 ? num(segmentsKm(tripDriven)) : "-")}{" "}
+          {tripDriven.length > 1 ? `${t("routes.gaps", locale).replace("{n}", String(tripDriven.length - 1))} ` : null}
           <Link href={`/trips/${trip.id}`} className="underline">{t("map.openTrip", locale)}</Link>{" "}
           <Link href="/map" className="underline">{t("map.backToFleet", locale)}</Link>
         </p>
@@ -229,7 +232,8 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
 
       {chosen && !trip ? (
         <p className="text-sm text-sand-600">
-          {route.length > 1 ? t("map.routeKm", locale).replace("{km}", () => num(routeKm(route))) : t("map.noRoute", locale)}{" "}
+          {route.length > 0 ? t("map.routeKm", locale).replace("{km}", () => num(segmentsKm(route))) : t("map.noRoute", locale)}{" "}
+          {route.length > 1 ? `${t("routes.gaps", locale).replace("{n}", String(route.length - 1))} ` : null}
           <Link href="/map" className="underline">{t("map.backToFleet", locale)}</Link>
         </p>
       ) : null}

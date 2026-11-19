@@ -1,0 +1,62 @@
+name: Android
+
+# The Android app's debug build (task B6, docs/ANDROID.md): proves the Capacitor project builds on a
+# clean machine and keeps the APK as an artifact for installing on a test phone. Release bundles are
+# signed with the founder's upload key on the founder's machine, never here.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "android/**"
+      - "native/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+jobs:
+  debug-build:
+    name: Android debug build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      # Copies the two local pages, the generated config and the plugin list into the project.
+      - run: pnpm exec cap sync android
+      - name: Build the debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      # Kept even when a check below fails, so the build can be inspected.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fleetwise-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      - name: Check what the merged manifest declares
+        working-directory: android
+        run: |
+          merged=$(find app/build/intermediates -name AndroidManifest.xml -path "*merged_manifest*debug*" | head -1)
+          echo "merged manifest: $merged"
+          echo "--- permissions, features and services as merged ---"
+          grep -n -E 'uses-permission|uses-feature|<service|foregroundServiceType|exported=|allowBackup' "$merged" || true
+          # The geolocation service element on one line, whatever the merger's line breaks.
+          service=$(awk '/<service/{s=""; on=1} on{s=s $0} on && />/{if (s ~ /BackgroundGeolocationService/) print s; on=0}' "$merged")
+          echo "--- geolocation service ---"
+          echo "$service"
+          fail=0
+          if grep -q 'android.permission.FOREGROUND_SERVICE_LOCATION' "$merged"; then echo "ok: foreground service location permission"; else echo "FAILED: foreground service location permission"; fail=1; fi
+          if grep -q 'android.permission.ACCESS_BACKGROUND_LOCATION' "$merged"; then echo "FAILED: background location permission present"; fail=1; else echo "ok: no background location permission"; fi
+          if echo "$service" | grep -q 'foregroundServiceType="location"'; then echo "ok: location foreground service type"; else echo "FAILED: location foreground service type"; fail=1; fi
+          if echo "$service" | grep -q 'exported="false"'; then echo "ok: geolocation service not exported"; else echo "FAILED: geolocation service exported"; fail=1; fi
+          if grep -q 'allowBackup="false"' "$merged"; then echo "ok: backups off"; else echo "FAILED: backups on"; fail=1; fi
+          exit $fail

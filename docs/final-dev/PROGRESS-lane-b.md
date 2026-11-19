@@ -1,4 +1,39 @@
-# Lane B progress (B5 complete; B4, B3 and B1 below)
+# Lane B progress (all lane B tasks complete: B6, B5, B4, B3, B1 below)
+
+## Task B6 (started 19 Nov 2026 at ca29985, by the main Claude session)
+
+Inventory: no Capacitor or native code exists. The web recorder (`src/components/map/route-recorder.tsx`) needs the
+screen kept on and holds at most 200 points in memory; `/api/positions` takes 200 points of at most 24 hours for a
+running driving session. `routeLine` joins every point into one line, so a data gap is drawn and counted as driven
+km (a defect against "no route inferred across a data gap"). Android Studio is installed (JBR 21); no Android SDK.
+Plan:
+1. Gaps: split driven routes at time gaps and impossible jumps (routeSegments), draw segments separately, count only
+   recorded km and say when there were gaps (trip card, map page).
+2. Current docs: Capacitor, the background-geolocation plugin, Android foreground-service location rules, Play
+   policy (background location, foreground service declarations), App Links, WebView file chooser and CSP.
+3. Capacitor Android project loading the hosted app: config, offline fallback page, permissions and foreground
+   service declarations, deep links (App Links) for emailed links, external links to the system browser.
+4. Web side: native bridge; background recording tied to the driving session's start and stop, through a foreground
+   service; a persistent queue bound to the person, retry with backoff, dropped on logout or account change; stop on
+   the session ending (409); push marked unavailable in the app unless native push is configured.
+5. Debug build artifact (Android SDK install), docs/ANDROID.md (build, signing, Play listing, declarations, real-
+   device test steps, iPhone limits), tests, report.
+
+Step 1 DONE (1681265): routeSegments/segmentsKm, offRouteSegments, trip card and /map draw and count piece by piece.
+Step 2 DONE: docs read (Capacitor 8 guide and config, plugin README/manifest/source, Android FGS and notification
+permission, Play FGS declaration, App Links verification, Capacitor Android source for cookies and bridge injection).
+Steps 3-4 DONE: Capacitor 8.6.2, plugin 1.3.1, @capacitor/app 8.1.2 (pinned); capacitor.config.ts; android/ with
+manifest hardening, icons, splash, notification resources, release signing from an untracked keystore; src/lib/native
+(platform, links, position-queue, recorder, asset-links); NativeLinks, NativeSession; recorder native branch with
+disclosure; sign-out clears; push marked unavailable; /.well-known/assetlinks.json from env.
+Step 5: local SDK download measured at ~22 KB/s from dl.google.com (npm 675 KB/s): stopped, empty folders removed;
+debug APK built by .github/workflows/android.yml instead. docs/ANDROID.md, REPORT-B6.md. Mutations 13/13 TS.
+Gates at 5f6ccfa: tsc, unit 1295, statics, eslint on changed files, pnpm build, audit.
+
+## TASK B6 COMPLETE
+
+19 Nov 2026. Report: docs/final-dev/REPORT-B6.md. Android build verified in CI at integration. Lane B is done; next
+is A6 on lane A.
 
 ## Task B5 (started 19 Nov 2026 at 3b552e8, by the main Claude session)
 

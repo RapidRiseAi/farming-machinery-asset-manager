@@ -16,11 +16,18 @@ All of it sits behind the map switch (Admin, Features in testing).
   destination. Turn-by-turn stays with those apps; there is no cost or key for these links.
 - **Record**: starting a trip starts the driver's driving record, and the driver records the
   route from the trip page. The screen is kept awake while recording, but a phone web page cannot
-  record with the screen locked. Trackers and the Android app close that gap.
+  record with the screen locked. Trackers and the Android app close that gap: in the app (B6,
+  docs/ANDROID.md) recording runs in a foreground service with a notification and keeps going
+  with the screen locked, until the driver stops it or the drive ends.
 - **Check**: the trip page and the trip report hold the planned distance against the odometer
   (or the recorded route when there is no odometer reading at both ends), flag a difference
   beyond the business's allowed percentage (10% unless changed on the trip report), and show how
   far the driven route was from the planned one.
+- **Gaps (B6)**: a driven route is drawn and measured only where positions were recorded. Two
+  positions more than 10 minutes apart, or a jump of over 2 km that would need more than
+  250 km/h, start a new piece (`routeSegments`, limits `routeGapMs` and `routeJumpKm`). The
+  distance across a gap is not counted. The page says how many gaps there were, and a recording
+  with gaps is not used to call a trip over or under its plan.
 
 ## Provider terms rechecked, 18 November 2026 (task B3)
 

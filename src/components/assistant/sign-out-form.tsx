@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { clearAllOfflineVoiceData } from "./offline-voice";
+import { clearNativeData } from "@/lib/native/recorder";
 import { t, type Lang } from "@/lib/i18n";
 
 /** Clears device-only voice blobs before allowing the server sign-out action to run. */
@@ -31,7 +32,7 @@ export function AssistantSafeSignOutForm({
         clearingRef.current = true;
         setClearing(true);
         setError(null);
-        void clearAllOfflineVoiceData()
+        void Promise.all([clearAllOfflineVoiceData(), clearNativeData()])
           .then(() => {
             // Private staff-chat drafts belong to this login, not the next person using the device.
             try {

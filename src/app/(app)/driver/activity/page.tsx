@@ -10,6 +10,7 @@ import { PageContainer, PageHeader } from "@/components/ui/page-header";
 import { DialogForm } from "@/components/ui/dialog-form";
 import { Disclosure } from "@/components/ui/disclosure";
 import { RouteRecorder } from "@/components/map/route-recorder";
+import { recorderLabels } from "@/components/map/recorder-labels";
 import { mapsAvailable } from "@/lib/features";
 import { saveManualActivity } from "./actions";
 import { ManualDriveForm } from "@/components/manual-drive-form";
@@ -193,13 +194,8 @@ export default async function ActivityPage({
               {mapOn && !s.ended_at && s.driver_id === profile.id ? (
                 <RouteRecorder
                   sessionId={s.id}
-                  labels={{
-                    start: t("map.recordStart", locale),
-                    stop: t("map.recordStop", locale),
-                    recording: t("map.recording", locale),
-                    keepOpen: t("map.keepOpen", locale),
-                    denied: t("map.recordDenied", locale),
-                  }}
+                  ownerId={profile.id}
+                  labels={recorderLabels(locale)}
                 />
               ) : null}
               <h3 className="text-lg font-semibold">
