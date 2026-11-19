@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { boundsOf, cleanPoints, lastSeen, routeKm, routeLine, positionFreshness } from "./map-data";
+import { boundsOf, cleanPoints, lastSeen, routeKm, routeLine, routeSegments, segmentsKm, positionFreshness } from "./map-data";
+import { offRouteSegments } from "./routing/geometry";
 
 test("each vehicle shows where it was last", () => {
   const seen = lastSeen([
@@ -64,4 +65,54 @@ test("a position is recent only within the window; older is the last known posit
   // A wrong clock in the future is "just now", not a negative age; garbage is never recent.
   assert.deepEqual(positionFreshness("2026-11-18T12:30:00Z", now, tenMinutes), { recent: true, ageMs: 0 });
   assert.equal(positionFreshness("not a date", now, tenMinutes).recent, false);
+});
+
+// == Gaps (B6): nothing is drawn or counted across a gap in the recording ==================
+const at = (minute: number) => new Date(Date.UTC(2026, 10, 19, 8, 0) + minute * 60_000).toISOString();
+// About 1 km apart going north (0.009 degrees of latitude), one a minute: 60 km/h.
+const drive = (from: number, n: number, startMinute: number, lng = 28.2) =>
+  Array.from({ length: n }, (_, i) => ({ lat: -25.7 + (from + i) * 0.009, lng, at: at(startMinute + i) }));
+
+test("a continuous drive is one piece", () => {
+  const pieces = routeSegments(drive(0, 5, 0));
+  assert.equal(pieces.length, 1);
+  assert.equal(pieces[0].length, 5);
+});
+
+test("a long silence splits the route, and the distance across it is not counted", () => {
+  // Four minutes driven, 30 minutes of nothing (screen locked, no signal), four more minutes 50 km on.
+  const points = [...drive(0, 5, 0), ...drive(55, 5, 34)];
+  const pieces = routeSegments(points);
+  assert.equal(pieces.length, 2);
+  const joinedKm = routeKm(routeLine(points));
+  const counted = segmentsKm(pieces);
+  assert.ok(counted < 10 && joinedKm > 50, `counted ${counted}, joined ${joinedKm}`);
+});
+
+test("an impossible jump is a gap even when the clock says only a minute passed", () => {
+  const points = [...drive(0, 3, 0), { lat: -25.7 + 100 * 0.009, lng: 28.2, at: at(3) }, ...drive(101, 3, 4)];
+  const pieces = routeSegments(points);
+  assert.equal(pieces.length, 2, "the 88 km step in a minute is not driven");
+  assert.ok(segmentsKm(pieces) < 6);
+});
+
+test("a single stray position is not a piece, and points arrive in any order", () => {
+  const points = [...drive(0, 3, 0), { lat: -24, lng: 29, at: at(60) }, ...drive(0, 3, 120)].reverse();
+  const pieces = routeSegments(points);
+  assert.equal(pieces.length, 2);
+  assert.ok(pieces.every((p) => p.length === 3));
+  assert.deepEqual(routeSegments([]), []);
+  assert.deepEqual(routeSegments([{ lat: 0, lng: 0, at: at(0) }, { lat: 0, lng: 0, at: at(1) }]), []);
+});
+
+test("off the plan is measured piece by piece, never along the line across a gap", () => {
+  const planned: [number, number][] = [[28.2, -25.7], [28.2, -25.0]];
+  // Two pieces on the planned road with a gap between them: nothing off route.
+  const pieces = routeSegments([...drive(0, 4, 0), ...drive(40, 4, 40)]);
+  const result = offRouteSegments(planned, pieces);
+  assert.ok(result && result.offKm === 0 && result.share === 0);
+  // A piece 10 km east of the road is all off.
+  const away = offRouteSegments(planned, routeSegments(drive(0, 4, 0, 28.3)));
+  assert.ok(away && away.share > 0.9);
+  assert.equal(offRouteSegments(planned, []), null);
 });

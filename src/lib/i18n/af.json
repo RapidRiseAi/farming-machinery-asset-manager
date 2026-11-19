@@ -8408,6 +8408,7 @@
       "under": "{pct}% korter as beplan"
     },
     "recordedBasis": "Gemeet aan die aangetekende roete, omdat daar nie aan albei kante 'n odometerlesing is nie. 'n Foon wat sein verloor het, teken minder aan as wat gery is.",
+    "gaps": "Die opname het {n} gaping(s): geen roete word oor 'n gaping geteken nie en die afstand daaroor word nie getel nie.",
     "google": "Navigeer in Google Maps",
     "waze": "Navigeer in Waze",
     "googleHint": "Google Maps ry deur elke stop in volgorde. As dit 'n ander pad kies, voeg 'n stop by op die pad wat jy wil hê.",

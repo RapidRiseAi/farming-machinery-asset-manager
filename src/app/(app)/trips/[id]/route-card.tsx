@@ -2,8 +2,8 @@ import Link from "next/link";
 
 import { num } from "@/lib/format";
 import { t, type Lang } from "@/lib/i18n";
-import { routeLine } from "@/lib/map-data";
-import { kmCheck, lineKm, offRoute, type LngLat } from "@/lib/routing/geometry";
+import { routeSegments, segmentsKm } from "@/lib/map-data";
+import { kmCheck, offRouteSegments, type LngLat } from "@/lib/routing/geometry";
 import { googleMapsLink, wazeLink, type Stop } from "@/lib/routing/links";
 import { SETTING_NUMBERS } from "@/lib/settings";
 import { must } from "@/lib/supabase/must";
@@ -92,15 +92,18 @@ export async function TripRouteCard({
   const tolerance =
     typeof settings.route_km_tolerance_pct === "number" ? settings.route_km_tolerance_pct : SETTING_NUMBERS.route_km_tolerance_pct;
 
-  const driven = routeLine(positions.map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })));
-  const recordedKm = driven.length > 1 ? lineKm(driven) : null;
+  // Pieces between the recording's gaps: nothing is drawn or counted across a gap (B6).
+  const driven = routeSegments(positions.map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })));
+  const gaps = Math.max(0, driven.length - 1);
+  const recordedKm = driven.length > 0 ? segmentsKm(driven) : null;
   const check = kmCheck({
     plannedKm: route ? route.distance_m / 1000 : null,
     odometerKm: kmMeter ? tripDistance(trip) : null,
-    recordedKm,
+    // A recording with gaps is missing distance, so it is no basis for over or under.
+    recordedKm: gaps > 0 ? null : recordedKm,
     tolerancePct: tolerance,
   });
-  const away = route && driven.length > 1 ? offRoute(route.geometry, driven) : null;
+  const away = route && driven.length > 0 ? offRouteSegments(route.geometry, driven) : null;
 
   const open = trip.status === "planned" || trip.status === "underway";
   const isDriver = trip.driver_id === viewerId;
@@ -110,7 +113,7 @@ export async function TripRouteCard({
 
   const lines: MapLine[] = [
     ...(route ? [{ id: "planned", kind: "planned" as const, coords: route.geometry }] : []),
-    ...(driven.length > 1 ? [{ id: "driven", kind: "driven" as const, coords: driven }] : []),
+    ...driven.map((coords, i) => ({ id: `driven-${i}`, kind: "driven" as const, coords })),
   ];
   const markers: MapMarker[] = stops.map((s, i) => ({
     id: `stop-${i}`,
@@ -162,7 +165,8 @@ export async function TripRouteCard({
         {check.basis === "odometer" && check.actualKm != null ? (
           <Fact label={t("routes.odometer", locale)} value={`${num(check.actualKm)} km`} />
         ) : null}
-        {recordedKm != null ? <Fact label={t("routes.recorded", locale)} value={`${num(recordedKm)} km`} /> : null}
+        {recordedKm != null ? <Fact label={t("routes.recorded", locale)} value={`${num(recordedKm)} km`}
+          hint={gaps > 0 ? t("routes.gaps", locale).replace("{n}", String(gaps)) : undefined} /> : null}
         {away && away.offKm >= 1 ? (
           <Fact label={t("routes.offRoute", locale)} value={t("routes.offRouteValue", locale).replace("{km}", num(away.offKm))} />
         ) : null}

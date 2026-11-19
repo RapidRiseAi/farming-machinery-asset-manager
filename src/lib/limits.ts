@@ -195,6 +195,10 @@ export const LIMITS = {
   journalMaxLines: entry(100_000, "rows", "window", false, "Accounting journal export; choose a shorter period beyond."),
   positionRecentMs: entry(10 * MINUTE, "ms", "window", true,
     "A reported position older than this is shown as the last known position with its age, never as current or live."),
+  routeGapMs: entry(10 * MINUTE, "ms", "window", true,
+    "Two recorded positions further apart in time than this are a gap: the route is drawn as separate pieces and the distance across the gap is not counted (B6)."),
+  routeJumpKm: entry(2, "km", "window", false,
+    "A step longer than this that would need more than 250 km/h is a jump (a bad fix or a gap), never a road driven (B6)."),
   tripReportWindowDays: entry(90, "count", "window", true, "The trip earnings report covers the last 90 days and says so; older trips stay on their own pages and in the export."),
 
   // == The complete export with files (20261120110000) ====================================
@@ -215,6 +219,8 @@ export const PHOTO_MAX_BYTES = LIMITS.photoMaxBytes.value;
 export const PDF_MAX_BYTES = LIMITS.pdfMaxBytes.value;
 export const VOICE_NOTE_MAX_BYTES = LIMITS.voiceNoteMaxBytes.value;
 export const POSITION_RECENT_MS = LIMITS.positionRecentMs.value;
+export const ROUTE_GAP_MS = LIMITS.routeGapMs.value;
+export const ROUTE_JUMP_KM = LIMITS.routeJumpKm.value;
 export const REQUEST_CLAIM_OUTCOME_CHARS = LIMITS.requestClaimOutcomeChars.value;
 export const TRIP_REPORT_WINDOW_DAYS = LIMITS.tripReportWindowDays.value;
 export const VOICE_NOTE_MAX_MS = LIMITS.voiceNoteMaxMs.value;

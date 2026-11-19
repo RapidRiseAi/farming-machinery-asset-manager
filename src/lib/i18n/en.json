@@ -8408,6 +8408,7 @@
       "under": "{pct}% shorter than planned"
     },
     "recordedBasis": "Measured from the recorded route, because there is no odometer reading at both ends. A phone that lost signal records less than was driven.",
+    "gaps": "The recording has {n} gap(s): no route is drawn across a gap and its distance is not counted.",
     "google": "Navigate in Google Maps",
     "waze": "Navigate in Waze",
     "googleHint": "Google Maps goes through every stop in order. If it picks a different road, add a stop on the road you want.",
