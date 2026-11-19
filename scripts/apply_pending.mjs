@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Import staging: batches and rows reviewed before anything is written; documents behind a flag.
+  "20261121110000": "select to_regclass('public.import_batches') is not null and to_regclass('public.import_rows') is not null and to_regprocedure('public.import_batch_confirm(uuid)') is not null and exists (select 1 from public.feature_flags where key = 'document_extraction')",
   // Custom asset fields: definitions, typed values and the checked write functions.
   "20261121100000": "select to_regclass('public.asset_field_definitions') is not null and to_regclass('public.asset_field_values') is not null and to_regprocedure('public.asset_field_set(uuid,jsonb)') is not null and app.feature_min_rank('custom_fields') = 2",
   // WhatsApp completion: capability flags, forward-only statuses, one answer, photos on the pool, upload links.

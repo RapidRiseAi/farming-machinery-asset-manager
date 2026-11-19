@@ -5677,7 +5677,15 @@
     "customFieldRequired": "Hierdie veld moet ingevul word.",
     "customFieldRetired": "Daardie veld is uitgetree en neem geen nuwe waardes nie. Bring dit eers terug.",
     "customFieldChoiceInUse": "Daardie keuse word nog op 'n bate gebruik, dus bly dit op die lys.",
-    "planFeatureCustomFields": "Eie batevelde is op Professioneel en Volledig."
+    "planFeatureCustomFields": "Eie batevelde is op Professioneel en Volledig.",
+    "importInvalid": "Daardie invoer kon nie gelees word nie. Kyk na die lêer en probeer weer.",
+    "importClosed": "Daardie invoer is reeds bevestig of gekanselleer.",
+    "importUnreviewed": "Hierdie ry het 'n probleem. Vul die bate, datum en lesing in wat jy nagegaan het voordat jy dit aanvaar.",
+    "importUndecided": "Aanvaar of slaan elke ry oor voordat jy bevestig.",
+    "importIncomplete": "'n Aanvaarde ry het 'n bate, 'n datum en 'n lesing nodig.",
+    "importDateFuture": "'n Lesing kan nie in die toekoms gedateer word nie.",
+    "importExtractionOff": "Die lees van foto's en PDF's is nog nie aangeskakel nie. Laai eerder 'n sigblad op.",
+    "planFeatureDocumentExtraction": "Die lees van foto's en PDF's is op Professioneel en Volledig."
   },
   "billing": {
     "title": "Rekening",

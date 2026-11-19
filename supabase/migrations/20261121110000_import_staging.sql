@@ -124,6 +124,16 @@ begin
   return jsonb_build_object('id', v_id, 'reused', false, 'status', 'review');
 end $$;
 
+-- How sure a reader was about one value. A sheet sends none (certain); a provider's value that is
+-- not a number from 0 to 1 counts as 0 (uncertain), never as an error that drops the whole page.
+create or replace function app.import_confidence(p_value text) returns numeric
+language sql immutable set search_path = pg_catalog as $$
+  select case when p_value is null then 1
+              when p_value ~ '^(0(\.[0-9]{1,6})?|1(\.0{1,6})?)$' then p_value::numeric
+              else 0 end
+$$;
+revoke all on function app.import_confidence(text) from public, anon;
+
 -- == Staging rows ===============================================================================
 -- Rows as read: [{row_no, page?, asset, date, date_candidates?, reading, unit?, confidence?: {asset,
 -- date, reading, unit}, source_text?}]. The asset is matched by name, serial or registration on
@@ -159,6 +169,14 @@ begin
     raise exception 'import-invalid' using errcode = '22023';
   end if;
   for r in select value from jsonb_array_elements(p_rows) loop
+    -- Shape first, then the ranges (two statements: SQL does not promise OR's order before a cast).
+    if jsonb_typeof(r) <> 'object' or coalesce(r ->> 'row_no', '') !~ '^[0-9]{1,5}$'
+       or coalesce(r ->> 'page', '1') !~ '^[0-9]{1,3}$' or octet_length(r::text) > 4000 then
+      raise exception 'import-invalid' using errcode = '22023';
+    end if;
+    if (r ->> 'row_no')::integer not between 1 and 10000 or coalesce((r ->> 'page')::integer, 1) not between 1 and 500 then
+      raise exception 'import-invalid' using errcode = '22023';
+    end if;
     v_issues := '{}'; v_machine := null; v_date := null; v_reading := null;
     v_conf := coalesce(r -> 'confidence', '{}'::jsonb);
     -- The asset: one exact match on this business, or a named problem.
@@ -222,13 +240,14 @@ begin
       end if;
     end if;
     -- How sure the reader was: below 0.8 the value is uncertain and needs a person.
-    if coalesce((v_conf ->> 'asset')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_asset'::text; end if;
-    if coalesce((v_conf ->> 'date')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_date'::text; end if;
-    if coalesce((v_conf ->> 'reading')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_reading'::text; end if;
+    if jsonb_typeof(v_conf) <> 'object' then v_conf := '{"asset": "?", "date": "?", "reading": "?"}'::jsonb; end if;
+    if app.import_confidence(v_conf ->> 'asset') < 0.8 then v_issues := v_issues || 'uncertain_asset'::text; end if;
+    if app.import_confidence(v_conf ->> 'date') < 0.8 then v_issues := v_issues || 'uncertain_date'::text; end if;
+    if app.import_confidence(v_conf ->> 'reading') < 0.8 then v_issues := v_issues || 'uncertain_reading'::text; end if;
     insert into public.import_rows (batch_id, farm_id, row_no, page, raw, machine_id, reading_date, reading, issues)
-    values (b.id, b.farm_id, (r ->> 'row_no')::integer, nullif(r ->> 'page', '')::integer, r, v_machine, v_date, v_reading, v_issues)
+    values (b.id, b.farm_id, (r ->> 'row_no')::integer, (r ->> 'page')::integer, r, v_machine, v_date, v_reading, v_issues)
     on conflict (batch_id, row_no) do nothing;
-    v_n := v_n + 1;
+    if found then v_n := v_n + 1; end if;
   end loop;
   update public.import_batches set pages = greatest(coalesce(pages, 0), (select max(page) from public.import_rows where batch_id = b.id))
    where id = b.id and exists (select 1 from public.import_rows where batch_id = b.id and page is not null);
@@ -258,6 +277,13 @@ begin
   if p_decision not in ('accept', 'skip', 'pending') then raise exception 'import-invalid' using errcode = '22023'; end if;
   if p_decision = 'accept' then
     if cardinality(ir.issues) > 0 and not v_confirmed then raise exception 'import-unreviewed' using errcode = '22023'; end if;
+    -- Confirming one field never vouches for another: a doubtful asset, date or reading needs the
+    -- person's own value for exactly that field.
+    if (p_machine is null and ir.issues && array['asset_unknown', 'asset_ambiguous', 'uncertain_asset'])
+       or (p_date is null and ir.issues && array['date_invalid', 'date_future', 'date_conflict', 'uncertain_date'])
+       or (p_reading is null and ir.issues && array['reading_invalid', 'reading_backwards', 'unit_mismatch', 'uncertain_reading']) then
+      raise exception 'import-unreviewed' using errcode = '22023';
+    end if;
     if p_machine is not null and not exists (select 1 from public.machines m where m.id = p_machine and m.farm_id = ir.farm_id and m.deleted_at is null) then
       raise exception 'forbidden' using errcode = '42501';
     end if;

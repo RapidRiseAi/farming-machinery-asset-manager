@@ -25,7 +25,7 @@ insert into public.users(id,farm_id,role,name,email,active) values
 insert into public.machines(id,farm_id,name,type,meter_type,serial_no,current_reading,current_reading_date) values
  ('ab200000-0000-4000-9000-000000000001','ab000000-0000-4000-9000-000000000001','Tractor 1','tractor','hours','SN-001',100,'2026-11-01'),
  ('ab200000-0000-4000-9000-000000000002','ab000000-0000-4000-9000-000000000001','Bakkie','bakkie','km',null,5000,'2026-11-01'),
- ('ab200000-0000-4000-9000-000000000003','ab000000-0000-4000-9000-000000000003','Other tractor','tractor','hours',null,null,null);
+ ('ab200000-0000-4000-9000-000000000003','ab000000-0000-4000-9000-000000000003','Harvester','tractor','hours',null,null,null);
 insert into public.meter_readings(farm_id,machine_id,reading,reading_date,source) values
  ('ab000000-0000-4000-9000-000000000001','ab200000-0000-4000-9000-000000000001',110,'2026-11-05','manual');
 create temp table ids(name text primary key, id uuid) on commit drop;
@@ -71,6 +71,23 @@ select pg_temp.assert('date_future' = any(pg_temp.issues(10)), '[2] a reading is
 select pg_temp.assert(pg_temp.issues(11) = '{}' and (select raw->>'source_text' from public.import_rows where row_no=11 and batch_id=(select id from ids where name='sheet')) like 'IGNORE ALL RULES%',
   '[2] text inside a document is stored as data and changes nothing');
 
+select pg_temp.assert(public.import_rows_stage((select id from ids where name='sheet'), jsonb_build_array(
+  jsonb_build_object('row_no',1,'asset','Tractor 1','date','2026-11-10','reading','120'))) = 0,
+  '[2] a row already staged is neither staged nor counted again');
+select public.import_rows_stage((select id from ids where name='sheet'), jsonb_build_array(
+  jsonb_build_object('row_no',12,'asset','Tractor 1','date','2026-11-15','reading','132','confidence',jsonb_build_object('reading','high')),
+  jsonb_build_object('row_no',13,'asset','Tractor 1','date','2026-11-15','reading','133','confidence','sure')));
+select pg_temp.assert(pg_temp.issues(12) = array['uncertain_reading'], '[2] a confidence that is not a number is uncertain, never an error');
+select pg_temp.assert(pg_temp.issues(13) @> array['uncertain_asset','uncertain_date','uncertain_reading'],
+  '[2] a confidence that is not an object makes every value uncertain');
+select pg_temp.assert(pg_temp.raises(format($q$select public.import_rows_stage('%s', '[{"row_no":"abc"}]')$q$, (select id from ids where name='sheet')), '%import-invalid%')
+  and pg_temp.raises(format($q$select public.import_rows_stage('%s', '[{"row_no":20000}]')$q$, (select id from ids where name='sheet')), '%import-invalid%')
+  and pg_temp.raises(format($q$select public.import_rows_stage('%s', '[{"row_no":14,"page":900}]')$q$, (select id from ids where name='sheet')), '%import-invalid%')
+  and pg_temp.raises(format($q$select public.import_rows_stage('%s', '["row"]')$q$, (select id from ids where name='sheet')), '%import-invalid%')
+  and pg_temp.raises(format($q$select public.import_rows_stage('%s', %L)$q$, (select id from ids where name='sheet'),
+        jsonb_build_array(jsonb_build_object('row_no',14,'source_text',repeat('x',5000)))::text), '%import-invalid%'),
+  '[2] a malformed row number, page, row or an oversized row is refused as invalid');
+
 -- == [3] Deciding: an uncertain row is never accepted silently =================================
 create function pg_temp.row_id(n int) returns uuid language sql as $$
   select id from public.import_rows where row_no = n and batch_id = (select id from ids where name='sheet') $$;
@@ -81,12 +98,18 @@ select pg_temp.assert((select confirmed_values and reading = 121 from public.imp
   '[3] it is accepted with the value the person confirmed');
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept')$q$, pg_temp.row_id(3)), '%import-unreviewed%'),
   '[3] a conflicting date needs the person''s choice');
+select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', null, null, 130)$q$, pg_temp.row_id(3)), '%import-unreviewed%'),
+  '[3] confirming the reading does not vouch for a conflicting date');
 select public.import_row_decide(pg_temp.row_id(3), 'accept', null, '2026-11-13', null);
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', null, '2099-01-01', 126)$q$, pg_temp.row_id(10)), '%import-date-future%'),
   '[3] a person cannot confirm a future date either');
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', 'ab200000-0000-4000-9000-000000000003', null, null)$q$, pg_temp.row_id(4)), '%forbidden%'),
   '[3] another business''s asset cannot be chosen');
+select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept')$q$, pg_temp.row_id(7)), '%import-unreviewed%'),
+  '[3] a duplicate is not accepted as read either');
 select public.import_row_decide(pg_temp.row_id(1), 'accept');
+-- The person insists on row 8 (the same reading as row 1): it is checked again when written.
+select public.import_row_decide(pg_temp.row_id(8), 'accept', null, null, 120);
 -- == [4] Confirming: every row decided, written once ==========================================
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_batch_confirm('%s')$q$, (select id from ids where name='sheet')), '%import-undecided%'),
   '[4] a batch with undecided rows is not confirmed');

@@ -217,6 +217,8 @@ echo "==> running WhatsApp completion tests (capability flags, forward-only stat
 pg "$DB" < "$ROOT/supabase/tests/whatsapp_completion.sql"
 echo "==> running custom asset field tests (plan, roles, typed values, visibility, rename and retire, isolation, audit)"
 pg "$DB" < "$ROOT/supabase/tests/custom_asset_fields.sql"
+echo "==> running import staging tests (named issues, no silent accept, confirm once, documents gated, isolation)"
+pg "$DB" < "$ROOT/supabase/tests/import_staging.sql"
 pg "$DB" < "$ROOT/supabase/tests/plan_boundaries.sql"
 pg "$DB" < "$ROOT/supabase/tests/erasure_voice_notes.sql"
 pg "$DB" < "$ROOT/supabase/tests/staff_onboarding.sql"

@@ -668,7 +668,6 @@ const CODE_KEYS: Record<string, string> = {
   "billing-capacity-quote": "errors.billingCapacityQuote",
   "billing-change-mixed": "errors.billingChangeMixed",
   "billing-grace-no-extras": "errors.billingGraceNoExtras",
-  // Storage blocks and automatic storage (20261118120000, 20261118120100).
   // Custom asset fields (20261121100000).
   "custom-field-invalid": "errors.customFieldInvalid",
   "custom-field-limit": "errors.customFieldLimit",
@@ -676,6 +675,16 @@ const CODE_KEYS: Record<string, string> = {
   "custom-field-retired": "errors.customFieldRetired",
   "custom-field-choice-in-use": "errors.customFieldChoiceInUse",
   "plan-feature-custom_fields": "errors.planFeatureCustomFields",
+  // Import staging (20261121110000).
+  "import-invalid": "errors.importInvalid",
+  "import-closed": "errors.importClosed",
+  "import-unreviewed": "errors.importUnreviewed",
+  "import-undecided": "errors.importUndecided",
+  "import-incomplete": "errors.importIncomplete",
+  "import-date-future": "errors.importDateFuture",
+  "import-extraction-off": "errors.importExtractionOff",
+  "plan-feature-document_extraction": "errors.planFeatureDocumentExtraction",
+  // Storage blocks and automatic storage (20261118120000, 20261118120100).
   "storage-reduction-over-usage": "errors.storageReductionOverUsage",
   "storage-ceiling-invalid": "errors.storageCeilingInvalid",
   "storage-ceiling-too-low": "errors.storageCeilingTooLow",

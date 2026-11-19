@@ -5677,7 +5677,15 @@
     "customFieldRequired": "This field must be filled in.",
     "customFieldRetired": "That field is retired and takes no new values. Bring it back first.",
     "customFieldChoiceInUse": "That choice is still used on an asset, so it stays on the list.",
-    "planFeatureCustomFields": "Custom asset fields are on Professional and Complete."
+    "planFeatureCustomFields": "Custom asset fields are on Professional and Complete.",
+    "importInvalid": "That import could not be read. Check the file and try again.",
+    "importClosed": "That import is already confirmed or cancelled.",
+    "importUnreviewed": "This row has a problem. Fill in the asset, date and reading you have checked before accepting it.",
+    "importUndecided": "Accept or skip every row before confirming.",
+    "importIncomplete": "An accepted row needs an asset, a date and a reading.",
+    "importDateFuture": "A reading cannot be dated in the future.",
+    "importExtractionOff": "Reading photos and PDFs is not switched on yet. Upload a spreadsheet instead.",
+    "planFeatureDocumentExtraction": "Reading photos and PDFs is on Professional and Complete."
   },
   "billing": {
     "title": "Billing",
