@@ -5679,6 +5679,7 @@
     "customFieldChoiceInUse": "That choice is still used on an asset, so it stays on the list.",
     "planFeatureCustomFields": "Custom asset fields are on Professional and Complete.",
     "importInvalid": "That import could not be read. Check the file and try again.",
+    "importFileTooLarge": "That sheet is larger than 2 MiB. Split it and import each part.",
     "importClosed": "That import is already confirmed or cancelled.",
     "importUnreviewed": "This row has a problem. Fill in the asset, date and reading you have checked before accepting it.",
     "importUndecided": "Accept or skip every row before confirming.",

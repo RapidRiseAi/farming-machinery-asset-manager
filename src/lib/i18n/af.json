@@ -5679,6 +5679,7 @@
     "customFieldChoiceInUse": "Daardie keuse word nog op 'n bate gebruik, dus bly dit op die lys.",
     "planFeatureCustomFields": "Eie batevelde is op Professioneel en Volledig.",
     "importInvalid": "Daardie invoer kon nie gelees word nie. Kyk na die lêer en probeer weer.",
+    "importFileTooLarge": "Daardie sigblad is groter as 2 MiB. Verdeel dit en voer elke deel in.",
     "importClosed": "Daardie invoer is reeds bevestig of gekanselleer.",
     "importUnreviewed": "Hierdie ry het 'n probleem. Vul die bate, datum en lesing in wat jy nagegaan het voordat jy dit aanvaar.",
     "importUndecided": "Aanvaar of slaan elke ry oor voordat jy bevestig.",

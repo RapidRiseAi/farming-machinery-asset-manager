@@ -27,8 +27,9 @@ export const IMPORT_COLUMNS = [
 export const MAX_IMPORT_ROWS = MACHINE_IMPORT_MAX_ROWS;
 
 /** Parse CSV text into rows of string cells. Handles quotes, escaped quotes,
- *  commas/newlines inside quotes, CRLF, and a leading BOM. */
-export function parseCsv(text: string): string[][] {
+ *  commas/newlines inside quotes, CRLF, and a leading BOM. Blank lines are dropped unless
+ *  keepBlank is set (the readings import numbers rows as the spreadsheet does). */
+export function parseCsv(text: string, { keepBlank = false }: { keepBlank?: boolean } = {}): string[][] {
   const s = text.replace(/^﻿/, "");
   const rows: string[][] = [];
   let row: string[] = [];
@@ -67,7 +68,7 @@ export function parseCsv(text: string): string[][] {
     row.push(cell);
     rows.push(row);
   }
-  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+  return keepBlank ? rows : rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
 
 type MachineInsert = {

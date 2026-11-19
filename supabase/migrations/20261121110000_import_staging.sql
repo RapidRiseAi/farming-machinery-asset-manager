@@ -305,6 +305,36 @@ begin
   where id = ir.id;
 end $$;
 
+-- == Deciding many rows at once ==================================================================
+-- 'accept_clean' accepts only undecided rows the database found nothing wrong with (no issue at all,
+-- every value present); 'skip_pending' skips whatever is still undecided. Neither touches a row a
+-- person already decided, and a row with any issue is never accepted in bulk.
+create or replace function public.import_rows_bulk(p_batch uuid, p_action text) returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  b public.import_batches;
+  v_n integer;
+begin
+  select * into b from public.import_batches where id = p_batch for update;
+  if not found or not app.import_manager(b.farm_id) then raise exception 'forbidden' using errcode = '42501'; end if;
+  perform app.require_open_farm(b.farm_id, true);
+  if b.status <> 'review' then raise exception 'import-closed' using errcode = '22023'; end if;
+  if p_action = 'accept_clean' then
+    update public.import_rows set decision = 'accept', confirmed_values = false, confirmed_by = auth.uid()
+     where batch_id = b.id and decision = 'pending' and cardinality(issues) = 0
+       and machine_id is not null and reading_date is not null and reading is not null;
+  elsif p_action = 'skip_pending' then
+    update public.import_rows set decision = 'skip', confirmed_by = auth.uid()
+     where batch_id = b.id and decision = 'pending';
+  else
+    raise exception 'import-invalid' using errcode = '22023';
+  end if;
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+revoke all on function public.import_rows_bulk(uuid, text) from public, anon;
+grant execute on function public.import_rows_bulk(uuid, text) to authenticated;
+
 -- == Confirming the batch =======================================================================
 -- Every row decided; each accepted row checked again at write time (the asset still here, the date
 -- not in the future, no identical reading added since staging); written once. A second confirm is

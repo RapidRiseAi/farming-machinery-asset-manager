@@ -101,6 +101,10 @@ select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', null, null, 130)$q$, pg_temp.row_id(3)), '%import-unreviewed%'),
   '[3] confirming the reading does not vouch for a conflicting date');
 select public.import_row_decide(pg_temp.row_id(3), 'accept', null, '2026-11-13', null);
+select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', null, '2026-11-15', 133)$q$, pg_temp.row_id(13)), '%import-unreviewed%'),
+  '[3] an uncertain asset needs the person to choose the asset');
+select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', null, '2026-11-15', null)$q$, pg_temp.row_id(12)), '%import-unreviewed%'),
+  '[3] an uncertain reading needs the person to type the reading');
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', null, '2099-01-01', 126)$q$, pg_temp.row_id(10)), '%import-date-future%'),
   '[3] a person cannot confirm a future date either');
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_row_decide('%s','accept', 'ab200000-0000-4000-9000-000000000003', null, null)$q$, pg_temp.row_id(4)), '%forbidden%'),
@@ -113,8 +117,18 @@ select public.import_row_decide(pg_temp.row_id(8), 'accept', null, null, 120);
 -- == [4] Confirming: every row decided, written once ==========================================
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_batch_confirm('%s')$q$, (select id from ids where name='sheet')), '%import-undecided%'),
   '[4] a batch with undecided rows is not confirmed');
-select public.import_row_decide(id, 'skip') from public.import_rows where batch_id=(select id from ids where name='sheet') and decision='pending' and row_no <> 11;
-select public.import_row_decide(pg_temp.row_id(11), 'accept');
+-- (Each bulk call is its own statement: a check in the same statement reads the rows as they were before it.)
+select pg_temp.assert(public.import_rows_bulk((select id from ids where name='sheet'), 'accept_clean') = 1, '[4] one row is clean');
+select pg_temp.assert((select decision from public.import_rows where id = pg_temp.row_id(11)) = 'accept'
+  and (select decision from public.import_rows where id = pg_temp.row_id(12)) = 'pending'
+  and (select decision from public.import_rows where id = pg_temp.row_id(7)) = 'pending',
+  '[4] accepting in bulk takes only the clean row; uncertain and duplicate rows wait for a person');
+select pg_temp.assert(pg_temp.raises(format($q$select public.import_rows_bulk('%s', 'accept_all')$q$, (select id from ids where name='sheet')), '%import-invalid%'),
+  '[4] there is no bulk accept of everything');
+select pg_temp.assert(public.import_rows_bulk((select id from ids where name='sheet'), 'skip_pending') = 8, '[4] the eight undecided rows are skipped');
+select pg_temp.assert(not exists (select 1 from public.import_rows where batch_id = (select id from ids where name='sheet') and decision = 'pending')
+  and (select decision from public.import_rows where id = pg_temp.row_id(8)) = 'accept',
+  '[4] skipping the rest leaves what a person decided alone');
 select pg_temp.assert((public.import_batch_confirm((select id from ids where name='sheet'))->>'written')::int = 4,
   '[4] the four accepted rows are written');
 select pg_temp.assert((select count(*) from public.meter_readings where machine_id='ab200000-0000-4000-9000-000000000001' and reading in (120,121,130,131))=4
@@ -135,6 +149,9 @@ select pg_temp.login('ab100000-0000-4000-9000-000000000004'); set local role aut
 select pg_temp.assert(not exists (select 1 from public.import_rows), '[5] another business sees no rows');
 select pg_temp.assert(pg_temp.raises(format($q$select public.import_rows_stage('%s','[]')$q$, (select id from ids where name='sheet')), '%forbidden%'),
   '[5] nor stages into this business''s batch');
+select pg_temp.assert(pg_temp.raises(format($q$select public.import_rows_bulk('%s', 'skip_pending')$q$, (select id from ids where name='sheet')), '%forbidden%')
+  and pg_temp.raises(format($q$select public.import_batch_cancel('%s')$q$, (select id from ids where name='sheet')), '%forbidden%'),
+  '[5] nor decides or cancels it in bulk');
 reset role;
 
 -- == [6] Documents: Professional and up, and only once the readiness flag is on ===================
@@ -147,6 +164,9 @@ select pg_temp.assert(pg_temp.raises($q$select public.import_batch_open('ab00000
   '[6] documents are not on Essential');
 select pg_temp.assert((public.import_batch_open('ab000000-0000-4000-9000-000000000002','sheet','e.csv',repeat('d',64))->>'id') is not null,
   '[6] a sheet works on every plan');
+select public.import_batch_cancel((public.import_batch_open('ab000000-0000-4000-9000-000000000002','sheet','e.csv',repeat('d',64))->>'id')::uuid);
+select pg_temp.assert(not (public.import_batch_open('ab000000-0000-4000-9000-000000000002','sheet','e.csv',repeat('d',64))->>'reused')::boolean,
+  '[6] a cancelled import can be started again from the same file');
 reset role;
 insert into public.farm_feature_access(key,farm_id) values ('document_extraction','ab000000-0000-4000-9000-000000000001');
 select pg_temp.login('ab100000-0000-4000-9000-000000000001'); set local role authenticated;

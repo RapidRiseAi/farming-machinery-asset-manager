@@ -677,6 +677,7 @@ const CODE_KEYS: Record<string, string> = {
   "plan-feature-custom_fields": "errors.planFeatureCustomFields",
   // Import staging (20261121110000).
   "import-invalid": "errors.importInvalid",
+  "import-file-too-large": "errors.importFileTooLarge",
   "import-closed": "errors.importClosed",
   "import-unreviewed": "errors.importUnreviewed",
   "import-undecided": "errors.importUndecided",
