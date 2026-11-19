@@ -91,6 +91,18 @@ export async function decideImportRow(form: FormData) {
   redirect(`${back}#row-${row}`);
 }
 
+/** Accept every undecided row with no problem at all, or skip whatever is still undecided. */
+export async function bulkDecideImport(form: FormData) {
+  const { supabase } = await gate();
+  const batch = text(form, "batch_id");
+  const action = text(form, "bulk");
+  if (!isUuid(batch) || !["accept_clean", "skip_pending"].includes(action)) redirect(`${HERE}?error=import-invalid`);
+  const { data, error } = await supabase.rpc("import_rows_bulk", { p_batch: batch, p_action: action });
+  if (error) redirect(`${HERE}/${batch}?error=${errorCode(error, "imports:bulk")}`);
+  revalidatePath(`${HERE}/${batch}`);
+  redirect(`${HERE}/${batch}?bulk=${action}&n=${Number(data) || 0}`);
+}
+
 /** Write every accepted row, once. */
 export async function confirmImport(form: FormData) {
   return runOnce(form, "imports:confirm", async () => {

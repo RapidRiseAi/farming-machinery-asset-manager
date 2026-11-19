@@ -642,6 +642,9 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
         <Link href="/machines/import" className={menuItemClass()}>
           {t("machines.import", locale)}
         </Link>
+        <Link href="/imports" className={menuItemClass()}>
+          {t("imports.title", locale)}
+        </Link>
       </ActionMenu>
     </div>
   ) : undefined;
