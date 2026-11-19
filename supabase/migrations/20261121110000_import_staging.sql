@@ -168,8 +168,8 @@ begin
        and (lower(btrim(m.name)) = v_text
             or upper(regexp_replace(coalesce(m.serial_no, ''), '[\s-]', '', 'g')) = upper(regexp_replace(v_text, '[\s-]', '', 'g'))
             or upper(regexp_replace(coalesce(m.reg_no, ''), '[\s-]', '', 'g')) = upper(regexp_replace(v_text, '[\s-]', '', 'g')));
-    if coalesce(cardinality(v_machines), 0) = 0 then v_issues := v_issues || 'asset_unknown';
-    elsif cardinality(v_machines) > 1 then v_issues := v_issues || 'asset_ambiguous';
+    if coalesce(cardinality(v_machines), 0) = 0 then v_issues := v_issues || 'asset_unknown'::text;
+    elsif cardinality(v_machines) > 1 then v_issues := v_issues || 'asset_ambiguous'::text;
     else v_machine := v_machines[1];
     end if;
     -- The date: ISO or day-first; never month-first; never in the future; a conflict is named.
@@ -183,12 +183,12 @@ begin
       end if;
     exception when others then v_date := null;
     end;
-    if v_date is null then v_issues := v_issues || 'date_invalid';
-    elsif v_date > v_today then v_issues := v_issues || 'date_future'; v_date := null;
+    if v_date is null then v_issues := v_issues || 'date_invalid'::text;
+    elsif v_date > v_today then v_issues := v_issues || 'date_future'::text; v_date := null;
     end if;
     if jsonb_typeof(r -> 'date_candidates') = 'array'
        and (select count(distinct value) from jsonb_array_elements_text(r -> 'date_candidates')) > 1 then
-      v_issues := v_issues || 'date_conflict';
+      v_issues := v_issues || 'date_conflict'::text;
     end if;
     -- The reading: a non-negative number with at most one decimal.
     begin
@@ -196,7 +196,7 @@ begin
       if v_reading < 0 or v_reading > 99999999999.9 or v_reading <> round(v_reading, 1) then v_reading := null; end if;
     exception when others then v_reading := null;
     end;
-    if v_reading is null then v_issues := v_issues || 'reading_invalid'; end if;
+    if v_reading is null then v_issues := v_issues || 'reading_invalid'::text; end if;
     -- Against the asset: the unit must be its meter's, and a reading never goes backwards.
     if v_machine is not null then
       select m.meter_type::text, m.current_reading, m.current_reading_date into v_meter, v_current, v_current_date
@@ -204,27 +204,27 @@ begin
       v_unit := lower(btrim(coalesce(r ->> 'unit', '')));
       if v_unit <> '' and not ((v_unit in ('h', 'hr', 'hrs', 'hour', 'hours', 'uur') and v_meter = 'hours')
                                or (v_unit in ('km', 'kms', 'kilometre', 'kilometres', 'kilometer') and v_meter = 'km')) then
-        v_issues := v_issues || 'unit_mismatch';
+        v_issues := v_issues || 'unit_mismatch'::text;
       end if;
       if v_reading is not null and v_current is not null and v_date is not null
          and v_reading < v_current and v_date >= coalesce(v_current_date, v_date) then
-        v_issues := v_issues || 'reading_backwards';
+        v_issues := v_issues || 'reading_backwards'::text;
       end if;
       if v_reading is not null and v_date is not null and exists (
            select 1 from public.meter_readings mr where mr.machine_id = v_machine and mr.deleted_at is null
               and mr.reading_date = v_date and mr.reading = v_reading) then
-        v_issues := v_issues || 'duplicate_existing';
+        v_issues := v_issues || 'duplicate_existing'::text;
       end if;
       if v_reading is not null and v_date is not null and exists (
            select 1 from public.import_rows ir where ir.batch_id = b.id and ir.machine_id = v_machine
               and ir.reading_date = v_date and ir.reading = v_reading) then
-        v_issues := v_issues || 'duplicate_in_batch';
+        v_issues := v_issues || 'duplicate_in_batch'::text;
       end if;
     end if;
     -- How sure the reader was: below 0.8 the value is uncertain and needs a person.
-    if coalesce((v_conf ->> 'asset')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_asset'; end if;
-    if coalesce((v_conf ->> 'date')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_date'; end if;
-    if coalesce((v_conf ->> 'reading')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_reading'; end if;
+    if coalesce((v_conf ->> 'asset')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_asset'::text; end if;
+    if coalesce((v_conf ->> 'date')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_date'::text; end if;
+    if coalesce((v_conf ->> 'reading')::numeric, 1) < 0.8 then v_issues := v_issues || 'uncertain_reading'::text; end if;
     insert into public.import_rows (batch_id, farm_id, row_no, page, raw, machine_id, reading_date, reading, issues)
     values (b.id, b.farm_id, (r ->> 'row_no')::integer, nullif(r ->> 'page', '')::integer, r, v_machine, v_date, v_reading, v_issues)
     on conflict (batch_id, row_no) do nothing;
