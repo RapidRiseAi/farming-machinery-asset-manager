@@ -1,6 +1,22 @@
-# Lane B progress (task B3 now; B1 below)
+# Lane B progress (task B4 now; B3 and B1 below)
 
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
+
+## Task B4 (started 19 Nov 2026 at 6613701, by the main Claude session itself: the founder ended subagents)
+
+Plan (gaps found by comparing BRIEF 13 / 12 last paragraph with the November adapters):
+1. Capability flags per path (text, alerts, photos, voice) in feature_flags; text and alerts
+   were real-phone verified 17 and 18 Oct (docs/WHATSAPP.md), photos and voice were not.
+2. Provider media limits from current Meta documentation, cited, in src/lib/limits.ts.
+3. WhatsApp photos staged through B1's upload pipeline (upload_intents, sniffing, A3's pool),
+   not straight into fault-photos.
+4. Secure app upload link (signed-in, bound to user, site and target) for files WhatsApp
+   cannot carry (oversized voice or photo, documents).
+5. Replay protection for assistant turns and hearings per inbound message id (B3 handover).
+6. Delivery statuses monotonic under out-of-order events; media fetch refuses non-Meta hosts.
+7. Equipment-aware assistant: tools refuse equipment-forbidden work with the A1 codes; chat,
+   documents and transcripts are data; one proposal per turn (scenario 36).
+8. Tests (scenarios 33, 36), docs/WHATSAPP.md, report.
 
 ## Task B3 (started 18 Nov 2026 at 45e5efd)
 
