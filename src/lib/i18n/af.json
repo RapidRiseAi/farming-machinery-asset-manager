@@ -6875,7 +6875,7 @@
     "photoAttachFailed": "Die foto kon nie bygevoeg word nie. Jy kan dit in FLEETWISE byvoeg: {url}",
     "photoNotKept": "Die foto is nie gehou nie.",
     "photoDiscarded": "Foto weggegooi. Niks is gestoor nie.",
-    "photoUnreadable": "Daardie foto kon nie gelees word nie. Stuur dit asseblief weer as 'n foto (JPEG of PNG, kleiner as 6 MB).",
+    "photoUnreadable": "Daardie foto kon nie gelees word nie. Stuur dit asseblief weer as 'n foto (JPEG, PNG of WebP, tot 5 MB).",
     "unsupported": "Dokumente, video's en plakkers kan nie op WhatsApp na FLEETWISE gestuur word nie. Voeg eerder 'n dokument in die app by: {url}",
     "textNotYet": "Vrae oor WhatsApp is nog nie vir jou besigheid beskikbaar nie. Vra eerder in die app: {url}",
     "photosNotYet": "Foto's oor WhatsApp is nog nie vir jou besigheid beskikbaar nie. Voeg die foto eerder in die app by: {url}",

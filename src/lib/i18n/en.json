@@ -6875,7 +6875,7 @@
     "photoAttachFailed": "The photo could not be added. You can add it in FLEETWISE: {url}",
     "photoNotKept": "The photo was not kept.",
     "photoDiscarded": "Photo discarded. Nothing was saved.",
-    "photoUnreadable": "That photo could not be read. Please send it again as a photo (JPEG or PNG, under 6 MB).",
+    "photoUnreadable": "That photo could not be read. Please send it again as a photo (JPEG, PNG or WebP, up to 5 MB).",
     "unsupported": "Documents, videos and stickers cannot be sent to FLEETWISE on WhatsApp. Add a document in the app instead: {url}",
     "textNotYet": "Questions over WhatsApp are not available for your business yet. Ask in the app instead: {url}",
     "photosNotYet": "Photos over WhatsApp are not available for your business yet. Add the photo in the app instead: {url}",
