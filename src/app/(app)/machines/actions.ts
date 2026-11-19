@@ -20,7 +20,8 @@ const isUuidLike = (value: string | null): value is string =>
   !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 import { todayLocal } from "@/lib/format";
 import { readTab, withTab } from "@/components/ui/tabs-url";
-import { validateCsv, machineKey, MAX_IMPORT_ROWS, type ExistingMachines } from "./import/csv";
+import { validateCsv, machineKey, parseReadingDate, MAX_IMPORT_ROWS, type ExistingMachines } from "./import/csv";
+import { valueFromSheet, type FieldDefinition } from "@/lib/custom-fields";
 import { readAll } from "@/lib/supabase/read-all";
 import { must } from "@/lib/supabase/must";
 import { runOnce } from "@/lib/request-claim";
@@ -440,7 +441,7 @@ export async function importMachines(formData: FormData) {
 
       const today = todayLocal();
       const supabase = importClient;
-      const { error } = await supabase.from("machines").insert(
+      const { data: inserted, error } = await supabase.from("machines").insert(
         valid.map((m) => ({
           farm_id: farmId,
           name: m.name,
@@ -458,20 +459,65 @@ export async function importMachines(formData: FormData) {
           notes: m.notes,
           profile: m.profile,
         }))
-      );
+      ).select("id,name");
 
       if (error && /^(BILLING: vehicle limit reached|vehicle-limit-reached)/.test(error.message)) redirect("/machines/import?error=vehicle-limit-import");
       if (error) redirect(`/machines/import?error=${errorCode(error, "app/machines/actions:importMachines")}`);
 
+      // The business's own fields (B5), from "field:<key>" columns, through the same checked
+      // function as the asset page. The machines exist now, so a value the database refuses is
+      // counted and reported, never a reason to redirect (which would let a retry import twice).
+      const fieldsSkipped = await applyImportedFields(supabase, farmId, valid, (inserted ?? []) as { id: string; name: string }[]);
+
       revalidatePath("/machines");
       // Rows with a problem were left out: say how many, so "Imported 31" is not read as
       // the whole sheet.
-      return parsed.invalidCount > 0
+      const base = parsed.invalidCount > 0
         ? `/machines?imported=${valid.length}&skipped=${parsed.invalidCount}`
         : `/machines?imported=${valid.length}`;
+      return fieldsSkipped > 0 ? `${base}&fields_skipped=${fieldsSkipped}` : base;
     },
     { whileRunning: "/machines?error=still-saving" },
   );
+}
+
+/**
+ * Apply imported custom field values (B5). Returns how many values were skipped: an unknown
+ * key, a cell that is not the field's type, a field the plan does not include, or a row whose
+ * returned id cannot be matched to it with certainty (then nothing is written to it).
+ */
+async function applyImportedFields(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  farmId: string,
+  rows: { name: string; customFields?: Record<string, string> }[],
+  inserted: { id: string; name: string }[],
+): Promise<number> {
+  const wanted = rows.reduce((n, r) => n + Object.keys(r.customFields ?? {}).length, 0);
+  if (wanted === 0) return 0;
+  const defs = await supabase.from("asset_field_definitions")
+    .select("id,key,label,field_type,unit,choices,required,visibility,group_label,sort_order,retired_at")
+    .eq("farm_id", farmId).is("retired_at", null);
+  if (defs.error) return wanted;
+  const byKey = new Map(((defs.data ?? []) as FieldDefinition[]).map((d) => [d.key, d]));
+  let skipped = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const cells = rows[i].customFields ?? {};
+    const keys = Object.keys(cells);
+    if (keys.length === 0) continue;
+    const machine = inserted[i];
+    if (!machine || machine.name !== rows[i].name) { skipped += keys.length; continue; }
+    const values: Record<string, unknown> = {};
+    for (const key of keys) {
+      const d = byKey.get(key);
+      const value = d ? valueFromSheet(d, cells[key], parseReadingDate) : undefined;
+      if (!d || value === undefined) { skipped++; continue; }
+      values[d.id] = value;
+    }
+    if (Object.keys(values).length === 0) continue;
+    const { error } = await supabase.rpc("asset_field_set", { p_machine: machine.id, p_values: values });
+    if (error) skipped += Object.keys(values).length;
+  }
+  return skipped;
 }
 
 /** Start this vehicle's next record at another of your sites. See 20261107110000. */

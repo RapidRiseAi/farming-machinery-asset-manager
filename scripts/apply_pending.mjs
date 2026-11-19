@@ -38,6 +38,12 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // Manual questions: page text index, invoker search, delete propagation; flag off.
+  "20261121120000": "select to_regclass('public.manual_pages') is not null and to_regclass('public.manual_index') is not null and to_regprocedure('public.manual_search(uuid,text,uuid,integer)') is not null and exists (select 1 from public.feature_flags where key = 'manual_questions')",
+  // Import staging: batches and rows reviewed before anything is written; documents behind a flag.
+  "20261121110000": "select to_regclass('public.import_batches') is not null and to_regclass('public.import_rows') is not null and to_regprocedure('public.import_batch_confirm(uuid)') is not null and exists (select 1 from public.feature_flags where key = 'document_extraction')",
+  // Custom asset fields: definitions, typed values and the checked write functions.
+  "20261121100000": "select to_regclass('public.asset_field_definitions') is not null and to_regclass('public.asset_field_values') is not null and to_regprocedure('public.asset_field_set(uuid,jsonb)') is not null and app.feature_min_rank('custom_fields') = 2",
   // WhatsApp completion: capability flags, forward-only statuses, one answer, photos on the pool, upload links.
   "20261121090000": "select to_regclass('public.whatsapp_upload_links') is not null and to_regprocedure('public.whatsapp_stage_photo(uuid,uuid,uuid,uuid,text,text,bigint)') is not null and to_regprocedure('public.whatsapp_record_status(text,text,boolean)') is not null and exists (select 1 from public.feature_flags where key = 'whatsapp_voice')",
   // Scheduled deletion after the reading window, shipped switched off (A4).

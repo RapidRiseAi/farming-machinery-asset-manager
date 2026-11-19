@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/table";
 import {
-  validateCsv, templateCsv, MAX_IMPORT_ROWS, IMPORT_COLUMNS, SKIP_COLUMN,
+  validateCsv, templateCsv, MAX_IMPORT_ROWS, IMPORT_COLUMNS, SKIP_COLUMN, fieldColumn,
   guessMapping, applyMapping, readHeaders, parseCsv, countDataRows, type ParseResult, type ExistingMachines,
 } from "./csv";
 import { importMachines } from "../actions";
@@ -141,6 +141,8 @@ export function ImportClient({ locale, existing }: { locale: Lang; existing: Exi
                   </span>
                   <Select value={mapping[i] ?? SKIP_COLUMN} onChange={(e) => setColumn(i, e.target.value)}>
                     <option value={SKIP_COLUMN}>{t("machines.mapLeaveOut", locale)}</option>
+                    {/* One of the business's own fields (B5): kept under its own heading. */}
+                    {fieldColumn(h) ? <option value={fieldColumn(h)!}>{fieldColumn(h)}</option> : null}
                     {IMPORT_COLUMNS.map((c) => (
                       <option key={c} value={c}>
                         {t(`machines.${c === "serial_no" ? "serialNo" : c === "reg_no" ? "regNo" : c === "meter_type" ? "meterType" : c === "current_reading" ? "reading" : c === "reading_date" ? "readingDate" : c}`, locale)}

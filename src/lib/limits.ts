@@ -176,6 +176,8 @@ export const LIMITS = {
   fuelCardMaxRows: entry(2000, "rows", "abuse", true, "Rows read from one fuel-card statement."),
   machineImportMaxRows: entry(200, "rows", "abuse", true, "Vehicles in one CSV import; import again for more."),
   bankStatementMaxRows: entry(2000, "rows", "abuse", true, "Lines in one bank statement import."),
+  readingsImportMaxBytes: entry(2 * MIB, "bytes", "abuse", true, "A readings sheet for the import review (task B5), the same reviewed cap as fuel-card CSV."),
+  readingsImportMaxRows: entry(2000, "rows", "abuse", true, "Readings staged from one sheet; public.import_rows_stage refuses more in one call."),
   partnerLogoMaxBytes: entry(2_000_000, "bytes", "abuse", true, "A partner's letterhead logo."),
   partnerLogoBucketBytes: entry(2 * MIB, "bytes", "abuse", false, "partner-branding bucket, a little above the form's cap."),
 
@@ -255,6 +257,8 @@ export const FUEL_CARD_CSV_MAX_BYTES = LIMITS.fuelCardCsvMaxBytes.value;
 export const FUEL_CARD_MAX_ROWS = LIMITS.fuelCardMaxRows.value;
 export const MACHINE_IMPORT_MAX_ROWS = LIMITS.machineImportMaxRows.value;
 export const BANK_STATEMENT_MAX_ROWS = LIMITS.bankStatementMaxRows.value;
+export const READINGS_IMPORT_MAX_BYTES = LIMITS.readingsImportMaxBytes.value;
+export const READINGS_IMPORT_MAX_ROWS = LIMITS.readingsImportMaxRows.value;
 export const PARTNER_LOGO_MAX_BYTES = LIMITS.partnerLogoMaxBytes.value;
 export const WEBHOOK_BODY_MAX_BYTES = LIMITS.webhookBodyMaxBytes.value;
 export const API_BODY_MAX_BYTES = LIMITS.apiBodyMaxBytes.value;

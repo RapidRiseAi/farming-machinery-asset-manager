@@ -39,6 +39,8 @@ export type FarmDataScope = {
   machines: AssistantMachine[];
   /** app.can_view_farm_costs for this person on this business. */
   costsVisible: boolean;
+  /** public.manual_questions_available: Complete, the manual_questions flag, this person a member (B5). */
+  manualQuestions?: boolean;
 };
 
 export type Period = { from: string; to: string };
