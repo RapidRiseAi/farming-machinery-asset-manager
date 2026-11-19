@@ -352,3 +352,53 @@ Migration 20261119140000_journal_summary.sql adds `public.farm_journal_totals`,
 INVOKER over the journal functions, so the journal's own permissions decide). `/accounting`
 reads its totals and per-account summary from them instead of every journal line. Suite:
 `supabase/tests/journal_summary.sql`. Scenario 18 at the database: `sites_roles_consolidated.sql`.
+
+## Done-For-You agreements and service orders (A4)
+
+Migration 20261120100000_service_orders.sql extends `done_for_you_quotes` (every existing row
+is `legacy`, unchanged) with the managed-service terms: scope, work allowance, review schedule,
+staff owner (a role), extras, assumptions, supplier mandate (null: the owner approves every
+supplier cost), explicit period prices (per full space, minimum spaces, equipment included and
+further equipment), the recurring total at the assumed quantities, currency, VAT snapshot, term
+and dates, acceptance, landing and end. `public.dfy_offer` / `dfy_accept` / `dfy_cancel` /
+`dfy_end` (service role, actor checked inside); `public.cron_apply_service_agreements` (billing
+cron, before the invoice run) pins the subscription to a private retired price row at the
+renewal on or after the effective date; a trigger on `billing_change_quotes` refuses a plan
+change while the term runs. `billing_service_catalogue` gains pricing rules (`per_unit`,
+`hourly`, `from`), minimums, the setup work group and supplier readiness (QR kits not ready).
+New tables `service_orders` (offered, accepted by the owner, invoiced once through
+`billing_raise_service_invoice`) and `service_work_entries` (time by activity and asset: Rapid
+Rise only; reviews: the owner too); both forced RLS, audited, pay gate open. Suite:
+`supabase/tests/service_orders.sql`.
+
+## The complete export with files (A4)
+
+Migration 20261120110000_complete_export.sql adds the private bucket `farm-exports` (no policy
+for signed-in people; paths `exports/<farm>/<job>/...`, outside the business's folder, so never
+in its storage pool), `farm_export_jobs` (one per business in progress; cutoff, records cursor,
+table counts, parts with SHA-256, file counters, lease, expiry; the requester reads their own)
+and `farm_export_job_files` (the file inventory at the cutoff, service only). The inventory is
+listed with the requester's session through `public.export_readable_files` (SECURITY INVOKER,
+so Storage's row security and the pay gate decide; never chat files, command audio or archives).
+Service-role functions: `export_job_create` (idempotent, one at a time, five a day),
+`export_job_claim`/`release` (lease), `export_job_record_files`, `export_job_finish` (kept seven
+days, never past the owner's last reading day), `export_job_retry_missing`, `export_job_allowed`
+(the worker's re-check of role and lifecycle), `export_jobs_to_clean`, `export_job_mark_removed`
+and `export_orphan_objects`. Both tables forced RLS, pay gate open. Suite:
+`supabase/tests/complete_export.sql`.
+
+## Scheduled deletion after the reading window (A4)
+
+Migration 20261120120000_retention_schedules.sql adds `retention_settings` (singleton;
+`deletion_enabled` false, `delay_days` 30), `farm_retention_schedules` (one per business that
+ended unpaid or cancelled: last reading day, earliest deletion day, warnings, last dry-run
+preview, attempts) and `farm_retention_holds` (legal, dispute, support), all Rapid Rise only,
+audited, pay gate open; `farm_closures` gains `reason` (owner or retention), `basis` and
+`pending_logins`; the private bucket `deletion-ledger`. Service-role functions:
+`retention_schedule_run` (nightly: schedule, cancel on reactivation, holds, preview; warnings
+only while switched on, deletion at least 30 days after the first), `retention_preview` (dry
+run), `retention_due`, `retention_delete` (re-checks everything, then
+`close_farm_permanently` with reason retention), `retention_mark_failed`,
+`retention_place_hold` / `retention_release_hold` and `retention_set_enabled` (typed phrase).
+Deletion also needs `RETENTION_DELETION=enabled` on the deployment. Suite:
+`supabase/tests/retention_schedules.sql`.

@@ -14,6 +14,7 @@ import { signOut } from "@/app/(app)/actions";
 import { payToReopen, reopenFarm } from "./actions";
 import { RetrievalNotice, mayExport } from "@/components/billing/retrieval-notice";
 import { DownloadLink } from "@/components/ui/download-link";
+import { CompleteExport } from "@/components/export/complete-export";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { SwitchFarm } from "@/components/billing/switch-farm";
@@ -154,6 +155,12 @@ export default async function ClosedPage({
           >
             {t("closed.download", locale)}
           </DownloadLink>
+        ) : null}
+        {mayExport(life, farmRole === "owner") && farmId ? (
+          <div className="mt-4 text-left">
+            <h2 className="mb-2 text-sm font-semibold text-sand-900">{t("exportJob.title", locale)}</h2>
+            <CompleteExport farmId={farmId} locale={locale} labels={downloadLabels(locale)} />
+          </div>
         ) : null}
 
         {farmRole === "owner" && farmId === profile.farm_id ? (

@@ -189,6 +189,15 @@ export const LIMITS = {
   positionRecentMs: entry(10 * MINUTE, "ms", "window", true,
     "A reported position older than this is shown as the last known position with its age, never as current or live."),
   tripReportWindowDays: entry(90, "count", "window", true, "The trip earnings report covers the last 90 days and says so; older trips stay on their own pages and in the export."),
+
+  // == The complete export with files (20261120110000) ====================================
+  exportPartBytes: entry(40 * MB, "bytes", "provider", false,
+    "About 40 MB per ZIP part: under a 50 MB per-object upload limit (a Free project's ceiling, Supabase Storage file limits) with room for headers; a larger file goes alone in its own part."),
+  exportMaxFiles: entry(200_000, "count", "abuse", true, "Files listed for one complete export; beyond it the contents list says the export is capped."),
+  exportsPerDay: entry(5, "count", "abuse", true, "Complete exports a business may start in one South African day; each copies every file."),
+  exportKeepDays: entry(7, "count", "window", true, "A finished export is kept for download seven days at most, never past the owner's last reading day."),
+  exportLinkMs: entry(10 * MINUTE, "ms", "window", true, "A download link to one part works for ten minutes; a new one is made on every press while the export is kept."),
+  exportFileAttempts: entry(3, "count", "abuse", false, "Attempts at one file before the export reports it missing with its reason."),
 } as const satisfies Record<string, LimitEntry>;
 
 export type LimitName = keyof typeof LIMITS;
@@ -251,6 +260,12 @@ export const OFFLINE_PAYLOAD_MAX_CHARS = LIMITS.offlinePayloadMaxChars.value;
 export const READ_ALL_MAX_ROWS = LIMITS.readAllMaxRows.value;
 export const JOURNAL_MAX_LINES = LIMITS.journalMaxLines.value;
 export const STORAGE_MIN_BYTES = LIMITS.storageMinBytes.value;
+export const EXPORT_PART_BYTES = LIMITS.exportPartBytes.value;
+export const EXPORT_MAX_FILES = LIMITS.exportMaxFiles.value;
+export const EXPORTS_PER_DAY = LIMITS.exportsPerDay.value;
+export const EXPORT_KEEP_DAYS = LIMITS.exportKeepDays.value;
+export const EXPORT_LINK_MS = LIMITS.exportLinkMs.value;
+export const EXPORT_FILE_ATTEMPTS = LIMITS.exportFileAttempts.value;
 export const STORAGE_PER_FULL_SPACE_BYTES = LIMITS.storagePerFullSpaceBytes.value;
 export const STORAGE_PER_EQUIPMENT_SPACE_BYTES = LIMITS.storagePerEquipmentSpaceBytes.value;
 export const STORAGE_BLOCK_BYTES = LIMITS.storageBlockBytes.value;

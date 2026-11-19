@@ -100,6 +100,7 @@ export const BILLING_RPC = {
   // a change due today has to land before today's invoice is priced, or the farm is
   // billed one more period at the plan they asked to leave.
   applyPendingPlans: "cron_apply_pending_plan_changes",
+  applyServiceAgreements: "cron_apply_service_agreements",
   // Vehicle slots bought or given back (20260911140000), and the tidy-up after a sign-up
   // nobody finished.
   quotaQuote: "billing_quota_quote",

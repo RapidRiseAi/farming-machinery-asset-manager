@@ -149,6 +149,12 @@ export async function GET(request: Request) {
   // at the plan they asked to leave and has to be refunded for it.
   await run("apply_plan_changes", BILLING_RPC.applyPendingPlans);
 
+  // 3a == Done-For-You agreements (20261120100000): an accepted agreement lands at the renewal
+  // on or after its effective date, after the scheduled changes (an ended agreement's next plan
+  // has just landed) and before the generator, which then bills the agreement's own prices.
+  // Offers nobody accepted in time expire here too.
+  await run("apply_service_agreements", BILLING_RPC.applyServiceAgreements);
+
   // 4 == Raise the period's invoices. Nothing happens with no active price version.
   await run("generate_invoices", BILLING_RPC.cronGenerateInvoices);
 

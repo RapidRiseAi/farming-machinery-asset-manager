@@ -129,9 +129,9 @@ Postgres confirms it on merge. A state in brackets names what another task still
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-100 | Complete export of records and media, durable background job, manifest, checksums, private expiring links | S16, D35 | `/api/farm/export` (stream), `/api/farm/export/files` | C | A4 | Sc29 |
-| R-101 | 90-day owner-only retrieval after paid period, then scheduled deletion with warnings, dry run, holds | S16, D38, D40 | five-year purge in `farm_closures` (20261107100000) | C | A4 | Sc11, Sc29 |
-| R-102 | Exports never reveal private chat or restricted records | S16 | export reads through the person's session | C | A4 | Sc20 |
+| R-100 | Complete export of records and media, durable background job, manifest, checksums, private expiring links | S16, D35 | complete export job (20261120110000): records through the requester's session, authorised file inventory, ZIP parts with SHA-256, manifest, lease, retry, missing-file reasons, 10-minute signed links, 7-day keep, bounded cleanup, nightly and optional minute worker | E (A4; live Storage run open) | A4 | Sc29: complete_export.sql, farm-export/job.test.ts |
+| R-101 | 90-day owner-only retrieval after paid period, then scheduled deletion with warnings, dry run, holds | S16, D38, D40 | retention schedules (20261120120000): dry run while off, warnings only when on, deletion at least 30 days after the first warning, holds, reactivation and payment-in-flight checks, deletion through `close_farm_permanently` with reason retention, deletion ledger; ships OFF | X (A4; founder switch and legal read) | A4 | Sc11, Sc29: retention_schedules.sql, retention.test.ts |
+| R-102 | Exports never reveal private chat or restricted records | S16 | file list through `export_readable_files` (invoker: Storage RLS and the pay gate decide), records through the session; chat, command audio and archives excluded; missing files named by hash | E (A4) | A4 | Sc20: complete_export.sql [1] [2], job.test.ts, farm-export-files.test.ts |
 
 ### Further features (S17, S18)
 
@@ -142,8 +142,8 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-112 | Manuals Q&A on Complete with citations, isolation, shared budget | S17 | none | M | B5 | Sc44 |
 | R-113 | Old roadmap entries classified with evidence | S17 | `docs/CORPORATE_FLEET_ROADMAP.md` | E | A1 | this file, section 3 |
 | R-114 | Exclusions kept: video, equipment-only subscriptions, self-hosting, full white label, paid SLA, paid workshop subscriptions | S17 | none built | EX | all | n/a |
-| R-115 | Done-For-You quoted from R170, R2,500 minimum; accepted-quote and service-order flows with scope, allowance, schedule | S18, D28, D29 | `done_for_you_quotes`, `billing_record_dfy_quote` | C | A4 | Sc43 |
-| R-116 | Activation catalogue (clean setup R150/R750, document capture R300/R1,500, R500/h, training, QR kits conditional) | S18 | `billing_service_catalogue` (four codes, no prices) | C | A4 | Sc43 |
+| R-115 | Done-For-You quoted from R170, R2,500 minimum; accepted-quote and service-order flows with scope, allowance, schedule | S18, D28, D29 | `done_for_you_quotes` extended (20261120100000): explicit period prices and total, terms, owner acceptance, landing at the renewal on a private price row, plan guard, end through A2's pending change, work and review log; legacy rows untouched | E (A4; no browser run) | A4 | Sc43: service_orders.sql [4] to [7], service-orders.test.ts |
+| R-116 | Activation catalogue (clean setup R150/R750, document capture R300/R1,500, R500/h, training, QR kits conditional) | S18 | `billing_service_catalogue` rules as data; `service_orders` offered, accepted by the owner, invoiced once; no stacking of setup work; QR kits not orderable until a supplier quote is recorded and marked ready | E (A4; QR kits blocked on a supplier quote) | A4 | Sc43: service_orders.sql [1] to [3], service-orders.test.ts |
 | R-117 | Support hours weekdays 08:00 to 17:00 SAST, first response one business day, not a paid SLA | S18, D30 | `support_settings`, `support_holidays` | E | A5 | copy review |
 
 ### Imports, offline, defects (S19)
@@ -154,7 +154,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-121 | Bulk import applies type validation, profile entitlements and atomic capacity reservation | S19 | slot check before insert + quota trigger | E (A1) | A1 | csv.test.ts, asset_capacity.sql [4] |
 | R-122 | Repeat-tap gaps: work-request media id, assistant/transcribe/voice ids, activation attempt resume, contractor sync claim, service template uniqueness | S19 | work media claim; `respondOnce` for turn and transcribe (voice-session already claimed); checkout resumes an open attempt; sync claim verified; template once per machine (20261119110000, 120000) | E (B3) | B3 | Sc23: work/media route.test.ts, request-claim.test.ts, request-id.test.ts, checkout-cancel.test.ts, contractor sync.test.ts, request_claim_answers.sql, service_template_once.sql |
 | R-123 | Offline envelopes share request ids with online attempts; recheck membership/profile/plan on reconnect | S19 | queued capture keeps the online request id; `apply_offline_capture_once`; refusals kept and explained (20261119130000) | E (B3; A1 profile rule in DB) | B3 (ids), A1 (profile rule in DB) | offline_capture_once.sql, envelope.test.ts, sync-refusal.test.ts, equipment_restrictions.sql |
-| R-124 | Large exports and accounting summary aggregated in SQL, bounded | S19 | business export streamed page by page (50,000 a table); accounting summary in SQL (20261119140000) | C (B3 part done; A4 owns the complete export with files) | A4 | Sc42: journal_summary.sql, export route.test.ts |
+| R-124 | Large exports and accounting summary aggregated in SQL, bounded | S19 | business export streamed page by page (50,000 a table); complete export in bounded steps and ZIP parts (A4); accounting summary in SQL (20261119140000) | E (B3, A4) | A4 | Sc42: journal_summary.sql, export route.test.ts, job.test.ts |
 | R-125 | Weekly digest delivery, empty states, assistant suggested actions | S19 | digest once a week per open business with catch-up (20261119100000); teaching empty states; starters fill the box only | E (B3) | B3 | scheduled_work_by_plan.sql, starters.test.ts |
 
 ### Security, infrastructure, release (S20, S21, S24, S25)
@@ -253,10 +253,10 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-017 | L133 "WhatsApp after launch; debit orders later" | WhatsApp superseded by D21 (B4). Debit orders: not in the BRIEF, classified EX for this round |
 | I-018 | L176 taps release 2 follow-ups | B3 (R-122): closed |
 | I-019 | L202 offline request id in envelope; sweep accounts in CI | B3 (R-123): closed; sweep accounts: A6 |
-| I-020 | L209 export in memory, accounting summary in page | A4 (R-100, R-124); export already streams (`47a8455`), media completeness is open |
+| I-020 | L209 export in memory, accounting summary in page | Closed by A4 (R-100, R-124): records stream (`47a8455`) and the complete export with files runs as a job in bounded parts (20261120110000) |
 | I-021 | L261 H4 load test | A6 (R-135), blocked by I-008 |
 | I-022 | L271 weekly digest, empty states, suggested questions | B3 (R-125): closed |
-| I-023 | L335 activation catalogue as orders | A4 (R-116) |
+| I-023 | L335 activation catalogue as orders | Closed by A4 (R-116): `service_orders` (20261120100000) |
 | I-024 | L356 map tiles and lawyer read of tracking wording | B3: flag `map` stays off; tiles need a production source (ROUTING.md); founder for the legal read |
 | I-025 | L358 Android app | B6 (R-063), blocked by I-013 for store publication |
 | I-026 | L360 media backup has no external copy | A6 (R-133), blocked by I-012 |
@@ -270,7 +270,7 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-031 | "Slots pooled across a customer's sites: not built" | Stale: built in 20261107150000 (`farms.billed_through`); A1 updates the doc and extends pooling to equipment |
 | I-032 | "WhatsApp provider cost not metered" | A3: on the AI ledger under the spending limit with owner acceptance (20261118120200); off until Rapid Rise sets the start date and rates; real phones B4 |
 | I-033 | "WhatsApp voice notes and photos built, not yet released" | B4 (R-085), X until real-phone tests |
-| I-034 | "accepted-quote recording is open" | Stale: `done_for_you_quotes` built; service orders open: A4 |
+| I-034 | "accepted-quote recording is open" | Closed by A4: offers, owner acceptance and landing at renewal on `done_for_you_quotes` (20261120100000) |
 | I-035 | Fleet compliance pack placement (website Complete vs app Professional) | Professional, as S7 lists "fleet evidence packs" under Professional and Complete; A5 aligns the website |
 
 ### docs/ROUTING.md, BACKUP.md, WHATSAPP.md, AI_USAGE.md, BILLING.md

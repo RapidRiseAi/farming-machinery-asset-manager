@@ -15,6 +15,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DownloadLink } from "@/components/ui/download-link";
+import { CompleteExport } from "@/components/export/complete-export";
 import { Flash } from "@/components/ui/flash";
 import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { PageHeader } from "@/components/ui/page-header";
@@ -114,6 +115,9 @@ export default async function CloseAccountPage({
               {t(`closure.bucket.${b.bucket}`, locale)} ({num(b.count)}, {num(b.megabytes)} MB)
             </DownloadLink>
           ))}
+        </div>
+        <div className="mt-4">
+          <CompleteExport farmId={farmId} locale={locale} labels={labels} />
         </div>
         <p className="mt-3 text-sm text-sand-600">
           {exported && farm?.last_export_at

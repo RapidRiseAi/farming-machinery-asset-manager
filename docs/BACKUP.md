@@ -86,7 +86,9 @@ what `pnpm db:test` does every run).
    rewind un-does anonymisation done later. Cross-check `audit_log` for
    `data_subject_erasure` entries dated after the restore timestamp and re-run
    `erase_personal_data` for each (see [`POPIA.md`](POPIA.md) §4.5).
-6. Announce recovery; record the incident (§6).
+6. **Re-apply deletion decisions made after the restore point** (§8.3): a rewind also brings
+   back businesses that were closed or deleted after it.
+7. Announce recovery; record the incident (§6).
 
 ### 3.2 Full project loss (region/project failure)
 1. Create a fresh Supabase project (same region, SA/EU as configured).
@@ -97,7 +99,8 @@ what `pnpm db:test` does every run).
    (§2.3).
 5. Repoint the app: update `NEXT_PUBLIC_SUPABASE_URL`, keys, `DATABASE_URL`/`DIRECT_URL`
    in Vercel; redeploy.
-6. Verify (§5); re-enable cron (`CRON_SECRET`) and Web Push.
+6. Restore the deletion-ledger bucket from the offsite copy with the others, then re-apply it (§8.3).
+7. Verify (§5); re-enable cron (`CRON_SECRET`) and Web Push.
 
 ### 3.3 Schema-only rollback
 A bad migration is rolled forward with a new **corrective migration** (we do not edit
@@ -127,6 +130,7 @@ shipped migrations). Only fall back to a data restore if the bad migration destr
 - [ ] Money triggers correct (a job-card total recomputes); TCO renders.
 - [ ] Cron route authenticates with the current `CRON_SECRET`.
 - [ ] **Outstanding POPIA erasures re-applied** (§3.1 step 5).
+- [ ] **Deletion ledger re-applied** (§8.3): no business closed after the restore point is open again.
 
 ## 6. Restore-drill checklist (run at least quarterly)
 
@@ -154,3 +158,51 @@ A backup you have never restored is a hope, not a backup. Schedule a drill:
 - [ ] Secrets recorded in the team password manager (not in backups).
 - [ ] First **restore drill** completed and logged (§6).
 - [ ] Uptime/error monitoring wired (Sentry / status checks, NFR-6).
+
+## 8. Deletion, backup expiry and restores (A4, 20 November 2026)
+
+### 8.1 What is deleted, and when
+
+| What | When | Where it is decided |
+|---|---|---|
+| A business the owner closes | At once, after a fresh export and an emailed confirmation | `close_farm_permanently` (20261107100000) |
+| A business after its reading window | **Switched off.** When on: no sooner than `delay_days` (30) after the owner's 90 days end and 30 days after the first warning | `retention_delete` (20261120120000), which runs the same closure with reason `retention` |
+| Billing records of a closed business | Five years after the closure | `purge_expired_closures` |
+| Temporary spoken-command audio | When the command is done, or after its recovery window | `sweepCommandAudio` |
+| Complete export archives | Seven days after they are ready, never past the owner's last reading day | `export_jobs_to_clean`, `cleanExportArchives` |
+
+Deleting from the live database does not remove the same data from copies that already exist.
+
+### 8.2 How long copies last (to confirm in the dashboards)
+
+- **Database backups:** daily backups and point-in-time recovery keep a deleted business's
+  records until they expire: the plan's retention (§2.1 says 7 days on Pro; **record the live
+  value**) and the PITR window.
+- **Offsite file copy** (§2.3): a file deleted in the app is set aside for seven days, then
+  removed from the copy (once the copy's secrets exist; until then there is no copy).
+- **Providers outside FLEETWISE** (email sent, AI or speech providers, the payment provider)
+  keep what their own terms say. Nothing here removes it.
+
+So the honest promise is: deleted from the live service when the closure runs, gone from
+backups when they expire (about a week, once the values above are confirmed), and not removed
+from third parties by FLEETWISE. Customer wording must not promise more.
+
+### 8.3 A restore must not bring deleted businesses back
+
+Every closure (owner or retention) is also written to the **deletion ledger**: the private
+Storage bucket `deletion-ledger`, one `closures/CLOSURE_ID.json` per closure holding only the
+business id, the closure id, the reason and the time. Storage is not rewound by a database
+restore (§2.3), and the offsite copy carries the bucket for a full rebuild.
+
+After any database restore, before reopening:
+
+1. List the ledger entries whose `closed_at` is after the restore point.
+2. For each, check `select deleted_at from public.farms where id = 'FARM_ID'`. If it is null,
+   the business came back with the restore: run
+   `select public.close_farm_permanently('FARM_ID', null);` as the service role, then set the
+   new `farm_closures` row's `reason` to the ledger's. The nightly `closure_files` and
+   `closure_logins` steps finish its files and logins.
+3. Record what was re-applied in the incident note (§6).
+
+Retention schedules need nothing extra: the nightly pass recomputes them from the restored
+subscriptions, and the ledger is what stops a deletion being silently undone.
