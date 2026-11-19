@@ -28,11 +28,18 @@ type World = {
   media?: Uint8Array;
   faults?: { id: string; machine_id: string; description: string }[];
   staged?: Record<string, unknown> | null;
+  /** Paths switched off for this business (20261121090000); every path is open unless named. */
+  off?: string[];
+  /** An earlier attempt already started this message's answer. */
+  answerStarted?: boolean;
+  /** The customer's storage pool is full (A3): staging is refused. */
+  storageFull?: boolean;
 };
 type Seen = {
   sent: string; conversation: unknown; requests: string[];
   attachments: { body: Record<string, unknown>; sub: string | null }[];
   mediaPatches: Record<string, unknown>[]; uploads: string[]; removals: unknown[];
+  staged: Record<string, unknown>[]; freed: string[]; uploadLinks: Record<string, unknown>[]; storageNoted?: string | null;
 };
 
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -42,7 +49,8 @@ const subOf = (init?: RequestInit) => {
 };
 
 async function run(world: World): Promise<Seen> {
-  const seen: Seen = { sent: "", conversation: undefined, requests: [], attachments: [], mediaPatches: [], uploads: [], removals: [] };
+  const seen: Seen = { sent: "", conversation: undefined, requests: [], attachments: [], mediaPatches: [], uploads: [], removals: [],
+    staged: [], freed: [], uploadLinks: [] };
   const saved = Object.fromEntries(Object.keys(ENV).map((k) => [k, process.env[k]]));
   const original = globalThis.fetch;
   Object.assign(process.env, ENV);
@@ -65,6 +73,16 @@ async function run(world: World): Promise<Seen> {
     const route = url.pathname.replace("/rest/v1/", "");
     // WhatsApp billing off (the default until Rapid Rise sets it): replies are not held.
     if (route === "rpc/whatsapp_usage_reserve") return json({ ok: true, metered: false });
+    if (route === "rpc/whatsapp_capability") return json(!(world.off ?? []).includes(body.p_key));
+    if (route === "rpc/whatsapp_start_answer") return json(!world.answerStarted);
+    if (route === "rpc/whatsapp_stage_photo") {
+      if (world.storageFull) return json({ code: "P0001", message: "upload:storage_full" }, 400);
+      seen.staged.push(body);
+      return json(world.staged ?? { id: "media-row", storage_path: body.p_path, farm_id: body.p_farm, state: "staged" });
+    }
+    if (route === "rpc/whatsapp_photo_removed") { seen.freed.push(body.p_media); return json(null); }
+    if (route === "rpc/whatsapp_upload_link_create") { seen.uploadLinks.push(body); return json("upload-link"); }
+    if (route === "rpc/storage_note_full") { seen.storageNoted = subOf(init); return json(true); }
     if (route === "rpc/whatsapp_claim") return json([{ id: "inbox-1", link_id: "link", message_at: new Date().toISOString(),
       reply: null, media_kind: null, media_id: null, media_mime: null, ...world.inbox }]);
     if (route === "rpc/whatsapp_delivery_target") return json({ id: "link", user_id: "employee", farm_id: "farm",
@@ -179,8 +197,10 @@ test("a voice note is not sent to a speech model when AI help is off, too long, 
     const off = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null, media: voiceNote(5) });
     assert.match(off.sent, /AI help, which is switched off/);
     const long = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null,
-      media: voiceNote(200), profile: AI_ON });
-    assert.match(long.sent, /up to 3 minutes/);
+      media: voiceNote(601), profile: AI_ON });
+    // Ten minutes, as in the app (decision 11); past it, the app's own recorder is offered.
+    assert.match(long.sent, /up to 10 minutes/);
+    assert.match(long.sent, /https:\/\/fleetwise\.example\.test\/assistant/);
     const mp3 = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null,
       media: new TextEncoder().encode("ID3........................................................"), profile: AI_ON });
     assert.match(mp3.sent, /could not be played/);
@@ -204,8 +224,74 @@ test("a voice note at the spending limit says so, and keeps what was waiting", a
   }
 });
 
-test("documents and videos get the new explanation, not a model call", async () => {
+test("documents and videos get the person's own app link, not a model call", async () => {
   const seen = await run({ inbox: { message_text: "[unsupported message]" }, conversation: null });
-  assert.match(seen.sent, /I can read text messages, voice notes and photos/);
+  assert.match(seen.sent, /cannot be sent to FLEETWISE on WhatsApp/);
+  // A signed-in link for this person's link, never an anonymous upload address.
+  const url = seen.sent.match(/https:\/\/fleetwise\.example\.test\/whatsapp\/upload\/([A-Za-z0-9_-]+)/);
+  assert.ok(url, "the reply carries the upload link");
+  assert.equal(url![1].length, 43, "a 32-byte token");
+  assert.equal(seen.uploadLinks.length, 1);
+  assert.equal(seen.uploadLinks[0].p_link, "link");
+  assert.equal(seen.uploadLinks[0].p_purpose, "document");
+  assert.match(String(seen.uploadLinks[0].p_token_hash), /^[0-9a-f]{64}$/, "only the hash is stored");
+  assert.ok(!String(seen.uploadLinks[0].p_token_hash).includes(url![1]), "the token itself is never stored");
   assert.ok(!seen.requests.some((r) => r.includes("lookaside")));
+});
+
+test("a photo past WhatsApp's 5 MB gets an upload link and is never staged", async () => {
+  const big = new Uint8Array(5_000_001);
+  big.set(JPEG.subarray(0, Math.min(JPEG.length, big.length)));
+  const seen = await run({ inbox: { message_text: "", media_kind: "image", media_id: "p" }, conversation: null, media: big });
+  assert.match(seen.sent, /larger than WhatsApp allows here \(5 MB\)/);
+  assert.match(seen.sent, /\/whatsapp\/upload\//);
+  assert.equal(seen.uploadLinks[0].p_purpose, "fault_photo");
+  assert.equal(seen.staged.length, 0);
+  assert.equal(seen.uploads.length, 0);
+});
+
+test("a full storage pool keeps the photo out and tells the owners once, as the person", async () => {
+  const seen = await run({ inbox: { message_text: "", media_kind: "image", media_id: "p" }, conversation: null,
+    media: JPEG, storageFull: true });
+  assert.match(seen.sent, /storage for attachments is full/);
+  assert.equal(seen.uploads.length, 0, "nothing stored when the pool refuses");
+  assert.equal(seen.storageNoted, "employee", "the notice goes through the person's own access");
+});
+
+test("photos switched off for the business: no download, no staging, the person's upload link", async () => {
+  const seen = await run({ inbox: { message_text: "", media_kind: "image", media_id: "p" }, conversation: null,
+    media: JPEG, off: ["whatsapp_photos"] });
+  assert.match(seen.sent, /Photos over WhatsApp are not available for your business yet/);
+  assert.match(seen.sent, /\/whatsapp\/upload\//);
+  assert.ok(!seen.requests.some((r) => r.includes("lookaside") || r.startsWith("GET graph.facebook.com")), "no media fetched");
+  assert.equal(seen.staged.length, 0);
+});
+
+test("voice notes switched off: never heard, the person is told to type or use the app", async () => {
+  const original = workerDeps.transcribeVoiceNote;
+  let called = 0;
+  workerDeps.transcribeVoiceNote = async () => { called++; return { ok: true, text: "x" }; };
+  try {
+    const seen = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null,
+      media: voiceNote(5), profile: AI_ON, off: ["whatsapp_voice"] });
+    assert.match(seen.sent, /Voice notes over WhatsApp are not available for your business yet/);
+    assert.equal(called, 0);
+  } finally {
+    workerDeps.transcribeVoiceNote = original;
+  }
+});
+
+test("an answer that was started and never saved is not asked of the model again", async () => {
+  const original = workerDeps.transcribeVoiceNote;
+  let called = 0;
+  workerDeps.transcribeVoiceNote = async () => { called++; return { ok: true, text: "x" }; };
+  try {
+    const seen = await run({ inbox: { message_text: "", media_kind: "audio", media_id: "a" }, conversation: null,
+      media: voiceNote(5), profile: AI_ON, answerStarted: true });
+    assert.match(seen.sent, /Please send it again/);
+    assert.equal(called, 0, "no second paid hearing");
+    assert.ok(!seen.requests.some((r) => r.includes("lookaside")), "the note is not even downloaded again");
+  } finally {
+    workerDeps.transcribeVoiceNote = original;
+  }
 });

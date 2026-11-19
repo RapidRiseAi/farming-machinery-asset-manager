@@ -20,7 +20,7 @@ test("delivery sends only to the live consenting assignee and never blindly retr
     // id. Refused (no owner acceptance): never sent, cancelled with the reason, in-app only.
     // paid_failure: held, the provider fails, the hold is released at R0.
     for (const scenario of ["allowed", "revoked", "opted_out", "different_user", "different_farm", "reassigned", "provider_failure",
-                            "paid_held", "paid_refused", "paid_failure"]) {
+                            "paid_held", "paid_refused", "paid_failure", "alerts_off"]) {
       let state = "queued";
       let sends = 0;
       const patches: Record<string, unknown>[] = [];
@@ -43,6 +43,7 @@ test("delivery sends only to the live consenting assignee and never blindly retr
         assert.equal(url.hostname, "database.example.test", "no unexpected network request");
         const route = url.pathname.replace("/rest/v1/", "");
         if (route === "rpc/whatsapp_enqueue_notifications") return respond(null);
+        if (route === "rpc/whatsapp_capability") return respond(!(scenario === "alerts_off" && body.p_key === "whatsapp_alerts"));
         if (route === "rpc/whatsapp_usage_reserve") {
           assert.deepEqual(body, { p_farm: "farm", p_user: "employee", p_category: "utility" });
           return respond(scenario === "paid_refused" ? { ok: false, reason: "whatsapp_not_accepted" }
@@ -74,6 +75,10 @@ test("delivery sends only to the live consenting assignee and never blindly retr
         : scenario === "provider_failure" || scenario === "paid_failure" ? "failed" : "cancelled", scenario);
       assert.deepEqual(holdsSent, scenario === "paid_held" ? [{ p_reservation: "hold-1", p_provider_message_id: "wamid.test" }] : [], scenario);
       assert.deepEqual(holdsReleased, scenario === "paid_failure" ? [{ p_reservation: "hold-1", p_error_code: "send_failed" }] : [], scenario);
+      if (scenario === "alerts_off") {
+        // Alerts are their own released path (20261121090000): off, the alert stays in the app only.
+        assert.ok(patches.some((p) => p.error_code === "capability_off" && p.state === "cancelled"), scenario);
+      }
       if (scenario === "paid_refused") {
         assert.ok(patches.some((p) => p.state === "cancelled" && p.error_code === "paid_whatsapp_not_accepted"), "refused with its reason");
       }
@@ -123,6 +128,8 @@ test("cached assistant details require unchanged permissions, including recovery
         const route = url.pathname.replace("/rest/v1/", "");
         // WhatsApp billing off (the default until Rapid Rise sets it): replies are not held.
         if (route === "rpc/whatsapp_usage_reserve") return respond({ ok: true, metered: false });
+        if (route === "rpc/whatsapp_capability") return respond(true);
+        if (route === "rpc/whatsapp_start_answer") return respond(true);
         if (route === "rpc/whatsapp_claim") return respond([{ id: "message", link_id: "link", message_text: "repeat",
           message_at: new Date().toISOString(), reply: scenario === "recovered_reply" ? "PRIVATE COST" : null }]);
         if (route === "rpc/whatsapp_delivery_target") {

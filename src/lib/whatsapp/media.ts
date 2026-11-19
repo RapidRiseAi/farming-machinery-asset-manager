@@ -27,7 +27,8 @@ export {
 
 /** Fixed codes only, so a failure can be logged without the file or the sender. */
 export class MediaError extends Error {
-  constructor(readonly code: "media_lookup_failed" | "media_untrusted_host" | "media_too_large" | "media_download_failed") {
+  constructor(readonly code: "media_lookup_failed" | "media_untrusted_host" | "media_too_large" | "media_download_failed"
+    | "media_storage_full") {
     super(code);
     this.name = "MediaError";
   }
@@ -138,24 +139,32 @@ export async function stagePhoto(input: {
   inboxId: string; linkId: string; farmId: string; userId: string; bytes: Uint8Array; mime: ImageMime;
 }): Promise<StagedPhoto> {
   const db = createServiceClient();
-  const existing = await db.from("whatsapp_media").select("id,storage_path,farm_id,state")
-    .eq("inbox_id", input.inboxId).maybeSingle();
-  if (existing.error) throw new Error("whatsapp_media_unavailable");
-  if (existing.data) return existing.data as StagedPhoto;
   const hash = createHash("sha256").update(input.inboxId).update(input.bytes).digest("hex").slice(0, 32);
   const ext = input.mime === "image/png" ? "png" : input.mime === "image/webp" ? "webp" : "jpg";
   const path = `${input.farmId}/whatsapp/${input.linkId}/${hash}.${ext}`;
-  const uploaded = await db.storage.from("fault-photos").upload(path, input.bytes, { contentType: input.mime });
+  // The customer's storage pool first (20261121090000): a full pool refuses before a byte is
+  // stored, and the photo counts against the pool from this moment. A replay of the same
+  // message answers with the same row.
+  const staged = await db.rpc("whatsapp_stage_photo", {
+    p_inbox: input.inboxId, p_link: input.linkId, p_farm: input.farmId, p_user: input.userId,
+    p_path: path, p_mime: input.mime, p_bytes: input.bytes.byteLength,
+  });
+  if (staged.error) {
+    if (String(staged.error.message ?? "").includes("upload:storage_full")) throw new MediaError("media_storage_full");
+    throw new Error("whatsapp_media_not_saved");
+  }
+  const row = staged.data as StagedPhoto;
+  if (row.state !== "staged") return row;
+  const uploaded = await db.storage.from("fault-photos").upload(row.storage_path, input.bytes, { contentType: input.mime });
   // A previous attempt may have stored the same content and lost its response.
   if (uploaded.error && String((uploaded.error as { statusCode?: unknown }).statusCode) !== "409") {
+    // Nothing was stored: the reservation leaves the pool and the row is settled.
+    await db.rpc("whatsapp_photo_removed", { p_media: row.id });
+    await db.from("whatsapp_media").update({ state: "discarded", settled_at: new Date().toISOString() })
+      .eq("id", row.id).eq("state", "staged");
     throw new Error("whatsapp_media_upload_failed");
   }
-  const saved = await db.from("whatsapp_media").insert({
-    inbox_id: input.inboxId, link_id: input.linkId, farm_id: input.farmId, user_id: input.userId,
-    kind: "image", bucket: "fault-photos", storage_path: path, mime: input.mime, bytes: input.bytes.byteLength,
-  }).select("id,storage_path,farm_id,state").single();
-  if (saved.error || !saved.data) throw new Error("whatsapp_media_not_saved");
-  return saved.data as StagedPhoto;
+  return row;
 }
 
 /** Remove a staged photo's object and mark it settled; never touches an attached one. */
@@ -169,6 +178,9 @@ export async function releasePhoto(mediaId: string, state: "discarded" | "expire
   const settled = await db.from("whatsapp_media").update({ state, settled_at: new Date().toISOString() })
     .eq("id", mediaId).eq("state", "staged");
   if (settled.error) throw new Error("whatsapp_media_not_settled");
+  // The object is gone, so its bytes leave the customer's pool (20261121090000).
+  const freed = await db.rpc("whatsapp_photo_removed", { p_media: mediaId });
+  if (freed.error) throw new Error("whatsapp_media_not_settled");
 }
 
 /** Staged photos nobody chose a use for: removed once their conversation has lapsed. */

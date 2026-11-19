@@ -66,6 +66,8 @@ export type AssistantMachine = {
   model: string | null;
   /** tractor, bakkie, harvester: present when loaded by loadAssistantMachines. */
   type?: string | null;
+  /** full or equipment (A1): an equipment asset takes only equipment-permitted work. */
+  profile?: string | null;
   aliases: string[];
   status: string;
   meterType: string;

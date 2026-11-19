@@ -8,7 +8,8 @@ import { settleWhatsAppStatus } from "@/lib/whatsapp/paid";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // A voice note is downloaded, heard (up to two models) and answered inside one run.
-export const maxDuration = 120;
+// A ten-minute voice note is heard inside the run (decision 11), as the in-app command is.
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -48,11 +49,13 @@ export async function POST(request: Request) {
     const service = createServiceClient();
     for (const value of values) {
       for (const status of value.statuses ?? []) {
-        const results = await Promise.all([
-          service.from("whatsapp_inbox").update({ delivery_status: status.status }).eq("provider_reply_id", status.id),
-          service.from("whatsapp_notification_delivery").update({ delivery_status: status.status }).eq("provider_id", status.id),
-        ]);
-        if (results.some(r => r.error)) throw new Error("status_store_failed");
+        // Statuses only move forward (20261121090000): a late or repeated one never undoes a
+        // delivery, and Meta's chargeable answer is kept beside it.
+        const recorded = await service.rpc("whatsapp_record_status", {
+          p_provider_id: status.id, p_status: status.status,
+          p_billable: typeof status.pricing?.billable === "boolean" ? status.pricing.billable : null,
+        });
+        if (recorded.error) throw new Error("status_store_failed");
         // Settles the message's hold on the spending limit: R0 when Meta says it was free.
         await settleWhatsAppStatus(service, status);
       }

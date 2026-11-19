@@ -13,6 +13,8 @@ type MachineRow = {
   model: string | null;
   status: string;
   meter_type: string;
+  /** full or equipment (A1, 20261114090100): what the assistant may record for it. */
+  profile?: string | null;
   current_reading: number | null;
   current_reading_date: string | null;
 };
@@ -33,7 +35,7 @@ export async function loadAssistantMachines(
 ): Promise<AssistantMachine[]> {
   let machinesQuery = supabase
     .from("machines")
-    .select("id, name, type, make, model, status, meter_type, current_reading, current_reading_date")
+    .select("id, name, type, make, model, status, meter_type, current_reading, current_reading_date, profile")
     .eq("farm_id", farmId)
     .is("deleted_at", null)
     .not("status", "in", "(retired,sold)")
@@ -99,6 +101,7 @@ export async function loadAssistantMachines(
       aliases: aliases.get(machine.id) ?? [],
       status: machine.status,
       meterType: machine.meter_type,
+      profile: machine.profile ?? null,
       currentReading: machine.current_reading == null ? null : Number(machine.current_reading),
       currentReadingDate: machine.current_reading_date,
       serviceStatus: due?.status ?? null,
