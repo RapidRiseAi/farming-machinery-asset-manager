@@ -101,6 +101,7 @@ test("a single stray position is not a piece, and points arrive in any order", (
   const pieces = routeSegments(points);
   assert.equal(pieces.length, 2);
   assert.ok(pieces.every((p) => p.length === 3));
+  assert.equal(routeSegments([...drive(0, 3, 0), { lat: -24, lng: 29, at: at(60) }]).length, 1, "nor at the end");
   assert.deepEqual(routeSegments([]), []);
   assert.deepEqual(routeSegments([{ lat: 0, lng: 0, at: at(0) }, { lat: 0, lng: 0, at: at(1) }]), []);
 });
@@ -114,5 +115,9 @@ test("off the plan is measured piece by piece, never along the line across a gap
   // A piece 10 km east of the road is all off.
   const away = offRouteSegments(planned, routeSegments(drive(0, 4, 0, 28.3)));
   assert.ok(away && away.share > 0.9);
+  // Two pieces 10 km off the road with a long gap between them: only the pieces count as off route,
+  // never the 36 km straight line across the gap.
+  const twoAway = offRouteSegments(planned, routeSegments([...drive(0, 4, 0, 28.3), ...drive(40, 4, 40, 28.3)]));
+  assert.ok(twoAway && twoAway.offKm > 5 && twoAway.offKm < 8, `off ${twoAway?.offKm}`);
   assert.equal(offRouteSegments(planned, []), null);
 });
