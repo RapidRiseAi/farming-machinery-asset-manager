@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { currentFarmId, effectiveFarmRole, homePathFor, requireProfile } from "@/lib/auth";
+import { currentFarmId, effectiveFarmRole, homePathFor, requireProfile, requireUsableFarm } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errorCode } from "@/lib/action-errors";
 import { runOnce } from "@/lib/request-claim";
@@ -22,6 +22,8 @@ async function gate() {
   if (!farmId) redirect(`${HERE}?error=no-farm`);
   const role = await effectiveFarmRole(farmId, profile);
   if (!role || !["owner", "manager", "rr_admin"].includes(role)) redirect(`${homePathFor(profile.role)}?denied=1`);
+  // The stop gate: a business that is not open writes nothing (the database refuses again).
+  await requireUsableFarm(farmId, profile);
   return { farmId, supabase: await createClient() };
 }
 
@@ -83,7 +85,7 @@ export async function retireField(form: FormData) {
 
 /** One asset's values, from its page's dialog. */
 export async function setAssetFields(form: FormData) {
-  await requireProfile();
+  const profile = await requireProfile();
   const machineId = text(form, "machine_id");
   const back = isUuid(machineId) ? `/machines/${machineId}` : "/machines";
   if (!isUuid(machineId)) redirect(`${back}?error=custom-field-invalid`);
@@ -91,6 +93,7 @@ export async function setAssetFields(form: FormData) {
   // The definitions this person can see on the asset's business (row security decides).
   const machine = await supabase.from("machines").select("farm_id").eq("id", machineId).maybeSingle();
   if (machine.error || !machine.data) redirect(`${back}?error=${machine.error ? errorCode(machine.error, "settings/fields:set") : "forbidden"}`);
+  await requireUsableFarm(machine.data.farm_id, profile);
   const defs = await supabase.from("asset_field_definitions")
     .select("id,key,label,field_type,unit,choices,required,visibility,group_label,sort_order,retired_at")
     .eq("farm_id", machine.data.farm_id);
