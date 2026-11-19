@@ -18,6 +18,13 @@ Plan (gaps found by comparing BRIEF 13 / 12 last paragraph with the November ada
    documents and transcripts are data; one proposal per turn (scenario 36).
 8. Tests (scenarios 33, 36), docs/WHATSAPP.md, report.
 
+## TASK B4 COMPLETE
+
+All eight steps done (report: docs/final-dev/REPORT-B4.md). Migration 20261121090000 (probe, suite
+whatsapp_completion.sql, DATABASE.md line). Gates: tsc clean, 1243 unit tests, dashes, i18n parity and keys,
+design, errors clean; 98/98 SQL suites on PGlite. Mutations: 11/11 SQL and 5/5 TS guards caught.
+External: real-phone journeys before photos and voice are released (flags stay off).
+
 ## Task B3 (started 18 Nov 2026 at 45e5efd)
 
 ## TASK B3 COMPLETE
