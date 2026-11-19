@@ -174,10 +174,10 @@ Postgres confirms it on merge. A state in brackets names what another task still
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-140 | Website comparison table with equipment allowances, minimum, extra equipment price, annual totals, storage, assistance | S22 | website repo (not read in A1: lane access) | C | A5 | Sc41 |
-| R-141 | Signup carries plan, period, full spaces and equipment, tamper-resistant; never activated from URL | S22 | `src/app/(public)/signup`, `app.create_pending_signup` | C (A2 server and app form E: billing_signup_capacity.sql; A5 website) | A2 (server), A5 (website) | Sc41 |
-| R-142 | App pricing/help/legal copy, FAQ, renewal and cancellation text, limits source of truth, revised plan PDF | S22 | `src/lib/legal.ts`, help pages, `C:\projects\output\pdf\build_fleetwise_review.py` | C | A5 | Sc41 |
-| R-143 | Customer guidance EN/AF for equipment, quotas, spending, chat, exports, payments, devices | S25.8 | help pages | M | A5 | review |
+| R-140 | Website comparison table with equipment allowances, minimum, extra equipment price, annual totals, storage, assistance | S22 | website repo (not read in A1: lane access) | E (A5: website branch claude/launch-polish, local, not published; equipment allowances, extra equipment, pooled storage, spending limit, lowest total for the mix, not-yet-available features) | A5 | Sc41: website scripts/check-content.mjs and browser-check.mjs (both layouts) |
+| R-141 | Signup carries plan, period, full spaces and equipment, tamper-resistant; never activated from URL | S22 | `src/app/(public)/signup`, `app.create_pending_signup` | E (A2 server; A5: the website link carries plan, period, vehicles, equipment; the app reads them as a checked prefill only) | A2 (server), A5 (website) | Sc41: billing_signup_capacity.sql, src/app/(public)/signup/prefill.test.ts |
+| R-142 | App pricing/help/legal copy, FAQ, renewal and cancellation text, limits source of truth, revised plan PDF | S22 | `src/lib/legal.ts`, help pages, `C:\projects\output\pdf\build_fleetwise_review.py` | E (A5: docs/commercial-source.json with its consistency test; revised review PDF output/pdf/review-2026-11-19, 9 pages inspected; legal changes listed for the lawyer, not edited) | A5 | Sc41: src/lib/commercial-source.test.ts |
+| R-143 | Customer guidance EN/AF for equipment, quotas, spending, chat, exports, payments, devices | S25.8 | help pages | E (A5: /help "How FLEETWISE works", seven topics in EN and AF) | A5 | review |
 
 ## 2. Decision register coverage (D1 to D41)
 
@@ -318,4 +318,4 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-074 | `AI_KEY_SECRET` missing: BYOK refused | Founder (CLAUDE.md "Open, founder only") |
 | I-075 | Done-For-You has no current price row: quote only | E by design (20261104200000) |
 | I-076 | Code TODO/FIXME sweep | None found in `src` at `6e3830a` (grep for TODO, FIXME, "coming soon", "not yet built") |
-| I-077 | Website `docs/COMMERCIAL.md`, `docs/FEATURE-SOURCES.md` | A5 inventories them (outside lane A1's read access) |
+| I-077 | Website `docs/COMMERCIAL.md`, `docs/FEATURE-SOURCES.md` | Resolved (A5): dated 19 Nov sections added to both in the website repo |
