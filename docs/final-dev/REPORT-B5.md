@@ -2,7 +2,7 @@
 
 Lane B, branch `final/lane-b`, 19 November 2026, from `3b552e8`. Built by the main Claude session (the founder ended subagents on 19 Nov). BRIEF section 17 ("Custom fields", "Document extraction and structured import", "Manuals/document questions", "Other old roadmap entries"); scenario 44. Nothing was pushed, merged, applied to a live database or released by this work.
 
-Gates at the final code commit: see section 8.
+Gates at the final code commit (`43a384f`): tsc clean; 1281 unit tests pass (1 skipped); dashes, i18n parity and keys, design lint and errors clean; `node scripts/migrate_check.mjs --suite` 101/101 on PGlite (the first full run caught missing `app.audit_table_rules` rows for the five new audited tables, fixed in `43a384f`). Mutations, each one breaking a guard to show a test fails and then restoring it: custom fields 10/10 SQL. Import staging 31/31 SQL. Manuals 16/18 SQL; the two survivors do the same thing as the original code, because the attachments policy already confines pages to the person's businesses and `EXECUTE` on `manual_index_put` is revoked from people. TypeScript adapter 9/9 and the shared held call plus manuals 11/11. CI on real Postgres runs at integration.
 
 ## 1. Done
 

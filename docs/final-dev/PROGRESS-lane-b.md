@@ -1,4 +1,4 @@
-# Lane B progress (task B5 now; B4, B3 and B1 below)
+# Lane B progress (B5 complete; B4, B3 and B1 below)
 
 ## Task B5 (started 19 Nov 2026 at 3b552e8, by the main Claude session)
 
@@ -33,7 +33,26 @@ its batch. Provider fields are untrusted (bad confidence = uncertain, bad row = 
 import_staging.sql registered, probe, DATABASE.md, 10 error codes EN/AF. Mutations 31/31 (two first-run survivors were
 faulty mutations: to_date also refuses 30/02; "false and A or B" left B active). /imports list + /imports/[id] review,
 template CSV, Machines menu entry. Unit 1264 pass; pay-gate, fence and deploy-compatibility suites pass.
-Next: step 3 (OCR adapter behind document_extraction), then 4 (manuals).
+Step 3 DONE: import_batch_open takes p_provider (a document names its reader, a sheet none); src/lib/extraction
+(provider interface, rowsFromExtraction: missing or bad confidence = 0, pages outside dropped, text cleaned and
+bounded; runExtraction: Essential refused, Professional cost_undecided, Complete inside a hold); shared runHeld
+(src/lib/extraction/held.ts: hold first, no call without it, settle always, unusable = charged/not billed);
+startDocumentImport (bytes decide the type) and a dialog shown only when provider + flag + plan. Adapter mutations 9/9.
+Step 4 DONE: migration 20261121120000 (manual_index, manual_pages with simple tsvector, invoker manual_search with
+filler-word filter and cap 8, manual_index_put service-only, manual_index_remove, soft-delete trigger, flag
+manual_questions off, Complete via voice_ai rank); src/lib/manuals.ts (reader none, pagesForIndex, runManualRead,
+searchManuals with cite and no-evidence note); assistant search_manuals only when manual_questions_available, prompt
+rule; asset Manuals card (upload PDF, make searchable, read again, remove) gated; export lists import_batches,
+import_rows, manual_index. SQL mutations 16/18 (2 equivalent: attachments RLS already confines the farm; EXECUTE is
+revoked from people), TS 11/11.
+Step 5 DONE: register R-110 (E staging, X adapter), R-111 E, R-112 X; I-050..I-061 re-checked unchanged.
+Step 6: full SQL run found audit_redaction (no app.audit_table_rules for five new tables, since step 1): rules
+added, farm scope. FOUNDER-DECISIONS-PENDING 12 (provider and Professional price) and 13 (assumptions) added.
+Full gates at 43a384f: tsc clean, unit 1281 pass, statics clean, SQL suites 101/101. REPORT-B5.md written.
+
+## TASK B5 COMPLETE
+
+19 Nov 2026. Report: docs/final-dev/REPORT-B5.md. Next on lane B: B6 (Android app).
 
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
 
