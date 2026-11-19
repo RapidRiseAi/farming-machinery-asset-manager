@@ -10,10 +10,12 @@ import { ASSISTANT_INTENTS, type AssistantMachine } from "./types";
 const PUMP: AssistantMachine = {
   id: "a3600000-0000-4000-9000-000000000001", name: "Borehole pump", make: null, model: null,
   type: "pump_generator", aliases: [], status: "active", meterType: "hours", profile: "equipment",
+  currentReading: null, currentReadingDate: null, serviceStatus: null, nextDueDate: null, nextDueReading: null,
 } as AssistantMachine;
 const TRACTOR: AssistantMachine = {
   id: "a3600000-0000-4000-9000-000000000002", name: "JD 6120", make: "John Deere", model: "6120",
   type: "tractor", aliases: [], status: "active", meterType: "hours", profile: "full",
+  currentReading: null, currentReadingDate: null, serviceStatus: null, nextDueDate: null, nextDueReading: null,
 } as AssistantMachine;
 
 test("support equipment refuses a diesel draw and nothing else the assistant can write", () => {

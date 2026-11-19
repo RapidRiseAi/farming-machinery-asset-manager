@@ -187,6 +187,9 @@ create table if not exists public.whatsapp_upload_links (
   constraint whatsapp_upload_links_target_ck check ((target_kind is null) = (target_id is null))
 );
 create index if not exists whatsapp_upload_links_expiry on public.whatsapp_upload_links (expires_at);
+-- A test person never gets a link into a real business, nor the reverse (the test-account fence).
+create trigger whatsapp_upload_links_fence before insert or update on public.whatsapp_upload_links
+  for each row execute function app.fence_user_farm();
 alter table public.whatsapp_upload_links enable row level security;
 alter table public.whatsapp_upload_links force row level security;
 revoke all on public.whatsapp_upload_links from public, anon, authenticated;
