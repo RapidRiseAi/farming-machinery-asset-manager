@@ -394,6 +394,19 @@ Supersedes "Owner limits that hold" above where they differ (founder decisions 2
 Tests: `supabase/tests/assistance_cap.sql` (scenarios 30, 31, 32), `ai_usage.sql`,
 `src/lib/whatsapp/paid.test.ts`, `delivery.test.ts`.
 
+## Reading documents and manuals (task B5, built, not switched on)
+
+Reading a photo or PDF into the import review (`src/lib/extraction`) and reading a manual for
+questions (`src/lib/manuals.ts`) both call a provider only through `runHeld`
+(`src/lib/extraction/held.ts`): `holdBudget` first with the provider's model and an estimate, no
+call if the hold is refused, `settleHold` afterwards. A blank or unusable answer is settled
+`failed` with `charged` (cost recorded, nothing billed). No provider is wired:
+`DOCUMENT_EXTRACTION_PROVIDER` and `MANUAL_READER_PROVIDER` are `none`, a name that is not built
+counts as `none`, and the flags `document_extraction` and `manual_questions` are off. Complete
+(and up) only; Professional is refused until its price is decided. A provider added later also
+needs its model's price row, or the hold is refused and nothing runs. The assistant's
+`search_manuals` tool reads only stored text (no model call of its own beyond the turn it is in).
+
 ## Not built yet
 
 - A margin change taking effect from the next month with notice to owners.
