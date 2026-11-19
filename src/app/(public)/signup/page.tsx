@@ -29,6 +29,7 @@ import { HeroAside, PublicShell, SplitLayout, Tick } from "@/components/public-s
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { turnstileWidget } from "@/lib/security/turnstile";
 import { PlanPicker } from "./plan-picker";
+import { signupPrefill } from "./prefill";
 import { signUp } from "./actions";
 
 /**
@@ -43,7 +44,7 @@ import { signUp } from "./actions";
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; quote?: string }>;
+  searchParams: Promise<{ error?: string; quote?: string } & Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
   // Pre-auth there is no profile to read a language from, so the device decides.
@@ -117,6 +118,8 @@ export default async function SignUpPage({
           <div className="mt-4">
         <PlanPicker
           options={options}
+          // The website's plan, period, full spaces and equipment, checked: a starting choice only.
+          initial={signupPrefill(sp, options.filter((o) => o.monthlyCents != null).map((o) => o.plan))}
           // Keyed off `FEATURE_MIN_PLAN` itself so the comparison cannot advertise a
           // feature on a plan whose gate will refuse it. Labels only; the mapping is the
           // gate's.
