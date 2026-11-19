@@ -50,7 +50,7 @@ do $$ declare j uuid; begin
  update public.job_cards set status='in_progress' where id=j;
  insert into public.job_card_lines(farm_id,job_card_id,kind,description,qty,unit_cost_cents)
  values('9d000000-0000-4000-9000-000000000001',j,'part','Replacement seal estimate',1,5000);
- update public.job_cards set work_performed='Replaced failed seal under warranty',status='completed',date_out=current_date where id=j;
+ update public.job_cards set work_performed='Replaced failed seal under warranty',status='completed',date_out=(now() at time zone 'Africa/Johannesburg')::date where id=j;
 end $$;
 
 select public._received_login('9d100000-0000-4000-9000-000000000001');

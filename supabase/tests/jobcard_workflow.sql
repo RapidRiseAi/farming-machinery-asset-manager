@@ -36,8 +36,8 @@ insert into public.machines(id,farm_id,name,type,meter_type,status) values
  ('9a300000-0000-4000-9000-000000000001','9a000000-0000-4000-9000-000000000001','Tractor','tractor','hours','active'),
  ('9a300000-0000-4000-9000-000000000002','9a000000-0000-4000-9000-000000000001','Implement','implement','none','active');
 insert into public.job_cards(id,farm_id,machine_id,type,date_in,mechanic_user_id) values
- ('9a400000-0000-4000-9000-000000000001','9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000001','scheduled_service',current_date,'9a100000-0000-4000-9000-000000000002'),
- ('9a400000-0000-4000-9000-000000000002','9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000002','scheduled_service',current_date,'9a100000-0000-4000-9000-000000000002');
+ ('9a400000-0000-4000-9000-000000000001','9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000001','scheduled_service',(now() at time zone 'Africa/Johannesburg')::date,'9a100000-0000-4000-9000-000000000002'),
+ ('9a400000-0000-4000-9000-000000000002','9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000002','scheduled_service',(now() at time zone 'Africa/Johannesburg')::date,'9a100000-0000-4000-9000-000000000002');
 insert into public.service_plan_lines(id,farm_id,machine_id,task,interval_hours) values
  ('9a600000-0000-4000-9000-000000000001','9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000001','Oil service',250);
 insert into public.job_card_service_lines(job_card_id,farm_id,machine_id,service_plan_line_id) values
@@ -52,19 +52,19 @@ end $$;
 select public._jc_denied($q$insert into public.job_cards(farm_id,machine_id,type,status)
  values('9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000001','repair','approved')$q$);
 select public._jc_denied($q$update public.job_cards set status='approved' where id='9a400000-0000-4000-9000-000000000001'$q$);
-select public._jc_denied($q$update public.job_cards set status='completed',date_out=current_date where id='9a400000-0000-4000-9000-000000000001'$q$);
+select public._jc_denied($q$update public.job_cards set status='completed',date_out=(now() at time zone 'Africa/Johannesburg')::date where id='9a400000-0000-4000-9000-000000000001'$q$);
 update public.job_cards set status='in_progress' where id in ('9a400000-0000-4000-9000-000000000001','9a400000-0000-4000-9000-000000000002');
 update public.job_cards set work_performed='Replaced oil',recommendations='Inspect belts',meter_reading=100
  where id='9a400000-0000-4000-9000-000000000001';
 insert into public.job_card_lines(id,farm_id,job_card_id,kind,description,qty,unit_cost_cents) values
  ('9a500000-0000-4000-9000-000000000001','9a000000-0000-4000-9000-000000000001','9a400000-0000-4000-9000-000000000001','part','Oil',2,10000);
-update public.job_cards set status='completed',date_out=current_date where id='9a400000-0000-4000-9000-000000000001';
+update public.job_cards set status='completed',date_out=(now() at time zone 'Africa/Johannesburg')::date where id='9a400000-0000-4000-9000-000000000001';
 select public._jc_denied($q$update public.job_card_lines set qty=3 where id='9a500000-0000-4000-9000-000000000001'$q$);
 select public._jc_denied($q$delete from public.job_card_service_lines where job_card_id='9a400000-0000-4000-9000-000000000001'$q$);
 select public._jc_denied($q$update public.job_cards set diagnosis='Changed after review' where id='9a400000-0000-4000-9000-000000000001'$q$);
 select public._jc_denied($q$update public.job_cards set status='in_progress',review_note='Repair leak' where id='9a400000-0000-4000-9000-000000000001'$q$);
 -- A calendar-only machine never needs a fabricated meter value.
-update public.job_cards set status='completed',date_out=current_date,work_performed='Greased pivots'
+update public.job_cards set status='completed',date_out=(now() at time zone 'Africa/Johannesburg')::date,work_performed='Greased pivots'
  where id='9a400000-0000-4000-9000-000000000002';
 
 select public._jc_login('9a100000-0000-4000-9000-000000000001');
@@ -73,12 +73,12 @@ update public.job_cards set status='in_progress',review_note='Correct the oil qu
  where id='9a400000-0000-4000-9000-000000000001';
 select public._jc_login('9a100000-0000-4000-9000-000000000002');
 update public.job_card_lines set qty=3 where id='9a500000-0000-4000-9000-000000000001';
-update public.job_cards set status='completed',date_out=current_date where id='9a400000-0000-4000-9000-000000000001';
+update public.job_cards set status='completed',date_out=(now() at time zone 'Africa/Johannesburg')::date where id='9a400000-0000-4000-9000-000000000001';
 select public._jc_login('9a100000-0000-4000-9000-000000000001');
 update public.job_cards set status='approved' where id='9a400000-0000-4000-9000-000000000001';
 select public._jc_denied($q$update public.job_card_lines set job_card_id='9a400000-0000-4000-9000-000000000002' where id='9a500000-0000-4000-9000-000000000001'$q$);
 select public._jc_denied($q$insert into public.cost_entries(farm_id,machine_id,type,amount_cents,source_type,source_id,occurred_on)
- values('9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000001','invoice',30000,'job_card','9a400000-0000-4000-9000-000000000001',current_date)$q$);
+ values('9a000000-0000-4000-9000-000000000001','9a300000-0000-4000-9000-000000000001','invoice',30000,'job_card','9a400000-0000-4000-9000-000000000001',(now() at time zone 'Africa/Johannesburg')::date)$q$);
 
 do $$ declare n int; j record; begin
  select * into j from public.job_cards_visible where id='9a400000-0000-4000-9000-000000000001';
@@ -119,7 +119,7 @@ do $$ declare j uuid; begin
  values('9a000000-0000-4000-9000-000000000001',j,'part','Pump',1,100000);
  update public.job_cards set status='in_progress',work_performed='Pump replaced' where id=j;
  perform public._jc_denied($q$select public.update_work_request('9a700000-0000-4000-9000-000000000001',p_status=>'completed')$q$);
- update public.job_cards set status='completed',date_out=current_date where id=j;
+ update public.job_cards set status='completed',date_out=(now() at time zone 'Africa/Johannesburg')::date where id=j;
 end $$;
 select public._jc_login('9a100000-0000-4000-9000-000000000001');
 select public._jc_denied($q$select public.update_work_request('9a700000-0000-4000-9000-000000000001',p_status=>'closed')$q$);
