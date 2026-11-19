@@ -110,6 +110,18 @@ bytes, checks them, and only then records the attachment. See `docs/DATABASE.md`
   accepted by sniffing; it is to be confirmed on real phones.
   https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/MediaRecorder
 
+### WhatsApp media (task B4, read 19 November 2026)
+
+Meta's `Supported media types` table (https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/, no last-updated date shown):
+
+- Images: JPEG, PNG and static WebP, 5 MB each.
+- Audio: AAC, AMR, MP3, MP4 audio and Ogg (Opus codec only, mono), 16 MB each.
+- Documents: TXT, Office formats and PDF, 100 MB each (not accepted over FLEETWISE's WhatsApp; an app link is offered).
+- Media a customer sends in: at most 100 MB; past that Meta's webhook carries error 131052.
+- A media download URL expires after 5 minutes; a webhook's media id after 7 days.
+
+FLEETWISE accepts the smaller of Meta's figure and the app's own: photos 5 MB, voice notes 16 MB and ten minutes (decision 11). A file past either, a document, or a path not yet released for the business gets a signed-in app upload link tied to the person, the business and the record, never an anonymous upload.
+
 ## Human action: the Supabase project's global upload limit
 
 Supabase refuses any file above the project's **global file size limit**, whatever a bucket
@@ -172,13 +184,13 @@ File and line are as they stood at `6e3830a`, before this work.
 | `src/app/api/assistant/speech-token/route.ts:26` voice session hold | 2 minutes, rolled over as each fills | unchanged: a hold size, not a command limit | abuse |
 | `src/components/assistant/speech-client.ts:21`, `voice-meter.ts:32` | 8.5 and 9 minutes | unchanged: Azure tokens last about ten minutes | provider |
 
-### WhatsApp (provider restrictions, unchanged; task B4 rechecks them against Meta's docs)
+### WhatsApp (provider restrictions; rechecked by task B4 on 19 November 2026)
 
 | Where | Value | Now |
 |---|---|---|
-| `src/lib/whatsapp/media.ts:18` photo | 6 MiB | `WHATSAPP_IMAGE_MAX_BYTES`, unchanged |
-| `src/lib/whatsapp/media.ts:20` voice | 4 MiB | `WHATSAPP_VOICE_MAX_BYTES`, unchanged |
-| `src/lib/whatsapp/media.ts:21` voice length | 3 minutes | `WHATSAPP_VOICE_MAX_MS`, unchanged |
+| `src/lib/whatsapp/media.ts:18` photo | 6 MiB | `WHATSAPP_IMAGE_MAX_BYTES`, 5 MB from B4 (Meta's image limit) |
+| `src/lib/whatsapp/media.ts:20` voice | 4 MiB | `WHATSAPP_VOICE_MAX_BYTES`, 16 MB from B4 (Meta's audio limit) |
+| `src/lib/whatsapp/media.ts:21` voice length | 3 minutes | `WHATSAPP_VOICE_MAX_MS`, 10 minutes from B4 (decision 11) |
 | `src/lib/whatsapp/media.ts:22` shortest | 300 ms | `WHATSAPP_VOICE_MIN_MS`, unchanged |
 
 ### Imports, statements and parsers (unchanged)

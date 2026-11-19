@@ -10,6 +10,7 @@ import type { AssistantContext } from "@/lib/assistant/context";
 import { loadAssistantMachines } from "@/lib/assistant/data";
 import { aiHelpOn, transcriptionVocabulary } from "@/lib/assistant/transcription";
 import { langOf, t, type Lang } from "@/lib/i18n";
+import { ASSISTANT_SPOKEN_MAX_CHARS, ASSISTANT_TYPED_MAX_CHARS } from "@/lib/limits";
 import { whatsappAssistantContext, type WhatsAppLink } from "./identity";
 import { whatsappEnabled } from "./config";
 import { sendWhatsApp } from "./client";
@@ -107,7 +108,8 @@ async function hearVoiceNote(context: AssistantContext, item: Inbox, origin: str
   const heard = await workerDeps.transcribeVoiceNote({
     farmId: context.farmId, userId: context.profile.id, audio, durationMs, terms,
   });
-  if (heard.ok) return { text: heard.text.slice(0, 2000) };
+  // Ten minutes of speech is far more than a typed request: the spoken limit, never a silent cut.
+  if (heard.ok) return { text: heard.text.slice(0, ASSISTANT_SPOKEN_MAX_CHARS) };
   switch (heard.reason) {
     case "not_heard": return { reply: t("whatsapp.voiceNotHeard", lang) };
     case "farm_limit": case "member_limit": return { reply: t("whatsapp.voiceLimit", lang) };
@@ -182,8 +184,11 @@ async function attachPhoto(context: AssistantContext, mediaId: string, faultId: 
   return !settled.error;
 }
 
-async function runTurn(context: AssistantContext, input: string, clarification?: AssistantClarification): Promise<AssistantTurnResponse> {
-  const body = assistantTurnRequestSchema.parse({ input: input.slice(0, 2000), channel: "typed",
+async function runTurn(context: AssistantContext, input: string, clarification?: AssistantClarification,
+  spoken = false): Promise<AssistantTurnResponse> {
+  // A heard voice note is a spoken request (up to ten minutes, decision 11); typed text stays short.
+  const body = assistantTurnRequestSchema.parse({
+    input: input.slice(0, spoken ? ASSISTANT_SPOKEN_MAX_CHARS : ASSISTANT_TYPED_MAX_CHARS), channel: spoken ? "voice" : "typed",
     locale: context.profile.language === "af" ? "af-ZA" : "en-ZA", clarification: clarification ?? undefined,
   });
   const response = await runAssistantTurn(context, body);
@@ -308,7 +313,7 @@ async function answerInput(context: AssistantContext, link: WhatsAppLink, item: 
   const clarification = pending?.kind === "clarify" ? clarificationAnswer(input, pending) : undefined;
   if (pending?.kind === "clarify" && !clarification) return { text: renderWhatsAppResponse(pending, origin), pending };
   if (!input.trim()) return { text: "What would you like to ask or record in Fleetwise?", pending: null };
-  const result = await runTurn(context, input, clarification ?? undefined);
+  const result = await runTurn(context, input, clarification ?? undefined, item.media_kind === "audio");
   const next = ["confirm", "clarify"].includes(result.kind)
     ? (attachMediaId ? { ...result, attachMediaId } : result) : null;
   return { text: renderWhatsAppResponse(result, origin), pending: next };
@@ -320,7 +325,10 @@ export async function processWhatsAppInbox(limit = 1) {
   if (!origin) throw new Error("WhatsApp requires a configured site URL");
   const db = createServiceClient();
   let processed = 0;
+  const startedAt = Date.now();
   for (let i = 0; i < Math.min(limit, 5); i++) {
+    // A ten-minute voice note can take most of a 300-second run: claim nothing new late in it.
+    if (i > 0 && Date.now() - startedAt > 60_000) break;
     const lease = randomUUID();
     const { data, error } = await db.rpc("whatsapp_claim", { p_lease: lease });
     if (error) throw new Error("whatsapp_claim_failed");

@@ -160,10 +160,15 @@ export const LIMITS = {
   /** A running job not heard from in this long is taken over by the next poll. */
   commandJobLeaseMs: entry(6 * MINUTE, "ms", "abuse", false, "Longer than one Vercel function run (300 s)."),
 
-  // == WhatsApp (provider restrictions; task B4 revisits them) =========================
-  whatsappImageMaxBytes: entry(6 * MIB, "bytes", "provider", true, "WhatsApp photos as accepted today (unchanged)."),
-  whatsappVoiceMaxBytes: entry(4 * MIB, "bytes", "provider", true, "WhatsApp voice notes as accepted today (unchanged)."),
-  whatsappVoiceMaxMs: entry(3 * MINUTE, "ms", "provider", true, "WhatsApp voice notes as accepted today (unchanged)."),
+  // == WhatsApp (provider restrictions, B4) ==============================================
+  // Meta's "Supported media types" table (developers.facebook.com/docs/whatsapp/cloud-api/reference/media,
+  // read 19 Nov 2026): images JPEG, PNG and static WebP 5 MB; audio (AAC, AMR, MP3, MP4 audio,
+  // Ogg with Opus only) 16 MB; documents 100 MB; inbound media at most 100 MB (error 131052).
+  // A file past these, or a kind WhatsApp cannot carry here, gets a signed-in app upload link.
+  whatsappImageMaxBytes: entry(5 * MB, "bytes", "provider", true, "Meta's WhatsApp image limit: 5 MB (JPEG, PNG, static WebP)."),
+  whatsappVoiceMaxBytes: entry(16 * MB, "bytes", "provider", true, "Meta's WhatsApp audio limit: 16 MB."),
+  whatsappVoiceMaxMs: entry(10 * MINUTE, "ms", "commercial", true,
+    "Decision 11: ten minutes, as in the app; a longer or larger note gets an app upload link instead."),
   whatsappVoiceMinMs: entry(300, "ms", "abuse", false, "Shorter WhatsApp notes carry no words."),
 
   // == Imports and statements (unchanged) ==============================================

@@ -24,6 +24,10 @@ import { classifyAiFailure } from "@/lib/ai-usage/outcome";
  * what to say, and the inbox's own retention covers the reply. No transcript is logged.
  */
 
+/** One hearing attempt at most, and every attempt together, inside the 300-second run. */
+export const HEARING_ATTEMPT_MAX_MS = 180_000;
+export const HEARING_DEADLINE_MS = 240_000;
+
 type VoiceRefusal = "farm_limit" | "member_limit" | "ai_off" | "own_key_broken" | "unavailable";
 export type VoiceResult = { ok: true; text: string } | { ok: false; reason: VoiceRefusal | "not_heard" };
 
@@ -46,8 +50,17 @@ export async function transcribeVoiceNote(
 
   let lastRefusal: VoiceRefusal | null = null;
   let keyFailed = false;
+  // A ten-minute note (decision 11) takes longer to hear than a short one. Each attempt gets
+  // time in proportion to the recording, and all attempts share one deadline inside the
+  // 300-second run (as the in-app ten-minute command does): the fallback model runs only if
+  // enough of it is left.
+  const started = Date.now();
+  const perAttemptMs = Math.min(HEARING_ATTEMPT_MAX_MS, 45_000 + Math.ceil(input.durationMs / 4));
   for (const model of configuredTranscribeModels()) {
     if (keyFailed && pauseIfKeyFails) break;
+    const remainingMs = HEARING_DEADLINE_MS - (Date.now() - started);
+    if (remainingMs < 20_000) break;
+    const attemptMs = Math.min(perAttemptMs, remainingMs);
     const directId = openAiModelId(model);
     const direct = ownKey && directId && !keyFailed ? { key: ownKey, id: directId } : null;
     const held = hearingHoldUnits(model, input.durationMs, promptChars);
@@ -74,7 +87,7 @@ export async function transcribeVoiceNote(
             audio: input.audio,
             providerOptions: transcribeOptionsFor(model, input.terms, {}, undefined) as Parameters<Transcribe>[0]["providerOptions"],
             maxRetries: 0,
-            abortSignal: AbortSignal.timeout(45_000),
+            abortSignal: AbortSignal.timeout(attemptMs),
           })
         : await transcribe({
             model,
@@ -84,7 +97,7 @@ export async function transcribeVoiceNote(
               zeroDataRetention: process.env.ASSISTANT_TRANSCRIBE_ZDR === "1",
             }), undefined) as Parameters<Transcribe>[0]["providerOptions"],
             maxRetries: 0,
-            abortSignal: AbortSignal.timeout(45_000),
+            abortSignal: AbortSignal.timeout(attemptMs),
           });
       text = answer.text.trim();
       const { costUsd, generationId } = gatewayCallCost(answer.providerMetadata);
