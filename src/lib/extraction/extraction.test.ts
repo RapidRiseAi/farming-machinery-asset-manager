@@ -37,6 +37,7 @@ test("no provider is configured unless one is built and named; a typo never swit
   assert.equal(configuredProvider({ DOCUMENT_EXTRACTION_PROVIDER: "textract" }), null, "not built, so not on");
   const p = fake({ pages: 1, readings: [], units: {} });
   assert.equal(configuredProvider({ DOCUMENT_EXTRACTION_PROVIDER: " Fake " }, { fake: () => p }), p);
+  assert.equal(configuredProvider({ DOCUMENT_EXTRACTION_PROVIDER: "fakee" }, { fake: () => p }), null, "a misspelt name is off, even with a provider built");
 });
 
 test("a poor photo: values the reader was unsure of, or gave no confidence for, stay uncertain", () => {
