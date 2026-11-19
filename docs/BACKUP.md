@@ -206,3 +206,42 @@ After any database restore, before reopening:
 
 Retention schedules need nothing extra: the nightly pass recomputes them from the restored
 subscriptions, and the ledger is what stops a deletion being silently undone.
+
+## 9. The restore drill, step by step (A6, 19 November 2026)
+
+`scripts/restore_drill.mjs` is the drill's check, so a drill gives the same evidence every time. It
+reads an **isolated** project a backup was restored into and refuses the production project by
+name. It never prints a key. Without its inputs it says what is missing and exits as blocked; it
+never reports a pass it did not see.
+
+**Status on 19 November 2026: blocked.** The nightly file copy has no destination yet (the three
+secrets in section 2.3), so there is no separate copy of any file to restore from, and no scratch
+project exists. Nothing below has been run.
+
+What the founder sets up once:
+1. **The offsite copy.** Create the bucket or container (Azure Blob, Cloudflare R2 or Backblaze B2)
+   and add the three repository secrets from section 2.3. Run "Nightly file copy" once by hand
+   (Actions, Nightly file copy, Run workflow) and check its summary lists the buckets copied. A
+   failed scheduled run emails the repository owner (GitHub's default notification for scheduled
+   workflows); keep that notification on.
+2. **A scratch project** for drills: a new Supabase project in the same region (eu-west-3), on a
+   plan that allows restoring a backup into it, never shared with customers.
+
+Each drill (at least quarterly, and before the first real customers):
+1. In the production project's dashboard, Database, Backups: restore the latest daily backup
+   (or a PITR point) **into the scratch project**. Note the start time.
+2. On a machine with rclone (rclone.org/downloads) and a copy of the same rclone config the nightly
+   copy uses (a local file, not committed):
+   ```powershell
+   $env:RESTORE_SUPABASE_URL = "https://<scratch ref>.supabase.co"
+   $env:RESTORE_SERVICE_ROLE_KEY = Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText
+   $env:RCLONE_CONFIG = "C:\secure\rclone.conf"
+   node scripts/restore_drill.mjs --sample 20 --download
+   ```
+   It prints row counts for key tables and confirms each of 20 recently finished uploads exists in
+   the offsite copy with the size the upload recorded. Exit 0 is a pass; it also prints a line for
+   the drill log above.
+3. Open one restored photo from the copy by hand (`rclone copy dest:<bucket>/<path> .`) and look at it.
+4. Run the section 5 smoke checks against the scratch project, then re-apply the deletion ledger
+   (section 8.3) and the outstanding erasures (section 3.1 step 5) **there**, to prove the steps.
+5. Write the drill log line (section 6), then delete the scratch project's data.
