@@ -2,7 +2,35 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
-## Current task: A5 (website, signup, wording, revised plan PDF) by the main Claude session
+## Current task: A6 (security read, backups, load tests, release notes, final deliverables), main Claude session
+
+Started 19 Nov 2026 at 266a8e5 (lane A synced with B6 at 228f388). BRIEF sections 20, 21, 24, 25; scenarios 37, 38, 39, 42.
+Plan:
+1. Security read of privileged functions: inventory every callable SECURITY DEFINER function, read the flagged and
+   IDOR-shaped ones, fix findings; RLS catalogue and people tests for the new tables. DONE (see below).
+2. The rest of section 20: signed uploads and exports, realtime, webhooks, provider media fetches, redirects, stored
+   rich text, CSV formulas; switched-off and deleted people's sessions on sensitive server actions; password
+   recovery, invitations, magic links, two-step, deep links.
+3. Backups: media copy procedure and a written, testable restore drill (database into an isolated project plus sample
+   attachments from the separate copy); secrets are a founder action. Scheduler auth, locks, retries, alerts, health.
+4. Load tests: k6 scripts and synthetic fixtures for a staging project only, with the exact setup.
+5. Deliverables (section 25): requirement matrix complete, feature and limits catalogue, billing examples and
+   lifecycle, migration, release and rollback notes, test evidence with commands, provider and configuration
+   checklist without secrets, status of every previously incomplete item, launch docs; REPORT-A6 and the final report.
+
+Step 1 DONE (the commit before 228f388): scripts/security_inventory.mjs writes docs/final-dev/SECURITY-INVENTORY.md
+(181 callable SECURITY DEFINER functions, none callable by anon, all with a pinned search_path; 13 name no check in
+their own body: all in schema app, which PostgREST does not expose, reasons in security-open-functions.json;
+public.has_entitlement delegates to app.has_entitlement, which checks membership). IDOR scan of functions taking a
+business id plus another id: 9 candidates read in full, all tie the extra id to the business or are staff-only.
+The only search_path-less functions in public are pg_trgm's own. supabase/tests/final_isolation.sql: catalogue (no
+table without RLS, nothing to anon, every read policy routed through a helper or listed with why, pinned search
+paths, nothing owner-run open to anon) and people against the new tables (owner, operator, switched-off account,
+ended membership, another site of the same customer, partner, Rapid Rise with and without the second factor,
+another business) plus switched-off sessions refused by the new write functions. Proven to fail on a wrong
+expectation and on an anon grant. CI runs `pnpm security:inventory`.
+
+## Earlier task: A5 (website, signup, wording, revised plan PDF) by the main Claude session
 
 Started 19 Nov 2026 on 7f08d1f. Website work is in C:\projects\fleetwise-launch-polish on branch
 claude/launch-polish, committed locally only (never pushed, published or deployed).
