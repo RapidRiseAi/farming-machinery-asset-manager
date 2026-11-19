@@ -669,6 +669,13 @@ const CODE_KEYS: Record<string, string> = {
   "billing-change-mixed": "errors.billingChangeMixed",
   "billing-grace-no-extras": "errors.billingGraceNoExtras",
   // Storage blocks and automatic storage (20261118120000, 20261118120100).
+  // Custom asset fields (20261121100000).
+  "custom-field-invalid": "errors.customFieldInvalid",
+  "custom-field-limit": "errors.customFieldLimit",
+  "custom-field-required": "errors.customFieldRequired",
+  "custom-field-retired": "errors.customFieldRetired",
+  "custom-field-choice-in-use": "errors.customFieldChoiceInUse",
+  "plan-feature-custom_fields": "errors.planFeatureCustomFields",
   "storage-reduction-over-usage": "errors.storageReductionOverUsage",
   "storage-ceiling-invalid": "errors.storageCeilingInvalid",
   "storage-ceiling-too-low": "errors.storageCeilingTooLow",

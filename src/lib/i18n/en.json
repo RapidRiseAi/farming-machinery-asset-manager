@@ -1205,7 +1205,8 @@
       "api_access": "API access",
       "financials": "Running the books",
       "trips": "trip scheduling and trip finance",
-      "maps": "maps and location tracking"
+      "maps": "maps and location tracking",
+      "custom_fields": "Custom asset fields"
     },
     "bodyOwner": "{feature} is available on the {plan} plan and above. You're on {current}. You can change your plan on the Billing screen.",
     "bodyPartner": "{feature} is available on the {plan} product and above. You're on {current}. Ask FLEETWISE to move you up.",
@@ -5669,7 +5670,13 @@
     "retentionBlocked": "This business cannot be deleted yet: a check has not passed.",
     "exportInvalid": "That export request is not valid.",
     "exportLimit": "This business has started five exports today. Try again tomorrow.",
-    "exportNotAllowed": "You cannot export this business's records now."
+    "exportNotAllowed": "You cannot export this business's records now.",
+    "customFieldInvalid": "That value does not fit the field. Check the type, the date and the list of choices.",
+    "customFieldLimit": "A business can have up to 50 active custom fields. Retire one you no longer use first.",
+    "customFieldRequired": "This field must be filled in.",
+    "customFieldRetired": "That field is retired and takes no new values. Bring it back first.",
+    "customFieldChoiceInUse": "That choice is still used on an asset, so it stays on the list.",
+    "planFeatureCustomFields": "Custom asset fields are on Professional and Complete."
   },
   "billing": {
     "title": "Billing",
@@ -8732,5 +8739,50 @@
     "errNotAllowed": "You cannot export this business's records now.",
     "errGone": "This copy is no longer kept. Prepare a new copy.",
     "errFailed": "That did not work. Try again."
+  },
+  "customFields": {
+    "title": "Custom asset fields",
+    "lead": "Record your own details on every asset, such as a colour, a tank size or a purchase reference. Renaming or retiring a field keeps every value.",
+    "settingsLink": "Your own details on assets",
+    "new": "New field",
+    "newTitle": "New custom field",
+    "newLead": "The type cannot change later, so the values already kept always stay valid.",
+    "label": "Name",
+    "type": "Type",
+    "types": {
+      "text": "Text",
+      "number": "Number",
+      "date": "Date",
+      "yes_no": "Yes or no",
+      "choice": "Choice from a list"
+    },
+    "unit": "Unit",
+    "unitHint": "For a number only, such as L, kg or kW.",
+    "choices": "Choices",
+    "choicesHint": "For a list only: one per line.",
+    "group": "Group",
+    "groupHint": "Optional: fields with the same group are shown together.",
+    "visibility": "Who can see it",
+    "visibilityEveryone": "Everyone on the business",
+    "visibilityManagers": "Owners and managers only",
+    "required": "Must be filled in on every asset",
+    "requiredShort": "required",
+    "saved": "Saved.",
+    "empty": "No custom fields yet. Add one to record your own details on assets.",
+    "ungrouped": "Fields",
+    "edit": "Edit",
+    "editTitle": "Edit {label}",
+    "retire": "Retire",
+    "retireTitle": "Retire {label}?",
+    "retireIntro": "It is hidden from forms and takes no new values. Every value already kept stays, and you can bring the field back.",
+    "retired": "Retired fields",
+    "retiredLead": "Their values are kept and still shown on each asset.",
+    "retiredBadge": "retired",
+    "restore": "Bring back",
+    "cardTitle": "Your fields",
+    "editValues": "Edit fields",
+    "editValuesTitle": "Edit your fields",
+    "noValue": "Not filled in",
+    "manage": "Manage your fields"
   }
 }

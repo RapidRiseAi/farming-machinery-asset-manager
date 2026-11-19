@@ -99,6 +99,7 @@ import {
 import { DownloadLink } from "@/components/ui/download-link";
 import { downloadLabels } from "@/lib/interaction-labels";
 import { RequestIdInput } from "@/components/ui/request-id-input";
+import { CustomFieldsCard } from "@/components/machines/custom-fields-card";
 import { isIsoDate, isUuid } from "@/lib/ids";
 
 type Machine = {
@@ -1254,6 +1255,9 @@ export default async function MachineDetailPage({
                   </ul>
                 </Card>
               ) : null}
+
+              {/* The business's own fields (B5, 20261121100000): none defined, no card. */}
+              <CustomFieldsCard supabase={supabase} machineId={id} farmId={machineBase.farm_id} canEdit={canEdit} locale={locale} />
 
               {/* Fuel & consumption (F4), Professional+ (F5 entitlement gate) */}
               {fuelAllowed ? (
