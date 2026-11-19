@@ -73,6 +73,10 @@ select pg_temp.assert((select value_text from public.asset_field_values where de
   '[3] text is kept as data, exactly as typed (the screen escapes it)');
 select pg_temp.assert(pg_temp.raises(format($q$select public.asset_field_set('cf200000-0000-4000-9000-000000000001', '{"%s": "lots"}')$q$, (select id from ids where name='tank')), '%custom-field-invalid%'),
   '[3] words in a number field are refused');
+select pg_temp.assert(pg_temp.raises(format($q$select public.asset_field_set('cf200000-0000-4000-9000-000000000001', '{"%s": "NaN"}')$q$, (select id from ids where name='tank')), '%custom-field-invalid%'),
+  '[3] "NaN" is not a number here, even though Postgres can cast it');
+select pg_temp.assert(pg_temp.raises(format($q$select public.asset_field_set('cf200000-0000-4000-9000-000000000001', '{"%s": 2000000000000}')$q$, (select id from ids where name='tank')), '%custom-field-invalid%'),
+  '[3] a number past the limit is refused as a bad value, not a database error');
 select pg_temp.assert(pg_temp.raises(format($q$select public.asset_field_set('cf200000-0000-4000-9000-000000000001', '{"%s": "2024-02-30"}')$q$, (select id from ids where name='bought')), '%custom-field-invalid%'),
   '[3] an impossible date is refused');
 select pg_temp.assert(pg_temp.raises(format($q$select public.asset_field_set('cf200000-0000-4000-9000-000000000001', '{"%s": "East"}')$q$, (select id from ids where name='site')), '%custom-field-invalid%'),

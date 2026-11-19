@@ -19,6 +19,13 @@ PDFs, it cannot read text). Plan:
 5. Old roadmap entries classified in the register with evidence.
 6. Tests (scenario 44), docs, report.
 
+Step 1 DONE (ac11f87 to the commit after d06989a): migration 20261121100000 (probe, suite custom_asset_fields.sql,
+DATABASE.md); custom_fields on Professional in app.feature_min_rank and CAPABILITY_MIN_PLAN (entitlements.test now
+reads the latest definitions); /settings/fields, the asset card and dialog, Settings link, EN/AF, error codes; the
+business export lists both tables (asset_field_values got a paging id); the machine import carries field:<key>
+columns and applies them through asset_field_set, reporting skipped values. Mutations 10/10 SQL. Unit 1256 pass.
+Next: step 2 (staging tables and confirm flow), then 3 (OCR adapter), 4 (manuals).
+
 Worker log for `final/lane-b`. Read this and `git log` first when resuming; never restart.
 
 ## Task B4 (started 19 Nov 2026 at 6613701, by the main Claude session itself: the founder ended subagents)
