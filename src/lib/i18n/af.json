@@ -711,7 +711,8 @@
     "tankLitres": "Brandstoftenkgrootte (liter)",
     "tankLitresHint": "Word gebruik om 'n brandstofkaartvulling te sien wat meer is as wat die tenk hou.",
     "profile": "Profiel",
-    "qrSheetEmptyHint": "Voeg eers jou {{assets}} by: elkeen kry sy eie QR-kode om te druk en op te plak, sodat bestuurders foute en lesings daarvandaan kan aanmeld."
+    "qrSheetEmptyHint": "Voeg eers jou {{assets}} by: elkeen kry sy eie QR-kode om te druk en op te plak, sodat bestuurders foute en lesings daarvandaan kan aanmeld.",
+    "importFieldsSkipped": "{n} waardes vir eie velde het nie in hul velde gepas nie en is uitgelaat. Kyk daarna op elke bate of onder Instellings, Eie batevelde."
   },
   "machineType": {
     "tractor": "Trekker",

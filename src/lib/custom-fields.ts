@@ -68,6 +68,29 @@ export function valuesFromForm(form: FormData, definitions: readonly FieldDefini
   return out;
 }
 
+/**
+ * A spreadsheet cell for one field, as the database function takes it, or undefined when the
+ * cell cannot be that type (the importer then counts it as skipped rather than guessing).
+ * Dates are ISO or South African day-first, as the rest of the importer reads them.
+ */
+export function valueFromSheet(d: FieldDefinition, raw: string, parseDate: (v: string) => string | null): unknown {
+  const v = raw.trim();
+  if (!v) return undefined;
+  switch (d.field_type) {
+    case "number": {
+      const n = Number(v.replace(/\s/g, "").replace(",", "."));
+      return Number.isFinite(n) ? n : undefined;
+    }
+    case "yes_no":
+      if (/^(yes|y|ja|true|1)$/i.test(v)) return true;
+      if (/^(no|n|nee|false|0)$/i.test(v)) return false;
+      return undefined;
+    case "date": return parseDate(v) ?? undefined;
+    case "choice": return d.choices.find((c) => c.toLowerCase() === v.toLowerCase());
+    default: return v;
+  }
+}
+
 /** One value as words for reading: the number with its unit, a date as typed, yes or no. */
 export function displayValue(d: FieldDefinition, v: FieldValue | undefined, yes: string, no: string): string | null {
   if (!v) return null;

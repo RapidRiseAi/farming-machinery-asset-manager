@@ -64,6 +64,8 @@ create table if not exists public.asset_field_definitions (
 );
 
 create table if not exists public.asset_field_values (
+  -- A single unique column, so the business export can page through it like any table.
+  id            uuid not null default gen_random_uuid() unique,
   machine_id    uuid not null,
   farm_id       uuid not null,
   definition_id uuid not null,

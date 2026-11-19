@@ -73,6 +73,7 @@ type SP = {
   retired?: string;
   imported?: string;
   skipped?: string;
+  fields_skipped?: string;
   cc?: string;
   dept?: string;
   service?: string;
@@ -696,6 +697,9 @@ export default async function MachinesPage({ searchParams }: { searchParams: Pro
               : t("machines.importedN", locale).replace("{n}", sp.imported))
           : undefined}
       />
+      {/* Imported, but some custom field values did not fit their fields (B5): say how many. */}
+      <Flash tone="warning" message={sp.fields_skipped && /^\d+$/.test(sp.fields_skipped)
+        ? t("machines.importFieldsSkipped", locale).replace("{n}", sp.fields_skipped) : undefined} />
       <Flash tone="success" message={sp.saved === "reading" ? t("ui.saved", locale) : undefined} />
       <Flash tone="error" message={errorMessage(sp.error, locale)} />
 

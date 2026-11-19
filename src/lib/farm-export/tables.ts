@@ -26,6 +26,10 @@ export type ExportTable = { name: string; source?: string; columns?: string; ord
 export const EXPORT_TABLES: readonly ExportTable[] = [
   { name: "farms", farmColumn: "id" },
   { name: "machines", columns: MACHINE_COLUMNS, order: "name" },
+  // The business's own asset fields and their values (B5, 20261121100000); row security
+  // leaves out "managers" fields for anyone else.
+  { name: "asset_field_definitions", order: "sort_order" },
+  { name: "asset_field_values" },
   { name: "meter_readings", order: "reading_date" },
   { name: "service_plan_lines" },
   { name: "job_cards", source: "job_cards_visible", order: "created_at" },

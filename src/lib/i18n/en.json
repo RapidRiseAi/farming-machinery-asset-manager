@@ -711,7 +711,8 @@
     "tankLitres": "Fuel tank size (litres)",
     "tankLitresHint": "Used to spot a fuel card fill that is more than the tank holds.",
     "profile": "Profile",
-    "qrSheetEmptyHint": "Add your {{assets}} first: each one gets its own QR code to print and stick on, so drivers can report faults and readings from it."
+    "qrSheetEmptyHint": "Add your {{assets}} first: each one gets its own QR code to print and stick on, so drivers can report faults and readings from it.",
+    "importFieldsSkipped": "{n} custom field values did not fit their fields and were left out. Check them on each asset or in Settings, Custom asset fields."
   },
   "machineType": {
     "tractor": "Tractor",
