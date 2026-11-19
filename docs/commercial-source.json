@@ -1,0 +1,54 @@
+{
+  "about": "FLEETWISE commercial facts in one dated place (task A5). The app's test src/lib/commercial-source.test.ts checks every value against the code; the website keeps a copy at src/shared/commercial-source.json and checks its pricing against it. Change the code, this file and the website copy together.",
+  "asOf": "2026-11-19",
+  "priceList": "launch-2026-11-eq",
+  "currency": "ZAR",
+  "plans": {
+    "essential": { "monthlyPerFullSpace": 49, "annualPerFullSpace": 490, "includedEquipment": 2 },
+    "professional": { "monthlyPerFullSpace": 79, "annualPerFullSpace": 790, "includedEquipment": 5 },
+    "complete": { "monthlyPerFullSpace": 99, "annualPerFullSpace": 990, "includedEquipment": 15 }
+  },
+  "minFullSpaces": 5,
+  "selfServiceMaxFullSpaces": 200,
+  "extraEquipment": { "monthly": 15, "annual": 150 },
+  "storage": {
+    "minBytes": 2000000000,
+    "perFullSpaceBytes": 100000000,
+    "perEquipmentSpaceBytes": 25000000,
+    "blockBytes": 10000000000,
+    "blockMonthly": 49
+  },
+  "media": {
+    "photoMaxBytes": 20000000,
+    "pdfMaxBytes": 50000000,
+    "voiceNoteMaxMinutes": 10,
+    "voiceNoteMaxBytes": 20000000,
+    "whatsappImageMaxBytes": 5000000,
+    "whatsappVoiceMaxBytes": 16000000,
+    "whatsappVoiceMaxMinutes": 10
+  },
+  "usageMarkupPercent": 30,
+  "featureMinPlan": {
+    "dashboard": "professional",
+    "advanced_reports": "professional",
+    "fuel": "professional",
+    "tco": "professional",
+    "trips": "professional",
+    "maps": "complete",
+    "aarto": "complete",
+    "voice_ai": "complete",
+    "multi_site": "complete",
+    "whatsapp": "complete",
+    "api_access": "done_for_you"
+  },
+  "notYetAvailable": ["maps", "general_chat", "whatsapp_photos", "whatsapp_voice"],
+  "doneForYou": { "fromPerAssetMonthly": 170, "minimumCustomerMonthly": 2500 },
+  "optionalServices": {
+    "clean_setup": { "perAsset": 150, "minimum": 750 },
+    "document_capture": { "perAsset": 300, "minimum": 1500 },
+    "historical_work": { "perHour": 500 },
+    "remote_training": { "perHour": 500 },
+    "onsite_training": { "from": 3500 },
+    "qr_kits": { "perAsset": 45, "minQuantity": 10, "needsSupplierQuote": true }
+  }
+}
