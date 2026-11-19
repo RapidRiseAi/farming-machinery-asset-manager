@@ -31,6 +31,12 @@ export const EXPORT_TABLES: readonly ExportTable[] = [
   { name: "asset_field_definitions", order: "sort_order" },
   { name: "asset_field_values" },
   { name: "meter_readings", order: "reading_date" },
+  // Imports and what each row became (B5, 20261121110000): where readings came from.
+  { name: "import_batches", order: "created_at" },
+  { name: "import_rows", order: "row_no" },
+  // Which manuals are searchable (B5, 20261121120000). Their page text is left out: it is read
+  // from files the complete export already carries.
+  { name: "manual_index", order: "indexed_at", key: "attachment_id" },
   { name: "service_plan_lines" },
   { name: "job_cards", source: "job_cards_visible", order: "created_at" },
   { name: "job_card_lines", source: "job_card_lines_visible" },
