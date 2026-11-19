@@ -43,6 +43,7 @@ import { menuItemClass } from "@/components/ui/menu-item";
 // client code this shell pulls, and it is one list plus two arrow keys.
 import { CommandPalette, SearchButton, type CommandAction } from "@/components/ui/command-palette";
 import { WarmRoutes } from "@/components/offline/warm-routes";
+import { NativeSession } from "@/components/native/native-shell";
 import { SupportBanner } from "@/components/support-banner";
 import { SiteSwitcher, SiteSwitcherChip } from "@/components/ui/site-switcher";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
@@ -727,6 +728,7 @@ export default async function AppLayout({
         {t("nav.skipToContent", locale)}
       </a>
       <WarmRoutes paths={warmPaths} contextKey={`${profile.id}:${currentFarm || profile.farm_id || ""}`} />
+      <NativeSession ownerId={profile.id} />
       {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
 
       {/* ---- Desktop sidebar (>=1024px) ---- */}

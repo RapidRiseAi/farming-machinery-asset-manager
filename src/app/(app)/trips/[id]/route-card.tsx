@@ -16,6 +16,7 @@ import { Fact, FactList } from "@/components/ui/facts";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { FleetMap, type MapLine, type MapMarker } from "@/components/map/fleet-map";
 import { RouteRecorder } from "@/components/map/route-recorder";
+import { recorderLabels } from "@/components/map/recorder-labels";
 import { clearTripRoute } from "../actions";
 
 export type RouteCardTrip = {
@@ -199,13 +200,8 @@ export async function TripRouteCard({
           {trip.driving_session_id ? (
             <RouteRecorder
               sessionId={trip.driving_session_id}
-              labels={{
-                start: t("map.recordStart", locale),
-                stop: t("map.recordStop", locale),
-                recording: t("map.recording", locale),
-                keepOpen: t("map.keepOpen", locale),
-                denied: t("map.recordDenied", locale),
-              }}
+              ownerId={viewerId}
+              labels={recorderLabels(locale)}
             />
           ) : (
             <p className="text-sm text-sand-600">{t("routes.noSession", locale)}</p>

@@ -3,18 +3,71 @@
 import { useEffect, useRef, useState } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
+import { isNativeApp } from "@/lib/native/platform";
+import {
+  nativeRecordingState, openNativeSettings, startNativeRecording, stopNativeRecording, subscribeNativeRecording,
+  type NativeRecordingState,
+} from "@/lib/native/recorder";
+import type { RecorderLabels } from "./recorder-labels";
 
 /**
- * Records a route from the phone while this screen stays open. A web page cannot follow a
- * phone once the screen locks, so it says so plainly, and asks the phone to stay awake.
- * Points are held and sent every half minute, and a batch that fails is sent with the next.
+ * Records a route from the phone. In a browser it works only while this screen stays open (a web
+ * page cannot follow a phone once the screen locks), so it says so plainly and asks the phone to
+ * stay awake; points are held and sent every half minute, and a batch that fails is sent with the
+ * next. In the Android app (B6) it starts the app's own recorder instead: a foreground service with
+ * a notification that keeps going with the screen locked, until the person stops it or the drive
+ * ends.
  */
 const SEND_EVERY_MS = 30_000;
 
-type Labels = { start: string; stop: string; recording: string; keepOpen: string; denied: string };
 type Held = { lat: number; lng: number; at: string; speed: number | null; accuracy: number | null };
 
-export function RouteRecorder({ sessionId, labels }: { sessionId: string; labels: Labels }) {
+export function RouteRecorder({ sessionId, ownerId, labels }: { sessionId: string; ownerId: string; labels: RecorderLabels }) {
+  const [native, setNative] = useState(false);
+  useEffect(() => setNative(isNativeApp()), []);
+  return native
+    ? <NativeRouteRecorder sessionId={sessionId} ownerId={ownerId} labels={labels} />
+    : <BrowserRouteRecorder sessionId={sessionId} labels={labels} />;
+}
+
+function NativeRouteRecorder({ sessionId, ownerId, labels }: { sessionId: string; ownerId: string; labels: RecorderLabels }) {
+  const [recording, setRecording] = useState<NativeRecordingState>(nativeRecordingState());
+  const [busy, setBusy] = useState(false);
+  useEffect(() => subscribeNativeRecording(setRecording), []);
+  const mine = recording.status === "recording" && recording.sessionId === sessionId;
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      if (mine) await stopNativeRecording(null);
+      else await startNativeRecording({ owner: ownerId, sessionId, labels: { title: labels.notificationTitle, message: labels.notificationMessage } });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const status =
+    recording.status === "denied" ? labels.nativeDenied
+    : recording.status === "stopped" && recording.reason === "ended" ? labels.nativeEnded
+    : mine ? `${labels.nativeRecording}${recording.queued > 0 ? ` ${labels.nativeQueued.replace("{n}", String(recording.queued))}` : ""}`
+    : labels.nativeDisclosure;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button type="button" disabled={busy} className={buttonVariants({ variant: mine ? "secondary" : "primary" })} onClick={() => void toggle()}>
+        {mine ? labels.stop : labels.start}
+      </button>
+      <p role="status" className="text-sm text-ink-muted">{status}</p>
+      {recording.status === "denied" ? (
+        <button type="button" className={buttonVariants({ variant: "ghost", size: "sm" })} onClick={() => void openNativeSettings()}>
+          {labels.openSettings}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function BrowserRouteRecorder({ sessionId, labels }: { sessionId: string; labels: RecorderLabels }) {
   const [on, setOn] = useState(false);
   const [denied, setDenied] = useState(false);
   const held = useRef<Held[]>([]);
