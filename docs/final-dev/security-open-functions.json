@@ -1,0 +1,15 @@
+{
+  "app.billing_active_price": "Schema app is not exposed by PostgREST: reachable only from SQL inside policies and other functions. Returns the published price of a plan, which is public information.",
+  "app.billing_price_for_subscription": "Schema app is not exposed by PostgREST: reachable only from SQL run by billing functions that check the payer first. Not callable from the API.",
+  "app.farm_is_test": "Schema app, not exposed: the test-account fence's helper, answers only whether a business is marked test, inside triggers and policies.",
+  "app.user_is_test": "Schema app, not exposed: the test-account fence's helper for people.",
+  "app.workshop_is_test": "Schema app, not exposed: the test-account fence's helper for workshops.",
+  "app.farm_vehicle_allowance": "Schema app, not exposed: capacity counts used inside the asset insert checks; the public wrapper public.farm_vehicle_allowance is listed open in pay_gate_functions.sql and reads only the caller's own business.",
+  "app.feature_min_rank": "Schema app, not exposed: a constant table of plan ranks, no data.",
+  "app.plan_rank": "Schema app, not exposed: a constant mapping of plan to rank, no data.",
+  "app.finance_parent_ok": "Schema app, not exposed: used in the attachments insert policy to confirm a finance parent belongs to the same business; it reveals nothing beyond true or false for a row the policy already scopes.",
+  "app.manual_questions_on": "Schema app, not exposed: answers plan and flag for a business inside public.manual_question_* functions and the manual search, which check membership first.",
+  "app.rr_admin_unlocked": "Schema app, not exposed: reads only the caller's own session claims (second factor).",
+  "app.upload_reserved_paths_enforced": "Schema app, not exposed: reads one switch from app.upload_settings for the storage policies.",
+  "public.has_entitlement": "Delegates to app.has_entitlement, which checks app.has_farm_access itself (0251); rls_isolation.sql pins that another owner and the service role with no user are told no."
+}

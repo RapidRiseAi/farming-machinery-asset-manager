@@ -71,4 +71,8 @@ jobs:
       # dictionary. The sweep that removed ~5,800 of them was a one-off; without this the
       # next file written puts them straight back. --apply rewrites, --check only reports.
       - run: pnpm dashes:check
+      # Every SECURITY DEFINER function a person can call names an access check in its own body or
+      # has its reason recorded (docs/final-dev/security-open-functions.json), and none is unpinned
+      # or open to anon (A6). A new function cannot ship unread.
+      - run: pnpm security:inventory
       - run: pnpm build
