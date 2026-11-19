@@ -60,10 +60,10 @@
           the person started. The plugin declares it exported; nothing outside this app may start
           or bind it.
         -->
+        <!-- Only "exported" is overridden; the type (location) comes from the plugin's own declaration. -->
         <service
             android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
             android:exported="false"
-            android:foregroundServiceType="location"
             tools:replace="android:exported" />
     </application>
 

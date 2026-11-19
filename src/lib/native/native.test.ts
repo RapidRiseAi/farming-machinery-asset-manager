@@ -93,7 +93,8 @@ test("the manifest keeps the promises the store declarations and POPIA rely on",
   assert.match(manifest, /android:dataExtractionRules="@xml\/data_extraction_rules"/);
   assert.match(manifest, /android:usesCleartextTraffic="false"/);
   assert.match(manifest, /<intent-filter android:autoVerify="true">[^]*android:scheme="https" android:host="\$\{appLinkHost\}"/);
-  assert.match(manifest, /BackgroundGeolocationService"\s+android:exported="false"\s+android:foregroundServiceType="location"/);
+  assert.match(manifest, /BackgroundGeolocationService"\s+android:exported="false"\s+tools:replace="android:exported"/);
+  assert.doesNotMatch(manifest, /BackgroundGeolocationService"[^>]*foregroundServiceType/, "the type comes from the plugin once, not merged twice");
   assert.match(manifest, /ACCESS_BACKGROUND_LOCATION" tools:node="remove"/, "no background-location permission");
   assert.doesNotMatch(manifest, /<uses-permission android:name="android.permission.CAMERA"/, "the camera is used through the system's own picker");
   const plugin = readFileSync("node_modules/@capacitor-community/background-geolocation/android/src/main/AndroidManifest.xml", "utf8");
