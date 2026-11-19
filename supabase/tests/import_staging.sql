@@ -156,11 +156,11 @@ reset role;
 
 -- == [6] Documents: Professional and up, and only once the readiness flag is on ===================
 select pg_temp.login('ab100000-0000-4000-9000-000000000001'); set local role authenticated;
-select pg_temp.assert(pg_temp.raises($q$select public.import_batch_open('ab000000-0000-4000-9000-000000000001','document','photo.jpg',repeat('b',64))$q$, '%import-extraction-off%'),
+select pg_temp.assert(pg_temp.raises($q$select public.import_batch_open('ab000000-0000-4000-9000-000000000001','document','photo.jpg',repeat('b',64),'fake')$q$, '%import-extraction-off%'),
   '[6] reading documents is off until a provider and its cost are approved');
 reset role;
 select pg_temp.login('ab100000-0000-4000-9000-000000000003'); set local role authenticated;
-select pg_temp.assert(pg_temp.raises($q$select public.import_batch_open('ab000000-0000-4000-9000-000000000002','document','photo.jpg',repeat('c',64))$q$, '%plan-feature-document_extraction%'),
+select pg_temp.assert(pg_temp.raises($q$select public.import_batch_open('ab000000-0000-4000-9000-000000000002','document','photo.jpg',repeat('c',64),'fake')$q$, '%plan-feature-document_extraction%'),
   '[6] documents are not on Essential');
 select pg_temp.assert((public.import_batch_open('ab000000-0000-4000-9000-000000000002','sheet','e.csv',repeat('d',64))->>'id') is not null,
   '[6] a sheet works on every plan');
@@ -170,8 +170,13 @@ select pg_temp.assert(not (public.import_batch_open('ab000000-0000-4000-9000-000
 reset role;
 insert into public.farm_feature_access(key,farm_id) values ('document_extraction','ab000000-0000-4000-9000-000000000001');
 select pg_temp.login('ab100000-0000-4000-9000-000000000001'); set local role authenticated;
-select pg_temp.assert((public.import_batch_open('ab000000-0000-4000-9000-000000000001','document','photo.jpg',repeat('b',64))->>'id') is not null,
+select pg_temp.assert((public.import_batch_open('ab000000-0000-4000-9000-000000000001','document','photo.jpg',repeat('b',64),'fake')->>'id') is not null,
   '[6] with the flag on for this business, a document batch opens');
+select pg_temp.assert((select provider from public.import_batches where source = 'document' and farm_id = 'ab000000-0000-4000-9000-000000000001') = 'fake',
+  '[6] the batch records which reader read the document');
+select pg_temp.assert(pg_temp.raises($q$select public.import_batch_open('ab000000-0000-4000-9000-000000000001','document','scan.pdf',repeat('e',64))$q$, '%import-invalid%')
+  and pg_temp.raises($q$select public.import_batch_open('ab000000-0000-4000-9000-000000000001','sheet','s.csv',repeat('f',64),'fake')$q$, '%import-invalid%'),
+  '[6] a document must name its reader, and a sheet has none');
 reset role;
 select pg_temp.assert(not has_table_privilege('authenticated','public.import_rows','INSERT')
   and not has_table_privilege('authenticated','public.import_batches','UPDATE'), '[6] writes only through the checked functions');

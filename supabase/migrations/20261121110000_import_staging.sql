@@ -90,7 +90,7 @@ select app.pay_gate_apply('import_rows');
 -- A document batch needs Professional or Complete AND the readiness flag; a sheet works on every
 -- plan. The same file again answers with the batch already open or confirmed.
 create or replace function public.import_batch_open(
-  p_farm uuid, p_source text, p_file_name text default null, p_sha256 text default null
+  p_farm uuid, p_source text, p_file_name text default null, p_sha256 text default null, p_provider text default null
 ) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -99,7 +99,10 @@ declare
 begin
   if not app.import_manager(p_farm) then raise exception 'forbidden' using errcode = '42501'; end if;
   perform app.require_open_farm(p_farm, true);
-  if p_source not in ('sheet', 'document') or (p_sha256 is not null and p_sha256 !~ '^[0-9a-f]{64}$') then
+  -- A sheet has no reader; a document names the one that read it (provenance on every row's batch).
+  if p_source not in ('sheet', 'document') or (p_sha256 is not null and p_sha256 !~ '^[0-9a-f]{64}$')
+     or (p_source = 'sheet' and p_provider is not null)
+     or (p_source = 'document' and coalesce(p_provider, '') !~ '^[a-z0-9_-]{1,40}$') then
     raise exception 'import-invalid' using errcode = '22023';
   end if;
   if p_source = 'document' then
@@ -118,8 +121,8 @@ begin
      where farm_id = p_farm and source_sha256 = p_sha256 and status in ('review', 'confirmed');
     if found then return jsonb_build_object('id', v_existing.id, 'reused', true, 'status', v_existing.status); end if;
   end if;
-  insert into public.import_batches (farm_id, source, file_name, source_sha256, created_by)
-  values (p_farm, p_source, left(nullif(btrim(coalesce(p_file_name, '')), ''), 200), p_sha256, auth.uid())
+  insert into public.import_batches (farm_id, source, file_name, source_sha256, provider, created_by)
+  values (p_farm, p_source, left(nullif(btrim(coalesce(p_file_name, '')), ''), 200), p_sha256, p_provider, auth.uid())
   returning id into v_id;
   return jsonb_build_object('id', v_id, 'reused', false, 'status', 'review');
 end $$;
@@ -391,12 +394,12 @@ begin
   end if;
 end $$;
 
-revoke all on function public.import_batch_open(uuid, text, text, text) from public, anon;
+revoke all on function public.import_batch_open(uuid, text, text, text, text) from public, anon;
 revoke all on function public.import_rows_stage(uuid, jsonb) from public, anon;
 revoke all on function public.import_row_decide(uuid, text, uuid, date, numeric) from public, anon;
 revoke all on function public.import_batch_confirm(uuid) from public, anon;
 revoke all on function public.import_batch_cancel(uuid) from public, anon;
-grant execute on function public.import_batch_open(uuid, text, text, text) to authenticated;
+grant execute on function public.import_batch_open(uuid, text, text, text, text) to authenticated;
 grant execute on function public.import_rows_stage(uuid, jsonb) to authenticated, service_role;
 grant execute on function public.import_row_decide(uuid, text, uuid, date, numeric) to authenticated;
 grant execute on function public.import_batch_confirm(uuid) to authenticated;
