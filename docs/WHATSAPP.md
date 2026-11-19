@@ -131,6 +131,49 @@ and account settings are supported; transport instructions and the initial appro
 notification templates use English. Employees can reconnect through the app to change
 the selected farm. Switching the app's farm selector does not redirect WhatsApp.
 
+## Completion (task B4, 19 November 2026, migration `20261121090000`, not yet released)
+
+- **A switch per path.** `whatsapp_text` and `whatsapp_alerts` start released (real-phone
+  verified 17 and 18 October); `whatsapp_photos` and `whatsapp_voice` start in testing and
+  stay off until their real-phone journeys pass. Rapid Rise opens a path for chosen businesses
+  or releases it on `/admin/features`. A message on a closed path gets a short reply, never a
+  model call; an alert on a closed path stays in the app. `WHATSAPP_ENABLED` is still the
+  channel's own switch.
+- **Media limits from Meta's current documentation** (`docs/LIMITS.md`, "WhatsApp media"):
+  photos 5 MB, voice notes 16 MB and ten minutes (decision 11). A ten-minute note is heard
+  inside a 300-second run with the hearing time scaled to its length, and its transcript
+  keeps the spoken-request length (16,000 characters) instead of being cut to 2,000.
+- **Photos on the customer's storage pool.** `whatsapp_stage_photo` reserves the bytes under
+  the pool's lock and records an upload intent, so a full pool refuses the photo (the owners
+  are told once, as for an app upload) and the pool counts it at once. Discarding or expiring
+  a photo frees the bytes; an attached photo keeps counting as the fault photo it became.
+- **The person's own app upload link** for a file WhatsApp cannot carry here: a photo past
+  5 MB, a document, video or sticker, or photos on a closed path. `/whatsapp/upload/<token>`
+  opens only for the same signed-in person, on the same business, while they are a member,
+  for 30 minutes; a forwarded link answers another person exactly as an unknown one. The
+  upload itself is the app's (B1's pipeline and row security). Only the token's SHA-256 is
+  stored. No WhatsApp document support is promised.
+- **One answer per message.** `whatsapp_start_answer` marks an inbound message before the
+  model is asked; if the process dies after a paid answer and before it is saved, the next
+  attempt asks the person to send it again instead of paying twice.
+- **Delivery statuses only move forward** (`whatsapp_record_status`): a late or repeated
+  `sent` never undoes `delivered` or `read`; `failed` is kept over `sent`, never over a
+  delivery; Meta's chargeable answer is stored beside it (A3 settles the money).
+- **Equipment-aware assistant** (BRIEF 12, scenario 36): no diesel proposal for support
+  equipment and no fuel-consumption figures for it, from WhatsApp or the app; the table
+  refuses it again, and a refusal at confirmation says why. The agent's tools only read;
+  every write is one proposal and a typed `CONFIRM <code>`; business data, documents, chat and
+  transcripts are records, never instructions.
+- **Not in the business export.** The `whatsapp_*` transport tables keep message text 30 days
+  and are deliberately left out of the business export; the assistant's interactions from
+  WhatsApp are in the person's assistant history.
+
+Still to do before release (external): the real-phone journeys for text, alerts, photos and
+voice (scenario 33: activation consent, a revoked number and site membership, duplicated
+events, a stale confirmation, an oversized photo's app link, real photo and voice delivery),
+then release each path on `/admin/features`; Rapid Rise's WhatsApp rates and start date
+(A3) before WhatsApp is charged.
+
 ## Voice notes and photos (built 4 November 2026, migration `20261104210000`, not yet released)
 
 The webhook stores a voice note's or photo's **Meta media id**, never the file. The worker
@@ -145,12 +188,12 @@ the business token is sent only to Meta's own hosts.
   ("Heard: ..."), so a mishearing is visible before anything is confirmed. Every
   attempt takes an AI budget hold first and settles in the ledger as `ai_hearing`, on
   the farm's own OpenAI key where linked (docs/AI_USAGE.md). Refused before any
-  model call: AI help off for the person, a note over three minutes or 4 MB, and
+  model call: AI help off for the person, a note over ten minutes or 16 MB (B4; Meta's audio limit, the app's ten minutes), and
   anything that is not Ogg/Opus (the length is read from the file's own headers, so a
   forwarded MP3 is refused rather than guessed). At the farm's spending limit the
   reply says so and whatever was waiting is kept. Neither the audio nor the
   transcript is stored beyond the inbox's own 30-day text retention.
-- **Photos** are checked by their own bytes (JPEG, PNG or WebP, under 6 MB), staged in
+- **Photos** are checked by their own bytes with the app's checker (JPEG, PNG or WebP, up to 5 MB, Meta's image limit; B4), reserved on the customer's storage pool and staged in
   the farm's folder of the `fault-photos` bucket and recorded in `whatsapp_media`.
   The reply asks what the photo is for (`src/lib/whatsapp/photo-flow.ts`):
   1. **a new problem**: the person names the machine and what is wrong (or the

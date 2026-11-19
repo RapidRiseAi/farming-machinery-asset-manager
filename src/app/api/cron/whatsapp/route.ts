@@ -9,7 +9,8 @@ import { captureError } from "@/lib/observability";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // A voice note is downloaded, heard (up to two models) and answered inside one run.
-export const maxDuration = 120;
+// A ten-minute voice note is heard inside the run (decision 11), as the in-app command is.
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   // The Supabase scheduler gets its own credential, scoped to this route only.

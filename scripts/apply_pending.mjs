@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // WhatsApp completion: capability flags, forward-only statuses, one answer, photos on the pool, upload links.
+  "20261121090000": "select to_regclass('public.whatsapp_upload_links') is not null and to_regprocedure('public.whatsapp_stage_photo(uuid,uuid,uuid,uuid,text,text,bigint)') is not null and to_regprocedure('public.whatsapp_record_status(text,text,boolean)') is not null and exists (select 1 from public.feature_flags where key = 'whatsapp_voice')",
   // Scheduled deletion after the reading window, shipped switched off (A4).
   "20261120120000": "select to_regclass('public.farm_retention_schedules') is not null and to_regclass('public.farm_retention_holds') is not null and to_regclass('public.retention_settings') is not null and to_regprocedure('public.retention_delete(uuid)') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'farm_closures' and column_name = 'pending_logins')",
   // The complete export with files, as a job (A4).
