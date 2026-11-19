@@ -58,6 +58,10 @@ function failureMessage(language: "en" | "af", code: string): string {
       return localized(language, "Voice assistant access is no longer enabled for this business.", "Stemassistenttoegang is nie meer vir hierdie besigheid geaktiveer nie.");
     case "forbidden":
       return localized(language, "Your current role cannot apply this proposal.", "Jou huidige rol kan nie hierdie voorstel toepas nie.");
+    case "equipment_refused":
+      return localized(language, "This asset is support equipment, which does not take this kind of record. Nothing was saved.", "Hierdie bate is ondersteuningstoerusting, wat nie hierdie soort rekord neem nie. Niks is gestoor nie.");
+    case "plan_feature":
+      return localized(language, "Your business's plan does not include this. Nothing was saved.", "Jou besigheid se plan sluit dit nie in nie. Niks is gestoor nie.");
     case "invalid_capture":
     case "invalid_proposal":
     case "bad_request":
@@ -123,6 +127,13 @@ export async function confirmAssistantProposal(context: AssistantContext, input:
   const { data, error } = rpcResult;
 
   if (error) {
+    // The table refused it for the asset's profile or the plan (A1, 20261114090200): say why,
+    // e.g. an asset converted to support equipment after the proposal was prepared.
+    const refusal = /^(equipment-refused|plan-feature)-[a-z_]+/.exec(String(error.message ?? ""))?.[0];
+    if (refusal) {
+      const code = refusal.startsWith("equipment") ? "equipment_refused" : "plan_feature";
+      return json({ ok: false, code, message: failureMessage(language, code) }, 403);
+    }
     const forbidden = error.code === "42501";
     const code = forbidden ? "forbidden" : "command_failed";
     return json({ ok: false, code, message: failureMessage(language, code) }, forbidden ? 403 : 500);

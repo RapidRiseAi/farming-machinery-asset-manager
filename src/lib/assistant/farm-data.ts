@@ -1,3 +1,4 @@
+import { profileRefuses } from "@/lib/entitlements";
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -256,7 +257,11 @@ export async function fuelSummary(
   if (consumption.error) throw consumption.error;
   const machineRows = (byMachine.data as FuelRow[] | null) ?? [];
   const monthRows = ((byMonth.data as FuelRow[] | null) ?? []).sort((a, b) => String(a.month).localeCompare(String(b.month)));
-  const rates = new Map(((consumption.data as ConsumptionRow[] | null) ?? []).map((row) => [row.machine_id, row]));
+  // No fuel analysis for support equipment (A1, scenario 36): a pump converted from a full
+  // asset keeps its old draws as records, but never a consumption rate.
+  const equipment = new Set(scope.machines.filter((m) => profileRefuses(m.profile ?? "full", "fuel")).map((m) => m.id));
+  const rates = new Map(((consumption.data as ConsumptionRow[] | null) ?? [])
+    .filter((row) => !equipment.has(row.machine_id)).map((row) => [row.machine_id, row]));
   const names = await machineNames(scope, machineRows.map((row) => row.machine_id));
   const fleet = new Map(scope.machines.map((machine) => [machine.id, machine]));
 

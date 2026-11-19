@@ -52,6 +52,7 @@ import {
 } from "@/lib/assistant/store";
 import type { AssistantAnswerPage, AssistantDraft, AssistantLocale, AssistantMachine, AssistantTurnResponse } from "@/lib/assistant/types";
 import { captureError } from "@/lib/observability";
+import { profileRefuses } from "@/lib/entitlements";
 
 
 function json(body: AssistantTurnResponse, status = 200) {
@@ -907,6 +908,32 @@ export async function runAssistantTurn(context: AssistantContext, body: ParsedAs
     const match = matchAssistantMachine(draft, body.input, machines, writableMachines, hearingTexts);
     if (match.machine) draft = { ...draft, machineId: match.machine.id, confidence: Math.min(draft.confidence, match.score) };
     else draft = { ...draft, machineId: null };
+
+    // Support equipment takes only equipment-permitted work (A1, BRIEF 12 last paragraph): no
+    // diesel booked to a pump or a trailer, on any plan, from any channel. Refused before a
+    // proposal exists, with A1's own rule; the database refuses it again at the table.
+    const matched = draft.machineId ? machines.find((m) => m.id === draft.machineId) : null;
+    if (draft.intent === "log_fuel" && matched && profileRefuses(matched.profile ?? "full", "fuel")) {
+      if (interactionId) {
+        await updateInteractionDraft(interactionId, context.farmId, context.profile.id, draft, {
+          result_status: "failed",
+          response_text: "Support equipment does not take fuel draws.",
+          error_code: "equipment-refused-fuel",
+          completed_at: new Date().toISOString(),
+        }, expectedInteractionStatus).catch(() => undefined);
+      }
+      await updateVoiceCapture(captureId, context.profile.id, { status: "cancelled", error_code: "equipment-refused-fuel" });
+      return json({
+        kind: "error",
+        code: "equipment-refused-fuel",
+        message: localized(
+          body.locale,
+          `${matched.name} is support equipment, so diesel is not booked to it. Record the draw on the Fuel page without an asset. Nothing was saved.`,
+          `${matched.name} is ondersteuningstoerusting, dus word diesel nie daarop geboek nie. Teken die trekking op die Brandstof-blad sonder 'n bate aan. Niks is gestoor nie.`,
+        ),
+        fallbackHref: "/fuel",
+      }, 400);
+    }
 
     // A diesel draw comes from a tank: the one already agreed, the one named, or the business's
     // only tank. With several and none named, it is the next question.
