@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { t } from "@/lib/i18n";
@@ -30,15 +30,17 @@ import {
 
 const FEATURES = Object.keys(FEATURE_MIN_PLAN) as Feature[];
 const RANK = { essential: 1, professional: 2, complete: 3, done_for_you: 4 } as const;
-const MATRIX_SQL = readFileSync(
-  join(process.cwd(), "supabase", "migrations", "20261114090200_equipment_entitlements.sql"),
-  "utf8",
-);
+// Every migration in order: the LATEST definition of a function is the one the database runs
+// (the matrix began in 20261114090200; B5 added custom_fields in a later one).
+const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
+const ALL_SQL = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()
+  .map((f) => readFileSync(join(MIGRATIONS_DIR, f), "utf8")).join("\n");
 
 function sqlBody(fn: string): string {
-  const start = MATRIX_SQL.indexOf(`function ${fn}(`);
-  assert.ok(start >= 0, `${fn} is not in the matrix migration`);
-  return MATRIX_SQL.slice(start, MATRIX_SQL.indexOf("$$;", start));
+  // The definition, not a later "revoke ... on function" or "comment on function" line.
+  const start = Math.max(ALL_SQL.lastIndexOf(`create or replace function ${fn}(`), ALL_SQL.lastIndexOf(`create function ${fn}(`));
+  assert.ok(start >= 0, `${fn} is not defined in any migration`);
+  return ALL_SQL.slice(start, ALL_SQL.indexOf("$$;", start));
 }
 
 test("the plan part of the matrix is the database's app.feature_min_rank, key for key", () => {
