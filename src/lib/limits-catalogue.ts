@@ -2,7 +2,7 @@
 // kind, with its value in plain units and why it exists. docs/final-dev/LIMITS-CATALOGUE.md is this
 // output; a test fails when the two differ. Regenerate with:
 //   pnpm exec tsx scripts/limits_catalogue.ts
-import { LIMITS, type LimitEntry, type LimitKind } from "./limits";
+import { LIMITS, MB, MIB, type LimitEntry, type LimitKind } from "./limits";
 
 const KIND_TITLES: Record<LimitKind, string> = {
   commercial: "Commercial limits (what a plan or decision promises)",
@@ -20,8 +20,8 @@ function plain(entry: LimitEntry): string {
   };
   switch (entry.unit) {
     case "bytes":
-      if (v % 1_048_576 === 0 && v % 1_000_000 !== 0) return `${n(v / 1_048_576)} MiB (${n(v, 0)} bytes)`;
-      if (v >= 1_000_000) return `${n(v / 1_000_000)} MB (${n(v, 0)} bytes)`;
+      if (v % MIB === 0 && v % MB !== 0) return `${n(v / MIB)} MiB (${n(v, 0)} bytes)`;
+      if (v >= MB) return `${n(v / MB)} MB (${n(v, 0)} bytes)`;
       if (v >= 1000) return `${n(v / 1000)} kB (${n(v, 0)} bytes)`;
       return `${n(v, 0)} bytes`;
     case "ms":

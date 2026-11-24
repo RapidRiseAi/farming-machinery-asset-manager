@@ -354,7 +354,8 @@ export function computeWidget(type: string, s: WidgetSettings, d: DashData, ctx:
       type Row = ListRow & { date: string };
       const out: Row[] = [];
       for (const m of active) {
-        const st = warrantyStatus(m);
+        // The dashboard's own now, like every other widget (it read the real clock until A6).
+        const st = warrantyStatus(m, undefined, undefined, d.now);
         if (st === "expiring" || st === "expired") {
           out.push({
             key: `w-${m.id}`, date: m.warranty_expiry_date ?? "9999-12-31", title: m.name, href: `/machines/${m.id}?tab=papers`,
@@ -365,7 +366,7 @@ export function computeWidget(type: string, s: WidgetSettings, d: DashData, ctx:
       }
       for (const l of d.licences) {
         if (!ids.has(l.machine_id)) continue;
-        const st = dateExpiryStatus(l.expiry_date, l.reminder_lead_days);
+        const st = dateExpiryStatus(l.expiry_date, l.reminder_lead_days, d.now);
         if (st !== "expiring" && st !== "expired") continue;
         out.push({
           key: `l-${l.id}`, date: l.expiry_date, title: name.get(l.machine_id) ?? "-", href: `/machines/${l.machine_id}?tab=papers`,

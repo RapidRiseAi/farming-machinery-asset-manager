@@ -33,7 +33,8 @@ purpose. A green build is not a capacity result.
    ```powershell
    $env:STAGING_SUPABASE_URL = "https://<staging ref>.supabase.co"
    $env:STAGING_SERVICE_ROLE_KEY = "<staging service role key>"
-   $env:LOAD_PASSWORD = "<12+ characters, for the synthetic people only>"
+   # 12 or more characters, for the synthetic people only; typed, never written in a file
+   $env:LOAD_PASSWORD = Read-Host -AsSecureString "Load password" | ConvertFrom-SecureString -AsPlainText
    node scripts/load_seed.mjs --yes-staging --customers 5 --exports
    ```
    This writes `load/.seed-manifest.json` (git-ignored; ids and emails, no password).

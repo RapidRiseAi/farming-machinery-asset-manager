@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 // The restore drill never runs against production and never pretends to pass (A6, scenario 39).
 function drill(env: Record<string, string>) {
   const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("RESTORE_") && k !== "RCLONE_CONFIG"));
-  return spawnSync(process.execPath, ["scripts/restore_drill.mjs"], { env: { ...clean, ...env }, encoding: "utf8" });
+  return spawnSync(process.execPath, ["scripts/restore_drill.mjs"], { env: { ...clean, ...env } as NodeJS.ProcessEnv, encoding: "utf8" });
 }
 
 test("aimed at the production project, the drill refuses before reading anything", () => {
