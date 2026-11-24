@@ -2,7 +2,7 @@
 
 Read this and `git log` first when resuming. Never restart a step that is marked done.
 
-## Current task: A6 (security read, backups, load tests, release notes, final deliverables), main Claude session
+## Task A6 (security read, backups, load tests, release notes, final deliverables), main Claude session: COMPLETE
 
 Started 19 Nov 2026 at 266a8e5 (lane A synced with B6 at 228f388). BRIEF sections 20, 21, 24, 25; scenarios 37, 38, 39, 42.
 Plan:
@@ -29,6 +29,24 @@ paths, nothing owner-run open to anon) and people against the new tables (owner,
 ended membership, another site of the same customer, partner, Rapid Rise with and without the second factor,
 another business) plus switched-off sessions refused by the new write functions. Proven to fail on a wrong
 expectation and on an anon grant. CI runs `pnpm security:inventory`.
+
+Step 2 DONE: inactive profiles refused at /api/chat, /api/machines/search, /api/assistant/consent; /api/push/send
+compares in constant time (cron-auth.test.ts); CSV, raw HTML, webhooks, realtime, auth callback, confirm, reset read
+and sound. Finding R-032: move_machine_to_site allowed cross-customer moves; 20261121130000 requires one billing
+root (suites updated, mutation caught).
+Step 3 DONE: scripts/restore_drill.mjs (isolated project only, refuses production, blocked without setup) with tests;
+BACKUP.md section 9. Blocked: offsite copy secrets, scratch project.
+Step 4 DONE: scripts/load_seed.mjs (staging only), load/k6 (customers, chat_uploads, jobs), docs/LOAD_TESTS.md. Not
+run: no staging project.
+Step 5 DONE: RELEASE-NOTES.md, CONFIGURATION.md (+ .env.example names), LIMITS-CATALOGUE.md generated with a drift
+test, guidance topics (routes, imports) EN/AF, register rows and items updated, TEST-EVIDENCE.md, REPORT-A6.md.
+The 24 Nov unit run found the dashboard papers widget reading the real clock (fixed, 7fbad25).
+Gates (24 Nov): tsc clean, unit 1299 pass, SQL 102/102, security inventory clean, build passes, statics, audit.
+
+## TASK A6 COMPLETE
+
+24 Nov 2026. Report: docs/final-dev/REPORT-A6.md. All twelve tasks are complete; next is the final combined review
+and the release, with the founder's approvals.
 
 ## Earlier task: A5 (website, signup, wording, revised plan PDF) by the main Claude session
 

@@ -2,7 +2,7 @@
 
 Lane A, branch `final/lane-a`, 19 to 24 November 2026, from `266a8e5` (synced with B6 at `228f388`). Built by the main Claude session. BRIEF sections 20, 21, 24 and 25; scenarios 37, 38, 39 and 42. Nothing was pushed to `main`, applied to a live database or released by this work.
 
-Gates: see docs/final-dev/TEST-EVIDENCE.md.
+Gates (24 Nov, lane A): tsc clean; 1299 unit tests pass (1 skipped); 102/102 SQL suites on PGlite; `pnpm security:inventory` clean; `pnpm build` passes; statics and audit clean. Details and mutation results in docs/final-dev/TEST-EVIDENCE.md. CI on real Postgres runs at integration.
 
 ## 1. Done
 
