@@ -325,4 +325,6 @@ echo "==> running complete export tests (the requester's own file list, one job 
 pg "$DB" < "$ROOT/supabase/tests/complete_export.sql"
 echo "==> running retention schedule tests (dry run while off, warnings, holds, reactivation, the closure path; scenarios 11 and 29)"
 pg "$DB" < "$ROOT/supabase/tests/retention_schedules.sql"
+echo "==> running final isolation tests (catalogue: row security, anon, read policies, pinned search paths; people against the new tables; switched-off sessions; scenarios 37 and 38)"
+pg "$DB" < "$ROOT/supabase/tests/final_isolation.sql"
 echo "==> OK"

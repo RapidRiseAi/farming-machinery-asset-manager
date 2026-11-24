@@ -2413,7 +2413,11 @@
       "paymentsTitle": "Betalings, grasietyd en kansellering",
       "paymentsBody": "Jy betaal per kaart deur Paystack. As 'n hernuwingsbetaling misluk, is daar sewe dae grasietyd: rekords werk steeds, maar niks nuuts wat geld kos, begin nie. Daarna stop hernuwings en kan net die eienaar 90 dae lank lees en aflaai. Kansellering stop die volgende hernuwing; jy behou toegang tot die einde van die betaalde tydperk, en daar is geen outomatiese terugbetaling nie. As jy weer betaal, kom die rekening terug.",
       "devicesTitle": "Fone en werk sonder sein",
-      "devicesBody": "FLEETWISE werk in jou foon se blaaier en kan by die tuisskerm gevoeg word. Gekose lesings, foute en werkkaarte kan sonder sein gestoor word en word gestuur wanneer die verbinding terugkom; jou toegang word dan weer nagegaan, en enigiets wat geweier word, word met die rede gehou. Nie elke skerm werk sonder sein nie. Foto's word outomaties kleiner gemaak tensy jy kies om die oorspronklike te hou."
+      "devicesBody": "FLEETWISE werk in jou foon se blaaier en kan by die tuisskerm gevoeg word. Gekose lesings, foute en werkkaarte kan sonder sein gestoor word en word gestuur wanneer die verbinding terugkom; jou toegang word dan weer nagegaan, en enigiets wat geweier word, word met die rede gehou. Nie elke skerm werk sonder sein nie. Foto's word outomaties kleiner gemaak tensy jy kies om die oorspronklike te hou.",
+      "routesTitle": "Om 'n roete op te neem",
+      "routesBody": "Op 'n rit of 'n reis gebruik Teken my roete op jou foon se ligging. In 'n foon se blaaier neem dit net op terwyl daardie skerm oop en voor bly: wanneer die skerm sluit, stop die roete totdat jy terugkom, en die gaping word as 'n gaping gewys, nooit ingevul nie. iPhones werk ook so. 'n Android-toep wat met die skerm gesluit aanhou opneem, met 'n kennisgewing terwyl dit opneem, word voorberei. Opname stop wanneer jy op Stop tik of die rit eindig.",
+      "importsTitle": "Lesings vanaf 'n sigblad invoer",
+      "importsBody": "Eienaars en bestuurders kan meterlesings vanaf 'n CSV-sigblad invoer (Masjiene, Meer, Voer lesings in). Niks word dadelik geskryf nie: elke ry word eers nagegaan, en enigiets twyfelagtigs, soos 'n onbekende bate, 'n onduidelike datum of 'n lesing laer as die meter, wag dat jy die regte waarde invul. Rye sonder probleme kan saam aanvaar word. Eers dan word die lesings geskryf, elkeen een keer."
     }
   },
   "tyreAxle": {
@@ -8188,7 +8192,8 @@
     "seeNow": "Sien dit nou",
     "cameFrom": "Hierdie {{asset}} kom van 'n ander perseel.",
     "seeEarlier": "Sien sy vroeëre geskiedenis",
-    "failed": "Dit kon nie geskuif word nie. Kyk of jy albei persele bestuur en of die ander perseel 'n vrye gleuf het."
+    "failed": "Dit kon nie geskuif word nie. Kyk of jy albei persele bestuur en of die ander perseel 'n vrye gleuf het.",
+    "otherCustomer": "Daardie perseel behoort aan 'n ander besigheid. Gee die {{asset}} eerder aan hulle oor, sodat albei kante daartoe instem."
   },
   "map": {
     "title": "Kaart",

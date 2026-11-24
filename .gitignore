@@ -64,3 +64,6 @@ scratchpad/
 # A stray copy of the local env without its leading dot. `.env*.local` above does NOT
 # match this name, and `git add -A` would have committed real Supabase keys.
 env.local
+
+# Load test fixtures made by scripts/load_seed.mjs (ids and emails of synthetic staging accounts).
+load/.seed-manifest.json

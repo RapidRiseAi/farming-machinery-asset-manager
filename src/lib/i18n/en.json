@@ -2413,7 +2413,11 @@
       "paymentsTitle": "Payments, grace and cancelling",
       "paymentsBody": "You pay by card through Paystack. If a renewal payment fails there are seven days of grace: records keep working, but nothing new that costs money starts. After that, renewals stop and only the owner can read and download for 90 days. Cancelling stops the next renewal; you keep access to the end of the paid period, and there is no automatic refund. Paying again brings the account back.",
       "devicesTitle": "Phones and working without signal",
-      "devicesBody": "FLEETWISE works in your phone's browser and can be added to the home screen. Selected readings, faults and job cards can be saved without signal and are sent when the connection returns; your access is checked again then, and anything refused is kept with the reason. Not every screen works offline. Photos are made smaller automatically unless you choose to keep the original."
+      "devicesBody": "FLEETWISE works in your phone's browser and can be added to the home screen. Selected readings, faults and job cards can be saved without signal and are sent when the connection returns; your access is checked again then, and anything refused is kept with the reason. Not every screen works offline. Photos are made smaller automatically unless you choose to keep the original.",
+      "routesTitle": "Recording a route",
+      "routesBody": "On a drive or a trip, Record my route uses your phone's location. In a phone's browser it records only while that screen stays open and in front: when the screen locks, the route stops until you come back, and the gap is shown as a gap, never filled in. iPhones work this way too. An Android app that keeps recording with the screen locked, with a notification while it records, is being prepared. Recording stops when you tap Stop or the drive ends.",
+      "importsTitle": "Importing readings from a spreadsheet",
+      "importsBody": "Owners and managers can bring meter readings in from a CSV sheet (Machines, More, Import readings). Nothing is written straight away: every row is checked first, and anything doubtful, such as an unknown asset, an unclear date or a reading lower than the meter, waits for you to fill in the right value. Rows with no problem can be accepted together. Only then are the readings written, each once."
     }
   },
   "tyreAxle": {
@@ -8188,7 +8192,8 @@
     "seeNow": "See it now",
     "cameFrom": "This {{asset}} came from another site.",
     "seeEarlier": "See its earlier history",
-    "failed": "That could not be moved. Check that you run both sites and that the other site has a free slot."
+    "failed": "That could not be moved. Check that you run both sites and that the other site has a free slot.",
+    "otherCustomer": "That site belongs to another business. Hand the {{asset}} over to them instead, so both sides agree to it."
   },
   "map": {
     "title": "Map",

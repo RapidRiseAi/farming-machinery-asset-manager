@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   // role that no longer has assistant access.
   const context = parsed.data.allow ? await getAssistantContext() : null;
   const profile = context?.profile ?? (await getProfile());
-  if (!profile) return NextResponse.json({ error: "unauthenticated" }, { status: 401, headers });
+  if (!profile?.active) return NextResponse.json({ error: "unauthenticated" }, { status: 401, headers });
   if (parsed.data.allow && !context) {
     return NextResponse.json({ error: "forbidden" }, { status: 403, headers });
   }

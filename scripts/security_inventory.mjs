@@ -1,0 +1,105 @@
+// Every SECURITY DEFINER function a signed-in or anonymous caller can execute, read from a
+// throwaway PGlite database with every migration applied (task A6, BRIEF section 20).
+//
+// For each: who can call it, whether its search_path is pinned, and which access checks its own
+// body names. A function that names none is flagged READ: it is either deliberately open (and the
+// inventory says why) or a finding. The output is docs/final-dev/SECURITY-INVENTORY.md; --check
+// exits 1 when a flagged function has no recorded reason, or a callable function has no pinned
+// search_path, so a new function cannot slip past the read.
+//
+// usage: node scripts/security_inventory.mjs [--check]
+import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
+import fs from "node:fs";
+import path from "node:path";
+
+const root = path.resolve(import.meta.dirname, "..");
+const migrationsDir = path.join(root, "supabase/migrations");
+const shimPath = path.join(root, "supabase/tests/shim/auth_shim.sql");
+const outPath = path.join(root, "docs/final-dev/SECURITY-INVENTORY.md");
+const reasonsPath = path.join(root, "docs/final-dev/security-open-functions.json");
+const check = process.argv.includes("--check");
+
+const read = (p) => fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n")
+  .replace(/create extension if not exists pgcrypto\s*;/gi, "select 1;");
+
+const db = new PGlite({ extensions: { pg_trgm } });
+await db.exec(`
+  do $$ begin
+    if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
+    if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
+    if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if;
+    if not exists (select 1 from pg_roles where rolname = 'authenticator') then create role authenticator nologin; end if;
+  end $$;`);
+await db.exec(read(shimPath));
+await db.exec(`
+  create or replace function public.digest(text, text) returns bytea language sql immutable as $fn$ select decode(md5($1), 'hex') $fn$;
+  create or replace function public.digest(bytea, text) returns bytea language sql immutable as $fn$ select decode(md5($1), 'hex') $fn$;`);
+const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
+for (const f of files) await db.exec(read(path.join(migrationsDir, f)));
+
+const { rows } = await db.query(`
+  select n.nspname as schema, p.proname as name, pg_get_function_identity_arguments(p.oid) as args,
+         has_function_privilege('anon', p.oid, 'EXECUTE') as anon,
+         has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+         coalesce(array_to_string(p.proconfig, ','), '') as config,
+         p.prosrc as src, l.lanname as lang
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    join pg_language l on l.oid = p.prolang
+   where p.prosecdef and p.prokind = 'f'
+     and n.nspname not in ('pg_catalog', 'information_schema', 'auth', 'storage', 'extensions')
+     and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+   order by n.nspname, p.proname, args`);
+
+// The checks a body can make for itself. A helper here decides who the caller is and what they
+// may reach; naming one is what "checks access" means for this read.
+const CHECKS = [
+  ["uid", /auth\.uid\(\)/],
+  ["farm access", /has_farm_access\(|accessible_farm_ids\(|farm_member|ai_member_role\(|import_manager\(|asset_field_writer\(|manual_questions_on\(|chat_message_readable\(|chat_member/],
+  ["role", /effective_farm_role\(|is_rr_admin\(|is_rr_support\(|session_is_rapid_rise\(|role\s*(=|<>|in)\s*|is_farm_owner|can_view_farm_|can_manage/],
+  ["service only", /auth\.role\(\)\s*(is distinct from|<>|!=|=)\s*'service_role'/],
+  ["pay gate", /require_open_farm\(|farm_billing_gate\(/],
+  ["workshop", /workshop_id\s*=|is_workshop|workshop_member|current_workshop|user_workshop_id\(/],
+];
+const reasons = fs.existsSync(reasonsPath) ? JSON.parse(fs.readFileSync(reasonsPath, "utf8")) : {};
+
+const table = rows.map((r) => {
+  const found = CHECKS.filter(([, re]) => re.test(r.src)).map(([k]) => k);
+  const access = found.filter((k) => k !== "pay gate");
+  const key = `${r.schema}.${r.name}(${r.args})`;
+  return {
+    key, schema: r.schema, name: r.name, args: r.args, anon: r.anon, authed: r.authed,
+    pinned: /search_path=/.test(r.config), found, flagged: access.length === 0, reason: reasons[key] ?? reasons[`${r.schema}.${r.name}`] ?? null,
+  };
+});
+
+const flagged = table.filter((t) => t.flagged);
+const unexplained = flagged.filter((t) => !t.reason);
+const unpinned = table.filter((t) => !t.pinned);
+const anonCallable = table.filter((t) => t.anon);
+
+const esc = (s) => String(s).replace(/\|/g, "\\|");
+const lines = [
+  "# Callable SECURITY DEFINER functions",
+  "",
+  `Generated by \`node scripts/security_inventory.mjs\` from ${files.length} migrations (task A6). Do not edit by hand:`,
+  "reasons for deliberately open functions live in `docs/final-dev/security-open-functions.json`.",
+  "",
+  `- Callable SECURITY DEFINER functions: **${table.length}** (by \`authenticated\`: ${table.filter((t) => t.authed).length}; by \`anon\`: ${anonCallable.length}).`,
+  `- With no pinned \`search_path\`: **${unpinned.length}**.`,
+  `- Naming no access check in their own body (read by hand, reason recorded): **${flagged.length}**${unexplained.length ? `, of which **${unexplained.length} have no reason yet**` : ""}.`,
+  "",
+  "Checks: uid = reads `auth.uid()`; farm access = a membership helper; role = a role or staff check; service only = refuses",
+  "anything but the service role; pay gate = `require_open_farm`/`farm_billing_gate`; workshop = a contractor check.",
+  "",
+  "| Function | anon | authenticated | search_path | Checks in its body | Reason (flagged only) |",
+  "|---|---|---|---|---|---|",
+  ...table.map((t) => `| \`${esc(t.key)}\` | ${t.anon ? "yes" : ""} | ${t.authed ? "yes" : ""} | ${t.pinned ? "pinned" : "**not pinned**"} | ${t.found.join(", ") || "**none**"} | ${t.flagged ? esc(t.reason ?? "**no reason recorded**") : ""} |`),
+  "",
+];
+fs.writeFileSync(outPath, lines.join("\n"));
+console.log(`${table.length} callable SECURITY DEFINER functions; ${anonCallable.length} callable by anon; ${unpinned.length} unpinned; ${flagged.length} flagged, ${unexplained.length} without a reason`);
+for (const t of unexplained) console.log(`  READ  ${t.key}${t.anon ? "  (anon)" : ""}`);
+for (const t of unpinned) console.log(`  UNPINNED  ${t.key}`);
+if (check && (unexplained.length || unpinned.length)) process.exit(1);

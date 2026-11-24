@@ -17,7 +17,7 @@ function failure(error: { code?: string; message?: string } | null) {
 }
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return answer({error:"forbidden"},403);
-  if (!(await getProfile())) return answer({error:"forbidden"},401);
+  if (!(await getProfile())?.active) return answer({error:"forbidden"},401);
   // Bound the JSON body before parsing; no message text reaches logs.
   let command;
   try { command = parseWrite(await readChatBody(request)); } catch(error) { return answer({error:"chat-invalid"},error instanceof RangeError?413:400); }
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   return error?failure(error):answer({data});
 }
 export async function GET(request: Request) {
-  if (!(await getProfile())) return answer({error:"forbidden"},401);
+  if (!(await getProfile())?.active) return answer({error:"forbidden"},401);
   const url=new URL(request.url), db=await createClient();
   const farm=url.searchParams.get("farm"), room=url.searchParams.get("room");
   const offset=Number(url.searchParams.get("offset")??0);

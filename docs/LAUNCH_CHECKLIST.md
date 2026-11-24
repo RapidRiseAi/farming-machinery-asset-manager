@@ -267,6 +267,9 @@ Order: correctness and security first, then load, then product.
       worker; now 2 to 3 s, flat. `scripts/sw_check.mjs`. One look on a real phone remains.
 - [ ] **H4** Load test: k6 scripts and a synthetic 500-farm seed for the staging project
       (waits for the founder's staging project in Part 1).
+      2026-11-19 (A6): `scripts/load_seed.mjs` (200-space customers with equipment over three
+      sites) and three k6 scenarios in `load/k6/`, with the setup in docs/LOAD_TESTS.md. Not run:
+      still no staging project.
 - [x] **Domain readiness:** every URL from `NEXT_PUBLIC_SITE_URL`; manifest, emails and PDFs ready
       for the domain. 2026-11-06: the app runs at app.fleet-wise.co.za; `/api/health` warns when
       the site URL is not the domain (`c913dcc`).

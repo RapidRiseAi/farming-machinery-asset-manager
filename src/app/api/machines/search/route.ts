@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   // Signed in, and on a farm. Without this an unauthenticated request would
   // simply get an empty list, which is safe but tells a caller nothing.
   const profile = await getProfile();
-  if (!profile) return NextResponse.json({ machines: [] }, { status: 401 });
+  if (!profile?.active) return NextResponse.json({ machines: [] }, { status: 401 });
 
   const q = sanitiseFilterTerm(new URL(request.url).searchParams.get("q") ?? "");
   // Two characters is the point where the result set stops being the whole

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { drainNotifications } from "@/lib/notifications/drain-delivery";
+import { bearerMatches } from "@/lib/security/bearer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,9 @@ const BUDGET_MS = 40_000;
 async function handle(request: Request) {
   const secret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  // Constant-time, as on every other scheduled route: a plain comparison stops at the first wrong
+  // byte, so the time a refusal takes says how much of a guessed token was right (A6).
+  if (!bearerMatches(authHeader, secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const supabase = createServiceClient();

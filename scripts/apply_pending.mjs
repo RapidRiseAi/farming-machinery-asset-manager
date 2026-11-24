@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // A6: a vehicle moves only between sites of the same customer.
+  "20261121130000": "select exists (select 1 from pg_proc where proname = 'move_machine_to_site' and prosrc like '%machine-move-other-customer%')",
   // Manual questions: page text index, invoker search, delete propagation; flag off.
   "20261121120000": "select to_regclass('public.manual_pages') is not null and to_regclass('public.manual_index') is not null and to_regprocedure('public.manual_search(uuid,text,uuid,integer)') is not null and exists (select 1 from public.feature_flags where key = 'manual_questions')",
   // Import staging: batches and rows reviewed before anything is written; documents behind a flag.

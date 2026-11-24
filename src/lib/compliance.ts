@@ -18,11 +18,11 @@ export const DEFAULT_WARRANTY_LEAD_DAYS = 30;
 export const DEFAULT_WARRANTY_HOURS_LEAD = 50;
 export const DEFAULT_LICENCE_LEAD_DAYS = 30;
 
-const todayYmd = (): string => new Date().toISOString().slice(0, 10);
+const todayYmd = (now: Date = new Date()): string => now.toISOString().slice(0, 10);
 
 /** Add `days` to today, returned as a YYYY-MM-DD string (UTC, dates are date-only). */
-function addDaysYmd(days: number): string {
-  const d = new Date();
+function addDaysYmd(days: number, now: Date = new Date()): string {
+  const d = new Date(now.getTime());
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
@@ -30,13 +30,15 @@ function addDaysYmd(days: number): string {
 /** Status of a date-based expiry (warranty date, licence date). */
 export function dateExpiryStatus(
   expiry: string | null | undefined,
-  leadDays = DEFAULT_LICENCE_LEAD_DAYS
+  leadDays = DEFAULT_LICENCE_LEAD_DAYS,
+  // The moment "today" is decided at: the caller's clock (a dashboard's own now), else the real one.
+  now: Date = new Date(),
 ): ExpiryStatus | null {
   if (!expiry) return null;
   const day = expiry.slice(0, 10);
-  const today = todayYmd();
+  const today = todayYmd(now);
   if (day < today) return "expired";
-  if (day <= addDaysYmd(Math.max(0, leadDays))) return "expiring";
+  if (day <= addDaysYmd(Math.max(0, leadDays), now)) return "expiring";
   return "ok";
 }
 
@@ -66,8 +68,8 @@ export function warrantyStatus(m: {
   warranty_expiry_hours: number | null;
   meter_type: string;
   current_reading: number | null;
-}, leadDays = DEFAULT_WARRANTY_LEAD_DAYS, leadHours = DEFAULT_WARRANTY_HOURS_LEAD): ExpiryStatus | null {
-  const byDate = dateExpiryStatus(m.warranty_expiry_date, leadDays);
+}, leadDays = DEFAULT_WARRANTY_LEAD_DAYS, leadHours = DEFAULT_WARRANTY_HOURS_LEAD, now: Date = new Date()): ExpiryStatus | null {
+  const byDate = dateExpiryStatus(m.warranty_expiry_date, leadDays, now);
   const byHours = m.meter_type === "hours"
     ? hoursExpiryStatus(m.current_reading, m.warranty_expiry_hours, leadHours)
     : null;

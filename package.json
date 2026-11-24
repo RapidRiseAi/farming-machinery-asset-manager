@@ -12,6 +12,7 @@
     "test:voice": "tsx --import ./scripts/server-only-shim.mjs --test src/lib/assistant/*.test.ts",
     "db:test": "bash supabase/tests/run.sh",
     "db:check": "node scripts/migrate_check.mjs",
+    "security:inventory": "node scripts/security_inventory.mjs --check",
     "db:seed": "bash scripts/seed_local.sh",
     "design:lint": "node scripts/design_lint.mjs",
     "i18n:parity": "node scripts/i18n_parity.mjs",
