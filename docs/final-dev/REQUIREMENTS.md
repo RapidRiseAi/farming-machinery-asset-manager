@@ -52,7 +52,7 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-029 | Conversion keeps identity, documents, history; previews extra capacity and current/renewal totals; audited | S5, D27 | none | E (A1, A2: the space bought today is priced, bought through a quote) | A1 (preview, convert), A2 (proration) | Sc9: asset_capacity.sql [9] |
 | R-030 | Retiring equipment stops its extra charge at next renewal; no current-period refund; history kept | S5, D6 | `retired` excluded from `billable_asset_count` | E (A1) | A1 (count), A2 (renewal) | Sc5: asset_capacity.sql [5] |
 | R-031 | Restore needs available capacity; no archive/restore cycling to dodge fees or charge twice; no new work on retired equipment | S5, D6 | `returnMachineToService` (out_of_service only); quota trigger | E (A1) | A1 | Sc4, Sc5: asset_capacity.sql [4] [5] |
-| R-032 | Transfers within a customer do not consume capacity twice; cross-customer handover explicit | S5 | `move_machine_to_site` (20261107110000) | C (A1 capacity; A6 handover audit) | A1 (capacity), A6 (handover audit) | Sc4: asset_capacity.sql [4] |
+| R-032 | Transfers within a customer do not consume capacity twice; cross-customer handover explicit | S5 | `move_machine_to_site`: capacity counted once (A1); A6 20261121130000: a move stays inside one customer (same billing root), another business is the explicit handover | E (A1 capacity; A6 handover rule) | A1, A6 | Sc4: asset_capacity.sql [4]; handover_moves.sql (cross-customer refusal leaves no trace) |
 | R-033 | Existing assets default to full; no automatic reclassification or repricing; read-only migration preview of candidates | S24 | none | E (A1) | A1 | equipment_profile.sql, asset_capacity.sql (migration preview) |
 | R-034 | Company reports keep equipment maintenance spend as a labelled subtotal; equipment excluded from TCO/fuel/depreciation analytics | S5, D-eng | reports in `src/app/(app)/reports` | E (A1) | A1 | reports/data.test.ts |
 
@@ -73,8 +73,8 @@ Postgres confirms it on merge. A state in brackets names what another task still
 | R-050 | Resource-site roles authoritative; billing authority grants no operational access | S6 | `app.effective_farm_role`, `is_farm_billing_admin` | E | A6 | Sc18 |
 | R-051 | Downgrade keeps read/export of saved higher-tier records; no new premium computation | S6, D37 | trips, fuel, fines readable; positions as text and CSV; export holds trips/routes/positions; AARTO reminders by plan; offline fuel replay asks the plan (20261119090000, 100000, 130000) | E (B3; budgets/TCO/depreciation records via export only) | B3 | Sc17: trips_by_plan.sql [17], scheduled_work_by_plan.sql, offline_capture_once.sql, export route.test.ts; PLAN_FEATURES.md "After a downgrade" |
 | R-052 | Professional/Complete catalogue (fuel, bowsers, fuel-card CSV, TCO, budgets, depreciation, reports, dashboards, scheduled reports, accounting exports, fleet packs) | S7 | gates `fuel`, `tco`, `dashboard`, `advanced_reports` | E | A1 | Sc16 |
-| R-053 | Complete: consolidated sites, AARTO, AI/voice/WhatsApp eligibility, maps once verified | S7 | `multi_site`, `aarto`, `voice_ai`, `whatsapp` | C | A1 (maps key) | Sc13 |
-| R-054 | Precise legal wording: no certified compliance, insurer approval or certification claims | S7, D17 | `src/lib/legal.ts`, help copy | C | A5 | review |
+| R-053 | Complete: consolidated sites, AARTO, AI/voice/WhatsApp eligibility, maps once verified | S7 | `multi_site`, `aarto`, `voice_ai`, `whatsapp` on Complete (A1); maps behind the `map` flag (B3) | X: maps release waits on the Mapbox terms read (FOUNDER-DECISIONS-PENDING 5) | A1, B3 | Sc13: trips_by_plan.sql, entitlements.test.ts |
+| R-054 | Precise legal wording: no certified compliance, insurer approval or certification claims | S7, D17 | `src/lib/legal.ts`, help copy: no certification or insurer-approval claims (A5 wording review) | X: the lawyer's read (REPORT-A5 section 6) | A5 | review |
 
 ### Driving, trips, routes, Android (S8)
 
@@ -90,11 +90,11 @@ Postgres confirms it on merge. A state in brackets names what another task still
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-070 | One limits catalogue (commercial, abuse, provider, display windows) | S9 | constants scattered (see I-040) | M | B1 | Sc21 |
-| R-071 | Photo 20 MB, PDF 50 MB, voice note 10 min / 20 MB, command 10 min, no video, decimal bytes | S9, D8 to D12 | 6/8 MiB photos and documents, 2,000,000-byte transcription, WhatsApp 6/4 MiB | C | B1 | Sc21, Sc22 |
-| R-072 | Upload intent, quota reservation, direct resumable upload, server validation, finalisation | S10 | uploads pass through server actions and `/api/documents/upload` | M | B1 | Sc23 |
-| R-073 | Photo compression with keep-original; PDFs unchanged | S10, D13 | client-side compression on machine photos only | C | B1 | Sc27 |
-| R-074 | Completed command audio removed; unfinished recoverable; attached evidence retained | S10, D13 | `offline-voice-retention` | C | B1 | Sc28 |
+| R-070 | One limits catalogue (commercial, abuse, provider, display windows) | S9 | `src/lib/limits.ts`: every limit labelled commercial, abuse, provider or window; docs/final-dev/LIMITS-CATALOGUE.md generated from it (A6) | E (B1; catalogue A6) | B1 | Sc21: limits.test.ts, limits-catalogue.test.ts |
+| R-071 | Photo 20 MB, PDF 50 MB, voice note 10 min / 20 MB, command 10 min, no video, decimal bytes | S9, D8 to D12 | `photoMaxBytes` 20 MB, `pdfMaxBytes` 50 MB, voice notes and commands 10 minutes, decimal bytes, no video | E (B1) | B1 | Sc21, Sc22: limits.test.ts, upload/server.test.ts |
+| R-072 | Upload intent, quota reservation, direct resumable upload, server validation, finalisation | S10 | 20261115090000 `upload_intents`, begin, verify, commit, fail; reserved under the pool lock; in-house TUS client; `/api/uploads/begin` and `/finalise` | E (B1) | B1 | Sc23: upload_pipeline.sql, upload/server.test.ts |
+| R-073 | Photo compression with keep-original; PDFs unchanged | S10, D13 | `src/lib/upload/compress.ts`: one photo reducer with keep-original; PDFs unchanged | E (B1) | B1 | Sc27: compress.test.ts |
+| R-074 | Completed command audio removed; unfinished recoverable; attached evidence retained | S10, D13 | 20261115100000 command audio jobs (lease, retry limit, cancel); completed audio swept, unfinished recoverable | E (B1) | B1 | Sc28: command_audio_jobs.sql, sweep.test.ts, command-client.test.ts |
 | R-075 | Pooled storage max(2 GB, 100 MB x F + 25 MB x equipment spaces) + 10 GB blocks | S11, D14 | `usage_for_month` bills all bytes at cost plus markup | E (A3) | A3 | Sc24: storage_pool.sql [24], storage-allowance.test.ts |
 | R-076 | Warn 80/95%, block only new attachments at full; drafts kept | S11, D15 | none | E (A3; no browser walk) | A3 | Sc25: storage_pool.sql [25], upload/server.test.ts |
 | R-077 | Auto storage blocks OFF by default, owner monthly rand ceiling, transactional | S11, D34 | none | E (A3) | A3 | Sc26: storage_pool.sql [26], storage_blocks.sql [26] |
@@ -161,14 +161,14 @@ Postgres confirms it on merge. A state in brackets names what another task still
 
 | ID | Requirement | Source | Code today | State | Owner | Test |
 |---|---|---|---|---|---|---|
-| R-130 | Re-enumerate and audit callable SECURITY DEFINER functions (85 reported; 50 open after pay gate round) | S20 | `supabase/tests/pay_gate_functions.sql` | C | A6 | Sc37 |
-| R-131 | RLS on every new table (chat, equipment, intents, exports, usage) | S20 | pay gate and fence suites | C | each owner, A6 audit | Sc37 |
-| R-132 | Password recovery, invite, magic link, deep links, removed-member sessions | S20 | `src/app/(auth)`, `src/app/auth` | C | A6 | Sc38 |
-| R-133 | Media backup pipeline and restore drill from a separate copy | S21 | `.github/workflows/file-copy.yml`, `docs/BACKUP.md` (secrets missing) | X | A6 | Sc39 |
-| R-134 | Scheduler auth, locks, health checks, alerts; lifecycle stops scheduled writes | S21 | `/api/health`, `cron_runs`, `CRON_SECRET` | C (A2 lifecycle part E: billing_lifecycle.sql; A6 the rest) | A6, A2 | Sc40 |
-| R-135 | Load tests on disposable/staging data only | S21 | none (no k6 scripts) | M | A6 | Sc42 |
-| R-136 | Forward-only migrations, release sequence, rollback, migration preview, feature flags | S24 | `scripts/apply_pending.mjs`, `deploy_compatibility.sql` | C | A6 (A1 for equipment preview) | Sc37 |
-| R-137 | Deliverables matrix, catalogue, billing examples, provider checklist, readiness status | S25 | none | M | A6 | n/a |
+| R-130 | Re-enumerate and audit callable SECURITY DEFINER functions (85 reported; 50 open after pay gate round) | S20 | `scripts/security_inventory.mjs` (CI step `pnpm security:inventory`), docs/final-dev/SECURITY-INVENTORY.md: 181 callable functions, none anon, all pinned, 13 app helpers with recorded reasons; IDOR scan read in full | E (A6) | A6 | Sc37: security_inventory --check, pay_gate_functions.sql, final_isolation.sql [1] |
+| R-131 | RLS on every new table (chat, equipment, intents, exports, usage) | S20 | `supabase/tests/final_isolation.sql`: catalogue sweep (row security on every table, nothing to anon, every read policy routed through a helper) and people against the new tables | E (A6 audit) | each owner, A6 | Sc37: final_isolation.sql, plus each feature's own suite |
+| R-132 | Password recovery, invite, magic link, deep links, removed-member sessions | S20 | callback `safePath` and other-browser message; confirm button with token check; reset without account enumeration; switched-off accounts refused at every door (A6 fixed chat, machine search, AI consent); App Links (B6) | X: code read and tests; the end-to-end email journeys need staging and a real inbox | A6 | Sc38: final_isolation.sql [3], auth-callback tests, native.test.ts |
+| R-133 | Media backup pipeline and restore drill from a separate copy | S21 | `.github/workflows/file-copy.yml`; `scripts/restore_drill.mjs` (isolated project only, refuses production); BACKUP.md section 9 | X: blocked on the offsite copy's secrets and a scratch project | A6 | Sc39: restore-drill.test.ts; the drill itself not run |
+| R-134 | Scheduler auth, locks, health checks, alerts; lifecycle stops scheduled writes | S21 | every scheduled route checks its secret in constant time (A6 fixed `/api/push/send`); leases and retries in the jobs; lifecycle stops writes and paid sends (A2 to A4) | E (A6 auth; A2 lifecycle) | A6, A2 | Sc40: cron-auth.test.ts, billing_lifecycle.sql, assistance_cap.sql, whatsapp_completion.sql |
+| R-135 | Load tests on disposable/staging data only | S21 | `scripts/load_seed.mjs` (staging only), `load/k6/` (working day, chat and uploads, scheduled jobs), docs/LOAD_TESTS.md with a cost model | X: not run, no staging project exists | A6 | Sc42: scripts ready; results table empty on purpose |
+| R-136 | Forward-only migrations, release sequence, rollback, migration preview, feature flags | S24 | 30 new migrations, each with a probe; docs/final-dev/RELEASE-NOTES.md (sequence, flags as released, rollback); `deploy_compatibility.sql` | E (A6) | A6 | Sc37: migrate_check --suite, deploy_compatibility.sql |
+| R-137 | Deliverables matrix, catalogue, billing examples, provider checklist, readiness status | S25 | docs/final-dev: REQUIREMENTS (this file), LIMITS-CATALOGUE, RELEASE-NOTES, CONFIGURATION, TEST-EVIDENCE, SECURITY-INVENTORY; REPORT-A1 to A6 and B1 to B6 | E (A6) | A6 | n/a |
 
 ### Website, signup, copy (S22)
 
@@ -237,30 +237,30 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 | I-001 | L20 real admin login team@ | Founder (account), no code |
 | I-002 | L26 GitHub secret scanning and push protection | Founder (repository setting) |
 | I-003 | L28 buy the domain | Founder; the app already runs at app.fleet-wise.co.za (checklist line 263) so the box is stale |
-| I-004 | L30 `OPS_ALERT_EMAIL`, L44 `SENTRY_DSN` | Founder (Vercel settings); A6 verifies detection of missing configuration |
-| I-005 | L37 external minute scheduler (cron-job.org) | Founder; A6 (scheduler checks) |
+| I-004 | L30 `OPS_ALERT_EMAIL`, L44 `SENTRY_DSN` | Founder (Vercel settings); A6 verifies detection of missing configuration. **A6:** verified: `/api/health` warns when error reports (Sentry), the alert email, email or the payment key are missing; the settings themselves are founder actions (CONFIGURATION.md) |
+| I-005 | L37 external minute scheduler (cron-job.org) | Founder; A6 (scheduler checks). **A6:** verified: `/api/health` reports a scheduled route with no run, a late run, a run that never finished and a failed step; every scheduled route checks its secret in constant time (cron-auth.test.ts). The external scheduler itself is a founder action |
 | I-006 | L42 uptime monitor | Founder; `/api/health` exists (E) |
 | I-007 | L45 Resend domain, L47 Supabase SMTP, L52 domain in Vercel/Supabase | Founder |
-| I-008 | L56 staging Supabase project | Founder; blocks A6 load tests (R-135) |
+| I-008 | L56 staging Supabase project | Founder; blocks A6 load tests (R-135). **A6:** externally blocked: still no staging project; the load-test kit is ready for it (docs/LOAD_TESTS.md) |
 | I-009 | L59 Paystack test webhook URL, L99 Paystack live | Founder; A2 keeps test/live separate |
 | I-010 | L62 Azure budget, L90 Azure S0, L94 AI Gateway credit | Founder (purchases); A3 provider-budget alerts |
 | I-011 | L64 POPIA Information Officer, L67 lawyer read | Founder/legal; A5 prepares the legal-review checklist |
-| I-012 | L70 media backup secrets | Founder; A6 (R-133) |
+| I-012 | L70 media backup secrets | Founder; A6 (R-133). **A6:** externally blocked: the secrets; the drill script and steps are ready (BACKUP.md section 9) |
 | I-013 | L76 D-U-N-S, L78 test phones | Founder; D-U-N-S 588248857 received 19 Nov 2026 (Play account in the business name still to open); test phones still block B6 device tests and B4 real-phone tests |
-| I-014 | L84 Vercel Pro, L87 Supabase Pro, L97 Resend Pro, L130 compute, L132 PITR | Founder purchases; A6 lists them in the provider checklist |
-| I-015 | L106 to L113 final domain check, launch day | A6 release sequence |
+| I-014 | L84 Vercel Pro, L87 Supabase Pro, L97 Resend Pro, L130 compute, L132 PITR | Founder purchases; A6 lists them in the provider checklist. **A6:** listed with the smallest action in CONFIGURATION.md section 2 |
+| I-015 | L106 to L113 final domain check, launch day | A6 release sequence. **A6:** release sequence written (RELEASE-NOTES.md section 3); launch-day domain checks stay in LAUNCH_CHECKLIST |
 | I-016 | L120 support phone, L122 election-day holiday | Founder; A5 copy uses the configured contact settings |
 | I-017 | L133 "WhatsApp after launch; debit orders later" | WhatsApp superseded by D21 (B4). Debit orders: not in the BRIEF, classified EX for this round |
 | I-018 | L176 taps release 2 follow-ups | B3 (R-122): closed |
-| I-019 | L202 offline request id in envelope; sweep accounts in CI | B3 (R-123): closed; sweep accounts: A6 |
+| I-019 | L202 offline request id in envelope; sweep accounts in CI | B3 (R-123): closed; sweep accounts: A6. **A6:** the account sweep is the security inventory and final_isolation.sql, both in CI |
 | I-020 | L209 export in memory, accounting summary in page | Closed by A4 (R-100, R-124): records stream (`47a8455`) and the complete export with files runs as a job in bounded parts (20261120110000) |
-| I-021 | L261 H4 load test | A6 (R-135), blocked by I-008 |
+| I-021 | L261 H4 load test | A6 (R-135), blocked by I-008. **A6:** scripts written, not run (blocked by I-008) |
 | I-022 | L271 weekly digest, empty states, suggested questions | B3 (R-125): closed |
 | I-023 | L335 activation catalogue as orders | Closed by A4 (R-116): `service_orders` (20261120100000) |
 | I-024 | L356 map tiles and lawyer read of tracking wording | B3: flag `map` stays off; tiles need a production source (ROUTING.md); founder for the legal read |
 | I-025 | L358 Android app | B6 (R-063), blocked by I-013 for store publication |
-| I-026 | L360 media backup has no external copy | A6 (R-133), blocked by I-012 |
-| I-027 | L363 definer audit, WebView needs, remaining "not yet" items | A6 (R-130), B6 (WebView), A1 (this inventory) |
+| I-026 | L360 media backup has no external copy | A6 (R-133), blocked by I-012. **A6:** externally blocked by I-012; nothing faked |
+| I-027 | L363 definer audit, WebView needs, remaining "not yet" items | A6 (R-130), B6 (WebView), A1 (this inventory). **A6:** definer audit done (SECURITY-INVENTORY.md, R-130); WebView requirements recorded (docs/ANDROID.md, minimum WebView 100) |
 
 ### docs/PLAN_FEATURES.md
 
@@ -279,11 +279,11 @@ action outside the code; it stays in the founder's to-do list and blocks only wh
 |---|---|---|
 | I-036 | ROUTING "Later: the own route server (OSRM)" | Classified: founder decision 2026-11-11, switch at about 1,000 trips/month; not a launch item; B3 rechecks provider terms (R-062) |
 | I-037 | ROUTING map tiles must leave the free test service | B3: recorded in ROUTING.md "Provider terms rechecked"; founder chooses the source |
-| I-038 | BACKUP restore drill and readiness checklists (§5 to §7) | A6 (R-133) |
+| I-038 | BACKUP restore drill and readiness checklists (§5 to §7) | A6 (R-133). **A6:** the drill is a script with a pass/fail result; first drill blocked by I-012 |
 | I-039 | WHATSAPP real-phone linking and messages unverified | B4 (R-085), blocked by I-013 |
 | I-040 | Scattered media caps: `src/app/(app)/finance/actions.ts` 8 MiB, `src/app/(app)/trips/actions.ts` 8 MiB, `src/app/api/assistant/transcribe/route.ts` 2,000,000 bytes, `src/lib/whatsapp/media.ts` 6 MiB/4 MiB, `src/app/(app)/fuel/cards/actions.ts` 2 MiB (keep), admin proof 4 MiB | B1 (R-070, R-071) |
 | I-041 | AI_USAGE "Not built yet": margin change with notice; monthly reconciliation | Still open after A3 (see REPORT-A3.md "Not done"): the ledger now records what a reconciliation needs |
-| I-042 | AI_USAGE "Not built yet": daily canary call | A6 (health checks) |
+| I-042 | AI_USAGE "Not built yet": daily canary call | A6 (health checks). **A6:** classified: not built. The health route covers missing settings and scheduler failures; a paid daily canary call is an engineering improvement, not required by the brief |
 | I-043 | AI_USAGE "Not built yet": Azure synthesis and recognition on the server | Classified: engineering improvement, not required by the BRIEF; B1 evaluates it for ten-minute commands |
 | I-044 | BILLING §15b: a real Paystack decline never happened | A2 tests the path; a real decline needs live/test card behaviour (external) |
 | I-045 | BILLING §11: `prorate_annual_additions` false | Superseded by D25 (prorate additions): A2 |
