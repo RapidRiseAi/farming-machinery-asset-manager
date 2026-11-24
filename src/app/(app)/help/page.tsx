@@ -55,7 +55,7 @@ const QUICK_ANSWERS: Record<"operator" | "other", readonly string[]> = {
 };
 
 /** Customer guidance for every role (task A5): keys help.guide.<topic>Title / Body. */
-const GUIDE_TOPICS = ["equipment", "spaces", "spending", "chat", "exports", "payments", "devices"] as const;
+const GUIDE_TOPICS = ["equipment", "spaces", "spending", "chat", "exports", "payments", "devices", "routes", "imports"] as const;
 
 /**
  * Asking Rapid Rise for help without leaving the product, and reading the answer here.
