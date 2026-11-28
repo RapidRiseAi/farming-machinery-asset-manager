@@ -38,6 +38,8 @@ function readEnv(name) {
  * Written against the object the migration exists to create.
  */
 const PROBES = {
+  // The Android app's update policy: the row and the two service-only functions.
+  "20261128100000": "select to_regclass('app.native_app_releases') is not null and to_regprocedure('public.native_app_release(text)') is not null and to_regprocedure('public.native_app_release_set(uuid,text,text,text,text)') is not null",
   // A6: a vehicle moves only between sites of the same customer.
   "20261121130000": "select exists (select 1 from pg_proc where proname = 'move_machine_to_site' and prosrc like '%machine-move-other-customer%')",
   // Manual questions: page text index, invoker search, delete propagation; flag off.

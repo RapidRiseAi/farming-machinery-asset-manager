@@ -366,7 +366,8 @@ export default async function AppLayout({
   const adminRetention: NavItemData = { href: "/admin/retention", label: t("nav.adminRetention", locale), icon: "settings" };
   const adminUsage: NavItemData = { href: "/admin/usage", label: t("nav.adminUsage", locale), icon: "receipt" };
   const adminTemplates: NavItemData = { href: "/admin/templates", label: t("nav.adminTemplates", locale), icon: "documents" };
-  const rapidRiseItems: NavItemData[] = [adminOverview, adminSupport, admin, adminBilling, adminAi, adminPartners, adminFeatures, adminEquipmentReviews, adminRetention, adminUsage, adminTemplates, adminDriverIntegrations];
+  const adminAppVersion: NavItemData = { href: "/admin/app-version", label: t("nav.adminAppVersion", locale), icon: "settings" };
+  const rapidRiseItems: NavItemData[] = [adminOverview, adminSupport, admin, adminBilling, adminAi, adminPartners, adminFeatures, adminEquipmentReviews, adminRetention, adminUsage, adminTemplates, adminDriverIntegrations, adminAppVersion];
   // Reached from the account menu and the palette, not listed in the sidebar: the menu
   // on the row that names you is where people look for their own account.
   const yourAccount: NavItemData = { href: "/account", label: t("nav.account", locale), icon: "settings" };

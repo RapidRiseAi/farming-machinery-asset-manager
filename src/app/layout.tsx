@@ -3,7 +3,10 @@ import { DM_Sans } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
-import { NativeLinks } from "@/components/native/native-shell";
+import { NativeLinks, NativeSystemBars } from "@/components/native/native-shell";
+import { NativeUpdateGate } from "@/components/native/update-gate";
+import { DeployWatch } from "@/components/ui/deploy-watch";
+import { deploymentId } from "@/lib/deployment";
 import { BOOT_GUARD } from "@/components/ui/boot-guard";
 import { BootReady } from "@/components/ui/boot-ready";
 import { RouteProgress } from "@/components/ui/route-progress";
@@ -98,6 +101,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {children}
         <ServiceWorkerRegister />
         <NativeLinks />
+        <NativeSystemBars />
+        {/* Versions (28 Nov 2026): an open page follows a new release of the site, and the
+            Android app asks, or makes, the person update to the app Rapid Rise has published. */}
+        <DeployWatch build={deploymentId()} />
+        <NativeUpdateGate />
         <BootReady />
         {/* What a failed download or button says (showNotice), on every screen, and a
             report of every uncaught browser error, not only the ones that crash a page. */}

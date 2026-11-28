@@ -100,7 +100,8 @@
     "trips": "{{Trips}}",
     "adminUsage": "Gebruik",
     "adminEquipmentReviews": "Toerustinghersienings",
-    "adminRetention": "Skrappingskedule"
+    "adminRetention": "Skrappingskedule",
+    "adminAppVersion": "Toepweergawes"
   },
   "assistant": {
     "title": "Stemassistent",
@@ -5672,6 +5673,7 @@
     "serviceAgreementTerm": "'n Done-For-You-ooreenkoms is van krag, dus word die plan deur Rapid Rise verander. Plekke byvoeg werk steeds hier.",
     "serviceTermsRequired": "Merk die blokkie om die bepalings te aanvaar.",
     "retentionInvalid": "Sommige besonderhede vir die skrappingskedule ontbreek of is ongeldig.",
+    "appVersionInvalid": "Kyk na die weergawes en die skakel: elke weergawe is drie getalle soos 1.1.0, die oudste toegelate een is nie nuwer as die nuutste nie, en die skakel begin met https://.",
     "retentionPhrase": "Tik die bevestiging presies soos gewys om skrapping aan te skakel.",
     "retentionBlocked": "Hierdie besigheid kan nog nie geskrap word nie: 'n kontrole het nie geslaag nie.",
     "exportInvalid": "Daardie uitvoerversoek is nie geldig nie.",
@@ -6656,7 +6658,21 @@
     "reference": "Verwysing:",
     "connectionTitle": "Die verbinding het weggeval",
     "connectionBody": "Ons het nie van die bediener teruggehoor nie. Wat jy gestoor het, het dalk deurgegaan en dalk nie, so kyk na die bladsy voordat jy dit weer invoer.",
-    "checkPage": "Kyk na die bladsy"
+    "checkPage": "Kyk na die bladsy",
+    "updatedTitle": "FLEETWISE is opgedateer terwyl hierdie skerm oop was",
+    "updatedBody": "Wat jy pas gestuur het, het dus nie deurgegaan nie, en niks is gestoor nie. Laai die skerm weer en voer dit dan weer in."
+  },
+  "appUpdate": {
+    "title": "'n Nuwe weergawe van die FLEETWISE-toep is gereed",
+    "body": "Dateer nou op vir die nuutste regstellings. Jy het weergawe {installed}; die nuwe een is {latest}.",
+    "requiredTitle": "Dateer die FLEETWISE-toep op om voort te gaan",
+    "requiredBody": "Weergawe {installed} van die toep werk nie meer met FLEETWISE nie. Dateer op na {latest} om dit te bly gebruik. 'n Rit wat opgeneem word, word steeds opgeneem.",
+    "updateNow": "Dateer nou op",
+    "notNow": "Nie nou nie",
+    "afterUpdate": "Maak FLEETWISE weer oop sodra die opdatering geïnstalleer is.",
+    "webTitle": "FLEETWISE is opgedateer.",
+    "webBody": "Laai weer om die nuwe weergawe te gebruik. Stoor eers waaraan jy werk.",
+    "reload": "Laai weer"
   },
   "jobview": {
     "progress": "Vordering van die werk",

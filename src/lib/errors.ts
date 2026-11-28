@@ -724,6 +724,8 @@ const CODE_KEYS: Record<string, string> = {
   "service-terms-required": "errors.serviceTermsRequired",
   // Scheduled deletion and the complete export (20261120110000, 20261120120000).
   "retention-invalid": "errors.retentionInvalid",
+  // The Android app's versions at /admin/app-version (20261128100000).
+  "app-version-invalid": "errors.appVersionInvalid",
   "retention-phrase": "errors.retentionPhrase",
   "retention-blocked": "errors.retentionBlocked",
   "export-invalid": "errors.exportInvalid",

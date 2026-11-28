@@ -16,14 +16,13 @@
 /** Three whole numbers, "1.1.0". Minor and patch stay under 100 so the build number is exact. */
 export type AppVersion = readonly [major: number, minor: number, patch: number];
 
-const VERSION_PATTERN = /^(\d{1,5})\.(\d{1,2})\.(\d{1,2})$/;
+// The same pattern as the database's check (20261128100000) and the Android build's.
+const VERSION_PATTERN = /^([1-9]\d{0,4})\.(\d{1,2})\.(\d{1,2})$/;
 
 export function parseAppVersion(text: unknown): AppVersion | null {
   if (typeof text !== "string") return null;
   const m = VERSION_PATTERN.exec(text.trim());
-  if (!m) return null;
-  const v = [Number(m[1]), Number(m[2]), Number(m[3])] as const;
-  return v[0] >= 1 ? v : null;
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 }
 
 /** Negative when a is older than b, 0 when equal, positive when newer. */

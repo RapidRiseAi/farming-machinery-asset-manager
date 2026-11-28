@@ -35,6 +35,11 @@ const config: CapacitorConfig = {
     webContentsDebuggingEnabled: false,
   },
   plugins: {
+    // The app draws edge to edge (always, from Android 15). The status bar's height reaches the
+    // page as CSS (`insetsHandling: "css"`, read by globals.css --safe-top). The page declares
+    // viewport-fit=cover (src/app/layout.tsx); saying so here hands it the height from the first
+    // frame, where Capacitor otherwise pads the view until the page has loaded and then jumps.
+    SystemBars: { insetsHandling: "css", initialViewportFitValueHint: "cover" },
     // Native requests (positions sent in the background) use the WebView's own sign-in cookies.
     CapacitorCookies: { enabled: true },
     // Only called directly for positions; fetch and XHR in the app stay the WebView's own.

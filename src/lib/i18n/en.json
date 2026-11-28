@@ -100,7 +100,8 @@
     "trips": "{{Trips}}",
     "adminUsage": "Usage",
     "adminEquipmentReviews": "Equipment reviews",
-    "adminRetention": "Deletion schedule"
+    "adminRetention": "Deletion schedule",
+    "adminAppVersion": "App versions"
   },
   "assistant": {
     "title": "Voice assistant",
@@ -5672,6 +5673,7 @@
     "serviceAgreementTerm": "A Done-For-You agreement is in force, so the plan is changed through Rapid Rise. Adding spaces still works here.",
     "serviceTermsRequired": "Tick the box to accept the terms.",
     "retentionInvalid": "Some details for the deletion schedule are missing or not valid.",
+    "appVersionInvalid": "Check the versions and the link: each version is three numbers like 1.1.0, the oldest allowed is not newer than the newest, and the link starts with https://.",
     "retentionPhrase": "Type the confirmation exactly as shown to switch deletion on.",
     "retentionBlocked": "This business cannot be deleted yet: a check has not passed.",
     "exportInvalid": "That export request is not valid.",
@@ -6656,7 +6658,21 @@
     "reference": "Reference:",
     "connectionTitle": "The connection dropped",
     "connectionBody": "We did not hear back from the server. What you were saving may or may not have gone through, so check the page before you enter it again.",
-    "checkPage": "Check the page"
+    "checkPage": "Check the page",
+    "updatedTitle": "FLEETWISE was updated while this screen was open",
+    "updatedBody": "So what you just sent did not go through, and nothing was saved. Reload the screen, then enter it again."
+  },
+  "appUpdate": {
+    "title": "A new version of the FLEETWISE app is ready",
+    "body": "Update now to get the latest fixes. You have version {installed}; the new one is {latest}.",
+    "requiredTitle": "Update the FLEETWISE app to carry on",
+    "requiredBody": "Version {installed} of the app no longer works with FLEETWISE. Update to {latest} to keep using it. A drive that is recording keeps recording.",
+    "updateNow": "Update now",
+    "notNow": "Not now",
+    "afterUpdate": "When the update has installed, open FLEETWISE again.",
+    "webTitle": "FLEETWISE has been updated.",
+    "webBody": "Reload to use the new version. Save what you are working on first.",
+    "reload": "Reload"
   },
   "jobview": {
     "progress": "Job progress",

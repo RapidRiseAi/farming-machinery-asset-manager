@@ -2,7 +2,7 @@
 
 import { startTransition, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { unstable_isUnrecognizedActionError, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { WarningIcon } from "@/components/ui/icons";
@@ -42,6 +42,10 @@ export function ErrorScreen({
   const router = useRouter();
   const [locale, setLocale] = useState<Locale>(defaultLocale);
   const [connection, setConnection] = useState(false);
+  // A form posted from a screen opened before a release: Next.js 15 gives every build new action
+  // ids, so the site no longer knows the one this screen sent. Nothing broke and nothing saved;
+  // a reload brings the new release (DeployWatch usually reloads before this can happen).
+  const updated = unstable_isUnrecognizedActionError(error);
 
   useEffect(() => {
     const lang = document.documentElement.lang.slice(0, 2);
@@ -51,8 +55,25 @@ export function ErrorScreen({
   useEffect(() => {
     setConnection(isConnectionFailure(error, navigator.onLine !== false));
     console.error(error);
-    reportClientError(error, area);
-  }, [error, area]);
+    // Expected after every release, and the person is told what to do: not a fault to report.
+    if (!updated) reportClientError(error, area);
+  }, [error, area, updated]);
+
+  if (updated) {
+    return (
+      <div data-error-boundary={area} data-error-kind="updated" className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-6">
+        <Card>
+          <h1 className="text-lg font-bold text-sand-950">{t("appError.updatedTitle", locale)}</h1>
+          <p className="mt-1 text-sm text-sand-600">{t("appError.updatedBody", locale)}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" variant="primary" onClick={() => window.location.reload()}>
+              {t("appUpdate.reload", locale)}
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   const retry = () => {
     startTransition(() => {
