@@ -407,6 +407,13 @@ will bite again.
   under both; "deterministic pick" in a comment is not one.
 
 **Environment and deploys**
+- **Every build renames the site's form actions** (Next.js 15), so a page left open across
+  a release fails on its next form. `DeployWatch` reloads such a page on return or offers
+  Reload; keep it mounted in the root layout. The Android app's own version is
+  `native/version.json` only, enforced through `/admin/app-version` (docs/ANDROID.md).
+- **Prove an APK's signing key from the APK** (`scripts/apk_cert_sha256.mjs`), never from
+  the step that placed the key: Gradle on the runner ignored `~/.android/debug.keystore`
+  and signed with its own key while the workflow said "ok".
 - **`vercel pull` cannot decrypt secrets**, it writes the literal string `[SENSITIVE]`,
   which is perfectly truthy. Never presence-check a secret from a pulled env file. That bug
   reported email as configured for weeks while Resend rejected every call.

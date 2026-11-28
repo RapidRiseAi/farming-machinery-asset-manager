@@ -6257,3 +6257,31 @@ signal and battery; the app should detect a new version and block until it is up
   decision, the single source); `supabase/tests/native_app_releases.sql` (service key
   only, Rapid Rise only, every malformed version and link refused, run against all
   migrations in PGlite before CI).
+- **Released the same afternoon** (founder's standing authorisation to release):
+  migration 20261128100000 applied 15:16 UTC (dry run before: exactly that one pending;
+  after: nothing pending, 148 probes true; the row read back with row security forced and
+  no grant to `anon` or `authenticated`). `main` = `bed0d4d` at 15:25:49 (Vercel
+  `f8im1ey7n` Ready 15:29), then `6482085` (the skip link, below).
+- **The first fixed-key build was not signed with the fixed key.** The workflow wrote the
+  key to `~/.android/debug.keystore` and printed "ok", but the APK's certificate was a key
+  Gradle made itself ("Android Debug", E2:09:6B...). Read from the APK's v2 signature
+  (`scripts/apk_cert_sha256.mjs`; keytool cannot read v2-only APKs). Fixed in `bed0d4d`:
+  the key is passed to Gradle as `FW_TEST_KEYSTORE`, and the workflow fails unless the
+  built APK carries the test key's certificate (F3:F1:4F...). Proven on run 46159410407.
+- **Live probe** (headless Chrome against app.fleet-wise.co.za, a fake Capacitor bridge
+  answering `App.getInfo`, Capacitor's inset variables at 32px top and 24px bottom, the
+  version check intercepted per case so production was not changed): 25 of 25. Asked on
+  1.0.0 when the newest is 1.1.0; "Not now" holds through a quick return and a reload,
+  and it asks again after 16 minutes away and on a fresh start; required has no "Not now"
+  and covers everything; up to date, no signal, an unreadable answer and a plain browser
+  are never asked; asked once the signal returns; a page from an older release reloads
+  itself on return, and shows the Reload bar instead once something is typed; the login,
+  dashboard and machines headers sit at 32px at rest and scrolled, the tab bar pads 24px.
+  The screenshots showed 11px of the hidden skip link under the clock: it was moved down
+  by the bar but not hidden by it. Fixed in `6482085`.
+- **Published:** test build 1.1.0 (sha256 e60b7f09...3d82, fixed test key) uploaded to
+  the private bucket `internal-builds` as `fleetwise-android-test.apk`, one object that
+  each new test build replaces, behind a 90-day signed link (until 26 February 2027). The
+  production policy was set to newest 1.1.0, oldest allowed 1.0.0, update link that link
+  (directly in SQL, `updated_by` empty: no person pressed the admin button). Every 1.0.0
+  app is now asked to update. Moving from a build before today needs one uninstall.
