@@ -6285,3 +6285,10 @@ signal and battery; the app should detect a new version and block until it is up
   production policy was set to newest 1.1.0, oldest allowed 1.0.0, update link that link
   (directly in SQL, `updated_by` empty: no person pressed the admin button). Every 1.0.0
   app is now asked to update. Moving from a build before today needs one uninstall.
+- **Menu sheet outline (founder's screenshot, same evening).** The selected row in the
+  "More" sheet drew its gold ring outside its box; the sticky group heading above it
+  (z-10, solid) ended exactly on the row's top edge (515.6px both) and painted over the
+  ring's top line and corners. `ring-inset` in `nav.tsx` and `site-switcher.tsx`
+  (`7902eef`, main 16:11 UTC). The live probe now opens the sheet on /faults and checks
+  the ring is inside the row and its top edge is uncovered: it FAILED on the build before
+  the fix and passed after (28 of 28). Test farm created and removed again.
