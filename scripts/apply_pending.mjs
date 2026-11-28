@@ -138,7 +138,10 @@ const PROBES = {
   // Erasure removes the person's voice notes: the function returns their paths.
   "20261105090000": "select coalesce(pg_get_functiondef(to_regprocedure('public.erase_personal_data(uuid,text)')) like '%voice_note_paths%', false)",
   // Plan boundaries: the book value register asks for the Professional tco entitlement.
-  "20261104220000": "select coalesce(pg_get_functiondef(to_regprocedure('public.farm_book_values(uuid,date)')) like '%has_entitlement(m.farm_id, ''tco'')%', false)",
+  // A1 (20261114090200) later split `tco` and gates the book values as `depreciation`: either
+  // gate means this boundary is in place. Without both, a later --apply would re-run this file
+  // and undo A1's gate.
+  "20261104220000": "select coalesce(pg_get_functiondef(to_regprocedure('public.farm_book_values(uuid,date)')) ~ 'has_entitlement\\(m\\.farm_id, ''(tco|depreciation)''\\)', false)",
   // WhatsApp voice notes and photos: the media-aware receiver and the staging table.
   "20261104210000": "select to_regprocedure('public.whatsapp_receive(text,text,text,timestamptz,text,text,text)') is not null and to_regclass('public.whatsapp_media') is not null",
   // The November 2026 price list: the active essential/monthly row carries the five-slot minimum.
@@ -379,7 +382,9 @@ const PROBES = {
   // Bucket limits, and no trigger function executable by anon (H2, H6).
   "20261013140000":
     "select not has_function_privilege('anon', 'public.app_stock_rollup()', 'EXECUTE')" +
-    " and exists (select 1 from storage.buckets where id = 'jobcard-photos' and file_size_limit = 10485760)",
+    // B1 (20261115090000) later raised this bucket's limit; at least the original 10 MiB means
+    // this migration ran, and an exact match would make a later --apply undo B1's limit.
+    " and exists (select 1 from storage.buckets where id = 'jobcard-photos' and file_size_limit >= 10485760)",
   // Rate limits shared by every server instance (H3).
   "20261014090000":
     "select to_regprocedure('public.rate_limit_take(text,integer,integer)') is not null" +
