@@ -732,7 +732,9 @@ export default async function AppLayout({
       {supporting ? <SupportBanner farmName={supporting.name} locale={locale} /> : null}
 
       {/* ---- Desktop sidebar (>=1024px) ---- */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-nav text-nav-muted shadow-soft [--ring:238_180_35] lg:flex">
+      {/* `pt-safe pb-safe`: an Android tablet wide enough for the sidebar draws under its
+          status bar and gesture strip too (globals.css, --safe-top). 0px in a browser. */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-nav pb-safe pt-safe text-nav-muted shadow-soft [--ring:238_180_35] lg:flex">
         <div className="flex h-16 items-center px-3">
           <Link href={logoHref} className="focus-ring flex min-h-[48px] items-center gap-2.5 rounded-lg px-1">
             {brandMark}
@@ -822,8 +824,9 @@ export default async function AppLayout({
           to 48px, so it tucked under the header on scroll), taking about 65px of every
           phone screen. It is now the farm chip beside the brand mark. See the width
           budget above `bellLink`: nothing here can push the page past 360px.
+          `top-safe`: in the Android app it sticks below the status bar, not under the clock.
         */}
-        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-sand-200 bg-surface/95 px-4 py-1 backdrop-blur lg:hidden">
+        <header className="top-safe sticky z-20 flex items-center gap-2 border-b border-sand-200 bg-surface/95 px-4 py-1 backdrop-blur lg:hidden">
           <Link
             href={logoHref}
             aria-label={appName}
@@ -856,7 +859,7 @@ export default async function AppLayout({
           Desktop slim top bar. The palette is mounted here ONCE for every width (its
           dialog is portalled, so the phone header's search button opens this instance).
         */}
-        <header className="sticky top-0 z-20 hidden items-center justify-between gap-3 border-b border-edge-soft bg-surface/95 px-6 py-2 backdrop-blur lg:flex">
+        <header className="top-safe sticky z-20 hidden items-center justify-between gap-3 border-b border-edge-soft bg-surface/95 px-6 py-2 backdrop-blur lg:flex">
           <CommandPalette
             groups={paletteGroups}
             actions={paletteActions}

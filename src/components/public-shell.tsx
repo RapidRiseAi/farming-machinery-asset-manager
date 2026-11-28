@@ -67,7 +67,8 @@ export function PublicShell({
     "inline-flex min-h-[48px] items-center gap-1 text-sm text-white/80 transition-colors hover:text-accent sm:min-h-0 sm:py-1";
   return (
     <div className="site-form flex min-h-dvh flex-col bg-surface-raised">
-      <header className="sticky top-0 z-30 border-b border-edge-soft bg-surface/95 backdrop-blur-md">
+      {/* `top-safe`: below the status bar in the Android app (globals.css, --safe-top). */}
+      <header className="top-safe sticky z-30 border-b border-edge-soft bg-surface/95 backdrop-blur-md">
         <div className={cn(SITE_GUTTER, "flex h-16 items-center justify-between gap-3 sm:h-20")}>
           <Link href="/" className="focus-ring flex min-h-[48px] min-w-0 items-center gap-2.5 rounded-lg" aria-label={APP_NAME}>
             <BrandMark size="site" priority />

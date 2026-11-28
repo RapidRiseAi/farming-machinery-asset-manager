@@ -56,6 +56,12 @@ const config: Config = {
   ]],
   theme: {
     extend: {
+      // A full-height screen is the screen below the status bar: <body> is padded by the
+      // bar's height in the Android app (globals.css, --safe-top), so a plain 100dvh would
+      // scroll by exactly that much on every page. 0px in a browser: unchanged there.
+      minHeight: {
+        dvh: "calc(100dvh - var(--safe-top, 0px))",
+      },
       colors: {
         // == Primary: FleetWise Green. 600 is the exact brand hex and carries
         //    buttons, headings and navigation. White on it = 8.75:1.

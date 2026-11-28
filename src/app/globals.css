@@ -433,6 +433,35 @@ html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
 }
 
 @layer base {
+  /*
+   * The status bar (clock, signal, battery) and camera cutout above the page, and the
+   * gesture strip below it (28 Nov 2026). The Android app draws edge to edge (Android 15
+   * and later always do), so without this the page started under the clock. Capacitor 8
+   * passes the bar's height two ways: `env(safe-area-inset-*)` on WebView 140 and later,
+   * and `--safe-area-inset-*`, which its SystemBars plugin writes on <html>. On an older
+   * WebView it pads the view itself and both are 0. A laptop browser has neither, so all
+   * of this is 0px there; an iPhone added to the home screen gets its notch here too.
+   */
+  :root {
+    --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  }
+  body {
+    padding-top: var(--safe-top);
+  }
+  /* A solid strip behind the status bar: what scrolls up passes under it, never under
+     the clock. Above the sticky headers (z-20, z-30), below dialogs and notices (z-50),
+     whose dimmed backdrop covers it like the rest of the page. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: var(--safe-top);
+    background: rgb(var(--surface));
+    z-index: 45;
+    pointer-events: none;
+  }
+
   /* Consistent, visible keyboard focus everywhere (WCAG-AA). Pointer clicks
      don't get the ring (focus-visible), keyboard users always do. */
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
@@ -471,7 +500,7 @@ html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
    */
   .skip-link {
     position: fixed;
-    top: 0.5rem;
+    top: calc(var(--safe-top) + 0.5rem);
     left: 0.5rem;
     z-index: 100;
     transform: translateY(-160%);
@@ -486,13 +515,17 @@ html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
      These only resolve to a non-zero value because the root viewport now sets
      `viewport-fit=cover`; before that every rule below was silently 0px. */
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: var(--safe-bottom);
   }
   .h-safe-tabbar {
-    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    height: calc(var(--tabbar-h) + var(--safe-bottom));
   }
   .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: var(--safe-top);
+  }
+  /* A sticky header stops BELOW the status bar (see --safe-top), not under the clock. */
+  .top-safe {
+    top: var(--safe-top);
   }
 
   /* Digits that line up in a column, money, meters, quantities. */

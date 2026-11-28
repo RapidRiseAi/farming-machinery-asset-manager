@@ -1,5 +1,17 @@
 apply plugin: 'com.android.application'
 
+// The app's version comes from native/version.json and nowhere else (docs/ANDROID.md, Updates
+// and versions). The build number Google Play needs is made from it, so it always rises with
+// the version: major x 10000 + minor x 100 + patch (src/lib/native/app-version.ts
+// versionCodeOf; the Android workflow checks the built app says the same).
+def appVersionFile = rootProject.file("../native/version.json")
+def appVersionName = new groovy.json.JsonSlurper().parse(appVersionFile).version as String
+def appVersionMatch = appVersionName =~ /^(\d{1,5})\.(\d{1,2})\.(\d{1,2})$/
+if (!appVersionMatch.matches() || (appVersionMatch.group(1) as int) < 1) {
+    throw new GradleException("native/version.json: version must look like 1.1.0 (minor and patch under 100), not '${appVersionName}'")
+}
+def appVersionCode = (appVersionMatch.group(1) as int) * 10000 + (appVersionMatch.group(2) as int) * 100 + (appVersionMatch.group(3) as int)
+
 // Release signing (docs/ANDROID.md): keystore.properties beside this project, never committed,
 // names the upload keystore and its passwords. Without it a release build is left unsigned.
 def keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -15,8 +27,8 @@ android {
         applicationId "za.co.fleetwise.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode appVersionCode
+        versionName appVersionName
         // The host whose https links open in the app (App Links); -PappLinkHost=... for a test build.
         manifestPlaceholders = [appLinkHost: (project.findProperty("appLinkHost") ?: "app.fleet-wise.co.za")]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

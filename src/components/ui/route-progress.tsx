@@ -147,7 +147,8 @@ export function RouteProgress() {
       // Decorative: the page's own loading skeleton is what a screen reader should
       // announce, and two "loading" announcements per navigation is one too many.
       aria-hidden
-      className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-0.5"
+      // `top-safe`: just below the status bar in the Android app, where it can be seen.
+      className="top-safe pointer-events-none fixed inset-x-0 z-[100] h-0.5"
     >
       <div
         className="h-full bg-brand-500 shadow-[0_0_8px_rgba(10,110,60,0.5)] transition-[width] duration-200 ease-out"
