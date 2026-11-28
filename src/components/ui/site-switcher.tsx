@@ -119,7 +119,9 @@ export function SiteSwitcherChip({
                 className={cn(
                   "focus-ring flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 text-left text-base font-medium",
                   selected
-                    ? "bg-accent-tint font-semibold text-ink ring-1 ring-accent-rim"
+                    // Inside the row, as in the menu sheet: an outside ring is cut off by
+                    // whatever sits on top of the row's edge (nav.tsx, 28 Nov 2026).
+                    ? "bg-accent-tint font-semibold text-ink ring-1 ring-inset ring-accent-rim"
                     : "text-ink hover:bg-surface-sunken",
                 )}
               >

@@ -232,8 +232,11 @@ export function MoreMenu({
                       "focus-ring flex min-h-[52px] items-center gap-3 rounded-lg px-3 text-base font-medium",
                       // The selected state is the brand accent (gold) plus a
                       // weight change and aria-current, never colour alone.
+                      // `ring-inset`: an outside ring is painted over by the sticky
+                      // group heading above (z-10, solid), which cut off the top edge
+                      // and corners of the first row's outline (founder, 28 Nov 2026).
                       isActive
-                        ? "bg-accent-tint font-semibold text-ink ring-1 ring-accent-rim"
+                        ? "bg-accent-tint font-semibold text-ink ring-1 ring-inset ring-accent-rim"
                         : "text-ink hover:bg-surface-sunken",
                     )}
                   >
