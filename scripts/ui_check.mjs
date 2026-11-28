@@ -124,15 +124,18 @@ const ROUTES = [
    *
    * Two numbers here are deliberately loose, and both were measured rather than chosen:
    *
-   *   · `maxControls: 4` because the Overview tab keeps the "log a meter reading" form
+   *   · `maxControls: 5` because the Overview tab keeps the "log a meter reading" form
    *     (reading, date, driver) plus a photo input. Logging hours is the one thing an
    *     operator opens this screen to DO, daily, and putting the daily task behind a
-   *     button to save four controls would be the tail wagging the dog.
+   *     button to save four controls would be the tail wagging the dog. The fifth is the
+   *     photo input's "keep the original" box (B1, upload-field.tsx): a photo is reduced
+   *     the moment it is chosen, so the choice must be on screen before it, not after.
+   *     Measured on the live site on 28 Nov 2026.
    *   · `minTriggers: 2` because the page is five `Tabs` and only the active panel is
    *     rendered, so the eleven dialogs on Servicing, Costs and Papers are not in the
    *     DOM until their tab is chosen. Two is what Overview actually carries.
    */
-  { path: `/machines/${TEST_MACHINE}`, maxControls: 4, minTriggers: 2 },
+  { path: `/machines/${TEST_MACHINE}`, maxControls: 5, minTriggers: 2 },
 ];
 
 const CHROMES = [
@@ -271,6 +274,8 @@ const MOBILE_ROUTES = [
   "/checklists/new", "/documents", "/documents/corrections", "/work",
   "/account", "/notifications", "/help", "/inbox", "/billing", "/install",
   "/assistant", "/onboarding", "/queue", "/closed", "/home", "/offline",
+  // Final development (B2 chat, B3 trips and maps, B5 imports and custom fields).
+  "/chat", "/imports", "/settings/fields", "/map", "/trips", "/trips/report",
 ];
 
 const ws = new WebSocket(await debuggerUrl());

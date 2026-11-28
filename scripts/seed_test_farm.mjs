@@ -57,49 +57,82 @@ const client = new pg.Client({
 await client.connect();
 
 if (REMOVE) {
-  // Children first, then the farm, then the auth user. Anything the farm owns that is not
-  // listed here would block the delete and say so, which is the point of doing it by hand
-  // rather than relying on a cascade nobody has read.
-  const tables = [
-    "warranty_claims", "driver_credentials", "incidents", "fuel_dips", "meter_replacements",
-    "licences", "fines", "usage_logs", "faults", "job_cards", "machines",
-    "billing_invoices", "billing_subscriptions", "notifications", "audit_log",
-  ];
+  /*
+   * Every row this throwaway farm owns, in whatever table it lives. A hand-kept list of
+   * tables fell behind the schema: on 28 Nov 2026 `cost_entries` (written by the seeded job
+   * card) blocked the old list's delete of the job card and the machines, and the whole
+   * removal rolled back. So the tables are read from the catalogue instead.
+   *
+   * `session_replication_role = replica` lifts triggers for this one transaction: guarded
+   * ledgers (`ai_usage`, cost entries, the audit log) do not refuse, and foreign keys do
+   * not block. It also means nothing cascades, so every column that can point at one of
+   * the fixed ids is visited explicitly, auth's own tables included, and before committing
+   * every uuid column in the app's schemas is scanned for a leftover. Any leftover rolls
+   * the whole removal back and is named, rather than being left orphaned.
+   */
+  const farmIds = [IDS.farm];
+  const userIds = [IDS.owner];
+  const machineIds = [IDS.machineA, IDS.machineB];
+  const jobIds = [IDS.jobCard];
+  const byColumn = {
+    farm_id: farmIds, about_farm_id: farmIds, billing_farm_id: farmIds,
+    user_id: userIds, profile_id: userIds, created_by: userIds, actor_id: userIds,
+    machine_id: machineIds, job_card_id: jobIds,
+  };
   await client.query("begin");
-  // The AI and voice ledger (docs/AI_USAGE.md), children first: a tap on the mic in a
-  // browser check writes holds, a voice session and a ledger row. `ai_usage` is a money
-  // record whose guard refuses DELETE, so for this throwaway farm only, inside this one
-  // transaction, the guard is lifted for exactly that delete and put straight back.
-  const { rows: ledger } = await client.query("select to_regclass('public.ai_usage') is not null as present");
-  if (ledger[0]?.present) {
-    await client.query("alter table public.ai_usage disable trigger ai_usage_guard");
-    await client.query("delete from public.ai_usage where farm_id = $1", [IDS.farm]);
-    await client.query("alter table public.ai_usage enable trigger ai_usage_guard");
-    for (const t of ["ai_voice_sessions", "ai_reservations", "farm_member_ai_limits", "farm_ai_keys", "farm_ai_settings"]) {
-      await client.query(`delete from public.${t} where farm_id = $1`, [IDS.farm]);
-    }
-  }
-  for (const t of tables) {
-    try {
-      await client.query(`delete from public.${t} where farm_id = $1`, [IDS.farm]);
-    } catch (e) {
-      console.log(`  (skipped ${t}: ${e.message.split("\n")[0]})`);
-    }
-  }
-  // Audit rows of tables narrower than a farm's log (billing, notifications) are filed for
-  // Rapid Rise with the farm in about_farm_id since 20261028091500.
-  const { rows: about } = await client.query(
-    "select exists(select 1 from information_schema.columns where table_schema = 'public'" +
-      " and table_name = 'audit_log' and column_name = 'about_farm_id') as present"
+  await client.query("set local session_replication_role = replica");
+  const { rows: cols } = await client.query(
+    `select c.table_schema s, c.table_name t, c.column_name col
+       from information_schema.columns c
+       join information_schema.tables t
+         on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
+      where (c.table_schema in ('public', 'app') and c.column_name = any($1))
+         or (c.table_schema = 'auth' and c.column_name = 'user_id')`,
+    [Object.keys(byColumn)],
   );
-  if (about[0]?.present) {
-    await client.query("delete from public.audit_log where about_farm_id = $1", [IDS.farm]);
+  let removed = 0;
+  // Sign-in claims point at a session, not at the user, so they go before the sessions do.
+  if ((await client.query("select to_regclass('auth.mfa_amr_claims') is not null as present")).rows[0].present) {
+    removed += (await client.query(
+      "delete from auth.mfa_amr_claims where session_id in (select id from auth.sessions where user_id = any($1::uuid[]))",
+      [userIds],
+    )).rowCount;
   }
-  await client.query("delete from public.users where id = $1", [IDS.owner]);
-  await client.query("delete from public.farms where id = $1", [IDS.farm]);
-  await client.query("delete from auth.users where id = $1", [IDS.owner]);
+  for (const { s, t, col } of cols) {
+    const ids = s === "auth" ? userIds : byColumn[col];
+    // ::text, because auth.refresh_tokens.user_id is text and a few app columns may be too.
+    const r = await client.query(`delete from "${s}"."${t}" where "${col}"::text = any($1)`, [ids]);
+    if (r.rowCount) console.log(`  ${s}.${t} (${col}): ${r.rowCount}`);
+    removed += r.rowCount;
+  }
+  removed += (await client.query("delete from public.job_cards where id = any($1)", [jobIds])).rowCount;
+  removed += (await client.query("delete from public.machines where id = any($1)", [machineIds])).rowCount;
+  removed += (await client.query("delete from public.users where id = any($1)", [userIds])).rowCount;
+  removed += (await client.query("delete from public.farms where id = any($1)", [farmIds])).rowCount;
+  removed += (await client.query("delete from auth.users where id = any($1)", [userIds])).rowCount;
+
+  // Nothing may still point at any fixed id, in any uuid column of the app's schemas.
+  const everyId = [...farmIds, ...userIds, ...machineIds, ...jobIds];
+  const { rows: uuidCols } = await client.query(
+    `select c.table_schema s, c.table_name t, c.column_name col
+       from information_schema.columns c
+       join information_schema.tables t
+         on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
+      where c.table_schema in ('public', 'app', 'auth') and c.data_type = 'uuid'`,
+  );
+  const leftovers = [];
+  for (const { s, t, col } of uuidCols) {
+    const n = (await client.query(`select count(*)::int n from "${s}"."${t}" where "${col}" = any($1::uuid[])`, [everyId])).rows[0].n;
+    if (n) leftovers.push(`${s}.${t}.${col}: ${n}`);
+  }
+  if (leftovers.length) {
+    await client.query("rollback");
+    console.log(`Not removed: rows still point at the test farm, so nothing was deleted.\n  ${leftovers.join("\n  ")}`);
+    await client.end();
+    process.exit(1);
+  }
   await client.query("commit");
-  console.log("Test farm removed.");
+  console.log(`Test farm removed (${removed} rows; no uuid column still points at it).`);
   await client.end();
   process.exit(0);
 }
@@ -114,16 +147,24 @@ await client.query("begin");
 
 // The auth user. `crypt` with bcrypt is what Supabase Auth stores, so the password works
 // through the ordinary sign-in path rather than through an admin back door.
+// The four token columns are empty text, as Supabase Auth writes them itself: left NULL, its
+// sign-in cannot read the row and answers 500 "Database error querying schema" (28 Nov 2026).
 await client.query(
   `insert into auth.users (
      instance_id, id, aud, role, email, encrypted_password,
      email_confirmed_at, created_at, updated_at,
-     raw_app_meta_data, raw_user_meta_data
+     raw_app_meta_data, raw_user_meta_data,
+     confirmation_token, recovery_token, email_change_token_new, email_change
    ) values (
      '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2,
      crypt($3, gen_salt('bf')), now(), now(), now(),
-     '{"provider":"email","providers":["email"]}'::jsonb, '{"name":"Click Through"}'::jsonb
-   ) on conflict (id) do update set encrypted_password = crypt($3, gen_salt('bf'))`,
+     '{"provider":"email","providers":["email"]}'::jsonb, '{"name":"Click Through"}'::jsonb,
+     '', '', '', ''
+   ) on conflict (id) do update set encrypted_password = crypt($3, gen_salt('bf')),
+     confirmation_token = coalesce(auth.users.confirmation_token, ''),
+     recovery_token = coalesce(auth.users.recovery_token, ''),
+     email_change_token_new = coalesce(auth.users.email_change_token_new, ''),
+     email_change = coalesce(auth.users.email_change, '')`,
   [IDS.owner, EMAIL, PASSWORD],
 );
 
