@@ -447,3 +447,12 @@ keys, design and errors gates clean.
 The full A1 report (done with commits, scenarios by test, not done, assumptions, risks,
 blockers, handover) is in the worker's final message: writing a separate REPORT-A1.md file
 was refused by the agent harness.
+
+## 28 November 2026 (after the release): status bar and app versions
+
+Founder request after the release. Done in this lane, merged through `final-dev`:
+status bar insets (globals.css `--safe-top`), `native/version.json` as the only app version
+(1.1.0), the update policy (20261128100000, `/admin/app-version`), `NativeUpdateGate`,
+`DeployWatch`, the "updated while open" error screen, and the fixed test signing key in the
+Android workflow. Details in docs/BUILD_LOG.md (28 November, second entry) and
+docs/ANDROID.md (Updates and versions). Not proven on a phone here: needs the founder's.

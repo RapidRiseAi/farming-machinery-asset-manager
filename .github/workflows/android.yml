@@ -33,9 +33,36 @@ jobs:
           java-version: 21
       # Copies the two local pages, the generated config and the plugin list into the project.
       - run: pnpm exec cap sync android
+      # A fixed test key (repository secret ANDROID_TEST_KEYSTORE: an Android debug keystore,
+      # base64), so each test build installs over the one before it. Without it Gradle makes a
+      # new debug key on every run and the phone refuses the update ("App not installed").
+      # Test builds only: Google Play builds are signed with the founder's upload key, never here.
+      - name: Use the fixed test signing key
+        env:
+          TEST_KEYSTORE: ${{ secrets.ANDROID_TEST_KEYSTORE }}
+        run: |
+          if [ -n "$TEST_KEYSTORE" ]; then
+            mkdir -p ~/.android
+            echo "$TEST_KEYSTORE" | base64 -d > ~/.android/debug.keystore
+            echo "ok: signing with the fixed test key"
+          else
+            echo "no ANDROID_TEST_KEYSTORE: this build signs with a new debug key and cannot update an installed test app"
+          fi
       - name: Build the debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
+      # The built app says native/version.json's version, with the build number from the rule in
+      # src/lib/native/app-version.ts (versionCodeOf), so Google Play always sees it rise.
+      - name: Check the app's version and build number
+        run: |
+          want_name=$(node -p 'require("./native/version.json").version')
+          want_code=$(node -p 'const [a, b, c] = require("./native/version.json").version.split(".").map(Number); a * 10000 + b * 100 + c')
+          aapt2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          badging=$("$aapt2" dump badging android/app/build/outputs/apk/debug/app-debug.apk | head -1)
+          echo "$badging"
+          echo "$badging" | grep -q "versionCode='$want_code'" || { echo "FAILED: build number is not $want_code"; exit 1; }
+          echo "$badging" | grep -q "versionName='$want_name'" || { echo "FAILED: version is not $want_name"; exit 1; }
+          echo "ok: version $want_name, build $want_code"
       # Kept even when a check below fails, so the build can be inspected.
       - uses: actions/upload-artifact@v4
         with:

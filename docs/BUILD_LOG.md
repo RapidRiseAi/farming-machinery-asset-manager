@@ -6218,3 +6218,42 @@ The founder said "release" on 28 November. Released from `.fw-integration` per
     watched.
   - The website (A5) is not published.
   - No real payment, email journey or phone test was run.
+
+## 28 November 2026: the app clears the status bar, and versions are enforced
+
+The founder, after the release: in the Android app the screen sat under the phone's clock,
+signal and battery; the app should detect a new version and block until it is updated, with
+"skip for now" but asked again on every open while online; an older version must never break.
+
+- **Status bar.** The app targets Android 16, which always draws edge to edge. Capacitor 8's
+  SystemBars plugin passes the bar's height to the page (`env(safe-area-inset-top)` on
+  WebView 140 and later, `--safe-area-inset-top` always), but only the bottom tab bar used
+  it. `globals.css` now pads `<body>` by `--safe-top` with a solid strip behind the bar;
+  the sticky headers, tablet sidebar, loading bar, dialogs and skip link stop below it; and
+  `min-h-dvh` is the screen below the bar, so pages do not scroll by its height. All 0px in
+  a browser. A web change, so it reaches the app already on phones without a reinstall.
+  `NativeSystemBars` keeps the status icons readable when the app's theme differs from the
+  phone's; `capacitor.config.ts` gives SystemBars the viewport hint so a new build does not
+  jump on its first frame.
+- **App versions** (`native/version.json`, the only source; build number major x 10000 +
+  minor x 100 + patch, checked against the built APK in the Android workflow). The new
+  build is 1.1.0, build 10100; every earlier one is 1.0.0, build 1.
+- **Update gate.** `/admin/app-version` sets the newest and the oldest allowed version and
+  the update link (`app.native_app_releases`, 20261128100000, service-only functions, the
+  database checks Rapid Rise again). The app asks on every open below the newest ("Not
+  now" lasts until the next open: started again, or back after 15 minutes), and blocks
+  below the oldest allowed. A failed check never asks or blocks. Works on the 1.0.0 shell
+  already on phones: it needs only `@capacitor/app`.
+- **Web releases.** Next.js 15 gives form actions new ids on every build, so a page left
+  open across a release failed on its next form ("Server Action not found"), which the
+  app and an office tab make likely. `DeployWatch` compares the page's deployment with
+  `/api/public/app-version` on return and every 10 minutes: it reloads on return when
+  nothing is typed or saving, and otherwise shows a Reload bar. `ErrorScreen` explains a
+  form that still fails that way instead of "something went wrong".
+- **Test builds install over each other:** the Android workflow signs them with a fixed
+  test key (secret `ANDROID_TEST_KEYSTORE`). Phones with a build from before today must
+  uninstall it once.
+- Tests: `src/lib/native/app-version.test.ts` (versions, build numbers, the gate's
+  decision, the single source); `supabase/tests/native_app_releases.sql` (service key
+  only, Rapid Rise only, every malformed version and link refused, run against all
+  migrations in PGlite before CI).

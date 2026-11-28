@@ -45,7 +45,9 @@ export function ErrorScreen({
   // A form posted from a screen opened before a release: Next.js 15 gives every build new action
   // ids, so the site no longer knows the one this screen sent. Nothing broke and nothing saved;
   // a reload brings the new release (DeployWatch usually reloads before this can happen).
-  const updated = unstable_isUnrecognizedActionError(error);
+  // `as unknown`: the check is a type guard, and narrowing `error` would leave the rest of this
+  // component believing no other error can reach it.
+  const updated: boolean = unstable_isUnrecognizedActionError(error as unknown);
 
   useEffect(() => {
     const lang = document.documentElement.lang.slice(0, 2);

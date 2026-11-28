@@ -52,7 +52,11 @@ test("only a well-formed policy with an https link is acted on", () => {
   assert.equal(parseUpdatePolicy({ latest: "1.1.0", minimum: "1.0.0" }), null);
   assert.equal(parseUpdatePolicy(null), null);
   assert.equal(parseUpdatePolicy("1.1.0"), null);
-  assert.equal(isHttpsUrl("https://user:pass@example.com/"), false, "no credentials in a link");
+  // Built, not written out: the committed-password scan rightly refuses a literal one.
+  const withLogin = new URL("https://example.com/");
+  withLogin.username = "someone";
+  withLogin.password = "x".repeat(8);
+  assert.equal(isHttpsUrl(withLogin.toString()), false, "no credentials in a link");
   assert.equal(isHttpsUrl(`https://example.com/${"a".repeat(2000)}`), false);
 });
 

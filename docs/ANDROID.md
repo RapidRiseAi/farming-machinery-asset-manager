@@ -74,6 +74,35 @@ Everything here needs the founder: the Google Play developer account (in the bus
 6. **Prominent disclosure.** The words under "Record my route" (`map.nativeDisclosure`) say what is recorded, that it continues with the screen locked, that a notification shows, and how it stops. They are shown before the tap that brings up Android's location prompt.
 7. **Store listing.** Short and full description, icon 512 x 512 (`public/icon-512.png`), feature graphic 1024 x 500, and at least two phone screenshots.
 
+## Updates and versions
+
+Added 28 November 2026. The app has two kinds of update, and they work differently.
+
+**The website (every screen).** The app opens the live site, so a web release reaches every phone by itself. Moving to another screen after a release already loads the new one, because Next.js reloads the page when it sees a newer build. A page left open across a release would otherwise fail on its next form, because every build gives the form actions new ids. `DeployWatch` (`src/components/ui/deploy-watch.tsx`) handles that:
+- coming back after a minute or more away, with a newer release live and nothing typed or saving, the page reloads itself;
+- otherwise a small bar says FLEETWISE was updated and offers Reload;
+- a form that is still sent from an old page gets "FLEETWISE was updated while this screen was open" with a Reload button (`ErrorScreen`), not "something went wrong".
+
+**The app itself (the shell).** Its plugins and Android settings change only with a new build.
+- **One source.** The version is in `native/version.json` and nowhere else. `android/app/build.gradle` makes the build number from it: major x 10000 + minor x 100 + patch, so 1.1.0 is build 10100. The Android workflow fails if the built app says anything else. Every app built before 28 November 2026 is 1.0.0, build 1.
+- **Rapid Rise sets two versions** at `/admin/app-version` (table `app.native_app_releases`, migration `20261128100000`):
+  - **Newest.** An older app is asked to update each time it is opened, with "Update now" and "Not now". "Not now" lasts until the app is next opened: closed and started again, or back in front after 15 minutes away.
+  - **Oldest allowed.** An older app shows the same screen with no "Not now", over everything, until it is updated. Raise it only when the site needs something older apps do not have. A drive that is recording keeps recording behind it.
+- **The update link.** "Update now" opens it outside the app: the Play Store listing (`https://play.google.com/store/apps/details?id=za.co.fleetwise.app`), or a download page for a test build.
+- **Never locked out by a failed check.** With no signal, an unreadable answer or an unreadable version, nobody is asked or blocked. It checks again when the signal returns. The check is `/api/public/app-version` (public, no cookies, the database asked at most every 30 seconds per server). The gate (`src/components/native/update-gate.tsx`) uses only `@capacitor/app`, which every app ever built has, so it works on the oldest one too.
+
+**Releasing a new app build:**
+1. Raise `version` in `native/version.json`, for example 1.1.0 to 1.2.0.
+2. Build it. The Android workflow's debug build is the test build; the release bundle comes from the founder's machine (above).
+3. Publish it: upload it to Play (and wait until the release reaches everyone), or put the test build where the update link points.
+4. Then set **Newest** to it at `/admin/app-version`. Raise **Oldest allowed** only if older apps must stop.
+
+**Older apps keep working.** Web code that uses a plugin added after 1.0.0 must check `Capacitor.isPluginAvailable(...)` first and do without it when it is missing, or raise Oldest allowed to the first version that has it.
+
+**Test builds install over each other.** The workflow signs debug builds with a fixed test key (repository secret `ANDROID_TEST_KEYSTORE`, set 28 November 2026). Builds made before then each had their own random key, so a phone with one must uninstall it once before installing a newer test build. A build from Google Play is signed with another key again: going from a test build to the Play build also needs one uninstall.
+
+**The status bar.** From Android 15 an app always draws under the status bar and gesture strip. Capacitor's SystemBars plugin hands their sizes to the page (`insetsHandling: "css"`, `initialViewportFitValueHint: "cover"` in `capacitor.config.ts`), and `globals.css` (`--safe-top`, `--safe-bottom`) keeps every screen, sticky header and dialog clear of them. `NativeSystemBars` keeps the clock and battery icons readable when the app's own theme differs from the phone's.
+
 ## Tests on a real phone (not done: needs the founder's phone and the Play account)
 
 Install the debug app (`adb install -r app-debug.apk`), or later the Internal testing build. Then, with a test business on Complete and the map flag on, record each of these:
