@@ -503,7 +503,9 @@ html[data-booting] label:has(> input[type="checkbox"]:not(:disabled)) {
     top: calc(var(--safe-top) + 0.5rem);
     left: 0.5rem;
     z-index: 100;
-    transform: translateY(-160%);
+    /* Up by its own height, the status bar and its offset: -160% alone left 11px of green
+       showing under the clock once the link sat below the status bar (28 Nov 2026). */
+    transform: translateY(calc(-100% - var(--safe-top) - 1rem));
     transition: transform 0.16s ease-out;
     @apply rounded-lg bg-brand-600 px-4 py-3 text-base font-semibold text-white shadow-pop;
   }
