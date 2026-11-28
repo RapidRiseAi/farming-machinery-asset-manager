@@ -36,15 +36,17 @@ jobs:
       # A fixed test key (repository secret ANDROID_TEST_KEYSTORE: an Android debug keystore,
       # base64), so each test build installs over the one before it. Without it Gradle makes a
       # new debug key on every run and the phone refuses the update ("App not installed").
-      # Test builds only: Google Play builds are signed with the founder's upload key, never here.
+      # Gradle is told the file by FW_TEST_KEYSTORE (android/app/build.gradle): a key left in
+      # ~/.android was NOT used on the runner (28 Nov 2026). Test builds only: Google Play builds
+      # are signed with the founder's upload key, never here.
       - name: Use the fixed test signing key
         env:
           TEST_KEYSTORE: ${{ secrets.ANDROID_TEST_KEYSTORE }}
         run: |
           if [ -n "$TEST_KEYSTORE" ]; then
-            mkdir -p ~/.android
-            echo "$TEST_KEYSTORE" | base64 -d > ~/.android/debug.keystore
-            echo "ok: signing with the fixed test key"
+            echo "$TEST_KEYSTORE" | base64 -d > "$RUNNER_TEMP/fw-test.keystore"
+            echo "FW_TEST_KEYSTORE=$RUNNER_TEMP/fw-test.keystore" >> "$GITHUB_ENV"
+            echo "FW_TEST_CERT_SHA256=F3:F1:4F:0F:BC:75:90:DC:80:21:75:41:F2:2D:F6:05:56:72:05:E5:7F:A4:C8:E7:FF:1A:F9:23:AC:1D:FB:C9" >> "$GITHUB_ENV"
           else
             echo "no ANDROID_TEST_KEYSTORE: this build signs with a new debug key and cannot update an installed test app"
           fi
@@ -63,6 +65,16 @@ jobs:
           echo "$badging" | grep -q "versionCode='$want_code'" || { echo "FAILED: build number is not $want_code"; exit 1; }
           echo "$badging" | grep -q "versionName='$want_name'" || { echo "FAILED: version is not $want_name"; exit 1; }
           echo "ok: version $want_name, build $want_code"
+      # Signed with the fixed test key, proven from the APK itself (its certificate's SHA-256),
+      # not from a step that merely wrote the key somewhere.
+      - name: Check the test signing key
+        run: |
+          if [ -n "${FW_TEST_CERT_SHA256:-}" ]; then
+            node scripts/apk_cert_sha256.mjs android/app/build/outputs/apk/debug/app-debug.apk "$FW_TEST_CERT_SHA256"
+            echo "ok: signed with the fixed test key"
+          else
+            echo "signed with: $(node scripts/apk_cert_sha256.mjs android/app/build/outputs/apk/debug/app-debug.apk) (no fixed test key)"
+          fi
       # Kept even when a check below fails, so the build can be inspected.
       - uses: actions/upload-artifact@v4
         with:
