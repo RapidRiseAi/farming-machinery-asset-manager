@@ -6166,3 +6166,55 @@ the existing sessions/events. Atomic request receipts prevent duplicate events; 
 versions refuse stale edits. EN/AF dialogs preserve failed drafts in the browser tab.
 Claude owns review/integration. Full B3 remains open. Evidence and limitations are in
 final-dev/REPORT-B3-DRIVING.md; no merge, production access or deployment occurred.
+
+## 28 November 2026: final development released to production
+
+The founder said "release" on 28 November. Released from `.fw-integration` per
+`docs/final-dev/RELEASE-NOTES.md` section 3, all twelve tasks (A1 to A6, B1 to B6).
+
+- **Before:** a JSON copy of every public and app table (146 tables, 943 rows, 2 auth
+  users) kept outside the repo, because the Supabase project is on the Free plan (no
+  restorable backups). The global file limit was probed at 52,428,800 bytes (50 MiB):
+  enough, so `UPLOAD_GLOBAL_LIMIT_BYTES` stays unset. `AI_KEY_SECRET` was created in
+  Vercel (Production and Preview) before the deploy.
+- **Dry run:** it first stopped on the probe for 20261114090400, which cast a function
+  that only that migration creates (`::regprocedure` raises instead of answering "not
+  applied"). Nothing was applied. All 30 new probes were then run read-only against
+  production: one error, 29 pending. Fixed with `to_regprocedure` (4d82905); the dry run
+  then listed exactly the 30 migrations in order.
+- **Applied:** 08:21:05 to 08:22:57 UTC, 30 of 30, one transaction each. The final check
+  showed two OLDER probes answering false: A1 gates book values as `depreciation`, not
+  `tco`, and B1 raised the jobcard-photos limit from 10 MiB to 50 MB. Both changes are
+  intended, but a stale probe would make a later `--apply` re-run the old file and undo
+  them. Fixed (e815796); the dry run then said nothing pending, all 147 probes true.
+- **Deployed:** `881a033` (the commit CI passed) pushed to `main` at 08:23:01. Vercel
+  production deployment `oci6klf15` was Ready about 4 minutes later.
+- **Live checks:**
+  - `/api/health`: no problems. Warnings: `payments_test_mode` (the Production Paystack
+    key is a test key) and `captcha_not_configured`. Both are founder actions.
+  - The Vercel error log was empty for the hour after the release.
+  - Every database scheduler call to `/api/cron/whatsapp` answered 200, with B4's new
+    `photos` field.
+  - The security advisor showed nothing new. The eight `*_visible` views it marks ERROR
+    are owned by `fleetwise_cost_reader` (no BYPASSRLS) and only mask cost columns. Read
+    as a signed-in stranger, `job_cards_visible` showed 0 of the table's 1 row.
+- **Browser checks against production**, with the click-through test farm seeded and
+  then removed:
+  - `ui_check`: 13 dialog routes, and 62 routes at 360 and 1024 px, including the new
+    chat, imports, fields, map and trips screens. The only failure was the vehicle
+    page's control ceiling, raised to 5 (B1's keep-original box).
+  - `ready_check`: 56 of 56.
+  - Two seed bugs fixed on the way (8494aea): NULL auth token columns made sign-in answer
+    500, and the hand-kept removal list missed `cost_entries`.
+  - The removal took 31 rows, and no uuid column still points at the test farm.
+  - Row counts against the snapshot: farms 1 and auth users 2, as before. Every other
+    difference is a migration's own write (prices, flags, rules, the spending limit
+    moved for the founder's farm, and its in-app notice `assistance_budget_migrated`).
+- **Not done here:**
+  - Step 6 (a day later): `enforce_reserved_paths = true`, then the follow-up migration
+    dropping `billing_change_quota` and `billing_change_plan`.
+  - The first night of the new nightly steps (`storage_measure`, `apply_service_agreements`,
+    `closure_logins`, retention dry run, `export_worker`, `export_cleanup`) is still to be
+    watched.
+  - The website (A5) is not published.
+  - No real payment, email journey or phone test was run.
