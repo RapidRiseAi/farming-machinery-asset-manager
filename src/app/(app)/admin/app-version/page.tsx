@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { parseAppVersion, PLAY_STORE_URL, versionCodeOf } from "@/lib/native/app-version";
 import { createServiceClient } from "@/lib/supabase/service";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { DialogActions, DialogFields, DialogForm } from "@/components/ui/dialog-form";
 import { Fact, FactList } from "@/components/ui/facts";
 import { Field } from "@/components/ui/field";
 import { Flash } from "@/components/ui/flash";
@@ -65,18 +66,23 @@ export default async function AppVersionPage({ searchParams }: { searchParams: P
           <li>Then set the newest version to it. Every phone with an older app is asked to update each time it opens the app, and may tap &quot;Not now&quot;.</li>
           <li>Raise the oldest allowed only when the site needs the new app to work. Phones below it cannot use FLEETWISE until they update.</li>
         </ol>
-        <form action={setAppVersions} className="flex flex-col gap-4">
-          <Field label="Newest version" htmlFor="app-latest" hint="Three numbers, like 1.1.0." required>
-            <Input id="app-latest" name="latest" required defaultValue={release?.latest ?? "1.0.0"} inputMode="decimal" autoComplete="off" pattern="[1-9][0-9]{0,4}\.[0-9]{1,2}\.[0-9]{1,2}" />
-          </Field>
-          <Field label="Oldest allowed version" htmlFor="app-minimum" hint="Not newer than the newest. 1.0.0 lets every app in." required>
-            <Input id="app-minimum" name="minimum" required defaultValue={release?.minimum ?? "1.0.0"} inputMode="decimal" autoComplete="off" pattern="[1-9][0-9]{0,4}\.[0-9]{1,2}\.[0-9]{1,2}" />
-          </Field>
-          <Field label="Update link" htmlFor="app-url" hint={`Where "Update now" goes. On Google Play: ${PLAY_STORE_URL}`} required>
-            <Input id="app-url" name="url" type="url" required defaultValue={release?.url ?? PLAY_STORE_URL} maxLength={2000} autoComplete="off" />
-          </Field>
-          <div><SubmitButton>Save the versions</SubmitButton></div>
-        </form>
+        <DialogForm trigger="Change the versions" title="Android app versions" closeLabel="Close"
+          description="Phones read the new values the next time the app is opened, or within half a minute.">
+          <form action={setAppVersions}>
+            <DialogFields columns={1}>
+              <Field label="Newest version" htmlFor="app-latest" hint="Three numbers, like 1.1.0." required>
+                <Input id="app-latest" name="latest" required defaultValue={release?.latest ?? "1.0.0"} inputMode="decimal" autoComplete="off" pattern="[1-9][0-9]{0,4}\.[0-9]{1,2}\.[0-9]{1,2}" />
+              </Field>
+              <Field label="Oldest allowed version" htmlFor="app-minimum" hint="Not newer than the newest. 1.0.0 lets every app in." required>
+                <Input id="app-minimum" name="minimum" required defaultValue={release?.minimum ?? "1.0.0"} inputMode="decimal" autoComplete="off" pattern="[1-9][0-9]{0,4}\.[0-9]{1,2}\.[0-9]{1,2}" />
+              </Field>
+              <Field label="Update link" htmlFor="app-url" hint={`Where "Update now" goes. On Google Play: ${PLAY_STORE_URL}`} required>
+                <Input id="app-url" name="url" type="url" required defaultValue={release?.url ?? PLAY_STORE_URL} maxLength={2000} autoComplete="off" />
+              </Field>
+            </DialogFields>
+            <DialogActions cancelLabel="Cancel"><SubmitButton>Save the versions</SubmitButton></DialogActions>
+          </form>
+        </DialogForm>
       </Card>
     </PageContainer>
   );
